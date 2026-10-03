@@ -83,6 +83,37 @@ describe('toPostDto', () => {
     expect(toPostDto(row({ platformMetrics: null }), false, []).platformMetrics).toBeNull();
   });
 
+  /* A partial read keeps the views it did not get, and the row's own age moves
+     to that read. The DTO carries when views were actually last read, so the
+     tab can date the figure itself. */
+  it('says when views were last read: the later of the writer note and a views reading', () => {
+    const dto = toPostDto(
+      row({
+        platformMetrics: {
+          __measured: ['comments'],
+          __writers: { views: { source: 'public', at: '2026-10-02T13:00:53.000Z' } },
+        },
+        snapshots: [
+          { id: 's3', viewsCount: 17_406, recordedAt: new Date('2026-10-02T18:31:00.000Z'), platformMetrics: { __measured: ['comments'] } },
+          { id: 's2', viewsCount: 16_000, recordedAt: new Date('2026-10-01T09:08:00.000Z'), platformMetrics: { __measured: ['views', 'comments'] } },
+        ],
+      }),
+      false,
+      [],
+    );
+    expect(dto.viewsReadAt).toBe('2026-10-02T13:00:53.000Z');
+    expect(dto.snapshots.map((s) => s.id)).toEqual(['s2']);
+  });
+
+  it('has no views time when nothing on the post recorded one', () => {
+    const dto = toPostDto(
+      row({ platformMetrics: { __measured: ['comments'] }, snapshots: [] }),
+      false,
+      [],
+    );
+    expect(dto.viewsReadAt).toBeNull();
+  });
+
   it('normalises dates to ISO strings and missing ones to null', () => {
     const dto = toPostDto(row({ lastSyncedAt: null, authorProfilePic: null }), true, []);
     expect(dto.postedAt).toBe('2026-04-02T13:45:23.000Z');
@@ -117,6 +148,7 @@ describe('protobuf transport', () => {
         creator: null,
         snapshots: [],
         complianceFlags: [],
+        viewsReadAt: null,
       }),
     ];
     expect(decodePostList(encodePostList(before))).toEqual(before);

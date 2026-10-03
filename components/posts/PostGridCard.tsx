@@ -6,6 +6,7 @@ import { Eye, Heart, MessageCircle, TrendingUp, Share2, Bookmark, Check } from "
 import { formatDateAbs, formatFull } from "@/lib/format";
 import { fieldMetricValue, engagementRateValue, unwrittenMetricValue } from "@/lib/metricDisplay";
 import { postAgeContext, postMeasuredAt, postStatus } from "@/lib/posts/postStatus";
+import { viewsAsOf } from "@/lib/posts/fieldFreshness";
 import PostStatusChip from "@/components/posts/PostStatusChip";
 import { AgeLabel } from "@/components/ds/AgeLabel";
 import PostCover from "@/components/posts/PostCover";
@@ -51,6 +52,8 @@ export type PostCardPost = {
   lastSyncedAt: string | null;
   /** CreatorCore's last refresh, for an imported post we have not read. */
   lastFreshAt?: string | null;
+  /** When views were last read (lib/posts/fieldFreshness). */
+  viewsReadAt?: string | null;
   trackingEnabled?: boolean;
   trackingExpiresAt?: string | null;
   complianceFlags?: ComplianceFlag[];
@@ -86,6 +89,9 @@ function PostGridCardImpl({
   const status = postStatus(post);
   const measured = postMeasuredAt(post);
   const cardViews = fieldMetricValue(post.viewsCount, post.lastSyncedAt, post.platformMetrics, "views");
+  /* "Updated" below is the latest read. When that read did not return views,
+     the views line carries its own date. */
+  const viewsNote = cardViews === null ? null : viewsAsOf(post);
   const cardLikes = fieldMetricValue(post.likesCount, post.lastSyncedAt, post.platformMetrics, "likes");
   const cardComments = fieldMetricValue(post.commentsCount, post.lastSyncedAt, post.platformMetrics, "comments");
   const cardShares = fieldMetricValue(post.sharesCount, post.lastSyncedAt, post.platformMetrics, "shares");
@@ -200,13 +206,18 @@ function PostGridCardImpl({
             provenance answers that now, so they can be shown. */}
 {(() => {
           const rows = [
-            cardViews !== null && { key: "views", icon: <Eye size={13} aria-hidden="true" />, text: `${formatNumber(cardViews)} views` },
+            cardViews !== null && {
+              key: "views",
+              icon: <Eye size={13} aria-hidden="true" />,
+              text: `${formatNumber(cardViews)} views`,
+              ...(viewsNote ? { note: viewsNote.short, title: viewsNote.title } : {}),
+            },
             cardLikes !== null && { key: "likes", icon: <Heart size={13} aria-hidden="true" />, text: `${formatNumber(cardLikes)} likes` },
             cardComments !== null && { key: "comments", icon: <MessageCircle size={13} aria-hidden="true" />, text: `${formatNumber(cardComments)} comments` },
             cardShares !== null && { key: "shares", icon: <Share2 size={13} aria-hidden="true" />, text: `${formatNumber(cardShares)} shares` },
             cardSaves !== null && { key: "saves", icon: <Bookmark size={13} aria-hidden="true" />, text: `${formatNumber(cardSaves)} saves` },
             cardEngRate !== null && { key: "eng", icon: <TrendingUp size={13} aria-hidden="true" />, text: `${cardEngRate.toFixed(1)}% eng. rate` },
-          ].filter(Boolean) as { key: string; icon: ReactNode; text: string }[];
+          ].filter(Boolean) as { key: string; icon: ReactNode; text: string; note?: string; title?: string }[];
           // Nothing measured at all: say so once. Four zeroes claim
           // this post was watched by nobody, which we never checked.
           if (rows.length === 0) {
@@ -217,8 +228,13 @@ function PostGridCardImpl({
             );
           }
           return rows.map((row) => (
-            <div key={row.key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--cc-t-13)", marginBottom: 2 }}>
+            <div key={row.key} title={row.title} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--cc-t-13)", marginBottom: 2, minWidth: 0 }}>
               {row.icon}{row.text}
+              {row.note && (
+                <span style={{ fontSize: "var(--cc-t-11)", color: "color-mix(in srgb, var(--cc-overlay-ink-text) 72%, transparent)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  · {row.note}
+                </span>
+              )}
             </div>
           ));
         })()}

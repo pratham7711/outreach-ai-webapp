@@ -12,6 +12,7 @@ import type { ComplianceFlag } from "@/lib/compliance/postCompliance";
 import PostMedia from "@/components/PostMedia";
 import { unwrittenMetricValue, fieldMetricValue, engagementRateValue, summarizePostMetrics } from "@/lib/metricDisplay";
 import { postAgeContext, postMeasuredAt, postStatus } from "@/lib/posts/postStatus";
+import { viewsAsOf } from "@/lib/posts/fieldFreshness";
 import PostStatusChip from "@/components/posts/PostStatusChip";
 import { AgeLabel } from "@/components/ds/AgeLabel";
 import PostGridCard from "@/components/posts/PostGridCard";
@@ -75,6 +76,8 @@ type PostData = {
   lastSyncedAt: string | null;
   /** CreatorCore's last refresh, for an imported post we have not read. */
   lastFreshAt?: string | null;
+  /** When views were last read; shown beside a figure the latest read lacked. */
+  viewsReadAt?: string | null;
   authorProfilePic: string | null;
   createdAt?: string;
   hasOpenFraudFlag?: boolean;
@@ -1987,6 +1990,9 @@ export default function PostsTab({
                  MEASURED on production 2026-09-16: 149 Instagram posts synced
                  in 24h, not one of them carrying a view count, all showing 0. */
               const views = fieldMetricValue(post.viewsCount, post.lastSyncedAt, post.platformMetrics, "views");
+              /* The row's Last Synced is the latest read; when that read did
+                 not return views, the figure carries its own date. */
+              const viewsNote = views === null ? null : viewsAsOf(post);
               // Per field: Instagram reports no shares, so a 0 there is ours, not theirs.
               const likes = fieldMetricValue(post.likesCount, post.lastSyncedAt, post.platformMetrics, "likes");
               const comments = fieldMetricValue(post.commentsCount, post.lastSyncedAt, post.platformMetrics, "comments");
@@ -2048,8 +2054,16 @@ export default function PostsTab({
                   </div>
                   <Badge variant={PLATFORM_BADGE[post.platform] ?? "neutral"} style={{ fontSize: "var(--cc-t-11)"}}>{post.platform}</Badge>
                   <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{formatDateAbs(post.postedAt)}</span>
-                  <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", textAlign: "right" }}>
+                  <span
+                    title={viewsNote?.title}
+                    style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", textAlign: "right" }}
+                  >
                     {views === null ? "" : formatNumber(views)}
+                    {viewsNote && (
+                      <span style={{ display: "block", fontSize: "var(--cc-t-11)", fontWeight: 400, color: "var(--cc-text-muted)", whiteSpace: "nowrap" }}>
+                        {viewsNote.short}
+                      </span>
+                    )}
                   </span>
                   {anyLikes && (
                     <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", textAlign: "right" }}>

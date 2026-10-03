@@ -29,8 +29,9 @@ describe("snapshotMetric", () => {
     expect(snapshotMetric(0, bag(["views", "comments"]), "views")).toBe(0);
   });
 
-  it("a carried-forward figure is kept whatever the list says", () => {
-    expect(snapshotMetric(4200, bag(["comments"]), "views")).toBe(4200);
+  it("a carried-forward figure the reading did not measure is unknown too", () => {
+    expect(snapshotMetric(4200, bag(["comments"]), "views")).toBeNull();
+    expect(snapshotMetric(4200, bag(["views", "comments"]), "views")).toBe(4200);
   });
 
   it("a row written before the list existed is taken as read", () => {
@@ -41,7 +42,8 @@ describe("snapshotMetric", () => {
   it("snapshotViewsKnown is the same rule for views", () => {
     expect(snapshotViewsKnown({ viewsCount: 0, platformMetrics: bag(["likes"]) })).toBe(false);
     expect(snapshotViewsKnown({ viewsCount: 0, platformMetrics: null })).toBe(true);
-    expect(snapshotViewsKnown({ viewsCount: 7, platformMetrics: bag([]) })).toBe(true);
+    expect(snapshotViewsKnown({ viewsCount: 7, platformMetrics: bag([]) })).toBe(false);
+    expect(snapshotViewsKnown({ viewsCount: 7, platformMetrics: null })).toBe(true);
   });
 });
 
@@ -65,6 +67,15 @@ describe("readableSnapshots", () => {
     expect(out.map((r) => r.id)).toEqual(["s0", "s4"]);
   });
 
+  it("drops one that carried the last views figure forward, too", () => {
+    const out = readableSnapshots([
+      row(0, 10_000, 500, ["views", "likes", "comments"]),
+      row(2, 10_000, 510, ["likes", "comments"]),
+      row(4, 10_400, 520, ["views", "likes", "comments"]),
+    ]);
+    expect(out.map((r) => r.id)).toEqual(["s0", "s4"]);
+  });
+
   it("holds a counter the reading left out at its last known level", () => {
     const out = readableSnapshots([
       row(0, 10_000, 500, ["views", "likes", "comments"]),
@@ -83,7 +94,7 @@ describe("readableSnapshots", () => {
 describe("snapshotViewsKnownSql", () => {
   it("names the alias it is given and the measured key", () => {
     const sql = snapshotViewsKnownSql("s");
-    expect(sql).toContain('s."viewsCount" = 0');
+    expect(sql).not.toContain('"viewsCount"');
     expect(sql).toContain(`s."platformMetrics" -> '${MEASURED_FIELDS_KEY}'`);
     // NULL-safe: a row with no bag must pass, not vanish from the chart.
     expect(sql).toContain("COALESCE(");
@@ -131,7 +142,7 @@ describe("posts list delta", () => {
         viewsCount: 10_400,
         snapshots: [
           { id: "s3", viewsCount: 10_400, recordedAt: at(6), platformMetrics: bag(["views"]) },
-          { id: "s2", viewsCount: 0, recordedAt: at(4), platformMetrics: bag(["comments"]) },
+          { id: "s2", viewsCount: 10_000, recordedAt: at(4), platformMetrics: bag(["comments"]) },
           { id: "s1", viewsCount: 10_000, recordedAt: at(2), platformMetrics: bag(["views"]) },
           { id: "s0", viewsCount: 9_000, recordedAt: at(0), platformMetrics: bag(["views"]) },
         ],

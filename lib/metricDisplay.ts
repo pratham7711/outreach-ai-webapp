@@ -188,16 +188,20 @@ export function fieldMetricValue(
  * the posts list a jump. The row's __measured list says which counters the
  * read held.
  *
- * A non-zero figure is kept whatever the list says: the writer now carries the
- * post's held figure into the row, which is stale but right. A row written
- * before __measured existed has no list and is taken as read, as before.
+ * The list decides, for a non-zero figure too. The writer carries the post's
+ * held figure into a counter the read left out, so a reader that ignores the
+ * list sees the level the post was at rather than a fall to 0 -- but that
+ * figure was not read at the row's recordedAt, and keeping it made a stale
+ * number look fresh: on 2026-10-02 the Instagram reads that measured no views
+ * still counted as views readings here, so a chart drew a point dated that
+ * day and the posts list took its delta against a number nobody had read. A
+ * row written before __measured existed has no list and is taken as read.
  */
 export function snapshotMetric(
   value: number | null | undefined,
   platformMetrics: unknown,
   field: MetricField,
 ): number | null {
-  if (typeof value === "number" && value > 0) return value;
   const fields = measuredFields(platformMetrics);
   if (fields && !fields.includes(field)) return null;
   return typeof value === "number" ? value : null;
@@ -245,11 +249,12 @@ export function readableSnapshots<T extends SnapshotCounters>(
 /**
  * snapshotViewsKnown as a SQL predicate over a PostMetricSnapshot alias, for
  * the readers that collapse snapshots in the database. Same rule, so a chart
- * drawn in SQL and one drawn in Node drop the same rows.
+ * drawn in SQL and one drawn in Node drop the same rows: a row whose list
+ * leaves out views is dropped whatever its viewsCount holds.
  */
 export function snapshotViewsKnownSql(alias: string): string {
   const bag = `${alias}."platformMetrics" -> '${MEASURED_FIELDS_KEY}'`;
-  return `NOT (${alias}."viewsCount" = 0 AND COALESCE(jsonb_typeof(${bag}) = 'array' AND NOT ((${bag}) @> '["views"]'::jsonb), false))`;
+  return `NOT COALESCE(jsonb_typeof(${bag}) = 'array' AND NOT ((${bag}) @> '["views"]'::jsonb), false)`;
 }
 
 /**

@@ -28,6 +28,7 @@
  */
 import { outreach } from "./postList.generated.js";
 import { snapshotViewsKnown } from "@/lib/metricDisplay";
+import { viewsReadAt } from "@/lib/posts/fieldFreshness";
 
 const PostListMessage = outreach.postlist.v1.PostList;
 
@@ -104,6 +105,8 @@ export type PostDto = {
   trackingEnabled: boolean;
   trackingExpiresAt: string | null;
   platformMetrics: PlatformMetricsDto;
+  /** When views were last read; see lib/posts/fieldFreshness. */
+  viewsReadAt: string | null;
   creator: CreatorDto | null;
   snapshots: SnapshotDto[];
   complianceFlags: ComplianceFlagDto[];
@@ -213,6 +216,14 @@ export function toPostDto(row: PostRow, hasOpenFraudFlag: boolean, complianceFla
     trackingEnabled: row.trackingEnabled === true,
     trackingExpiresAt: iso(row.trackingExpiresAt),
     platformMetrics: provenanceFrom(row.platformMetrics),
+    viewsReadAt: viewsReadAt(
+      row.platformMetrics,
+      snapshots.map((s) => ({
+        recordedAt: iso(s.recordedAt),
+        viewsCount: num(s.viewsCount),
+        platformMetrics: s.platformMetrics,
+      })),
+    ),
     creator: creator
       ? {
           id: str(creator.id),
@@ -264,6 +275,7 @@ export function encodePostList(posts: PostDto[]): Uint8Array {
       hasOpenFraudFlag: p.hasOpenFraudFlag,
       trackingEnabled: p.trackingEnabled,
       trackingExpiresAtMs: ms(p.trackingExpiresAt) ?? undefined,
+      viewsReadAtMs: ms(p.viewsReadAt) ?? undefined,
       creator: p.creator
         ? {
             id: p.creator.id,
@@ -345,6 +357,7 @@ export function decodePostList(bytes: Uint8Array): PostDto[] {
       trackingEnabled: p.trackingEnabled ?? false,
       trackingExpiresAt: msToIso(p.trackingExpiresAtMs),
       platformMetrics,
+      viewsReadAt: msToIso(p.viewsReadAtMs),
       creator: p.creator
         ? {
             id: p.creator.id ?? "",
