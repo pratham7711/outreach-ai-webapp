@@ -105,6 +105,13 @@ message Post {
      an imported post that we have never read was measured at, so its counters
      can show an age and its status can say "live as of" that day. */
   optional int64 last_fresh_at_ms = 29;
+
+  /* Why the post is being read, when it is: "tracker", "campaign" (it is in a
+     running campaign), "new-post" (its first 30 days) or "final-read" (an old
+     post's tracker, reading once more before it seals). tracking_enabled and
+     tracking_expires_at_ms above are the effective state these produce, not
+     the tracker row's own columns. */
+  optional string tracking_source = 31;
 }
 
 message PostList {

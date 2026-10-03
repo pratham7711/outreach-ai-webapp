@@ -7,7 +7,7 @@ import {
   effectiveChartGranularity,
   parsePostTracking,
 } from "@/lib/trackers/granularity";
-import { hoursRemaining } from "@/lib/sync/postTracking";
+import { isLiveCampaign, trackingView } from "@/lib/sync/postTracking";
 import { readableSnapshots } from "@/lib/metricDisplay";
 
 type RouteParams = { params: Promise<{ id: string; postId: string }> };
@@ -30,6 +30,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         trackingStartedAt: true,
         trackingTtlDays: true,
         trackingExpiresAt: true,
+        postedAt: true,
+        lastSyncedAt: true,
+        syncDisabledAt: true,
+        _count: { select: { snapshots: { where: { isFinalSnapshot: true } } } },
       },
     });
     if (!post) return NextResponse.json({ error: "Post not found" }, { status: 404 });
@@ -45,6 +49,24 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         ?.uiConfig ?? null,
     );
     const chartGranularity = effectiveChartGranularity(granularity);
+
+    /* Whether the cron reads this post, and why: its tracker, its first month,
+       or its campaign still running (postCoverage). The tracker's own columns
+       are returned too, for the TTL the panel offers. */
+    const now = new Date();
+    const view = trackingView({
+      trackingEnabled: post.trackingEnabled,
+      trackingStartedAt: post.trackingStartedAt,
+      trackingExpiresAt: post.trackingExpiresAt,
+      trackingTtlDays: post.trackingTtlDays,
+      lastSyncedAt: post.lastSyncedAt,
+      syncDisabledAt: post.syncDisabledAt,
+      hasFinalSnapshot: post._count.snapshots > 0,
+      granularity,
+      now,
+      postedAt: post.postedAt,
+      campaignLive: isLiveCampaign(campaign),
+    });
 
     /* Readings that did not measure views are dropped, and a counter a reading
        left out holds its last known level: a placeholder 0 between two real
@@ -81,26 +103,16 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }));
 
     return NextResponse.json({
-      trackingEnabled: post.trackingEnabled ?? false,
+      trackingEnabled: view.trackingEnabled,
+      trackingSource: view.trackingSource,
       trackingStartedAt: post.trackingStartedAt,
       trackingTtlDays: post.trackingTtlDays,
-      trackingExpiresAt: post.trackingExpiresAt,
-      /* Zero once the window has closed, so the panel can say "finished" rather
-         than counting into the negatives. */
-      hoursRemaining: post.trackingEnabled
-        ? hoursRemaining({
-            trackingEnabled: true,
-            trackingStartedAt: post.trackingStartedAt,
-            trackingExpiresAt: post.trackingExpiresAt,
-            trackingTtlDays: post.trackingTtlDays,
-            lastSyncedAt: null,
-            syncDisabledAt: null,
-            hasFinalSnapshot: false,
-            granularity,
-            now: new Date(),
-          })
+      trackingExpiresAt: view.trackingExpiresAt,
+      /* Null while a running campaign keeps it read, which has no end date. */
+      hoursRemaining: view.trackingExpiresAt
+        ? Math.max(0, Math.ceil((view.trackingExpiresAt.getTime() - now.getTime()) / 3_600_000))
         : null,
-      readCadence: granularity.readCadence,
+      readCadence: view.readCadence ?? granularity.readCadence,
       chartGranularity,
       /* How many raw readings exist behind the drawn points, so a thin chart
          reads as "downsampled" rather than as "barely collected". */

@@ -82,11 +82,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       now,
     });
 
-    const result = await db.post.updateMany({
-      // campaignId is the tenant guard; see the note at the top of this file.
-      where: { id: { in: ids }, campaignId },
-      data,
-    });
+    // campaignId is the tenant guard; see the note at the top of this file.
+    const update = db.post.updateMany({ where: { id: { in: ids }, campaignId }, data });
+    /* Tracking a sealed post again removes its seal, as the single-post route
+       does, or the cron never reads it while the list says it is tracked. */
+    const [result] =
+      action === "track"
+        ? await db.$transaction([
+            update,
+            db.postMetricSnapshot.deleteMany({
+              where: { isFinalSnapshot: true, post: { id: { in: ids }, campaignId } },
+            }),
+          ])
+        : [await update];
 
     const appliedTtl =
       action === "track" ? clampTtlDays(ttlDays ?? defaults.defaultTtlDays, defaults.defaultTtlDays) : undefined;

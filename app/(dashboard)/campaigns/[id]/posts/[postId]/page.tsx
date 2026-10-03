@@ -113,7 +113,10 @@ type TimeseriesSnapshot = {
 };
 
 type Timeseries = {
+  /** Whether the cron reads this post at all -- with a tracker or without. */
   trackingEnabled: boolean;
+  /** Why: "tracker", "campaign", "new-post" or "final-read". */
+  trackingSource?: string | null;
   trackingStartedAt: string | null;
   trackingTtlDays: number | null;
   trackingExpiresAt: string | null;
@@ -130,6 +133,16 @@ type Timeseries = {
    the unlimited number of them. */
 const TTL_CHOICES = [1, 3, 7, 14, 30] as const;
 const DEFAULT_TTL_CHOICE = 30;
+
+/* Three of the four reasons a post is read are automatic, and the panel has to
+   say which, or a post read because its campaign is running looks like one
+   somebody switched on -- and Untrack on it reads as undoing nothing. */
+function trackingSummary(source: string | null, cadence: string, remaining: string): string {
+  if (source === "campaign") return `Tracking on — read ${cadence} while this campaign is live.`;
+  if (source === "new-post") return `Tracking automatically for its first 30 days — read ${cadence}, ${remaining}.`;
+  if (source === "final-read") return "Older than 180 days — one more reading, then its numbers are kept as final.";
+  return `Tracking on — read ${cadence}, ${remaining}.`;
+}
 
 function formatRemaining(hours: number | null): string {
   if (hours === null || hours <= 0) return "finished";
@@ -736,10 +749,14 @@ export default function PostDetailPage() {
             </div>
             <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>
               {trackingEnabled
-                ? `Tracking on — read ${readCadenceLabel(timeseries?.readCadence ?? DEFAULT_POST_TRACKING.readCadence)}, ${formatRemaining(timeseries?.hoursRemaining ?? null)}.`
+                ? trackingSummary(
+                    timeseries?.trackingSource ?? null,
+                    readCadenceLabel(timeseries?.readCadence ?? DEFAULT_POST_TRACKING.readCadence),
+                    formatRemaining(timeseries?.hoursRemaining ?? null),
+                  )
                 : "Tracking off. Meta and IG only return lifetime totals, so enable tracking to record a real time series."}
             </p>
-            {trackingEnabled && timeseries?.trackingExpiresAt && (
+            {trackingEnabled && timeseries?.trackingExpiresAt && (timeseries.trackingSource ?? "tracker") === "tracker" && (
               <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)", margin: "4px 0 0" }}>
                 Stops on {new Date(timeseries.trackingExpiresAt).toLocaleDateString()} and seals
                 its final numbers. Tracked posts are unlimited because each one expires.

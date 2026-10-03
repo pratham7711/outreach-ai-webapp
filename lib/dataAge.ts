@@ -69,8 +69,10 @@ export type AgeContext = {
  *  - account: refresh-platform-tokens runs daily (vercel.json, 05:00).
  *  - tracker / sound: the org's read cadence (lib/trackers/granularity),
  *    12-hourly unless the org chose otherwise.
- *  - post: lib/sync/cadence's decideSyncAction reads a post every 6h for its
- *    first week and daily after that; the cron itself fires every 6h.
+ *  - post: the post sweep reads every post every 6h for its first week and
+ *    daily to day 30 (postCoverage in lib/sync/postTracking); the cron itself
+ *    fires every 6h. A tracker or a running campaign reads it at the org's
+ *    cadence, which is never slower than daily.
  *  - topPosts: lib/creators/snapshot refreshes them once they pass 20h, so
  *    at most daily.
  */

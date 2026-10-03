@@ -27,8 +27,8 @@ import {
   targetHours,
 } from "@/lib/dataAge";
 import { PROFILE_REFRESH_MS } from "@/lib/creators/profileRefresh";
-import { decideSyncAction } from "@/lib/sync/cadence";
-import { DEFAULT_GRANULARITY, READ_CADENCE_HOURS } from "@/lib/trackers/granularity";
+import { decidePostTracking } from "@/lib/sync/postTracking";
+import { DEFAULT_GRANULARITY, DEFAULT_POST_TRACKING, READ_CADENCE_HOURS } from "@/lib/trackers/granularity";
 
 const HOUR = 60 * 60 * 1000;
 const NOW = new Date("2026-10-02T12:00:00Z");
@@ -116,8 +116,11 @@ describe("targets match the code that schedules each read", () => {
     expect(AGE_TARGET_HOURS.profile * HOUR).toBe(PROFILE_REFRESH_MS);
   });
 
+  /* An untracked post on a finished campaign: what the sweep does on the
+     strength of the post's age alone. The sweep allows half an hour of grace,
+     so "not yet due" is checked just outside it. */
   const decide = (postedAgoH: number, syncedAgoH: number) =>
-    decideSyncAction({
+    decidePostTracking({
       now: NOW,
       postedAt: ago(postedAgoH * HOUR),
       lastSyncedAt: ago(syncedAgoH * HOUR),
@@ -126,17 +129,20 @@ describe("targets match the code that schedules each read", () => {
       hasFinalSnapshot: false,
       trackingEnabled: false,
       trackingStartedAt: null,
-      settlementClosesAt: null,
-    } as Parameters<typeof decideSyncAction>[0]).action;
+      trackingExpiresAt: null,
+      trackingTtlDays: null,
+      granularity: DEFAULT_POST_TRACKING,
+      campaignLive: false,
+    }).action;
 
   it("post, first week: due again once six hours have passed", () => {
-    expect(decide(3 * 24, AGE_TARGET_HOURS.postFirstWeek - 0.1)).toBe("skip");
+    expect(decide(3 * 24, AGE_TARGET_HOURS.postFirstWeek - 0.6)).toBe("skip");
     expect(decide(3 * 24, AGE_TARGET_HOURS.postFirstWeek)).toBe("sync");
   });
 
   it("post, after the first week: due again once a day has passed", () => {
-    expect(decide(30 * 24, AGE_TARGET_HOURS.postAfterFirstWeek - 0.1)).toBe("skip");
-    expect(decide(30 * 24, AGE_TARGET_HOURS.postAfterFirstWeek)).toBe("sync");
+    expect(decide(20 * 24, AGE_TARGET_HOURS.postAfterFirstWeek - 0.6)).toBe("skip");
+    expect(decide(20 * 24, AGE_TARGET_HOURS.postAfterFirstWeek)).toBe("sync");
   });
 });
 

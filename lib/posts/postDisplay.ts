@@ -48,11 +48,17 @@ export function engRatePct(post: EngagementCounts): number | null {
  * it is on, and when it stops on its own. "Tracking" alone reads as permanent,
  * which no post tracker is.
  */
-export function trackingLabel(enabled: boolean, expiresAt: string | null): string {
+export function trackingLabel(enabled: boolean, expiresAt: string | null, source?: string | null): string {
   if (!enabled) return "Not tracked — track this post to record a time series";
-  if (!expiresAt) return "Tracking";
+  /* Three of the four reasons are not a tracker anyone switched on, and the
+     label is the only place that says so: without it a post read because its
+     campaign is running looks exactly like one somebody chose. */
+  if (source === "campaign") return "Tracking automatically while this campaign is live";
+  if (source === "final-read") return "Older than 180 days — one more reading, then its numbers are kept as final";
+  const lead = source === "new-post" ? "Tracking automatically for its first 30 days" : "Tracking";
+  if (!expiresAt) return lead;
   const stops = new Date(expiresAt);
-  if (Number.isNaN(stops.getTime())) return "Tracking";
+  if (Number.isNaN(stops.getTime())) return lead;
   const days = Math.max(0, Math.ceil((stops.getTime() - Date.now()) / 86_400_000));
-  return `Tracking — stops in ${days} day${days === 1 ? "" : "s"}, on ${stops.toLocaleDateString()}`;
+  return `${lead} — stops in ${days} day${days === 1 ? "" : "s"}, on ${stops.toLocaleDateString()}`;
 }

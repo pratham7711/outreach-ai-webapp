@@ -13,6 +13,7 @@ jest.mock('@/lib/db', () => ({
     activation: { findFirst: jest.fn() },
     post: { findMany: jest.fn(), create: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
     viewFraudFlag: { findMany: jest.fn() },
+    organization: { findUnique: jest.fn() },
   },
 }));
 
@@ -105,7 +106,7 @@ describe('GET /api/campaigns/[id]/posts', () => {
   });
 
   it('returns posts list', async () => {
-    const mockPosts = [{ id: 'post-1', platform: 'YOUTUBE', creator: { id: 'c1', name: 'Test' } }];
+    const mockPosts = [{ id: 'post-1', platform: 'YOUTUBE', creator: { id: 'c1', name: 'Test' }, _count: { snapshots: 0 } }];
     mockDb.post.findMany.mockResolvedValue(mockPosts);
 
     const req = makeRequest('http://localhost/api/campaigns/camp-1/posts');
@@ -134,6 +135,7 @@ describe('GET /api/campaigns/[id]/posts', () => {
         platform: 'TIKTOK',
         viewsCount: 10294,
         syncFailCount: 3,
+        _count: { snapshots: 0 },
         platformMetrics: {
           __cc: { _id: 'cc-1', latestViewsEngagement: 999 },
           __stat: { views: 12 },
@@ -168,6 +170,8 @@ describe('GET /api/campaigns/[id]/posts', () => {
       likesCount: 7,
       platformMetrics: { __cc: { _id: 'cc-1' }, __measured: ['views'] },
       creator: { id: 'c1', name: 'Test', handle: 'test', avatarUrl: null },
+      postedAt: new Date(Date.now() - 2 * 86_400_000),
+      _count: { snapshots: 0 },
     };
     mockDb.post.findMany.mockResolvedValue([row]);
 
@@ -189,6 +193,67 @@ describe('GET /api/campaigns/[id]/posts', () => {
     const fromProtobuf = decodePostList(new Uint8Array(await pbRes.arrayBuffer()));
     expect(fromProtobuf).toEqual(fromJson);
     expect(fromProtobuf[0].viewsCount).toBe(10294);
+    expect(fromProtobuf[0].trackingSource).toBe('new-post');
+  });
+
+  /* The Tracked filter and every badge read trackingEnabled, so it has to mean
+     "the cron reads this post" -- not "a tracker row is switched on". */
+  it('reports the tracking the cron will actually do, not the tracker column', async () => {
+    const day = 86_400_000;
+    const base = { platform: 'INSTAGRAM', creator: { id: 'c1', name: 'Test' }, trackingStartedAt: null, trackingTtlDays: null };
+    mockDb.campaign.findFirst.mockResolvedValue({ ...mockCampaign, status: 'COMPLETE', archived: false });
+    mockDb.post.findMany.mockResolvedValue([
+      { ...base, id: 'new', postedAt: new Date(Date.now() - day), trackingEnabled: false, trackingExpiresAt: null, _count: { snapshots: 0 } },
+      { ...base, id: 'stopped', postedAt: new Date(Date.now() - day), trackingEnabled: false, trackingExpiresAt: new Date(), _count: { snapshots: 0 } },
+      { ...base, id: 'old', postedAt: new Date(Date.now() - 90 * day), trackingEnabled: false, trackingExpiresAt: null, _count: { snapshots: 0 } },
+      {
+        ...base,
+        id: 'sealed',
+        postedAt: new Date(Date.now() - 90 * day),
+        trackingEnabled: true,
+        trackingStartedAt: new Date(Date.now() - day),
+        trackingExpiresAt: new Date(Date.now() + 29 * day),
+        _count: { snapshots: 1 },
+      },
+      {
+        ...base,
+        id: 'tracked',
+        postedAt: new Date(Date.now() - 90 * day),
+        trackingEnabled: true,
+        trackingStartedAt: new Date(Date.now() - day),
+        trackingExpiresAt: new Date(Date.now() + 29 * day),
+        _count: { snapshots: 0 },
+      },
+    ]);
+
+    const body = await (await GET(makeRequest('http://localhost/api/campaigns/camp-1/posts'), makeParams('camp-1'))).json();
+    const byId = Object.fromEntries(body.posts.map((p: any) => [p.id, [p.trackingEnabled, p.trackingSource]]));
+    expect(byId).toEqual({
+      new: [true, 'new-post'],
+      stopped: [false, null],
+      old: [false, null],
+      sealed: [false, null],
+      tracked: [true, 'tracker'],
+    });
+  });
+
+  it('reads every post of a running campaign as tracked', async () => {
+    mockDb.campaign.findFirst.mockResolvedValue({ ...mockCampaign, status: 'IN_PROGRESS', archived: false });
+    mockDb.post.findMany.mockResolvedValue([
+      {
+        id: 'p',
+        platform: 'YOUTUBE',
+        creator: { id: 'c1', name: 'Test' },
+        postedAt: new Date(Date.now() - 60 * 86_400_000),
+        trackingEnabled: false,
+        trackingStartedAt: null,
+        trackingTtlDays: null,
+        trackingExpiresAt: null,
+        _count: { snapshots: 0 },
+      },
+    ]);
+    const body = await (await GET(makeRequest('http://localhost/api/campaigns/camp-1/posts'), makeParams('camp-1'))).json();
+    expect(body.posts[0]).toMatchObject({ trackingEnabled: true, trackingSource: 'campaign', trackingExpiresAt: null });
   });
 });
 

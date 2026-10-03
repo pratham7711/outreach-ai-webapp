@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import type { Platform } from "@/lib/generated/prisma/client";
+import type { Platform, Prisma } from "@/lib/generated/prisma/client";
 import {
   SWEEP_PLATFORMS,
   candidateTake,
   roundRobin,
+  selectSweepCandidates,
+  type SweepQuery,
+  type SweepTier,
 } from "@/lib/sync/sweepCandidates";
 import {
   detectPlatform,
@@ -23,7 +26,13 @@ import { openTikTokPostFetcher } from "@/lib/platforms/tiktokEgress";
 import { ensureFreshInstagramToken, INSTAGRAM_HANDLE_SELECT, instagramLookupHandle } from "@/lib/platforms/instagramToken";
 import { ensureFreshTikTokToken } from "@/lib/platforms/tiktokToken";
 import { isInstagramLoginRow } from "@/lib/platforms/accountOrigin";
-import { decidePostTracking, type PostTrackingAction } from "@/lib/sync/postTracking";
+import {
+  DAILY_RECHECK_REASONS,
+  decidePostTracking,
+  isLiveCampaign,
+  sealSource,
+  type PostTrackingAction,
+} from "@/lib/sync/postTracking";
 import { parsePostTracking, type PostTrackingGranularity } from "@/lib/trackers/granularity";
 import { LAST_FETCH_KEY, MEASURED_FIELDS_KEY, lastFetchNote, measuredFields } from "@/lib/metricDisplay";
 import { alertOps, shouldAlertOnBatch } from "@/lib/alerts";
@@ -73,9 +82,11 @@ const READ_CONCURRENCY: Record<string, number> = {
    untracked posts come back whether it is honoured or ignored. Neither half
    represented a preference anyone expressed.
 
-   What decides now is the post tracker itself -- on, unexpired, and due on its
-   org's read cadence. Campaign status, refreshActive and refreshInterval no
-   longer gate this route at all. See lib/sync/postTracking.ts. */
+   What decides now is the post's coverage -- its tracker, its first month, or
+   its campaign still running -- and the read cadence that goes with it.
+   refreshActive and refreshInterval no longer gate this route at all. See
+   postCoverage in lib/sync/postTracking.ts, and lib/sync/sweepCandidates.ts for
+   the order the candidates are asked in. */
 
 /* Reasons a further attempt cannot change. Both are things a platform states
    positively about the post, so re-asking hourly for five hours before
@@ -273,84 +284,83 @@ async function cronHandler(request: NextRequest) {
      after a crash keeps billing until SANDBOX_LIFETIME_MS. */
   let tiktokSandbox: SandboxPostFetcher | undefined;
   try {
-    /* Ask the trackers, not the campaigns.
+    /* Ask by coverage, in priority order (lib/sync/sweepCandidates.ts).
 
-       The candidate set is "someone turned tracking on for this post, and it has
-       not sealed yet". Expiry is decided in code rather than filtered in SQL,
-       because an expired tracker still has one job left -- to seal -- and it can
-       only do that if the query returns it. It is returned at most once: sealing
-       writes an isFinalSnapshot row, and the filter below excludes it from every
-       run afterwards. So the expired backlog is only ever "lapsed since the last
-       run", never the whole history.
+       A post is a candidate if its tracker is on, if it is in its first month,
+       or if its campaign is still running -- and it has not sealed. Expiry is
+       decided in code rather than filtered in SQL, because an expired tracker
+       still has one job left -- to seal -- and it can only do that if the query
+       returns it. It is returned at most once: sealing writes an isFinalSnapshot
+       row, and every tier excludes it from every run afterwards.
 
        That also keeps the null case honest. A null trackingExpiresAt is a row
        written before the column existed; effectiveExpiry() gives it a window
        measured from trackingStartedAt rather than sealing it on sight, and no
-       WHERE clause could express that. */
-    const candidatesFor = (platform: Platform) => db.post.findMany({
-      where: {
-        platform,
-        trackingEnabled: true,
-        syncDisabledAt: null,
-        snapshots: { none: { isFinalSnapshot: true } },
-        /* A deleted campaign's posts stop being read. This used to fall out of
-           the campaign query; with campaigns no longer gating the sweep it has
-           to be said. */
-        campaign: { deletedAt: null },
-      },
-      select: {
-        id: true,
-        platform: true,
-        postUrl: true,
-        postedAt: true,
-        campaignId: true,
-        /* The last four are for applyPostMetrics, which needs a SyncablePost:
-           creatorId to write back the author's follower count, thumbnail and
-           caption so an absent one is not clobbered with null, and
-           platformMetrics because the measured-fields list is merged into that
-           bag alongside the importer's raw record rather than replacing it. */
-        creatorId: true,
-        thumbnailUrl: true,
-        caption: true,
-        platformMetrics: true,
-        lastSyncedAt: true,
-        viewsCount: true,
-        likesCount: true,
-        commentsCount: true,
-        sharesCount: true,
-        savesCount: true,
-        downloadsCount: true,
-        reachCount: true,
-        engagementRate: true,
-        syncFailCount: true,
-        syncDisabledAt: true,
-        trackingEnabled: true,
-        trackingStartedAt: true,
-        trackingTtlDays: true,
-        trackingExpiresAt: true,
-        snapshots: { where: { isFinalSnapshot: true }, take: 1, select: { id: true } },
-        creator: {
-          select: {
-            orgId: true,
-            ...INSTAGRAM_HANDLE_SELECT,
-            socialAccounts: {
-              where: { platform: { in: ["INSTAGRAM", "TIKTOK"] } },
-              select: {
-                id: true,
-                platform: true,
-                accessToken: true,
-                refreshToken: true,
-                handle: true,
-                tokenExpiry: true,
-                origin: true,
-              },
+       WHERE clause could express that exactly. */
+    const candidateSelect = {
+      id: true,
+      platform: true,
+      postUrl: true,
+      postedAt: true,
+      campaignId: true,
+      /* Whether the campaign is still running is one of the reasons a post is
+         read; see isLiveCampaign. */
+      campaign: { select: { status: true, archived: true, deletedAt: true } },
+      /* The last four are for applyPostMetrics, which needs a SyncablePost:
+         creatorId to write back the author's follower count, thumbnail and
+         caption so an absent one is not clobbered with null, and
+         platformMetrics because the measured-fields list is merged into that
+         bag alongside the importer's raw record rather than replacing it. */
+      creatorId: true,
+      thumbnailUrl: true,
+      caption: true,
+      platformMetrics: true,
+      lastSyncedAt: true,
+      viewsCount: true,
+      likesCount: true,
+      commentsCount: true,
+      sharesCount: true,
+      savesCount: true,
+      downloadsCount: true,
+      reachCount: true,
+      engagementRate: true,
+      syncFailCount: true,
+      syncDisabledAt: true,
+      trackingEnabled: true,
+      trackingStartedAt: true,
+      trackingTtlDays: true,
+      trackingExpiresAt: true,
+      snapshots: { where: { isFinalSnapshot: true }, take: 1, select: { id: true } },
+      creator: {
+        select: {
+          orgId: true,
+          ...INSTAGRAM_HANDLE_SELECT,
+          socialAccounts: {
+            where: { platform: { in: ["INSTAGRAM", "TIKTOK"] } },
+            select: {
+              id: true,
+              platform: true,
+              accessToken: true,
+              refreshToken: true,
+              handle: true,
+              tokenExpiry: true,
+              origin: true,
             },
           },
         },
       },
-      orderBy: { lastSyncedAt: { sort: "asc", nulls: "first" } },
-      take: candidateTake(budgets[platform] ?? DEFAULT_PLATFORM_BUDGET),
-    });
+    } satisfies Prisma.PostSelect;
+    const findCandidates = (query: SweepQuery) =>
+      db.post.findMany({ ...query, select: candidateSelect });
+    type Candidate = Awaited<ReturnType<typeof findCandidates>>[number];
+    const candidatesFor = (platform: Platform) =>
+      selectSweepCandidates<Candidate>(findCandidates, {
+        platform,
+        budget: budgets[platform] ?? DEFAULT_PLATFORM_BUDGET,
+        now,
+        startedAtField: db.post.fields?.trackingStartedAt,
+        readLast: (post) => DAILY_RECHECK_REASONS.has(lastFetchNote(post.platformMetrics)?.reason ?? ""),
+      });
 
     /* One query per platform, not one query for all of them.
      *
@@ -367,11 +377,14 @@ async function cronHandler(request: NextRequest) {
      * It adds no reads beyond what the budgets already allow, and YouTube's are
      * nearly free anyway: they are answered by one batched API call per 50 ids
      * (fetchYouTubeMetricsBatch, below) rather than a request per post. */
-    const byPlatform = await Promise.all(
+    const selections = await Promise.all(
       SWEEP_PLATFORMS.map((p) =>
-        sourceGuard.excludes(p) ? Promise.resolve([] as Awaited<ReturnType<typeof candidatesFor>>) : candidatesFor(p),
+        sourceGuard.excludes(p)
+          ? Promise.resolve({ posts: [] as Candidate[], byTier: null as Record<SweepTier, number> | null })
+          : candidatesFor(p),
       ),
     );
+    const byPlatform = selections.map((sel) => sel.posts);
 
     /* Interleaved, not concatenated. The reads no longer depend on this order
        -- each platform drains its own queue below, so a TikTok backlog cannot
@@ -401,6 +414,8 @@ async function cronHandler(request: NextRequest) {
        drift apart and the pool gets sized for a different set than it serves. */
     const decisionFor = (post: (typeof posts)[number]) =>
       decidePostTracking({
+        postedAt: new Date(post.postedAt),
+        campaignLive: isLiveCampaign(post.campaign),
         trackingEnabled: post.trackingEnabled ?? false,
         trackingStartedAt: post.trackingStartedAt ? new Date(post.trackingStartedAt) : null,
         trackingExpiresAt: post.trackingExpiresAt ? new Date(post.trackingExpiresAt) : null,
@@ -419,18 +434,30 @@ async function cronHandler(request: NextRequest) {
     const candidatesByPlatform = Object.fromEntries(
       SWEEP_PLATFORMS.map((p, i) => [p, byPlatform[i].length]),
     );
+    /* And per tier, which is the number that says whether the young and the
+       live posts were all reached: a tier that is non-zero below one that
+       filled the take could not have been. */
+    const candidatesByTier = Object.fromEntries(
+      SWEEP_PLATFORMS.map((p, i) => [p, selections[i].byTier]),
+    );
     log.info("post tracker sweep", {
       trackedCandidates: posts.length,
       candidatesByPlatform,
+      candidatesByTier,
       orgs: orgIds.length,
       capped: SWEEP_PLATFORMS.some(
-        (p, i) => byPlatform[i].length === candidateTake(budgets[p] ?? DEFAULT_PLATFORM_BUDGET),
+        (p, i) =>
+          byPlatform[i].length - (selections[i].byTier?.seal ?? 0) ===
+          candidateTake(budgets[p] ?? DEFAULT_PLATFORM_BUDGET),
       ),
     });
 
+    /* Only the posts this run may read. Candidates now include trackers that
+       only need sealing, and their ids would cost a batch slot each for an
+       answer nothing uses. */
     const youtubeIds: string[] = [];
     for (const p of posts) {
-      if (p.platform !== "YOUTUBE") continue;
+      if (p.platform !== "YOUTUBE" || decisionFor(p).action !== "sync") continue;
       const d = detectPlatform(p.postUrl);
       if (d?.platform === "YOUTUBE") youtubeIds.push(d.id);
     }
@@ -544,11 +571,11 @@ async function cronHandler(request: NextRequest) {
       }
 
       if (action === "seal") {
-        /* Reached by a tracker whose expiry was null in SQL but lapsed once
-           effectiveExpiry() applied the org default. The bulk pass above cannot
-           express that in a WHERE clause, so it lands here instead. */
+        /* A tracker whose window closed, or an old post's tracker that has had
+           its reading (postCoverage). Each seal says which, because
+           lib/sync/unsealMisfiredTtl keys on the TTL one. */
         try {
-          await sealPost(post, "cron-seal-ttl", now);
+          await sealPost(post, sealSource(reason), now);
           sealed++;
         } catch (err) {
           log.error("failed to seal post", { postId: post.id, error: String(err) });
@@ -903,6 +930,7 @@ async function cronHandler(request: NextRequest) {
       skipped,
       skippedByReason,
       skippedForBudget,
+      candidatesByTier,
       total: posts.length,
     });
   } catch (error) {

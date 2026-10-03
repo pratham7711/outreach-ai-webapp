@@ -53,6 +53,7 @@ export type PostCardPost = {
   lastFreshAt?: string | null;
   trackingEnabled?: boolean;
   trackingExpiresAt?: string | null;
+  trackingSource?: string | null;
   complianceFlags?: ComplianceFlag[];
   creator: { id?: string; name: string; handle: string };
 };
@@ -242,7 +243,7 @@ function PostGridCardImpl({
                 the thing that was wrong with this screen in the first place. */}
             {tracking && (
               <span
-                title={trackingLabel(true, post.trackingExpiresAt ?? null)}
+                title={trackingLabel(true, post.trackingExpiresAt ?? null, post.trackingSource)}
                 style={{ width: 6, height: 6, borderRadius: 999, background: "var(--cc-primary)", boxShadow: "0 0 0 2px color-mix(in srgb, var(--cc-overlay-ink-text) 28%, transparent)", flexShrink: 0 }}
               />
             )}

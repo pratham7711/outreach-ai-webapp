@@ -83,14 +83,16 @@ export function bulkUpdateData(input: BulkActionInput): BulkUpdateData {
     case "untrack":
       /* cost-guard: ok — these nulls END a tracker rather than making one
          perpetual. trackingEnabled is false in the same write, so the sweep
-         stops selecting the post; leaving a stale expiry behind is what would
-         cost something, by letting a re-enabled tracker inherit a window that
-         has already passed. */
+         stops selecting the post. The expiry is set to now rather than
+         cleared: it records that tracking was stopped, which is what keeps a
+         post in its first month or in a running campaign from being read
+         automatically anyway (trackingStopped in lib/sync/postTracking). A
+         re-enabled tracker writes a fresh one, so nothing inherits it. */
       return {
         trackingEnabled: false,
         trackingStartedAt: null,
         trackingTtlDays: null,
-        trackingExpiresAt: null,
+        trackingExpiresAt: now,
       };
   }
 }

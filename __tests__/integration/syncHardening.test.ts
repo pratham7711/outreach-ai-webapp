@@ -83,7 +83,11 @@ function makePost(overrides: Record<string, unknown> = {}) {
     campaignId: "campaign-1",
     platform: "INSTAGRAM",
     postUrl: "https://www.instagram.com/reel/AAA1/",
-    postedAt: hoursAgo(1),
+    /* Past its first month, on a campaign that has finished (no `campaign`
+       here reads as not live): read only because it is tracked, which is the
+       machinery these tests are about. A younger post is read on the strength
+       of its age as well -- see "automatic coverage" below. */
+    postedAt: hoursAgo(60 * 24),
     lastSyncedAt: null,
     viewsCount: 100,
     likesCount: 10,
@@ -143,9 +147,9 @@ afterEach(() => {
 
 describe("cron sync hardening — dry run", () => {
   it("performs no fetches or writes and returns per-post decisions with a summary", async () => {
-    /* One fixture per branch of decidePostTracking. Note what "old" now means:
-       a post whose TRACKER expired, not a post that is old. Post age stopped
-       being an input -- a year-old post with a live tracker is still read. */
+    /* One fixture per branch of decidePostTracking. "old" is a post whose
+       TRACKER expired; the fixture is past its first month on a finished
+       campaign, so nothing else still covers it and the tracker seals. */
     mockPostCandidates([
       makePost({ id: "fresh" }),
       makePost({ id: "old", trackingExpiresAt: hoursAgo(1) }),
@@ -739,30 +743,45 @@ describe("cron sync — post tracker selection", () => {
    * so the gate reduced an hourly sweep of 18,787 live posts to 17. What decides
    * now is the post tracker -- on, unexpired, due on the org's read cadence.
    */
-  it("asks only for tracked, unsealed posts of live campaigns", async () => {
+  /* The tiers themselves are tested without a database in
+     __tests__/unit/lib/sweepTiers.test.ts; this is that the route asks them. */
+  it("asks each platform in tier order, never for a sealed, dead or deleted campaign's post", async () => {
     mockPostCandidates([]);
 
     await cronSync(cronReq());
 
-    const where = mockDb.post.findMany.mock.calls[0][0].where;
-    expect(where.trackingEnabled).toBe(true);
-    expect(where.syncDisabledAt).toBeNull();
-    expect(where.snapshots).toEqual({ none: { isFinalSnapshot: true } });
-    // A deleted campaign's posts stop being read. This used to fall out of the
-    // campaign query; with campaigns no longer gating, it has to be said.
-    expect(where.campaign).toEqual({ deletedAt: null });
+    const instagram = mockDb.post.findMany.mock.calls
+      .map((c: any[]) => c[0])
+      .filter((a: any) => a.where.platform === "INSTAGRAM");
+    /* Seal first, on its own take; then the read tiers, each asked for what
+       the ones above left -- all of it, here, since they returned nothing. */
+    expect(instagram.map((a: any) => a.take)).toEqual([600, 300, 300, 300, 300]);
+    for (const { where } of instagram) {
+      expect(where.syncDisabledAt).toBeNull();
+      expect(where.snapshots).toEqual({ none: { isFinalSnapshot: true } });
+      const campaigns = where.campaign ? [where.campaign] : where.OR.map((o: any) => o.campaign);
+      for (const c of campaigns) expect(c.deletedAt).toBeNull();
+    }
+    expect(instagram[0].where.trackingEnabled).toBe(true);
+    /* The first 72 hours, whatever the campaign; then the running campaigns. */
+    expect(instagram[1].where.campaign).toEqual({ deletedAt: null });
+    expect(instagram[2].where.campaign.status).toEqual({ in: ["IN_PROGRESS", "PENDING"] });
   });
 
-  it("does not filter on campaign status, refreshActive or refreshInterval", async () => {
+  it("splits on whether the campaign is running, never on refreshActive or refreshInterval", async () => {
     mockPostCandidates([]);
 
     await cronSync(cronReq());
 
-    const where = mockDb.post.findMany.mock.calls[0][0].where;
-    expect(where).not.toHaveProperty("campaignId");
-    expect(where.campaign).not.toHaveProperty("status");
-    expect(where.campaign).not.toHaveProperty("refreshActive");
-    expect(where.campaign).not.toHaveProperty("refreshInterval");
+    for (const [args] of mockDb.post.findMany.mock.calls) {
+      const where = args.where;
+      expect(where).not.toHaveProperty("campaignId");
+      const campaigns = where.campaign ? [where.campaign] : where.OR.map((o: any) => o.campaign);
+      for (const c of campaigns) {
+        expect(c).not.toHaveProperty("refreshActive");
+        expect(c).not.toHaveProperty("refreshInterval");
+      }
+    }
   });
 
   it("returns expired trackers from the query so they can seal, rather than filtering them out", async () => {
@@ -813,7 +832,7 @@ describe("cron sync — post tracker selection", () => {
     ]);
   });
 
-  it("reads a year-old post whose tracker is still live", async () => {
+  it("reads a year-old post whose tracker is still live, until it has a reading of its own", async () => {
     mockPostCandidates([
       makePost({ id: "ancient", postedAt: hoursAgo(400 * 24), lastSyncedAt: hoursAgo(13) }),
     ]);
@@ -821,8 +840,80 @@ describe("cron sync — post tracker selection", () => {
     const res = await cronSync(cronReq("http://localhost/api/cron/sync-posts?dryRun=1"));
     const body = await res.json();
 
-    // Post age stopped being an input. Only the tracker decides.
+    // Last read before the tracker started an hour ago: one more reading is owed.
     expect(body.decisions[0].action).toBe("sync");
+  });
+});
+
+describe("cron sync — automatic coverage", () => {
+  const COMPLETE = { status: "COMPLETE", archived: false, deletedAt: null };
+  const RUNNING = { status: "IN_PROGRESS", archived: false, deletedAt: null };
+  const untracked = { trackingEnabled: false, trackingStartedAt: null, trackingTtlDays: null, trackingExpiresAt: null };
+
+  it("reads a new post on a COMPLETE campaign with no tracker", async () => {
+    /* Measured 2026-10-03: a COMPLETE campaign of 121 Instagram posts, the
+       newest posted that day, none tracked. */
+    mockPostCandidates([makePost({ id: "today", postedAt: hoursAgo(5), campaign: COMPLETE, ...untracked })]);
+
+    const body = await (await cronSync(cronReq("http://localhost/api/cron/sync-posts?dryRun=1"))).json();
+    expect(body.decisions).toEqual([{ postId: "today", platform: "INSTAGRAM", action: "sync", reason: "never-read" }]);
+  });
+
+  it("reads a running campaign's post with no tracker, at the org cadence", async () => {
+    mockPostCandidates([
+      makePost({ id: "due", postedAt: hoursAgo(60 * 24), lastSyncedAt: hoursAgo(13), campaign: RUNNING, ...untracked }),
+      makePost({ id: "not-yet", postedAt: hoursAgo(60 * 24), lastSyncedAt: hoursAgo(7), campaign: RUNNING, ...untracked }),
+    ]);
+
+    const body = await (await cronSync(cronReq("http://localhost/api/cron/sync-posts?dryRun=1"))).json();
+    expect(body.decisions).toEqual([
+      { postId: "due", platform: "INSTAGRAM", action: "sync", reason: "cadence-campaign-12hourly" },
+      { postId: "not-yet", platform: "INSTAGRAM", action: "skip", reason: "cadence-throttle-campaign-12hourly" },
+    ]);
+  });
+
+  it("does not read a post someone stopped, however new", async () => {
+    mockPostCandidates([
+      makePost({ id: "stopped", postedAt: hoursAgo(5), campaign: RUNNING, ...untracked, trackingExpiresAt: hoursAgo(1) }),
+    ]);
+
+    const body = await (await cronSync(cronReq("http://localhost/api/cron/sync-posts?dryRun=1"))).json();
+    expect(body.decisions).toEqual([{ postId: "stopped", platform: "INSTAGRAM", action: "skip", reason: "stopped" }]);
+  });
+
+  it("seals an old post's tracker on its reading, under a source the TTL unseal repair does not match", async () => {
+    mockPostCandidates([
+      makePost({
+        id: "ancient",
+        postedAt: hoursAgo(400 * 24),
+        campaign: COMPLETE,
+        trackingStartedAt: hoursAgo(18 * 24),
+        lastSyncedAt: hoursAgo(2 * 24),
+      }),
+    ]);
+    mockDb.$transaction.mockResolvedValue([{}, {}]);
+
+    const body = await (await cronSync(cronReq())).json();
+
+    expect(body.sealed).toBe(1);
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(mockDb.postMetricSnapshot.create.mock.calls[0][0].data).toMatchObject({
+      postId: "ancient",
+      isFinalSnapshot: true,
+      syncSource: "cron-seal-age",
+    });
+  });
+
+  it("reports how many candidates each tier contributed", async () => {
+    mockPostCandidates([]);
+    const body = await (await cronSync(cronReq())).json();
+    expect(body.candidatesByTier.INSTAGRAM).toEqual({
+      seal: 0,
+      "live-campaign": 0,
+      "first-72h": 0,
+      "first-30d": 0,
+      backlog: 0,
+    });
   });
 });
 
