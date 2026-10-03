@@ -233,7 +233,7 @@ export function requestedScopes(platform: OAuthPlatform): string[] {
   return [...PROVIDERS[platform].scopes];
 }
 
-function appBaseUrl(): string {
+export function appBaseUrl(): string {
   const base =
     process.env.APP_URL ||
     process.env.NEXT_PUBLIC_APP_URL ||

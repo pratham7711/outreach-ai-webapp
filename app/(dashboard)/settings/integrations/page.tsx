@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { hasPermission } from "@/lib/rbac";
 import { IntegrationsClient } from "./IntegrationsClient";
+import { InstagramAccountCard } from "./InstagramAccountCard";
 import { PageHeader } from "@/components/ds";
 
 export const metadata = { title: "Integrations" };
@@ -15,7 +16,10 @@ export default async function IntegrationsPage() {
   return (
     <div className="rsp-page page-enter">
       <PageHeader title="Integrations Settings" />
-      <IntegrationsClient />
+      <div className="cc-settings-groups">
+        <InstagramAccountCard />
+        <IntegrationsClient />
+      </div>
     </div>
   );
 }

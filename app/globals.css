@@ -4659,6 +4659,40 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--cc-text-muted);
 }
 
+/* Settings → Integrations: the org's own Instagram account. */
+.cc-ig-account-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--cc-accent-bg);
+  color: var(--cc-accent-fg);
+}
+
+.cc-ig-account-warning {
+  font-size: var(--cc-pref-desc-fs);
+  line-height: var(--cc-pref-desc-lh);
+  color: var(--cc-warning-ink);
+}
+
+.cc-ig-account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.cc-ig-read-via {
+  display: block;
+  font-size: var(--cc-pref-desc-fs);
+  line-height: var(--cc-pref-desc-lh);
+  color: var(--cc-text-muted);
+}
+
 .cc-panel-title {
   font-weight: var(--cc-panel-title-fw);
   font-size: var(--cc-panel-title-fs);
