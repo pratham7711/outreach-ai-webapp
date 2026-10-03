@@ -101,9 +101,11 @@ export type PostDto = {
   authorProfilePic: string | null;
   createdAt: string | null;
   hasOpenFraudFlag: boolean;
-  /** Whether a post tracker is running, and the moment it stops. */
+  /** Whether the post is being read, the moment that stops (null while its
+   *  campaign runs), and why -- see trackingView in lib/sync/postTracking. */
   trackingEnabled: boolean;
   trackingExpiresAt: string | null;
+  trackingSource: string | null;
   platformMetrics: PlatformMetricsDto;
   /** When views were last read; see lib/posts/fieldFreshness. */
   viewsReadAt: string | null;
@@ -215,6 +217,7 @@ export function toPostDto(row: PostRow, hasOpenFraudFlag: boolean, complianceFla
     hasOpenFraudFlag,
     trackingEnabled: row.trackingEnabled === true,
     trackingExpiresAt: iso(row.trackingExpiresAt),
+    trackingSource: strOrNull(row.trackingSource),
     platformMetrics: provenanceFrom(row.platformMetrics),
     viewsReadAt: viewsReadAt(
       row.platformMetrics,
@@ -276,6 +279,7 @@ export function encodePostList(posts: PostDto[]): Uint8Array {
       trackingEnabled: p.trackingEnabled,
       trackingExpiresAtMs: ms(p.trackingExpiresAt) ?? undefined,
       viewsReadAtMs: ms(p.viewsReadAt) ?? undefined,
+      trackingSource: p.trackingSource ?? undefined,
       creator: p.creator
         ? {
             id: p.creator.id,
@@ -356,6 +360,7 @@ export function decodePostList(bytes: Uint8Array): PostDto[] {
       hasOpenFraudFlag: p.hasOpenFraudFlag ?? false,
       trackingEnabled: p.trackingEnabled ?? false,
       trackingExpiresAt: msToIso(p.trackingExpiresAtMs),
+      trackingSource: p.trackingSource ?? null,
       platformMetrics,
       viewsReadAt: msToIso(p.viewsReadAtMs),
       creator: p.creator

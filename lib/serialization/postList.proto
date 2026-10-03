@@ -110,6 +110,13 @@ message Post {
      read leaves the post's views as they were, and this is the date they
      belong to -- shown beside the figure when the latest read lacked views. */
   optional int64 views_read_at_ms = 30;
+
+  /* Why the post is being read, when it is: "tracker", "campaign" (it is in a
+     running campaign), "new-post" (its first 30 days) or "final-read" (an old
+     post's tracker, reading once more before it seals). tracking_enabled and
+     tracking_expires_at_ms above are the effective state these produce, not
+     the tracker row's own columns. */
+  optional string tracking_source = 31;
 }
 
 message PostList {

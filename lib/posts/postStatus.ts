@@ -79,7 +79,7 @@ const UNREAD_REASON: Record<string, string> = {
   "not-on-account":
     "Instagram did not list it on the creator's account; it may have been deleted or archived, or be on another account",
   "counts-inconsistent":
-    "the platform's numbers for it contradicted each other (more likes than views), so its last consistent numbers are kept",
+    "the platform's numbers for it could not all be true (more likes than views, or views falling to zero), so its last consistent numbers are kept",
 };
 
 function toDate(at: string | Date | null | undefined): Date | null {

@@ -8,15 +8,24 @@ import {
   readsPerTrackedPost,
 } from "@/lib/trackers/granularity";
 import {
+  AUTO_TRACK_DAYS,
   decidePostTracking,
+  dueCutoff,
   effectiveExpiry,
   hoursRemaining,
+  isLiveCampaign,
+  postCoverage,
+  sealSource,
+  trackingStopped,
+  trackingView,
   type PostTrackingInput,
 } from "@/lib/sync/postTracking";
+import { TTL_SEAL_SOURCE } from "@/lib/sync/unsealMisfiredTtl";
 
 const NOW = new Date("2026-09-09T12:00:00.000Z");
 const hoursAgo = (h: number) => new Date(NOW.getTime() - h * 60 * 60 * 1000);
 const daysAhead = (d: number) => new Date(NOW.getTime() + d * 24 * 60 * 60 * 1000);
+const daysAgo = (d: number) => daysAhead(-d);
 
 function input(over: Partial<PostTrackingInput> = {}): PostTrackingInput {
   return {
@@ -113,9 +122,16 @@ describe("parsePostTracking", () => {
 
 describe("decidePostTracking", () => {
   it("skips a post nobody is tracking", () => {
-    expect(decidePostTracking(input({ trackingEnabled: false }))).toEqual({
+    expect(decidePostTracking(input({ trackingEnabled: false, trackingExpiresAt: null }))).toEqual({
       action: "skip",
       reason: "not-tracked",
+    });
+  });
+
+  it("names a post whose tracking was stopped by hand apart from one never tracked", () => {
+    expect(decidePostTracking(input({ trackingEnabled: false, trackingExpiresAt: hoursAgo(1) }))).toEqual({
+      action: "skip",
+      reason: "stopped",
     });
   });
 
@@ -188,9 +204,9 @@ describe("decidePostTracking", () => {
     expect(decision.action).toBe("skip");
   });
 
-  it("ignores post age entirely — a year-old post with a live tracker is read", () => {
+  it("reads a year-old post with a live tracker until it has a reading of its own", () => {
     const decision = decidePostTracking(
-      input({ trackingStartedAt: hoursAgo(400 * 24), lastSyncedAt: hoursAgo(24) }),
+      input({ postedAt: daysAgo(400), trackingStartedAt: hoursAgo(48), lastSyncedAt: hoursAgo(72) }),
     );
     expect(decision.action).toBe("sync");
   });
@@ -282,6 +298,27 @@ describe("a post its creator hid", () => {
     expect(hidden(24, daily)).toEqual({ action: "sync", reason: "cadence-daily" });
   });
 
+  it("does the same for an answer about the account, even on a post in its first week", () => {
+    const young = (lastReason: string, hoursSinceAsked: number) =>
+      decidePostTracking(
+        input({
+          trackingEnabled: false,
+          trackingStartedAt: null,
+          trackingExpiresAt: null,
+          postedAt: hoursAgo(48),
+          lastSyncedAt: null,
+          lastAttemptAt: hoursAgo(hoursSinceAsked),
+          lastReason,
+        }),
+      );
+    for (const reason of ["not-a-professional-account", "not-on-account", "credentials-rejected"]) {
+      expect(young(reason, 7)).toEqual({ action: "skip", reason: "answered-throttle" });
+      expect(young(reason, 24)).toEqual({ action: "sync", reason: "answered-recheck" });
+    }
+    /* A refusal is about the moment, and keeps the post's own cadence. */
+    expect(young("platform-refused", 7)).toEqual({ action: "sync", reason: "cadence-new-post-6hourly" });
+  });
+
   it("changes nothing for any other reason", () => {
     const refused = decidePostTracking(
       input({ lastSyncedAt: hoursAgo(72), lastAttemptAt: hoursAgo(13), lastReason: "platform-refused", granularity: twelveHourly }),
@@ -293,5 +330,220 @@ describe("a post its creator hid", () => {
     expect(
       decidePostTracking(input({ lastReason: "post-hidden", trackingExpiresAt: hoursAgo(1), granularity: twelveHourly })),
     ).toMatchObject({ action: "seal" });
+  });
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Coverage: the reasons a post is read without anyone switching a tracker on.
+ *
+ * Production, 2026-10-03: 0 of the 154 posts in the 9 IN_PROGRESS campaigns had
+ * a tracker, and 9 of the 752 readable posts published in the last 30 days did.
+ * One COMPLETE campaign's 121 Instagram posts had gone up that morning. All of
+ * them moved only when someone pressed Refresh Data.
+ * ──────────────────────────────────────────────────────────────────────────── */
+describe("postCoverage", () => {
+  const untracked = (over: Partial<PostTrackingInput> = {}) =>
+    input({
+      trackingEnabled: false,
+      trackingStartedAt: null,
+      trackingExpiresAt: null,
+      trackingTtlDays: null,
+      ...over,
+    });
+
+  it("reads every post in its first month, whatever its campaign says", () => {
+    /* A COMPLETE campaign is campaignLive false. */
+    const c = postCoverage(untracked({ postedAt: hoursAgo(5), campaignLive: false }));
+    expect(c).toMatchObject({ covered: true, source: "new-post", cadence: "6hourly" });
+  });
+
+  it("reads 6-hourly for the first week and daily after", () => {
+    expect(postCoverage(untracked({ postedAt: daysAgo(6.9) }))).toMatchObject({ cadence: "6hourly" });
+    expect(postCoverage(untracked({ postedAt: daysAgo(7) }))).toMatchObject({ cadence: "daily" });
+    expect(postCoverage(untracked({ postedAt: daysAgo(29.9) }))).toMatchObject({ cadence: "daily" });
+  });
+
+  it("lets go of an untracked post at the end of its first month, without sealing it", () => {
+    expect(postCoverage(untracked({ postedAt: daysAgo(AUTO_TRACK_DAYS) }))).toEqual({
+      covered: false,
+      reason: "not-tracked",
+    });
+    expect(decidePostTracking(untracked({ postedAt: daysAgo(AUTO_TRACK_DAYS), lastSyncedAt: daysAgo(3) }))).toEqual({
+      action: "skip",
+      reason: "not-tracked",
+    });
+  });
+
+  it("says when the automatic window ends", () => {
+    const posted = daysAgo(10);
+    const c = postCoverage(untracked({ postedAt: posted }));
+    expect(c.covered && c.expiresAt?.toISOString()).toBe(
+      new Date(posted.getTime() + AUTO_TRACK_DAYS * 86_400_000).toISOString(),
+    );
+  });
+
+  it("reads a running campaign's posts at the org cadence, with no end date", () => {
+    const c = postCoverage(untracked({ postedAt: daysAgo(90), campaignLive: true }));
+    expect(c).toEqual({
+      covered: true,
+      source: "campaign",
+      expiresAt: null,
+      cadence: DEFAULT_POST_TRACKING.readCadence,
+      cadenceSource: "campaign",
+      sealsOnNextRead: false,
+    });
+  });
+
+  it("does not read a running campaign's posts past 180 days old", () => {
+    expect(postCoverage(untracked({ postedAt: daysAgo(181), campaignLive: true }))).toMatchObject({
+      covered: false,
+    });
+  });
+
+  it("takes the fastest cadence among the reasons that apply", () => {
+    /* Live campaign at 12-hourly, but two days old: the first-week cadence wins. */
+    const c = postCoverage(untracked({ postedAt: daysAgo(2), campaignLive: true }));
+    expect(c).toMatchObject({ source: "campaign", cadence: "6hourly", cadenceSource: "new-post" });
+    expect(decidePostTracking(untracked({ postedAt: daysAgo(2), campaignLive: true, lastSyncedAt: hoursAgo(6) }))).toEqual({
+      action: "sync",
+      reason: "cadence-new-post-6hourly",
+    });
+  });
+
+  it("names the reason that lasts longest", () => {
+    /* A tracker that ends in 10 days on a post whose first month ends in 25. */
+    const c = postCoverage(input({ postedAt: daysAgo(5), trackingExpiresAt: daysAhead(10) }));
+    expect(c).toMatchObject({ source: "new-post" });
+    const later = postCoverage(input({ postedAt: daysAgo(25), trackingExpiresAt: daysAhead(10) }));
+    expect(later).toMatchObject({ source: "tracker", cadenceSource: "tracker" });
+  });
+
+  it("is switched off by Stop, on a young post and in a running campaign alike", () => {
+    const stopped = { trackingEnabled: false, trackingExpiresAt: hoursAgo(3) };
+    expect(postCoverage(untracked({ ...stopped, postedAt: hoursAgo(5) }))).toEqual({ covered: false, reason: "stopped" });
+    expect(postCoverage(untracked({ ...stopped, postedAt: daysAgo(40), campaignLive: true }))).toEqual({
+      covered: false,
+      reason: "stopped",
+    });
+  });
+
+  it("never covers a sealed or dead-lettered post, however young", () => {
+    expect(postCoverage(untracked({ postedAt: hoursAgo(1), hasFinalSnapshot: true }))).toEqual({ covered: false, reason: "sealed" });
+    expect(postCoverage(untracked({ postedAt: hoursAgo(1), syncDisabledAt: hoursAgo(1) }))).toEqual({
+      covered: false,
+      reason: "dead-letter",
+    });
+  });
+
+  it("does not seal an expired tracker while the post is still in its first month", () => {
+    const d = decidePostTracking(input({ postedAt: daysAgo(10), trackingExpiresAt: hoursAgo(1), lastSyncedAt: daysAgo(2) }));
+    expect(d).toEqual({ action: "sync", reason: "cadence-new-post-daily" });
+  });
+
+  it("does not seal an expired tracker while its campaign runs", () => {
+    const d = decidePostTracking(
+      input({ postedAt: daysAgo(60), campaignLive: true, trackingExpiresAt: hoursAgo(1), lastSyncedAt: hoursAgo(13) }),
+    );
+    expect(d).toEqual({ action: "sync", reason: "cadence-campaign-12hourly" });
+  });
+
+  it("seals the expired tracker once nothing else covers the post", () => {
+    expect(decidePostTracking(input({ postedAt: daysAgo(31), trackingExpiresAt: hoursAgo(1) }))).toEqual({
+      action: "seal",
+      reason: "ttl-expired",
+    });
+  });
+});
+
+describe("the 180-day seal", () => {
+  /* Measured 2026-10-03: 10,918 tracked TikTok posts over 180 days old, none
+     sealed, each one a read on every cycle. The rule lived only in
+     lib/sync/cadence.ts, which the cron stopped calling on 2026-09-09. */
+  const old = (over: Partial<PostTrackingInput> = {}) =>
+    input({ postedAt: daysAgo(400), trackingStartedAt: daysAgo(18), trackingExpiresAt: daysAhead(12), ...over });
+
+  it("reads an old post once its tracker starts, then seals it on that reading", () => {
+    expect(decidePostTracking(old({ lastSyncedAt: daysAgo(30) })).action).toBe("sync");
+    expect(decidePostTracking(old({ lastSyncedAt: daysAgo(2) }))).toEqual({ action: "seal", reason: "age-over-180d" });
+  });
+
+  it("seals on the reading even when it is not due again", () => {
+    expect(decidePostTracking(old({ lastSyncedAt: hoursAgo(1) }))).toEqual({ action: "seal", reason: "age-over-180d" });
+  });
+
+  it("treats a tracker with no start as begun before any reading", () => {
+    expect(decidePostTracking(old({ trackingStartedAt: null, lastSyncedAt: daysAgo(30) })).action).toBe("seal");
+    expect(decidePostTracking(old({ trackingStartedAt: null, lastSyncedAt: null })).action).toBe("sync");
+  });
+
+  it("leaves a running campaign's old posts on their tracker", () => {
+    expect(decidePostTracking(old({ campaignLive: true, lastSyncedAt: daysAgo(2) })).action).toBe("sync");
+  });
+
+  it("does not touch a post at 180 days, only past it", () => {
+    expect(decidePostTracking(old({ postedAt: daysAgo(179), lastSyncedAt: daysAgo(2) })).action).toBe("sync");
+  });
+
+  it("seals under its own source, which the TTL unseal repair does not match", () => {
+    expect(sealSource("age-over-180d")).toBe("cron-seal-age");
+    expect(sealSource("ttl-expired")).toBe(TTL_SEAL_SOURCE);
+    expect(sealSource("age-over-180d")).not.toBe(TTL_SEAL_SOURCE);
+  });
+});
+
+describe("coverage helpers", () => {
+  it("treats only IN_PROGRESS and PENDING campaigns that are not archived or deleted as live", () => {
+    expect(isLiveCampaign({ status: "IN_PROGRESS", archived: false })).toBe(true);
+    expect(isLiveCampaign({ status: "PENDING", archived: false })).toBe(true);
+    expect(isLiveCampaign({ status: "COMPLETE", archived: false })).toBe(false);
+    expect(isLiveCampaign({ status: "IN_PROGRESS", archived: true })).toBe(false);
+    expect(isLiveCampaign({ status: "IN_PROGRESS", archived: false, deletedAt: NOW })).toBe(false);
+    expect(isLiveCampaign(null)).toBe(false);
+  });
+
+  it("tells stopped from never tracked by the expiry Stop writes", () => {
+    expect(trackingStopped({ trackingEnabled: false, trackingExpiresAt: NOW })).toBe(true);
+    expect(trackingStopped({ trackingEnabled: false, trackingExpiresAt: null })).toBe(false);
+    expect(trackingStopped({ trackingEnabled: true, trackingExpiresAt: NOW })).toBe(false);
+  });
+
+  it("puts the due cutoff one cadence, less the grace, in the past", () => {
+    expect(dueCutoff(NOW, "6hourly").toISOString()).toBe(hoursAgo(5.5).toISOString());
+    expect(dueCutoff(NOW, "daily").toISOString()).toBe(hoursAgo(23.5).toISOString());
+  });
+});
+
+describe("trackingView -- what the badges say", () => {
+  it("calls an automatically read post tracked, and says why", () => {
+    const v = trackingView(
+      input({ trackingEnabled: false, trackingStartedAt: null, trackingExpiresAt: null, trackingTtlDays: null, postedAt: daysAgo(2) }),
+    );
+    expect(v).toEqual({
+      trackingEnabled: true,
+      trackingExpiresAt: daysAhead(AUTO_TRACK_DAYS - 2),
+      trackingSource: "new-post",
+      readCadence: "6hourly",
+    });
+  });
+
+  it("calls a tracker whose window closed not tracked, before the seal lands", () => {
+    expect(trackingView(input({ postedAt: daysAgo(60), trackingExpiresAt: hoursAgo(1) }))).toMatchObject({
+      trackingEnabled: false,
+      trackingSource: null,
+    });
+  });
+
+  it("says an old post's tracker reads once more and stops", () => {
+    expect(trackingView(input({ postedAt: daysAgo(400), lastSyncedAt: daysAgo(40) }))).toMatchObject({
+      trackingEnabled: true,
+      trackingSource: "final-read",
+    });
+    expect(trackingView(input({ postedAt: daysAgo(400), lastSyncedAt: hoursAgo(1) })).trackingEnabled).toBe(false);
+  });
+
+  it("calls a stopped post not tracked, even in its first days", () => {
+    expect(
+      trackingView(input({ trackingEnabled: false, trackingExpiresAt: hoursAgo(1), postedAt: hoursAgo(5) })).trackingEnabled,
+    ).toBe(false);
   });
 });

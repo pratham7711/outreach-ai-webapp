@@ -9,6 +9,8 @@ jest.mock("@/lib/db", () => ({
     campaign: { findFirst: jest.fn() },
     post: { findFirst: jest.fn(), update: jest.fn() },
     organization: { findUnique: jest.fn() },
+    postMetricSnapshot: { deleteMany: jest.fn() },
+    $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
   },
 }));
 
@@ -59,8 +61,12 @@ beforeEach(() => {
     trackingEnabled: true,
     trackingStartedAt: new Date(),
     trackingTtlDays: 30,
-    trackingExpiresAt: new Date(),
+    trackingExpiresAt: new Date(Date.now() + 30 * 86_400_000),
+    postedAt: new Date(Date.now() - 90 * 86_400_000),
+    lastSyncedAt: null,
+    syncDisabledAt: null,
   });
+  mockDb.postMetricSnapshot.deleteMany.mockResolvedValue({ count: 0 });
   (fetchPostMetrics as jest.Mock).mockResolvedValue(null);
 });
 
@@ -107,15 +113,53 @@ describe("post tracker TTL — the expiry is not optional", () => {
     expect(updateData().trackingTtlDays).toBe(3);
   });
 
-  it("clears the window on untrack rather than leaving a stale expiry behind", async () => {
+  it("ends the tracker on untrack, and records when, so the post is not read automatically either", async () => {
     await trackPost(req({ enabled: false }), params);
 
     const data = updateData();
-    expect(data).toEqual({
+    expect(data).toMatchObject({ trackingEnabled: false, trackingStartedAt: null, trackingTtlDays: null });
+    /* The stop marker: a post in its first month or in a running campaign is
+       otherwise read without a tracker (postCoverage). */
+    expect(data.trackingExpiresAt).toBeInstanceOf(Date);
+    expect(data.trackingExpiresAt.getTime()).toBeLessThanOrEqual(Date.now());
+    expect(mockDb.postMetricSnapshot.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it("answers with what the post's badge should now say", async () => {
+    mockDb.post.update.mockResolvedValue({
+      id: "post-1",
       trackingEnabled: false,
       trackingStartedAt: null,
       trackingTtlDays: null,
-      trackingExpiresAt: null,
+      trackingExpiresAt: new Date(),
+      postedAt: new Date(Date.now() - 86_400_000),
+      lastSyncedAt: null,
+      syncDisabledAt: null,
+    });
+    const off = await (await trackPost(req({ enabled: false }), params)).json();
+    expect(off).toMatchObject({ trackingEnabled: false, trackingSource: null, trackingExpiresAt: null });
+
+    mockDb.post.update.mockResolvedValue({
+      id: "post-1",
+      trackingEnabled: true,
+      trackingStartedAt: new Date(),
+      trackingTtlDays: 30,
+      trackingExpiresAt: new Date(Date.now() + 30 * 86_400_000),
+      postedAt: new Date(Date.now() - 400 * 86_400_000),
+      lastSyncedAt: new Date(Date.now() - 40 * 86_400_000),
+      syncDisabledAt: null,
+    });
+    const old = await (await trackPost(req({ enabled: true }), params)).json();
+    /* Past 180 days a tracker takes one reading and seals on it. */
+    expect(old).toMatchObject({ trackingEnabled: true, trackingSource: "final-read" });
+  });
+
+  it("removes a seal when a sealed post is tracked again, or the cron would never read it", async () => {
+    await trackPost(req({ enabled: true }), params);
+
+    expect(mockDb.$transaction).toHaveBeenCalledTimes(1);
+    expect(mockDb.postMetricSnapshot.deleteMany).toHaveBeenCalledWith({
+      where: { postId: "post-1", isFinalSnapshot: true },
     });
   });
 

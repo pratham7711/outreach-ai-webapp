@@ -73,13 +73,15 @@ describe("bulkUpdateData", () => {
     );
   });
 
-  it("clears every tracking column when untracking", () => {
+  it("ends the tracker when untracking, and records when it was stopped", () => {
+    /* The expiry is the stop marker: without it a post in its first month, or
+       in a running campaign, is read automatically whatever the user chose. */
     const data = bulkUpdateData({ ...base, action: "untrack" });
     expect(data).toEqual({
       trackingEnabled: false,
       trackingStartedAt: null,
       trackingTtlDays: null,
-      trackingExpiresAt: null,
+      trackingExpiresAt: base.now,
     });
   });
 

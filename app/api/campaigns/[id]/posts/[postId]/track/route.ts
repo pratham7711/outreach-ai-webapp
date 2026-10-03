@@ -9,7 +9,9 @@ import {
   POST_TTL_MAX_DAYS,
   POST_TTL_MIN_DAYS,
   clampTtlDays,
+  isLiveCampaign,
   postTrackingExpiry,
+  trackingView,
 } from "@/lib/sync/postTracking";
 import { parsePostTracking } from "@/lib/trackers/granularity";
 import { z } from "zod";
@@ -64,7 +66,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const defaults = parsePostTracking(org?.uiConfig ?? null);
     const ttl = clampTtlDays(ttlDays ?? defaults.defaultTtlDays, defaults.defaultTtlDays);
 
-    const updated = await db.post.update({
+    const update = db.post.update({
       where: { id: postId },
       data: enabled
         ? {
@@ -77,10 +79,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             trackingExpiresAt: postTrackingExpiry(now, ttl),
           }
         : {
+            /* Stopped, not never-started: the expiry records when tracking
+               ended, and that is what keeps a post in its first month, or in a
+               running campaign, from being read automatically after someone
+               said stop (trackingStopped in lib/sync/postTracking). */
             trackingEnabled: false,
             trackingStartedAt: null,
             trackingTtlDays: null,
-            trackingExpiresAt: null,
+            trackingExpiresAt: now,
           },
       select: {
         id: true,
@@ -88,7 +94,25 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         trackingStartedAt: true,
         trackingTtlDays: true,
         trackingExpiresAt: true,
+        lastSyncedAt: true,
+        syncDisabledAt: true,
+        postedAt: true,
       },
+    });
+    /* Tracking a sealed post again has to remove the seal, or the cron -- which
+       never reads a post holding a final snapshot -- leaves it unread while
+       this screen says it is tracked. The seal row is deleted rather than
+       demoted, as app/api/admin/unseal-live-posts does: it is a copy of the
+       stored counters, not a reading, and must not stay in the trend series. */
+    const [updated] = enabled
+      ? await db.$transaction([update, db.postMetricSnapshot.deleteMany({ where: { postId, isFinalSnapshot: true } })])
+      : [await update];
+    const view = trackingView({
+      ...updated,
+      hasFinalSnapshot: false,
+      granularity: defaults,
+      now,
+      campaignLive: isLiveCampaign(campaign),
     });
 
     if (enabled) {
@@ -120,12 +144,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       }
     }
 
+    /* What the post's badge should now say, decided before the first reading
+       above -- for a post past 180 days that reading is the one it seals on.
+       The tracker's own columns stay alongside for the detail page. */
     return NextResponse.json({
-      trackingEnabled: updated.trackingEnabled,
+      trackingEnabled: view.trackingEnabled,
       trackingStartedAt: updated.trackingStartedAt,
       trackingTtlDays: updated.trackingTtlDays,
-      trackingExpiresAt: updated.trackingExpiresAt,
-      readCadence: defaults.readCadence,
+      trackingExpiresAt: view.trackingExpiresAt,
+      trackingSource: view.trackingSource,
+      readCadence: view.readCadence ?? defaults.readCadence,
     });
   } catch (error) {
     console.error("Failed to toggle post tracking:", error);

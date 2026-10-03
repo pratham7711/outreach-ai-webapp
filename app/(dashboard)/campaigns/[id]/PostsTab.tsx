@@ -73,6 +73,8 @@ type PostData = {
   rejectionReason: string | null;
   trackingEnabled?: boolean;
   trackingExpiresAt?: string | null;
+  /** Why it is read: "tracker", "campaign", "new-post" or "final-read". */
+  trackingSource?: string | null;
   lastSyncedAt: string | null;
   /** CreatorCore's last refresh, for an imported post we have not read. */
   lastFreshAt?: string | null;
@@ -994,6 +996,7 @@ export default function PostsTab({
                   ...p,
                   trackingEnabled: updated?.trackingEnabled ?? next,
                   trackingExpiresAt: updated?.trackingExpiresAt ?? null,
+                  trackingSource: updated?.trackingSource ?? null,
                 }
               : p
           )
@@ -2216,7 +2219,7 @@ export default function PostsTab({
                       disabled={trackingBusyId === post.id}
                       aria-label={post.trackingEnabled ? "Stop tracking this post" : "Track this post"}
                       aria-pressed={post.trackingEnabled === true}
-                      title={trackingLabel(post.trackingEnabled === true, post.trackingExpiresAt ?? null)}
+                      title={trackingLabel(post.trackingEnabled === true, post.trackingExpiresAt ?? null, post.trackingSource)}
                       style={{
                         padding: "4px 8px",
                         borderRadius: 6,

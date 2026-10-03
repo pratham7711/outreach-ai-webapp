@@ -28,6 +28,8 @@ import {
 } from "@/lib/posts/addPostChecks";
 import { resolveAuthorFromPlatform } from "@/lib/platforms/postAuthor";
 import { hasPermission } from "@/lib/rbac";
+import { isLiveCampaign, trackingView } from "@/lib/sync/postTracking";
+import { parsePostTracking } from "@/lib/trackers/granularity";
 import {
   toPostDto,
   encodePostList,
@@ -132,6 +134,10 @@ export async function GET(
         syncDisabledAt: true,
         trackingEnabled: true,
         trackingExpiresAt: true,
+        trackingStartedAt: true,
+        trackingTtlDays: true,
+        /* A sealed post is never read again, whatever its columns say. */
+        _count: { select: { snapshots: { where: { isFinalSnapshot: true } } } },
         creator: { select: { id: true, name: true, handle: true, avatarUrl: true } },
         /* The views delta needs the two newest readings that measured views;
            a few spare rows let toPostDto skip a partial read without leaving
@@ -151,9 +157,32 @@ export async function GET(
       select: { postId: true },
     });
     const flaggedPostIds = new Set(openFlags.map((f) => f.postId));
-    const dtos = posts.map((p) =>
-      toPostDto(p, flaggedPostIds.has(p.id), checkPostCompliance(p, campaign)),
-    );
+
+    /* The tracking badge and the Tracked filter say whether the cron will read
+       the post, which is more than the tracker column: a post in its first
+       month or in a running campaign is read without one, and a tracker whose
+       window has closed is not read though its column is still on until the
+       seal lands. Same rule as the cron (postCoverage), same org cadence. */
+    const org = await db.organization.findUnique({ where: { id: orgId }, select: { uiConfig: true } });
+    const granularity = parsePostTracking(org?.uiConfig ?? null);
+    const campaignLive = isLiveCampaign(campaign);
+    const now = new Date();
+    const dtos = posts.map((p) => {
+      const view = trackingView({
+        trackingEnabled: p.trackingEnabled,
+        trackingStartedAt: p.trackingStartedAt,
+        trackingExpiresAt: p.trackingExpiresAt,
+        trackingTtlDays: p.trackingTtlDays,
+        lastSyncedAt: p.lastSyncedAt,
+        syncDisabledAt: p.syncDisabledAt,
+        hasFinalSnapshot: p._count.snapshots > 0,
+        granularity,
+        now,
+        postedAt: p.postedAt,
+        campaignLive,
+      });
+      return toPostDto({ ...p, ...view }, flaggedPostIds.has(p.id), checkPostCompliance(p, campaign));
+    });
 
     /* Protobuf only when asked for by name, so every existing caller -- and any
        tab still running the previous bundle -- keeps getting JSON. Both come
