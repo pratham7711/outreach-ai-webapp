@@ -133,10 +133,15 @@ export default defineConfig({
        redirect to the wrong port. Measured: /login, /signup and /campaigns --
        the three routes that redirect -- failed on 3014 and passed on 3009,
        every other route passing on both. These three complete the port knob. */
+    /* YouTube's plan B needs no key, so without this the suite reads live
+       watch pages: Track on the first post wrote a real snapshot and took the
+       "no snapshots" empty state the contrast ratchet records off the page.
+       The suite makes no live platform reads, as before plan B existed. */
     env: {
       APP_URL: E2E_URL,
       NEXT_PUBLIC_APP_URL: E2E_URL,
       NEXTAUTH_URL: E2E_URL,
+      YOUTUBE_WATCH_PAGE_FALLBACK: 'off',
       ...(process.env.TEST_DATABASE_URL
         ? { DATABASE_URL: process.env.TEST_DATABASE_URL }
         : {}),
