@@ -104,6 +104,31 @@ describe("graphGet rate limits", () => {
   it("is an error of its own type", () => {
     expect(new InstagramRateLimitError(4)).toBeInstanceOf(Error);
   });
+
+  /* What Meta actually sent on 2026-10-02/03: #4 "Application request limit
+     reached" as HTTP 403. The 403 used to win, and every throttled Business
+     Discovery read was filed as INSTAGRAM_BUSINESS_TOKEN rejected. */
+  it("files a #4 sent as HTTP 403 as a rate limit, not a rejected token", async () => {
+    global.fetch = jest.fn().mockResolvedValue(graphError(403, 4)) as unknown as typeof fetch;
+
+    const err = await graphGet("me", { access_token: "t" }, undefined, { rateLimitThrows: true }).catch((e) => e);
+    expect(err).toBeInstanceOf(InstagramRateLimitError);
+    expect(err).not.toBeInstanceOf(InstagramAuthError);
+  });
+
+  it("returns null for a 403 #4 when the caller did not ask, rather than an auth failure", async () => {
+    global.fetch = jest.fn().mockResolvedValue(graphError(403, 4)) as unknown as typeof fetch;
+
+    expect(await graphGet("me", { access_token: "t" })).toBeNull();
+  });
+
+  it("still files a 403 with no throttle code as an auth failure", async () => {
+    global.fetch = jest.fn().mockResolvedValue(graphError(403, 10)) as unknown as typeof fetch;
+
+    await expect(graphGet("me", { access_token: "t" }, undefined, { rateLimitThrows: true })).rejects.toThrow(
+      InstagramAuthError,
+    );
+  });
 });
 
 describe("graphGet #110, no Business or Creator account by that name", () => {

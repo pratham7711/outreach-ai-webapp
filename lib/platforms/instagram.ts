@@ -96,6 +96,10 @@ export class InstagramRateLimitError extends Error {
 
 const RATE_LIMIT_CODES = new Set([4, 17, 32, 613]);
 
+export function isRateLimitCode(code: unknown): code is number {
+  return typeof code === "number" && RATE_LIMIT_CODES.has(code);
+}
+
 /**
  * Business Discovery found no Business or Creator account under the name we
  * asked about: Graph error 110, "Invalid user id". Thrown only to callers that
@@ -199,15 +203,21 @@ export async function graphGet(
            access_token and this must not put a live credential in the log. */
         meaning: graphErrorMeaning(code),
       });
+      /* A throttle is tested BEFORE the status rule below. Meta sends its app
+         limit (#4, "Application request limit reached") as HTTP 403, and with
+         the 403 test first every throttled Business Discovery call was filed as
+         "INSTAGRAM_BUSINESS_TOKEN rejected" -- measured 2026-10-02/03, when it
+         was the only error the refresh windows logged and the token was fine. */
+      if (isRateLimitCode(code)) {
+        if (rateLimitThrows) throw new InstagramRateLimitError(code);
+        return null;
+      }
       if (isAuthFailure(res.status, code)) {
         throw new InstagramAuthError(
           res.status,
           typeof code === "number" ? code : undefined,
           typeof message === "string" ? message : `Graph auth failure (${res.status})`,
         );
-      }
-      if (rateLimitThrows && typeof code === "number" && RATE_LIMIT_CODES.has(code)) {
-        throw new InstagramRateLimitError(code);
       }
       if (noSuchAccountThrows && code === NO_SUCH_ACCOUNT_CODE) {
         throw new InstagramNoSuchAccountError(typeof subcode === "number" ? subcode : undefined);
