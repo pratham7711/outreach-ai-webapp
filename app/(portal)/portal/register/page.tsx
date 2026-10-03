@@ -7,6 +7,7 @@ import { Input } from "@pratham7711/ui";
 import { Button } from "@/components/ds";
 import { Eye, EyeOff } from "lucide-react";
 import { ConnectPrompt } from "@/components/portal/ConnectPrompt";
+import { LegalLinks } from "@/components/LegalLinks";
 import { errandQuery, landingAfterAuth, readAuthErrand } from "@/lib/portal/afterAuth";
 
 function RegisterInner() {
@@ -66,8 +67,10 @@ function RegisterInner() {
       style={{
         minHeight: "100dvh",
         display: "flex",
+        flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
+        gap: 16,
         padding: "40px 16px",
         background: "var(--cc-bg)",
       }}
@@ -155,6 +158,7 @@ function RegisterInner() {
           </div>
         )}
       </div>
+      <LegalLinks />
     </div>
   );
 }

@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Home, Briefcase, Link2, BarChart3, UserRound, LogOut } from "lucide-react";
 import { BRAND } from "@/lib/brand";
 import { ConfirmProvider } from "@/components/ds";
+import { LegalLinks } from "@/components/LegalLinks";
 
 /**
  * The creator app's frame: five places, and nothing that talks to the creator.
@@ -212,6 +213,12 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         <ThemedToaster richColors position="top-center" />
         {!isAuthPage && <PortalNav />}
         {children}
+        {/* The sign-in pages carry these under their own card. */}
+        {!isAuthPage && (
+          <footer style={{ padding: "24px 16px" }}>
+            <LegalLinks />
+          </footer>
+        )}
         {/* Room for the phone tab bar, so it never covers the last row. */}
         {!isAuthPage && <div className="lg:hidden" aria-hidden="true" style={{ height: 80 }} />}
       </div>

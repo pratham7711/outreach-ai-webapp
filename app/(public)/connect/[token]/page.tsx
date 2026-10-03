@@ -2,6 +2,7 @@ import { cache } from "react";
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { POWERED_BY } from "@/lib/brand";
+import { LegalLinks } from "@/components/LegalLinks";
 import { resolveConnectToken, type ConnectBinding } from "@/lib/creators/connectToken";
 import { isOAuthPlatform, isProviderConfigured, type OAuthPlatform } from "@/lib/oauth/providers";
 import { resolvePlatformCapability } from "@/lib/capabilities";
@@ -132,7 +133,10 @@ function Gone() {
             for a new one.
           </p>
         </div>
-        <footer style={{ ...muted, fontSize: 12, textAlign: "center" }}>{POWERED_BY}</footer>
+        <footer style={{ ...muted, fontSize: 12, textAlign: "center", display: "grid", gap: 6 }}>
+          {POWERED_BY}
+          <LegalLinks />
+        </footer>
       </div>
     </main>
   );
@@ -240,7 +244,10 @@ export default async function ConnectLinkPage({
           </a>
         )}
 
-        <footer style={{ ...muted, fontSize: 12, textAlign: "center" }}>{POWERED_BY}</footer>
+        <footer style={{ ...muted, fontSize: 12, textAlign: "center", display: "grid", gap: 6 }}>
+          {POWERED_BY}
+          <LegalLinks />
+        </footer>
       </div>
     </main>
   );

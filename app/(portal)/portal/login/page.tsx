@@ -3,6 +3,7 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { LegalLinks } from "@/components/LegalLinks";
 import { Input } from "@pratham7711/ui";
 import { Button } from "@/components/ds";
 import { Eye, EyeOff } from "lucide-react";
@@ -49,8 +50,10 @@ function LoginInner() {
       style={{
         minHeight: "100dvh",
         display: "flex",
+        flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
+        gap: 16,
         padding: "40px 16px",
         background: "var(--cc-bg)",
       }}
@@ -117,6 +120,7 @@ function LoginInner() {
           </Link>
         </div>
       </div>
+      <LegalLinks />
     </div>
   );
 }
