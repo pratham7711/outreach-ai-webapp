@@ -30,6 +30,7 @@ async function cronHandler(request: NextRequest) {
     const counts = await refreshRosterProfiles({
       deadlineMs: 4 * 60 * 1000,
       readTikTokProfileRemote: (handle) => remote.read(handle),
+      readTikTokEmbedHtml: (handle) => remote.readEmbedHtml(handle),
     });
     return NextResponse.json({ ok: true, ...counts });
   } catch (error) {

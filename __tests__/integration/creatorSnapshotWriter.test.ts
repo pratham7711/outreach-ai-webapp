@@ -27,6 +27,7 @@ jest.mock("@/lib/platforms/tiktokTopPostsOfficial", () => ({ readTikTokTopPostsO
 jest.mock("@/lib/platforms/tiktokTopPostsEmbed", () => ({
   readTikTokTopPostsEmbed: jest.fn().mockResolvedValue(null),
   fetchTikTokEmbedHtmlDirect: jest.fn().mockResolvedValue(null),
+  embedHtmlVia: jest.fn().mockResolvedValue(null),
 }));
 jest.mock("@/lib/creators/topPostsFromCampaigns", () => ({ readTopPostsFromCampaigns: jest.fn().mockResolvedValue(null) }));
 jest.mock("@/lib/creators/rosterTables", () => ({ rosterTablesReady: jest.fn().mockResolvedValue(true) }));

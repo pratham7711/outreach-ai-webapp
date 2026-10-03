@@ -148,6 +148,19 @@ export async function readTikTokTopPostsEmbed(
   };
 }
 
+/** The embed page, over our own egress if it is allowed and from the injected
+ *  reader if it is not. Direct first: it costs one request and needs nothing
+ *  booted, and the embed page is published for third parties, so it is not
+ *  obviously behind the wall that shells the profile page. */
+export async function embedHtmlVia(
+  handle: string,
+  injected?: (handle: string) => Promise<string | null>
+): Promise<string | null> {
+  const direct = await fetchTikTokEmbedHtmlDirect(handle);
+  if (direct) return direct;
+  return injected ? injected(handle) : null;
+}
+
 /** The embed URL, in one place so the reader and the sandbox curl cannot drift. */
 export function tikTokEmbedUrl(handle: string): string {
   return `https://www.tiktok.com/embed/@${encodeURIComponent(handle.replace(/^@/, "").trim())}`;

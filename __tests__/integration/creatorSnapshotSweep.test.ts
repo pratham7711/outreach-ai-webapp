@@ -24,6 +24,7 @@ jest.mock("@/lib/platforms/tiktokTopPostsOfficial", () => ({
 jest.mock("@/lib/platforms/tiktokTopPostsEmbed", () => ({
   readTikTokTopPostsEmbed: jest.fn().mockResolvedValue(null),
   fetchTikTokEmbedHtmlDirect: jest.fn().mockResolvedValue(null),
+  embedHtmlVia: jest.fn().mockResolvedValue(null),
 }));
 
 jest.mock("@/lib/creators/topPostsFromCampaigns", () => ({

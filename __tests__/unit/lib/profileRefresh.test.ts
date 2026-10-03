@@ -11,21 +11,24 @@ jest.mock("@/lib/creators/followerWriter", () => ({ protectedCreatorFollowers: j
 jest.mock("@/lib/platforms/creatorProfile", () => ({ readCreatorProfile: jest.fn() }));
 jest.mock("@/lib/creators/avatarStore", () => ({ captureLatestAvatar: jest.fn() }));
 jest.mock("@/lib/creators/rosterTables", () => ({ rosterTablesReady: jest.fn() }));
+jest.mock("@/lib/platforms/tiktokTopPostsEmbed", () => ({ readTikTokTopPostsEmbed: jest.fn(), embedHtmlVia: jest.fn() }));
 
 import { db } from "@/lib/db";
 import { readCreatorProfile } from "@/lib/platforms/creatorProfile";
 import { captureLatestAvatar } from "@/lib/creators/avatarStore";
 import { rosterTablesReady } from "@/lib/creators/rosterTables";
 import { protectedCreatorFollowers } from "@/lib/creators/followerWriter";
-import { PROFILE_REFRESH_MS, refreshRosterProfiles } from "@/lib/creators/profileRefresh";
+import { embedHtmlVia, readTikTokTopPostsEmbed } from "@/lib/platforms/tiktokTopPostsEmbed";
+import { EMBED_GIVE_UP_STREAK, PROFILE_REFRESH_MS, refreshRosterProfiles } from "@/lib/creators/profileRefresh";
 
 const mockDb = db as any;
 const mockRead = readCreatorProfile as jest.Mock;
 const mockCapture = captureLatestAvatar as jest.Mock;
+const mockEmbed = readTikTokTopPostsEmbed as jest.Mock;
 const NOW = Date.parse("2026-09-29T10:00:00Z");
 
 const link = (over: Record<string, unknown> = {}) => ({
-  id: "l1", creatorId: "c1", orgId: "org-1", platform: "TIKTOK", handle: "synthpage", isPrimary: true, ...over,
+  id: "l1", creatorId: "c1", orgId: "org-1", platform: "TIKTOK", handle: "synthpage", isPrimary: true, creator: { trackedSince: null }, ...over,
 });
 const profile = (over: Record<string, unknown> = {}) => ({
   ok: true,
@@ -37,6 +40,7 @@ beforeEach(() => {
   (rosterTablesReady as jest.Mock).mockResolvedValue(true);
   mockCapture.mockResolvedValue(true);
   (protectedCreatorFollowers as jest.Mock).mockResolvedValue(null);
+  mockEmbed.mockResolvedValue(null);
 });
 
 describe("refreshRosterProfiles", () => {
@@ -154,5 +158,75 @@ describe("refreshRosterProfiles", () => {
     mockRead.mockResolvedValue(profile());
     await refreshRosterProfiles({ nowMs: NOW });
     expect(protectedCreatorFollowers).not.toHaveBeenCalled();
+  });
+
+  describe("TikTok Avg. views from the embed page", () => {
+    /* TikTok's profile page has followers and no per-video views, so its read
+       always comes back with sampledPosts 0. */
+    const tiktokProfile = () => profile({ avgViews: 0, sampledPosts: 0 });
+    const embed = { avgViews: 48_200, sampledPosts: 10, topPosts: [] };
+
+    it("measures an untracked creator's average from its embed page and writes it to the account and the creator", async () => {
+      mockDb.creatorProfileLink.findMany.mockResolvedValue([link()]);
+      mockRead.mockResolvedValue(tiktokProfile());
+      mockEmbed.mockResolvedValue(embed);
+      const counts = await refreshRosterProfiles({ nowMs: NOW });
+      expect(mockEmbed).toHaveBeenCalledWith("synthpage", expect.any(Function));
+      expect(mockDb.creatorProfileLink.update.mock.calls[0][0].data).toMatchObject({ averageViews: 48_200, followersCount: 51000 });
+      expect(mockDb.creator.update).toHaveBeenCalledWith({ where: { id: "c1", orgId: "org-1" }, data: { followersCount: 51000, averageViews: 48_200 } });
+      expect(counts.embedViews).toBe(1);
+    });
+
+    it("fetches the page direct first and through the run's sandbox reader after", async () => {
+      mockDb.creatorProfileLink.findMany.mockResolvedValue([link()]);
+      mockRead.mockResolvedValue(tiktokProfile());
+      const injected = jest.fn();
+      await refreshRosterProfiles({ nowMs: NOW, readTikTokEmbedHtml: injected });
+      await mockEmbed.mock.calls[0][1]("synthpage");
+      expect(embedHtmlVia).toHaveBeenCalledWith("synthpage", injected);
+    });
+
+    it("leaves a tracked creator to the tracker, which already reads its videos", async () => {
+      mockDb.creatorProfileLink.findMany.mockResolvedValue([link({ creator: { trackedSince: new Date(NOW) } })]);
+      mockRead.mockResolvedValue(tiktokProfile());
+      await refreshRosterProfiles({ nowMs: NOW });
+      expect(mockEmbed).not.toHaveBeenCalled();
+    });
+
+    it("does not ask when the profile read already measured views, or for another platform", async () => {
+      mockDb.creatorProfileLink.findMany.mockResolvedValue([link(), link({ id: "l2", platform: "INSTAGRAM" })]);
+      mockRead.mockImplementation(async (platform: string) => (platform === "TIKTOK" ? profile() : tiktokProfile()));
+      await refreshRosterProfiles({ nowMs: NOW });
+      expect(mockEmbed).not.toHaveBeenCalled();
+    });
+
+    it("keeps the held average when the embed page lists nothing", async () => {
+      mockDb.creatorProfileLink.findMany.mockResolvedValue([link()]);
+      mockRead.mockResolvedValue(tiktokProfile());
+      const counts = await refreshRosterProfiles({ nowMs: NOW });
+      expect(mockDb.creatorProfileLink.update.mock.calls[0][0].data).not.toHaveProperty("averageViews");
+      expect(mockDb.creator.update.mock.calls[0][0].data).not.toHaveProperty("averageViews");
+      expect(counts.embedViews).toBe(0);
+    });
+
+    it(`stops asking for the rest of the run after ${EMBED_GIVE_UP_STREAK} empty answers in a row, still reading followers`, async () => {
+      const links = Array.from({ length: EMBED_GIVE_UP_STREAK + 3 }, (_, i) => link({ id: `l${i}`, creatorId: `c${i}`, handle: `h${i}` }));
+      mockDb.creatorProfileLink.findMany.mockResolvedValue(links);
+      mockRead.mockResolvedValue(tiktokProfile());
+      const counts = await refreshRosterProfiles({ nowMs: NOW });
+      expect(mockEmbed).toHaveBeenCalledTimes(EMBED_GIVE_UP_STREAK);
+      expect(counts.refreshed).toBe(links.length);
+    });
+
+    it("forgives a miss once an answer arrives", async () => {
+      const links = Array.from({ length: EMBED_GIVE_UP_STREAK + 4 }, (_, i) => link({ id: `l${i}`, creatorId: `c${i}`, handle: `h${i}` }));
+      mockDb.creatorProfileLink.findMany.mockResolvedValue(links);
+      mockRead.mockResolvedValue(tiktokProfile());
+      // Misses, then one answer, then misses: the streak restarts at the answer.
+      mockEmbed.mockImplementation(async (handle: string) => (handle === `h${EMBED_GIVE_UP_STREAK - 1}` ? embed : null));
+      const counts = await refreshRosterProfiles({ nowMs: NOW });
+      expect(mockEmbed).toHaveBeenCalledTimes(links.length);
+      expect(counts.embedViews).toBe(1);
+    });
   });
 });
