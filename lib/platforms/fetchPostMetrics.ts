@@ -194,6 +194,18 @@ export type FetchReason =
    *  charged post is switched off for good after five runs, so a corrected
    *  handle would never be read. */
   | "not-a-professional-account"
+  /** Instagram: Business Discovery answered for the account, page after page,
+   *  and the post was on none of them -- and the embed showed nothing either.
+   *  Usually the post was deleted or archived; it can also sit on a different
+   *  account from the one we hold, or be older than the newest 500 media.
+   *
+   *  An answer, not a refusal. It used to be filed as "platform-refused", which
+   *  the source breaker counts against Instagram: on 2026-10-03 fourteen such
+   *  posts at the head of the cron's queue opened the breaker at 00:02Z and the
+   *  run skipped every Instagram post behind them, while a campaign's Refresh,
+   *  reading only live posts, measured fine. Not charged, for the same reason as
+   *  the one above: the name is ours to get wrong. */
+  | "not-on-account"
   /** The reading carried numbers that cannot all be true -- more likes,
    *  comments, shares or saves than views -- so none of it was kept and the
    *  post keeps its last consistent figures. Not charged: the post is fine and
@@ -250,6 +262,8 @@ const SOURCE_WENT_QUIET: Record<FetchReason, boolean> = {
   "post-hidden": false,
   /* A verdict about the account, said out loud as error 110. */
   "not-a-professional-account": false,
+  /* The account answered; the post was not on it. */
+  "not-on-account": false,
   /* The round trip carried numbers; we refused them. */
   "counts-inconsistent": false,
 };
@@ -553,6 +567,7 @@ export const UNCHARGEABLE_REASONS: ReadonlySet<FetchReason> = new Set<FetchReaso
   "not-configured",
   /* About a name we chose, not about the post -- see the reason's own note. */
   "not-a-professional-account",
+  "not-on-account",
   /* The creator can undo it, and a dead letter is forever. */
   "post-hidden",
   /* A reading we refused is about the reading. On 2026-10-02 four live posts
@@ -1292,6 +1307,10 @@ export async function fetchInstagramMetrics(
      under `handle`. The embed below still runs, but it has been closed since
      2026-09-17, so in practice this decides the reason. */
   let noSuchAccount = false;
+  /* Set when Business Discovery answered every page it was asked for and the
+     post was on none of them; see "not-on-account". */
+  let notOnAccount = false;
+  let bizRateLimited = false;
 
   if (token) {
     let graph: Awaited<ReturnType<typeof fetchInstagramMetricsGraph>> = null;
@@ -1359,12 +1378,16 @@ export async function fetchInstagramMetrics(
         fetchInstagramPublicPostMetrics(handle, url, cred.token, fetchTimeoutSignal(GRAPH_WALK_TIMEOUT_MS), {
           rateLimitThrows: true,
           ...cred.graphOptions,
+          onNotOnAccount: () => {
+            notOnAccount = true;
+          },
         }),
       );
       if (read.ok) post = read.value;
       else bizAttempted = false;
     } catch (err) {
       if (err instanceof InstagramRateLimitError) {
+        bizRateLimited = true;
         /* Every token is limited. The same outcome a throttle always had on
            this path -- no counts from here, and the embed below may still
            answer -- now said rather than folded into an empty page. */
@@ -1485,9 +1508,11 @@ export async function fetchInstagramMetrics(
       ? "reader-timeout"
       : noSuchAccount
         ? "not-a-professional-account"
-        : attempted
-          ? "platform-refused"
-          : "not-configured";
+        : notOnAccount && !bizRateLimited
+          ? "not-on-account"
+          : attempted
+            ? "platform-refused"
+            : "not-configured";
   log.warn("instagram metrics unavailable from every source", { reason, sources });
 
   try {

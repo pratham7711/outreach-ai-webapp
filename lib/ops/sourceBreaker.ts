@@ -108,7 +108,12 @@ export function classifyCreatorRead(result: { ok: true } | { ok: false; reason: 
    answer about the post (deleted), about one creator's credential, or a gate
    of our own that never asked (backing-off). */
 const POST_SOURCE_FAILURES = new Set(["platform-challenged", "platform-refused", "reader-unavailable", "reader-timeout"]);
-const POST_ANSWERS = new Set(["post-deleted", "unrecognised-url"]);
+/* Instagram's two answers about an account are answers too: Business Discovery
+   said there is no such account (#110), or read the account and the post was
+   not on it. Neutral until 2026-10-03, so they never closed a breaker; with the
+   cron's Instagram queue headed by 94 such posts (measured that day), the only
+   reads that could ever close it were the ones it was skipping. */
+const POST_ANSWERS = new Set(["post-deleted", "unrecognised-url", "not-a-professional-account", "not-on-account"]);
 
 /** A post metrics read, as the breaker counts it. */
 export function classifyPostRead(outcome: { status: string; reason?: string | null }): ReadOutcome {

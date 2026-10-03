@@ -153,6 +153,70 @@ export async function fetchInstagramProfile(
 }
 
 /**
+ * What Business Discovery answered a post read a moment ago, kept for a few
+ * minutes.
+ *
+ * Meta throttles this app on time spent as well as on calls: on 2026-10-02/03
+ * x-app-usage read total_time 199-253% against call_count 31-80%, and every
+ * Business Discovery read in three refresh windows came back #4 -- which is
+ * why those reads measured no views. A media page of 100 is the expensive
+ * call, and every post read asked for it again, after a me/accounts round
+ * trip: 121 posts by seven creators, added or refreshed together, fetched
+ * each creator's newest page about seventeen times (121 / 7). One answer per
+ * creator per few minutes carries the same numbers.
+ *
+ * Post reads only; fetchInstagramProfile itself is unchanged. Only answers are
+ * kept -- a throw (rate limit, timeout, rejected token) or a null is asked
+ * again exactly as before. Off under Jest, where each test fakes Graph afresh;
+ * see setPostPageCache.
+ */
+export const POST_PAGE_TTL_MS = 5 * 60_000;
+export const READER_ID_TTL_MS = 60 * 60_000;
+const MAX_REMEMBERED = 200;
+
+type Remembered<T> = { at: number; value: Promise<T> };
+const postPages = new Map<string, Remembered<IgPublicProfile | null>>();
+const readerIds = new Map<string, Remembered<string | null>>();
+let rememberOn = process.env.NODE_ENV !== "test";
+
+/** For tests: turns the post-read cache on or off, and empties it either way. */
+export function setPostPageCache(on: boolean) {
+  rememberOn = on;
+  postPages.clear();
+  readerIds.clear();
+}
+
+function remember<T>(
+  cache: Map<string, Remembered<T>>,
+  key: string,
+  ttlMs: number,
+  fresh: boolean,
+  load: () => Promise<T>,
+): Promise<T> {
+  if (!rememberOn) return load();
+  const nowMs = Date.now();
+  const hit = cache.get(key);
+  if (!fresh && hit && nowMs - hit.at < ttlMs) return hit.value;
+  const value = load();
+  cache.set(key, { at: nowMs, value });
+  /* Readers that arrive while it is in flight share the one request. */
+  const forget = () => {
+    if (cache.get(key)?.value === value) cache.delete(key);
+  };
+  value.then((v) => {
+    if (v === null) forget();
+  }, forget);
+  for (const [k, entry] of cache) {
+    if (cache.size <= MAX_REMEMBERED) break;
+    if (entry.value !== value) cache.delete(k);
+  }
+  return value;
+}
+
+const pageKey = (token: string, username: string, after: string | undefined, rateLimitThrows: boolean, page0: boolean) =>
+  [token, normalizeUsername(username).toLowerCase(), after ?? "", String(rateLimitThrows), String(page0)].join("\n");
+
+/**
  * The post, plus the author's follower count -- which this had already fetched
  * and then dropped. Business Discovery answers with the profile and its recent
  * media in one response, so the follower figure costs nothing extra, and the
@@ -163,21 +227,65 @@ export async function fetchInstagramPublicPostMetrics(
   postUrl: string,
   token: string,
   signal?: AbortSignal,
-  options: Omit<DiscoveryReadOptions, "noSuchAccountThrows"> = {},
+  {
+    onNotOnAccount,
+    ...options
+  }: Omit<DiscoveryReadOptions, "noSuchAccountThrows"> & {
+    /** Told when every page asked for answered and none held the post -- an
+     *  answer about the post, where a null alone also covers a failed page. */
+    onNotOnAccount?: () => void;
+  } = {},
 ): Promise<(IgPublicPost & { authorFollowers?: number }) | null> {
   const shortcode = shortcodeFromUrl(postUrl);
   if (!shortcode) return null;
 
+  const rateLimitThrows = options.rateLimitThrows ?? false;
+  const igUserId =
+    options.igUserId ||
+    (await remember(readerIds, `${token}\n${rateLimitThrows}`, READER_ID_TTL_MS, false, () =>
+      resolveIgUserId(token, signal, { rateLimitThrows, onHeaders: options.onHeaders }),
+    ));
+  if (!igUserId) return null;
+  const read = { ...options, igUserId };
+
+  const walkStartedAt = Date.now();
+  const found = await walkForPost(username, shortcode, token, signal, read, MAX_MEDIA_PAGES, false);
+  if (found !== "not-found") return found;
+  /* On no page we were given -- but the newest page may be one remembered
+     from minutes ago, and a post published since is on none of them. That
+     page alone is asked again before the answer stands. */
+  const newest = postPages.get(pageKey(token, username, undefined, rateLimitThrows, true));
+  if (rememberOn && newest && newest.at < walkStartedAt) {
+    const again = await walkForPost(username, shortcode, token, signal, read, 1, true);
+    if (again !== "not-found") return again;
+  }
+  onNotOnAccount?.();
+  return null;
+}
+
+async function walkForPost(
+  username: string,
+  shortcode: string,
+  token: string,
+  signal: AbortSignal | undefined,
+  options: Omit<DiscoveryReadOptions, "noSuchAccountThrows">,
+  pages: number,
+  fresh: boolean,
+): Promise<(IgPublicPost & { authorFollowers?: number }) | null | "not-found"> {
   let cursor: string | undefined;
   let followers: number | undefined;
 
-  for (let page = 0; page < MAX_MEDIA_PAGES; page++) {
+  for (let page = 0; page < pages; page++) {
     /* Throws on the first page only: once a page has answered, the account
        exists, and a later 110 would be about something else. */
-    const profile = await fetchInstagramProfile(username, token, signal, cursor, {
-      ...options,
-      noSuchAccountThrows: page === 0,
-    });
+    const after = cursor;
+    const profile = await remember(
+      postPages,
+      pageKey(token, username, after, options.rateLimitThrows ?? false, page === 0),
+      POST_PAGE_TTL_MS,
+      fresh,
+      () => fetchInstagramProfile(username, token, signal, after, { ...options, noSuchAccountThrows: page === 0 }),
+    );
     if (!profile) return null;
     /* Carried across pages because Instagram repeats followers_count on every
        page and the caller wants it even when the post turns up on page four. */
@@ -196,8 +304,8 @@ export async function fetchInstagramPublicPostMetrics(
     /* No cursor means we have seen the creator's whole library, so the post is
        genuinely not on this account -- a different answer from "we ran out of
        pages", and only the latter is worth a fallback's time. */
-    if (!profile.nextMediaCursor) return null;
+    if (!profile.nextMediaCursor) return "not-found";
     cursor = profile.nextMediaCursor;
   }
-  return null;
+  return "not-found";
 }

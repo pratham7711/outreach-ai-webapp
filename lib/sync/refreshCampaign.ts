@@ -4,6 +4,8 @@ import type { FetchReason } from "@/lib/platforms/fetchPostMetrics";
 import { openTikTokPostFetcher } from "@/lib/platforms/tiktokEgress";
 import { snapshotSounds } from "@/lib/sounds/snapshot";
 import { createLogger } from "@/lib/observability/logger";
+import { measuredFields } from "@/lib/metricDisplay";
+import { VIEWS_UNAVAILABLE } from "@/lib/refreshSummary";
 import {
   REFRESH_COOLDOWN_MS,
   cooldownStateFrom,
@@ -108,6 +110,30 @@ const PROGRESS_EVERY = 5;
  */
 export type RefreshFailReason = FetchReason | "error";
 
+/**
+ * A post that measured, but without views, is counted under VIEWS_UNAVAILABLE
+ * in the run's reasons JSON.
+ *
+ * Such a read is "measured" -- counts came back and were written -- so it stays
+ * out of the four failure counters and is not retried in a later window. On
+ * 2026-10-02/03 every Instagram read in three refresh runs came back this way,
+ * because Business Discovery (the one public source of Instagram views) was
+ * throttled, and asking again inside the run would spend more of that limit.
+ * Without this key the run row said measured = total with no reasons at all,
+ * which is how a refresh that moved no views read as a clean one.
+ *
+ * Only where the platform normally gives views: an Instagram photo or carousel
+ * publishes no view count anywhere, so a read of one without views is complete.
+ */
+export function readLackedViews(
+  post: { platform: string; mediaType?: string | null },
+  platformMetrics: unknown,
+): boolean {
+  const fields = measuredFields(platformMetrics);
+  if (!fields || fields.includes("views")) return false;
+  return !(post.platform === "INSTAGRAM" && post.mediaType === "POST");
+}
+
 const REASON_IS_RETRYABLE: Record<RefreshFailReason, boolean> = {
   "platform-challenged": true,
   /* Our lanes died, so the question was never asked. The most worth retrying
@@ -138,6 +164,7 @@ const REASON_IS_RETRYABLE: Record<RefreshFailReason, boolean> = {
   "credentials-rejected": false,
   /* The same name gets the same answer within one request. */
   "not-a-professional-account": false,
+  "not-on-account": false,
   /* Another lane renders another page; the neighbour's stats were one page's. */
   "counts-inconsistent": true,
   // Our bug, not their verdict -- and a thrown call is often transient.
@@ -334,6 +361,8 @@ export async function refreshCampaign(input: {
       thumbnailUrl: true, caption: true, platformMetrics: true,
       viewsCount: true, likesCount: true, commentsCount: true,
       sharesCount: true, savesCount: true,
+      /* Only for the tally: a photo without views is a complete read. */
+      mediaType: true,
     },
     // Oldest sync first, so a campaign too big for one run still makes
     // progress on the stalest posts each time.
@@ -396,7 +425,7 @@ export async function refreshCampaign(input: {
      "measured" count the totals do not add up to. The map is what makes the
      summary a statement about posts instead of about attempts. */
   type PostResult =
-    | { status: "measured" }
+    | { status: "measured"; viewsMissing: boolean }
     | { status: "no-metrics"; reason: RefreshFailReason }
     | { status: "unfetchable"; reason: RefreshFailReason }
     | { status: "failed"; reason: RefreshFailReason };
@@ -411,6 +440,7 @@ export async function refreshCampaign(input: {
     for (const r of results.values()) {
       if (r.status === "measured") {
         measured++;
+        if (r.viewsMissing) reasons[VIEWS_UNAVAILABLE] = (reasons[VIEWS_UNAVAILABLE] ?? 0) + 1;
         continue;
       }
       if (r.status === "no-metrics") noMetrics++;
@@ -437,7 +467,7 @@ export async function refreshCampaign(input: {
             const outcome = await syncPost(post, orgId, { countsOnly: true, tiktokSandbox });
             result =
               outcome.status === "measured"
-                ? { status: "measured" }
+                ? { status: "measured", viewsMissing: readLackedViews(post, outcome.post.platformMetrics) }
                 : { status: outcome.status, reason: outcome.reason };
           } catch (error) {
             // One bad post does not abandon the rest of the campaign.

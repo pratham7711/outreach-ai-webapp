@@ -15,8 +15,10 @@ import {
   fetchInstagramPublicPostMetrics,
   MAX_MEDIA_PAGES,
   MEDIA_PAGE_SIZE,
+  POST_PAGE_TTL_MS,
+  setPostPageCache,
 } from "@/lib/platforms/instagramBusinessDiscovery";
-import { graphGet } from "@/lib/platforms/instagram";
+import { graphGet, resolveIgUserId } from "@/lib/platforms/instagram";
 
 const get = graphGet as jest.Mock;
 
@@ -167,5 +169,95 @@ describe("fetchInstagramPublicPostMetrics — paging", () => {
     );
     expect(out).toBeNull();
     expect(get).toHaveBeenCalledTimes(1);
+  });
+});
+
+/* Meta throttled this app on time spent (x-app-usage total_time 199-253% on
+   2026-10-02/03) while every post read fetched its creator's newest page again,
+   after a me/accounts lookup. These pin that one answer serves a creator's
+   posts for a few minutes, and that nothing which failed is kept. */
+describe("post reads share what Business Discovery just answered", () => {
+  const clock = { now: Date.parse("2026-10-03T10:00:00Z") };
+  beforeEach(() => {
+    get.mockReset();
+    (resolveIgUserId as jest.Mock).mockClear();
+    setPostPageCache(true);
+    jest.spyOn(Date, "now").mockImplementation(() => clock.now);
+  });
+  afterEach(() => {
+    setPostPageCache(false);
+    jest.restoreAllMocks();
+  });
+
+  it("reads a creator's page once for several of their posts", async () => {
+    get.mockResolvedValue(page([media("ONE", { view_count: 10 }), media("TWO", { view_count: 20 })]));
+    const one = await fetchInstagramPublicPostMetrics("creator", "https://www.instagram.com/p/ONE/", "tok");
+    clock.now += 1000;
+    const two = await fetchInstagramPublicPostMetrics("Creator", "https://www.instagram.com/p/TWO/", "tok");
+
+    expect(one?.viewsCount).toBe(10);
+    expect(two?.viewsCount).toBe(20);
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(resolveIgUserId).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks again once the page is older than its window", async () => {
+    get.mockResolvedValue(page([media("ONE", { view_count: 10 })]));
+    await fetchInstagramPublicPostMetrics("creator", "https://www.instagram.com/p/ONE/", "tok");
+    clock.now += POST_PAGE_TTL_MS + 1;
+    await fetchInstagramPublicPostMetrics("creator", "https://www.instagram.com/p/ONE/", "tok");
+    expect(get).toHaveBeenCalledTimes(2);
+  });
+
+  it("re-reads the newest page before calling a post absent from a remembered one", async () => {
+    get
+      .mockResolvedValueOnce(page([media("OLD", { view_count: 10 })]))
+      .mockResolvedValueOnce(page([media("NEW", { view_count: 5 }), media("OLD", { view_count: 11 })]));
+    await fetchInstagramPublicPostMetrics("creator", "https://www.instagram.com/p/OLD/", "tok");
+    clock.now += 1000;
+    const fresh = await fetchInstagramPublicPostMetrics("creator", "https://www.instagram.com/p/NEW/", "tok");
+
+    expect(fresh?.viewsCount).toBe(5);
+    expect(get).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps no failure: a throw or a null is asked again", async () => {
+    get.mockRejectedValueOnce(new Error("rate limited")).mockResolvedValueOnce(null).mockResolvedValue(page([media("ONE")]));
+    await expect(
+      fetchInstagramPublicPostMetrics("creator", "https://www.instagram.com/p/ONE/", "tok"),
+    ).rejects.toThrow("rate limited");
+    expect(await fetchInstagramPublicPostMetrics("creator", "https://www.instagram.com/p/ONE/", "tok")).toBeNull();
+    expect(await fetchInstagramPublicPostMetrics("creator", "https://www.instagram.com/p/ONE/", "tok")).not.toBeNull();
+    expect(get).toHaveBeenCalledTimes(3);
+  });
+
+  it("never hands one token's answer to another", async () => {
+    get.mockResolvedValue(page([media("ONE")]));
+    await fetchInstagramPublicPostMetrics("creator", "https://www.instagram.com/p/ONE/", "tok-a");
+    await fetchInstagramPublicPostMetrics("creator", "https://www.instagram.com/p/ONE/", "tok-b");
+    expect(get).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("a post that is not on the account", () => {
+  beforeEach(() => get.mockReset());
+
+  it("says so when every page answered and none held it", async () => {
+    get.mockResolvedValueOnce(page([media("OTHER1")]));
+    const told = jest.fn();
+    const out = await fetchInstagramPublicPostMetrics("creator", "https://www.instagram.com/p/WANTED/", "tok", undefined, {
+      onNotOnAccount: told,
+    });
+    expect(out).toBeNull();
+    expect(told).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not say so when a page failed", async () => {
+    get.mockResolvedValueOnce(page([media("OTHER1")], "CURSOR_1")).mockResolvedValueOnce(null);
+    const told = jest.fn();
+    await fetchInstagramPublicPostMetrics("creator", "https://www.instagram.com/p/WANTED/", "tok", undefined, {
+      onNotOnAccount: told,
+    });
+    expect(told).not.toHaveBeenCalled();
   });
 });

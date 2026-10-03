@@ -400,3 +400,47 @@ describe("fetchInstagramMetrics — a name Business Discovery does not know", ()
     expect(m.fetchReason).toBeUndefined();
   });
 });
+
+/* Business Discovery answered for the account and the post was on none of its
+   pages. That used to be "platform-refused", which the source breaker counts
+   against Instagram -- fourteen such posts opened it on 2026-10-03 and the
+   cron then skipped every Instagram post. */
+describe("fetchInstagramMetrics — a post the account does not list", () => {
+  const realFetch = global.fetch;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    graph.mockResolvedValue(null);
+    bizToken.mockReturnValue("biz-token");
+    bizPost.mockImplementation(async (_h: string, _u: string, _t: string, _s: unknown, opts: { onNotOnAccount?: () => void }) => {
+      opts.onNotOnAccount?.();
+      return null;
+    });
+    embed.mockResolvedValue(null);
+    global.fetch = jest.fn(async () => ({ ok: false, status: 500 })) as any;
+  });
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  it("files it as not-on-account, not platform-refused", async () => {
+    const m = await fetchInstagramMetrics(URL, undefined, "creator.name");
+    expect(m.fetchReason).toBe("not-on-account");
+  });
+
+  it("is no reason at all once the embed answers", async () => {
+    embed.mockResolvedValue({ likesCount: 12, commentsCount: 1, likesHidden: false, thumbnailUrl: "t.jpg", caption: "c" });
+    const m = await fetchInstagramMetrics(URL, undefined, "creator.name");
+    expect(m.fetchReason).toBeUndefined();
+  });
+
+  it("stays a refusal when the throttle cut the walk short", async () => {
+    const { InstagramRateLimitError } = jest.requireActual("@/lib/platforms/instagram");
+    bizPost.mockImplementation(async (_h: string, _u: string, _t: string, _s: unknown, opts: { onNotOnAccount?: () => void }) => {
+      opts.onNotOnAccount?.();
+      throw new InstagramRateLimitError(4);
+    });
+    const m = await fetchInstagramMetrics(URL, undefined, "creator.name");
+    expect(m.fetchReason).toBe("platform-refused");
+  });
+});

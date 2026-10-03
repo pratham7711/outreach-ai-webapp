@@ -101,6 +101,11 @@ describe("classifiers", () => {
     expect(classifyPostRead({ status: "unavailable", reason: "backing-off" })).toBe("neutral");
     expect(classifyPostRead({ status: "unavailable", reason: null })).toBe("neutral");
   });
+
+  it("counts Business Discovery's answers about an account as Instagram working", () => {
+    expect(classifyPostRead({ status: "unfetchable", reason: "not-on-account" })).toBe("ok");
+    expect(classifyPostRead({ status: "unfetchable", reason: "not-a-professional-account" })).toBe("ok");
+  });
 });
 
 describe("breakerFromRow", () => {
