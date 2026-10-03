@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
-import { findCreatorForHandle } from "@/lib/portal/creatorLookup";
+import { findCreatorForPortalUser } from "@/lib/portal/creatorLookup";
 import { encrypt } from "@/lib/crypto/encrypt";
 import {
   buildAuthorizeUrl,
@@ -63,7 +63,7 @@ export async function GET(
      one. Checked here, before the provider dialog, because the callback used
      to discover this only after the creator had completed consent at Google or
      Meta and then bounce them back with a bare "Failed to connect". */
-  const rosterCreator = await findCreatorForHandle(session.handle);
+  const rosterCreator = await findCreatorForPortalUser(session);
   if (!rosterCreator)
     return NextResponse.redirect(
       new URL(

@@ -336,6 +336,24 @@ describe("GET /api/portal/connections/[platform]/start", () => {
     }
   });
 
+  it("starts for a row linked to this portal account even when its handle differs", async () => {
+    /* An agency invite sets creatorUserId on the row but never its handle, so
+       a creator who registered under another handle has no handle match at
+       all. The row that names this account is still theirs. */
+    process.env.GOOGLE_CLIENT_ID = "g-id";
+    process.env.GOOGLE_CLIENT_SECRET = "g-secret";
+    mockDb.creator.findFirst.mockImplementation(async ({ where }) =>
+      where.creatorUserId === "cu-1" ? { id: "c-invited", orgId: "org-2", creatorUserId: "cu-1" } : null,
+    );
+    const res = await startConnect(
+      makeRequest("http://localhost:3009/api/portal/connections/youtube/start"),
+      makeParams("youtube"),
+    );
+    const location = res.headers.get("location") ?? "";
+    expect(location).not.toContain("reason=creator");
+    expect(location).toContain("accounts.google.com");
+  });
+
   it("redirects with error when no org-side creator matches", async () => {
     // youtube rather than tiktok: the test above forces tiktok to coming_soon
     // and refuses it before the creator lookup this asserts on.
@@ -644,5 +662,29 @@ describe("GET /api/portal/connections/[platform]/callback — where the token ma
     const res = await runCallback("BlessingJolie");
     expect(res.headers.get("location")).toContain("connected=instagram");
     expect(mockDb.creatorSocialAccount.upsert).toHaveBeenCalled();
+  });
+
+  it("attaches to the row that names this portal account, whatever handle either carries", async () => {
+    mockDb.creator.findFirst.mockImplementation(async ({ where }) =>
+      where.creatorUserId === "cu-1" ? { id: "c-invited", orgId: "org-2", creatorUserId: "cu-1" } : null,
+    );
+    const res = await runCallback("a_different_instagram_name");
+    expect(res.headers.get("location")).toContain("connected=instagram");
+    expect(mockDb.creatorSocialAccount.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          creatorId_platform_platformUserId: expect.objectContaining({ creatorId: "c-invited" }),
+        }),
+      }),
+    );
+  });
+
+  it("still refuses a handle-matched row that names a different portal account", async () => {
+    mockDb.creator.findFirst.mockImplementation(async ({ where }) =>
+      where.creatorUserId ? null : { id: "c1", orgId: "org-1", creatorUserId: "cu-someone-else" },
+    );
+    const res = await runCallback("some_other_account");
+    expect(res.headers.get("location")).toContain("error=instagram&reason=creator");
+    expect(mockDb.creatorSocialAccount.upsert).not.toHaveBeenCalled();
   });
 });

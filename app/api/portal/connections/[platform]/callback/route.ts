@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
-import { findCreatorForHandle } from "@/lib/portal/creatorLookup";
+import { findCreatorForPortalUser } from "@/lib/portal/creatorLookup";
 import { findLinkedCreatorsForHandle } from "@/lib/portal/creatorLink";
 import { encrypt } from "@/lib/crypto/encrypt";
 import { exchangeForLongLivedToken } from "@/lib/platforms/instagram";
@@ -163,9 +163,9 @@ export async function GET(
        — orgId and id, never a handle. Signed in, it is found by handle as
        before, and proven below. */
     const creator = binding
-      ? { id: binding.creatorId, orgId: binding.orgId }
+      ? { id: binding.creatorId, orgId: binding.orgId, creatorUserId: null }
       : session
-        ? await findCreatorForHandle(session.handle)
+        ? await findCreatorForPortalUser(session)
         : null;
     if (!creator) {
       log.warn("No creator row matches the portal handle", { platform });
@@ -272,7 +272,7 @@ export async function GET(
       return failureRedirect(req, platform, "identity");
     }
 
-    /* Where the token is allowed to land. findCreatorForHandle matches on the
+    /* Where the token is allowed to land. The handle fallback matches on the
        handle alone, so without this an account that signed up as an existing
        roster creator's handle could staple its own OAuth token onto that
        creator's row. Two ways through, and they are the two proofs in
@@ -290,7 +290,10 @@ export async function GET(
       const identityProvesHandle =
         stripAt(identity.handle ?? "").trim().toLowerCase() ===
         stripAt(session.handle).trim().toLowerCase();
-      if (!linkedIds.has(creator.id) && !identityProvesHandle) {
+      /* Proof 1 by itself: the row names this portal account, whatever handle
+         either of them carries. */
+      const linkedByIdentity = Boolean(creator.creatorUserId) && creator.creatorUserId === session.creatorUserId;
+      if (!linkedIds.has(creator.id) && !linkedByIdentity && !identityProvesHandle) {
         log.warn("Authorised account does not belong to this portal handle", {
           platform,
           creatorId: creator.id,

@@ -26,7 +26,13 @@ jest.mock("@/lib/db", () => ({
 jest.mock("@/lib/creator-auth", () => ({ getCreatorSession: jest.fn() }));
 jest.mock("@/lib/creators/connectTables", () => ({ connectTablesReady: jest.fn() }));
 jest.mock("@/lib/platforms/accountState", () => ({ recordConnectionState: jest.fn() }));
-jest.mock("@/lib/portal/creatorLookup", () => ({ findCreatorForHandle: jest.fn() }));
+jest.mock("@/lib/portal/creatorLookup", () => {
+  const findCreatorForHandle = jest.fn();
+  return {
+    findCreatorForHandle,
+    findCreatorForPortalUser: jest.fn((session: { handle: string }) => findCreatorForHandle(session.handle)),
+  };
+});
 jest.mock("@/lib/portal/creatorLink", () => ({ findLinkedCreatorsForHandle: jest.fn() }));
 
 import { db } from "@/lib/db";
