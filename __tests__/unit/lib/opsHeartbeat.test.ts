@@ -10,15 +10,20 @@ jest.mock("@/lib/observability/logger", () => ({
 const queryRaw = jest.fn();
 const upsert = jest.fn();
 const update = jest.fn();
+const createMany = jest.fn();
 jest.mock("@/lib/db", () => ({
   db: {
     $queryRawUnsafe: (...a: unknown[]) => queryRaw(...a),
-    opsCronHeartbeat: { upsert: (...a: unknown[]) => upsert(...a), update: (...a: unknown[]) => update(...a) },
+    opsCronHeartbeat: {
+      upsert: (...a: unknown[]) => upsert(...a),
+      update: (...a: unknown[]) => update(...a),
+      createMany: (...a: unknown[]) => createMany(...a),
+    },
   },
 }));
 
 import { resetOpsTablesCache } from "@/lib/ops/opsTables";
-import { HEARTBEAT_ERROR_MAX, recordCronFinish, recordCronStart, truncateError } from "@/lib/ops/heartbeat";
+import { HEARTBEAT_ERROR_MAX, recordCronFinish, recordCronStart, recordJobsSeen, truncateError } from "@/lib/ops/heartbeat";
 
 const realUrl = process.env.DATABASE_URL;
 beforeEach(() => {
@@ -28,6 +33,7 @@ beforeEach(() => {
   queryRaw.mockResolvedValue([{ n: 6 }]);
   upsert.mockResolvedValue({ job: "sync-posts" });
   update.mockResolvedValue({ job: "sync-posts" });
+  createMany.mockResolvedValue({ count: 1 });
 });
 afterAll(() => {
   process.env.DATABASE_URL = realUrl;
@@ -86,5 +92,23 @@ describe("recordCronStart / recordCronFinish", () => {
     await recordCronFinish(beat, { ok: true });
     expect(upsert).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
+  });
+});
+
+describe("recordJobsSeen", () => {
+  it("writes a first sighting for each job, leaving rows that already exist alone", async () => {
+    const at = new Date("2026-10-03T17:44:00Z");
+    await recordJobsSeen(["sync-instagram-posts"], at);
+    expect(createMany).toHaveBeenCalledWith({ data: [{ job: "sync-instagram-posts", firstSeenAt: at }], skipDuplicates: true });
+  });
+
+  it("writes nothing when every job has been seen", async () => {
+    await recordJobsSeen([]);
+    expect(createMany).not.toHaveBeenCalled();
+  });
+
+  it("never throws when the write fails", async () => {
+    createMany.mockRejectedValue(new Error("connection reset"));
+    await expect(recordJobsSeen(["sync-posts"])).resolves.toBeUndefined();
   });
 });

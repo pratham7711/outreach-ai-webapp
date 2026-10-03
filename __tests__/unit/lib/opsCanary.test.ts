@@ -81,12 +81,31 @@ describe("heartbeatFindings", () => {
     expect(heartbeatFindings({ nowMs: NOW, heartbeats: hb, killed: ["cron:sync-posts"] })).toEqual([]);
   });
 
-  it("reports a job with no heartbeat only once the canary has watched for two of its cadences", () => {
-    const missing = healthy().filter((h) => h.job !== "sync-posts");
-    const young = missing.map((h) => (h.job === "ops-canary" ? { ...h, firstSeenAt: at(12 * H - 60_000) } : h));
+  const neverRan = (job: string, seenMsAgo: number) =>
+    withJob(job, { firstSeenAt: at(seenMsAgo), lastStartedAt: null, lastFinishedAt: null, lastOk: null });
+
+  it("reports a job that never ran only once the canary has watched for two of its cadences", () => {
+    const young = neverRan("sync-posts", 30 * 24 * H).map((h) => (h.job === "ops-canary" ? { ...h, firstSeenAt: at(12 * H - 60_000) } : h));
     expect(heartbeatFindings({ nowMs: NOW, heartbeats: young, killed: [] })).toEqual([]);
-    const old = missing.map((h) => (h.job === "ops-canary" ? { ...h, firstSeenAt: at(12 * H + 60_000) } : h));
-    expect(titles(heartbeatFindings({ nowMs: NOW, heartbeats: old, killed: [] }))).toEqual(["Cron sync-posts has no heartbeat since the canary started"]);
+    const old = neverRan("sync-posts", 30 * 24 * H).map((h) => (h.job === "ops-canary" ? { ...h, firstSeenAt: at(12 * H + 60_000) } : h));
+    expect(titles(heartbeatFindings({ nowMs: NOW, heartbeats: old, killed: [] }))).toEqual(["Cron sync-posts has no heartbeat since the canary first saw it"]);
+  });
+
+  it("times a job added in a later deploy from when the canary first saw it, not from the canary's own start", () => {
+    // 2026-10-03: sync-instagram-posts alerted 17 minutes after the deploy
+    // that added it, because the canary had been watching for days.
+    const justAdded = neverRan("sync-instagram-posts", 17 * 60_000);
+    expect(heartbeatFindings({ nowMs: NOW, heartbeats: justAdded, killed: [] })).toEqual([]);
+    const cadence = 60 * 60_000 * HEARTBEAT_OVERDUE_FACTOR;
+    expect(heartbeatFindings({ nowMs: NOW, heartbeats: neverRan("sync-instagram-posts", cadence - 60_000), killed: [] })).toEqual([]);
+    expect(titles(heartbeatFindings({ nowMs: NOW, heartbeats: neverRan("sync-instagram-posts", cadence + 60_000), killed: [] }))).toEqual([
+      "Cron sync-instagram-posts has no heartbeat since the canary first saw it",
+    ]);
+  });
+
+  it("does not report a job with no row at all: this run is the canary's first sighting of it", () => {
+    const missing = healthy().filter((h) => h.job !== "sync-posts");
+    expect(heartbeatFindings({ nowMs: NOW, heartbeats: missing, killed: [] })).toEqual([]);
   });
 
   it(`reports a run that started over ${HEARTBEAT_STUCK_MS / 60_000} min ago and never finished`, () => {

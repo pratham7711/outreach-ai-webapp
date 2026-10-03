@@ -28,6 +28,24 @@ export function truncateError(text: string | null | undefined, max = HEARTBEAT_E
   return t.length > max ? `${t.slice(0, max - 1)}…` : t;
 }
 
+/**
+ * The first time the canary sees a registered job that has never run, as a row
+ * with no start. A job added in a later deploy is then "missing" only once two
+ * of its own cadences have passed since that sighting, not since the canary
+ * itself began -- which alerted on the new job before its first slot came round.
+ * Existing rows are left alone; the job's own start heartbeat fills in the rest.
+ */
+export async function recordJobsSeen(jobs: readonly string[], at = new Date()): Promise<void> {
+  if (jobs.length === 0) return;
+  try {
+    if (!(await opsTablesReady())) return;
+    const db = await opsDb();
+    await db.opsCronHeartbeat.createMany({ data: jobs.map((job) => ({ job, firstSeenAt: at })), skipDuplicates: true });
+  } catch (e) {
+    warn("first sighting not recorded", jobs.join(","), e);
+  }
+}
+
 export async function recordCronStart(job: CronJobName, at = new Date()): Promise<HeartbeatStart> {
   const start = { job, startedAt: at };
   try {

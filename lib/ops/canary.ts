@@ -3,6 +3,7 @@ import { createLogger } from "@/lib/observability/logger";
 import type { AlertFinding } from "@/lib/trackers/readerAlerts";
 import { resolveTrackerPlan, trackerSourceTablesReady } from "@/lib/trackers/sourceSwitch";
 import { CRON_JOBS, cronCadenceMinutes, type CronJobName } from "./cronJobs";
+import { recordJobsSeen } from "./heartbeat";
 import { CRON_KILL_PREFIX, SOURCE_KILL_PREFIX, cronKillKey, readKillSwitches } from "./killSwitch";
 import { opsDb, opsTablesReady } from "./opsTables";
 import { sandboxDailyCap, sandboxesCreatedOn, utcDay } from "./sandboxBudget";
@@ -126,16 +127,23 @@ export function heartbeatFindings(input: Pick<CanaryInput, "nowMs" | "heartbeats
     const hb = byJob.get(job);
     const cadence = cronCadenceMinutes(job);
     switch (jobHealth(job, hb, input.nowMs, killed.has(cronKillKey(job)))) {
-      case "no-heartbeat":
-        if (watchingSince && input.nowMs - watchingSince.getTime() > cadence * 60_000 * HEARTBEAT_OVERDUE_FACTOR) {
+      case "no-heartbeat": {
+        /* And from the job's own first sighting (recordJobsSeen), whichever is
+           later. With no row at all the canary is seeing the job for the first
+           time this run, so it cannot be missing yet. Timed from the canary
+           alone, a job added in a later deploy alerted before its first slot:
+           sync-instagram-posts, 17 minutes after the 2026-10-03 deploy. */
+        const since = watchingSince && hb ? Math.max(watchingSince.getTime(), hb.firstSeenAt.getTime()) : null;
+        if (since !== null && input.nowMs - since > cadence * 60_000 * HEARTBEAT_OVERDUE_FACTOR) {
           out.push({
             source: SOURCE,
-            title: `Cron ${job} has no heartbeat since the canary started`,
+            title: `Cron ${job} has no heartbeat since the canary first saw it`,
             facts: { job, label, expectedEveryMinutes: cadence },
             severity: "critical",
           });
         }
         break;
+      }
       case "overdue":
         out.push({
           source: SOURCE,
@@ -419,6 +427,13 @@ export async function runCanary(options: { nowMs?: number; dryRun?: boolean } = 
     safe("sourceHealth", readSourceHealth, null),
   ]);
   const killed = [...switches.values()].filter((s) => s.off).map((s) => s.key);
+  if (heartbeats && !options.dryRun) {
+    const known = new Set(heartbeats.map((h) => h.job));
+    await recordJobsSeen(
+      CRON_JOBS.map((j) => j.job).filter((job) => !known.has(job)),
+      new Date(nowMs),
+    );
+  }
 
   const findings = canaryFindings({
     nowMs,
