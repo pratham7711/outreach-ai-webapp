@@ -113,15 +113,29 @@ const REASON_LABEL: Record<RefreshFailReason, (n: number) => string> = {
      reads as nothing anyone can do. */
   "credentials-rejected": (n) => `${n} need Instagram reconnected`,
   "not-a-professional-account": (n) => `${n} are on Instagram accounts that share no numbers`,
+  "not-on-account": (n) => `${n} were not found on their creator's Instagram`,
   "counts-inconsistent": (n) => `${n} came back with more likes than views, kept their last good numbers`,
   error: (n) => `${n} errored`,
+};
+
+/**
+ * The reasons-tally key for a post that measured, but without views. Defined
+ * here rather than beside the tally because this module ships to the browser
+ * and lib/sync/refreshCampaign does not. See readLackedViews there.
+ */
+export const VIEWS_UNAVAILABLE = "views-unavailable";
+
+/* Keys in the reasons tally that are not fetch reasons: a post counted here
+   was measured, and the key says what that reading still left out. */
+const PARTIAL_LABEL: Record<string, (n: number) => string> = {
+  [VIEWS_UNAVAILABLE]: (n) => `${n} updated without new views`,
 };
 
 /* Widened deliberately: the map is exhaustive over the union so that adding a
    reason without wording fails the build, but `reasons` is parsed from a JSON
    payload and can carry a slug from a newer deployment than this bundle. */
 function labelFor(key: string): ((n: number) => string) | undefined {
-  return (REASON_LABEL as Record<string, (n: number) => string>)[key];
+  return (REASON_LABEL as Record<string, (n: number) => string>)[key] ?? PARTIAL_LABEL[key];
 }
 
 /**

@@ -10,6 +10,7 @@ import dynamic from "next/dynamic";
 import { computeEngagementRate } from "@/lib/metrics";
 import { metricValue, fieldMetricValue, unwrittenMetricValue, readableSnapshots, snapshotMetric, type MetricField } from "@/lib/metricDisplay";
 import { postAgeContext, postMeasuredAt, postStatus } from "@/lib/posts/postStatus";
+import { viewsAsOf, viewsReadAt } from "@/lib/posts/fieldFreshness";
 import PostStatusChip from "@/components/posts/PostStatusChip";
 import { AgeLabel } from "@/components/ds/AgeLabel";
 import { metricReason, metricText, postCounterValue } from "@/lib/creators/metricValue";
@@ -377,6 +378,12 @@ export default function PostDetailPage() {
 
   const status = postStatus(post);
   const measured = postMeasuredAt(post);
+  /* A views figure the latest read did not return carries its own date. */
+  const viewsNote = viewsAsOf({
+    viewsCount: post.viewsCount,
+    platformMetrics: post.platformMetrics,
+    viewsReadAt: viewsReadAt(post.platformMetrics, post.snapshots),
+  });
 
   /* Held in component state for as long as the screen is open and never sent
      anywhere else. There is no column for a comment body and no cache in front
@@ -612,14 +619,25 @@ export default function PostDetailPage() {
                 </span>
               );
             })()}
-            <AgeLabel
-              at={measured.at}
-              field="post"
-              ctx={postAgeContext({ postedAt: post.postedAt, trackingEnabled: timeseries?.trackingEnabled, trackingExpiresAt: timeseries?.trackingExpiresAt }, status)}
-              source={measured.source}
-              never={null}
-              style={{ marginTop: 4 }}
-            />
+            {/* The latest read's age, except on a views figure that read did
+                not return: that one says when it was read. */}
+            {field === "views" && viewsNote ? (
+              <span
+                title={viewsNote.title}
+                style={{ display: "block", marginTop: 4, fontSize: "var(--cc-t-11)", lineHeight: 1.3, color: "var(--cc-text-muted)" }}
+              >
+                {viewsNote.sentence}
+              </span>
+            ) : (
+              <AgeLabel
+                at={measured.at}
+                field="post"
+                ctx={postAgeContext({ postedAt: post.postedAt, trackingEnabled: timeseries?.trackingEnabled, trackingExpiresAt: timeseries?.trackingExpiresAt }, status)}
+                source={measured.source}
+                never={null}
+                style={{ marginTop: 4 }}
+              />
+            )}
           </Card>
         ))}
         {engRate !== null && (

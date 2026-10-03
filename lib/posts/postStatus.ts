@@ -76,6 +76,8 @@ const UNREAD_REASON: Record<string, string> = {
   "credentials-rejected": "the platform rejected our credentials",
   "not-a-professional-account":
     "Instagram shares nothing for this account; it may be personal, private, renamed or gone",
+  "not-on-account":
+    "Instagram did not list it on the creator's account; it may have been deleted or archived, or be on another account",
   "counts-inconsistent":
     "the platform's numbers for it contradicted each other (more likes than views), so its last consistent numbers are kept",
 };

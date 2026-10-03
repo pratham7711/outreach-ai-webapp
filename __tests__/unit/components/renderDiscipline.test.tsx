@@ -169,6 +169,39 @@ describe("render discipline", () => {
     expect(screen.getByText(/1,200 views/)).toBeInTheDocument();
   });
 
+  it("dates a views figure the latest read did not return, and only that one", () => {
+    render(
+      <PostGridCard
+        post={{
+          ...POST,
+          platform: "INSTAGRAM",
+          platformMetrics: { __measured: ["likes", "comments"] },
+          viewsReadAt: "2026-10-01T09:08:00.000Z",
+        }}
+        selected={false}
+        selectionActive={false}
+        onToggleSelect={noop}
+        onOpenMenu={noop}
+      />
+    );
+    expect(screen.getByText(/1,200 views/)).toBeInTheDocument();
+    expect(screen.getByText(/as of 1 Oct 2026/)).toBeInTheDocument();
+    expect(screen.queryAllByText(/as of/)).toHaveLength(1);
+  });
+
+  it("adds no date when the latest read returned views", () => {
+    render(
+      <PostGridCard
+        post={{ ...POST, platformMetrics: { __measured: ["views", "likes"] }, viewsReadAt: "2026-10-01T09:08:00.000Z" }}
+        selected={false}
+        selectionActive={false}
+        onToggleSelect={noop}
+        onOpenMenu={noop}
+      />
+    );
+    expect(screen.queryByText(/as of/)).toBeNull();
+  });
+
   it("selecting one tile does not re-render the others", () => {
     render(<SelectionHarness />);
     const twoTiles = renderSpy.mock.calls.length;

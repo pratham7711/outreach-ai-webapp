@@ -105,6 +105,11 @@ message Post {
      an imported post that we have never read was measured at, so its counters
      can show an age and its status can say "live as of" that day. */
   optional int64 last_fresh_at_ms = 29;
+
+  /* When views were last actually read (lib/posts/fieldFreshness). A partial
+     read leaves the post's views as they were, and this is the date they
+     belong to -- shown beside the figure when the latest read lacked views. */
+  optional int64 views_read_at_ms = 30;
 }
 
 message PostList {

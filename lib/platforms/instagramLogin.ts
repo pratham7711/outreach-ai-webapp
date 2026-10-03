@@ -1,5 +1,5 @@
 import { createLogger } from "@/lib/observability/logger";
-import { InstagramAuthError, isAuthFailure } from "./instagram";
+import { InstagramAuthError, isAuthFailure, isRateLimitCode } from "./instagram";
 
 /**
  * Instagram API with Instagram Login — the Page-free half of Instagram.
@@ -155,6 +155,8 @@ async function igGet(
         code,
         message,
       });
+      /* As in graphGet: a throttle can arrive as a 403 and is not a dead token. */
+      if (isRateLimitCode(code)) return null;
       if (isAuthFailure(res.status, code)) {
         throw new InstagramAuthError(
           res.status,
