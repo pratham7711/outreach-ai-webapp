@@ -10,6 +10,7 @@ import { creatorFilterSchema, creatorOrderBy, creatorWhere } from "@/lib/listFil
 import { creatorHandleVariants } from "@/lib/creator-auth";
 import { DEFAULT_CREATOR_SORT } from "@/lib/listParams";
 import { rosterTablesReady } from "@/lib/creators/rosterTables";
+import { lookupNewCreatorViaAgency } from "@/lib/creators/agencyLookup";
 
 const listCreatorsQuerySchema = creatorFilterSchema.extend({
   page: pageParam,
@@ -158,7 +159,19 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(creator, { status: 201 });
+    /* An org with its own Instagram account sees the creator's public figures
+       now (lib/creators/agencyLookup). Every other org gets the response this
+       route always sent, and no read is made for it here. */
+    const lookup = await lookupNewCreatorViaAgency({
+      orgId,
+      creatorId: creator.id,
+      platform: creator.platform,
+      handle: creator.handle,
+      typedFollowers: followersCount,
+      typedViews: averageViews,
+    }).catch(() => null);
+
+    return NextResponse.json(lookup ? { ...creator, lookup } : creator, { status: 201 });
   } catch (error) {
     console.error("Failed to create creator:", error);
     return NextResponse.json(

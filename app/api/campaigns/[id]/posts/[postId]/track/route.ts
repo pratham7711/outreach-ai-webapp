@@ -128,6 +128,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         const metrics = await fetchPostMetrics(post.postUrl, {
           instagramToken: instagram?.token,
           instagramHandle: instagram?.handle,
+          instagramOrgId: orgId,
           tiktokToken,
         });
         /* The shared writer rather than a third hand-rolled copy of it. The

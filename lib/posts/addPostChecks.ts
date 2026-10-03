@@ -291,7 +291,7 @@ export async function ensureCreatorForHandle(
   let followersCount = 0;
   let averageViews = 0;
   try {
-    const read = await readCreatorProfile(platform, handle);
+    const read = await readCreatorProfile(platform, handle, { orgId });
     if (read.ok) {
       followersCount = read.profile.followersCount;
       // Only a mean actually taken over posts. sampledPosts 0 means the reader

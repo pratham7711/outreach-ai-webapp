@@ -24,6 +24,11 @@ jest.mock("@/lib/platforms/connectionRefresh", () => ({
   refreshConnectedAccounts: (...args: unknown[]) => mockConnections(...args),
 }));
 
+const mockAgencies = jest.fn();
+jest.mock("@/lib/platforms/instagramAgencyCredential", () => ({
+  refreshAgencyCredentials: (...args: unknown[]) => mockAgencies(...args),
+}));
+
 import { NextRequest } from "next/server";
 import { GET } from "@/app/api/cron/refresh-platform-tokens/route";
 
@@ -47,6 +52,12 @@ beforeEach(() => {
     noToken: 0,
     identityFailed: 0,
     deferred: 0,
+  });
+  mockAgencies.mockReset().mockResolvedValue({
+    considered: 0,
+    skipped: 0,
+    byStatus: { refreshed: 0, "not-due": 0, expired: 0, "not-extended": 0, failed: 0 },
+    outcomes: [],
   });
   process.env.CRON_SECRET = SECRET;
 });
@@ -165,5 +176,42 @@ describe("the creators' own connections", () => {
     mockRefresh.mockRejectedValue(new Error("boom"));
     await call();
     expect(mockConnections).not.toHaveBeenCalled();
+  });
+});
+
+describe("agencies' own Instagram accounts", () => {
+  it("are extended after the platform credential, with force passed through, and reported without org detail", async () => {
+    mockAgencies.mockResolvedValue({
+      considered: 2,
+      skipped: 0,
+      byStatus: { refreshed: 1, "not-due": 0, expired: 0, "not-extended": 0, failed: 1 },
+      outcomes: [
+        { orgId: "org-a", status: "refreshed", daysLeft: 60 },
+        { orgId: "org-b", status: "failed", daysLeft: 3, reason: "Meta refused the exchange" },
+      ],
+    });
+    const res = await call("?force=1");
+    expect(res.status).toBe(200);
+    expect(mockAgencies).toHaveBeenCalledWith(expect.objectContaining({ force: true }));
+    const body = await res.json();
+    expect(body.agencies).toEqual({
+      considered: 2,
+      skipped: 0,
+      byStatus: { refreshed: 1, "not-due": 0, expired: 0, "not-extended": 0, failed: 1 },
+    });
+    // One org's failed exchange is that org's card, not a page.
+    expect(mockAlert).not.toHaveBeenCalled();
+  });
+
+  it("cannot fail the credential run, or stop the creator connections, when they crash", async () => {
+    mockAgencies.mockRejectedValue(new Error("db down"));
+    const res = await call();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.instagram.status).toBe("not-due");
+    expect(body.agencies).toEqual({ error: "agency refresh failed" });
+    expect(mockConnections).toHaveBeenCalledTimes(1);
+    expect(mockAlert).toHaveBeenCalledTimes(1);
+    expect(mockAlert.mock.calls[0][0].severity).toBe("warn");
   });
 });

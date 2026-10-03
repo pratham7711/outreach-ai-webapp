@@ -288,6 +288,7 @@ export async function refreshCreatorAvatars({
     if (!stored && creator.handle) {
       let read: CreatorReadResult = await readCreatorProfile(creator.platform, creator.handle, {
         instagramStopAtPercent: TRACKER_SWEEP_STOP_PERCENT,
+        orgId: creator.orgId,
       }).catch(
         (e): CreatorReadResult => ({ ok: false, reason: "unreadable", detail: String(e) })
       );

@@ -464,6 +464,7 @@ export async function syncPost(
   const metrics = await fetchPostMetrics(post.postUrl, {
     instagramToken: instagram?.token,
     instagramHandle: instagram?.handle,
+    instagramOrgId: orgId,
     tiktokToken,
     countsOnly: options.countsOnly,
     tiktokSandbox: options.tiktokSandbox,

@@ -539,7 +539,7 @@ export async function snapshotCreators(
         result = read.result;
         via = read.via;
       } else {
-        result = await readCreatorProfile(creator.platform, creator.handle, { instagramStopAtPercent });
+        result = await readCreatorProfile(creator.platform, creator.handle, { instagramStopAtPercent, orgId: creator.orgId });
       }
     } catch (e) {
       result = {

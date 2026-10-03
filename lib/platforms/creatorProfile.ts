@@ -96,7 +96,9 @@ export type CreatorReadFailure =
   | "rate-limited";
 
 export type CreatorReadResult =
-  | { ok: true; profile: CreatorProfileRead }
+  /* `via` is set when the read went through the org's own Instagram account
+     rather than the platform's. */
+  | { ok: true; profile: CreatorProfileRead; via?: { username: string } }
   | { ok: false; reason: CreatorReadFailure; detail?: string };
 
 /** Human copy for the UI. The tracker says why, rather than showing a zero. */
@@ -238,16 +240,18 @@ async function readDiscoveryProfile(handle: string, cred: DiscoveryCredential): 
   return first;
 }
 
-async function readInstagram(handle: string, stopAtPercent?: number): Promise<CreatorReadResult> {
+async function readInstagram(handle: string, stopAtPercent?: number, orgId?: string): Promise<CreatorReadResult> {
   let profile;
+  let via: { username: string } | undefined;
   try {
     /* Token A, or the standby B while A is limited (plan §13 B). Both limited
        is a rate limit, caught below like any other. A sweep passes its
        threshold and is deferred below Meta's limit; the detail then starts
        "deferred:", which the breaker does not count against the source. */
-    const read = await readWithDiscoveryToken((cred) => readDiscoveryProfile(handle, cred), { stopAtPercent });
+    const read = await readWithDiscoveryToken((cred) => readDiscoveryProfile(handle, cred), { stopAtPercent, orgId });
     if (!read.ok) return { ok: false, reason: "no-credentials" };
     profile = read.value;
+    via = read.via;
   } catch (e) {
     /* Graph's 110 is its whole answer for a name it has no Business or Creator
        account for: a personal or private account, or a handle nobody holds.
@@ -301,6 +305,7 @@ async function readInstagram(handle: string, stopAtPercent?: number): Promise<Cr
       ...(profile.profilePictureUrl ? { avatarUrl: profile.profilePictureUrl } : {}),
       ...(profile.igUserId ? { accountId: profile.igUserId } : {}),
     },
+    ...(via ? { via } : {}),
   };
 }
 
@@ -507,11 +512,11 @@ async function readYouTube(handle: string, channelId?: string): Promise<CreatorR
 export async function readCreatorProfile(
   platform: string,
   handle: string,
-  options: { youtubeChannelId?: string; instagramStopAtPercent?: number } = {}
+  options: { youtubeChannelId?: string; instagramStopAtPercent?: number; orgId?: string } = {}
 ): Promise<CreatorReadResult> {
   switch (platform?.toUpperCase()) {
     case "INSTAGRAM":
-      return readInstagram(handle, options.instagramStopAtPercent);
+      return readInstagram(handle, options.instagramStopAtPercent, options.orgId);
     case "YOUTUBE":
       return readYouTube(handle, options.youtubeChannelId);
     case "TIKTOK":

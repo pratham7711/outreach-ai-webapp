@@ -2,9 +2,30 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Modal, Input } from "@pratham7711/ui";
 import { Dropdown, Button } from "@/components/ds";
-import { parseCountInput } from "@/lib/format";
+import { formatFull, parseCountInput } from "@/lib/format";
+
+type AddLookup =
+  | { ok: true; followersCount: number; postsCount: number; via: { username: string } | null }
+  | { ok: false; reason: string };
+
+function lookupMessage(lookup: AddLookup): { tone: "success" | "info"; text: string } {
+  if (!lookup.ok) {
+    return {
+      tone: "info",
+      text: "Creator added. Instagram could not be read just now; the next scheduled read will try again.",
+    };
+  }
+  const figures = `${formatFull(lookup.followersCount)} followers · ${formatFull(lookup.postsCount)} posts`;
+  return {
+    tone: "success",
+    text: lookup.via
+      ? `Creator added: ${figures}, via your Instagram Business account (@${lookup.via.username})`
+      : `Creator added: ${figures}`,
+  };
+}
 
 export default function AddCreatorModal({ onClose }: { onClose: () => void }) {
   const router = useRouter();
@@ -55,6 +76,12 @@ export default function AddCreatorModal({ onClose }: { onClose: () => void }) {
         }),
       });
       if (res.ok) {
+        const created = (await res.json().catch(() => null)) as { lookup?: AddLookup } | null;
+        if (created?.lookup) {
+          const { tone, text } = lookupMessage(created.lookup);
+          if (tone === "success") toast.success(text);
+          else toast.info(text);
+        }
         router.refresh();
         onClose();
         return;

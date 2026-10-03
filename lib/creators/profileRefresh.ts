@@ -108,6 +108,7 @@ export async function refreshRosterProfiles({
 
     let read: CreatorReadResult = await readCreatorProfile(link.platform, link.handle, {
       instagramStopAtPercent: TRACKER_SWEEP_STOP_PERCENT,
+      orgId: link.orgId,
     }).catch(
       (e): CreatorReadResult => ({ ok: false, reason: "unreadable", detail: String(e) }),
     );

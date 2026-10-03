@@ -1,6 +1,11 @@
 import { createLogger } from "@/lib/observability/logger";
 import { InstagramAuthError, InstagramRateLimitError, type GraphHeadersListener } from "./instagram";
 import { businessDiscoveryToken, type DiscoveryReadOptions } from "./instagramBusinessDiscovery";
+import {
+  getAgencyDiscoveryCredential,
+  markAgencyCredentialRejected,
+  peekAgencyCredential,
+} from "./instagramAgencyCredential";
 
 /**
  * Business Discovery's two tokens (plan §13 B): A, the one there has always
@@ -36,9 +41,15 @@ import { businessDiscoveryToken, type DiscoveryReadOptions } from "./instagramBu
  * one token, where an interactive read is still asked. A deferral makes no call
  * and throws InstagramDeferredError, a rate limit to every caller that already
  * handles one. Interactive reads pass nothing and behave as before.
+ *
+ * A read that names its org goes first to that org's own account when it has
+ * one (lib/platforms/instagramAgencyCredential), with its own usage and limit
+ * state. A limit there is that org's answer and never spills onto A or B, whose
+ * hour belongs to every org without an account of its own. Only a token Meta
+ * rejects outright sends the org back to A and B, until it reconnects.
  */
 
-export type DiscoverySlot = "A" | "B";
+export type DiscoverySlot = "A" | "B" | "org";
 
 export type DiscoveryCredential = {
   slot: DiscoverySlot;
@@ -48,7 +59,7 @@ export type DiscoveryCredential = {
 };
 
 export type DiscoveryOutcome<T> =
-  | { ok: true; value: T; slot: DiscoverySlot }
+  | { ok: true; value: T; slot: DiscoverySlot; via?: { username: string } }
   | { ok: false; reason: "no-credentials" };
 
 /** At or above this share of any limit Meta reports, the token counts as limited. */
@@ -89,7 +100,11 @@ export const TOKEN_B_USER_ID_ENV = "INSTAGRAM_BD_USER_ID_B";
 type SlotState = { limitedUntil: number; lastCode: number; usageLoggedAt: number; usagePercent: number; usageAt: number };
 
 const fresh = (): SlotState => ({ limitedUntil: 0, lastCode: 4, usageLoggedAt: 0, usagePercent: 0, usageAt: 0 });
-let state: Record<DiscoverySlot, SlotState> = { A: fresh(), B: fresh() };
+/* "A", "B", and "org:<orgId>" for each org's own account. */
+let state: Record<string, SlotState> = { A: fresh(), B: fresh() };
+
+const slotState = (key: string): SlotState => (state[key] ??= fresh());
+const orgKey = (orgId: string) => `org:${orgId}`;
 
 /** For tests. */
 export function resetDiscoveryTokenState() {
@@ -161,8 +176,8 @@ export function parseGraphUsage(headers: { get(name: string): string | null }): 
   return out;
 }
 
-function markLimited(slot: DiscoverySlot, nowMs: number, why: string, regainMinutes?: number, code?: number) {
-  const s = state[slot];
+function markLimited(slot: string, nowMs: number, why: string, regainMinutes?: number, code?: number) {
+  const s = slotState(slot);
   const until = nowMs + (regainMinutes && regainMinutes > 0 ? regainMinutes * 60_000 : DEFAULT_LIMIT_WINDOW_MS);
   const wasLimited = s.limitedUntil > nowMs;
   s.limitedUntil = Math.max(s.limitedUntil, until);
@@ -176,12 +191,12 @@ function markLimited(slot: DiscoverySlot, nowMs: number, why: string, regainMinu
   }
 }
 
-function usageListener(slot: DiscoverySlot, now: () => number): GraphHeadersListener {
+function usageListener(slot: string, now: () => number): GraphHeadersListener {
   return (headers) => {
     const usage = parseGraphUsage(headers);
     if (!usage) return;
     const nowMs = now();
-    const s = state[slot];
+    const s = slotState(slot);
     s.usagePercent = usage.maxPercent;
     s.usageAt = nowMs;
     const warn = usage.maxPercent >= USAGE_WARN_PERCENT;
@@ -212,9 +227,9 @@ function tokenB(env: Record<string, string | undefined>): { token: string; igUse
 }
 
 /** Why a background reader should not ask this slot now, or null when it may. */
-function deferral(slot: DiscoverySlot, nowMs: number, stopAtPercent: number | undefined): InstagramDeferredError | null {
+function deferral(slot: string, nowMs: number, stopAtPercent: number | undefined): InstagramDeferredError | null {
   if (stopAtPercent === undefined) return null;
-  const s = state[slot];
+  const s = slotState(slot);
   if (s.limitedUntil > nowMs) return new InstagramDeferredError(s.lastCode, null, stopAtPercent);
   if (s.usageAt > 0 && nowMs - s.usageAt < USAGE_FRESH_MS && s.usagePercent >= stopAtPercent) {
     return new InstagramDeferredError(s.lastCode, s.usagePercent, stopAtPercent);
@@ -227,12 +242,17 @@ function deferral(slot: DiscoverySlot, nowMs: number, stopAtPercent: number | un
  * configured token right now. A sweep asks before it claims a post, so a post
  * it is not going to read is left untouched and stays due, instead of being
  * stamped with an attempt that made no call.
+ *
+ * With an orgId whose own account is in the cache (loadAgencyDiscoveryCredentials),
+ * only that account's state counts, since its reads never touch A or B.
  */
 export function backgroundReadsDeferred(
   stopAtPercent: number,
   nowMs = Date.now(),
   env: Record<string, string | undefined> = process.env,
+  orgId?: string,
 ): boolean {
+  if (orgId && peekAgencyCredential(orgId, nowMs)) return deferral(orgKey(orgId), nowMs, stopAtPercent) !== null;
   const slots: DiscoverySlot[] = tokenB(env) ? ["A", "B"] : ["A"];
   return slots.every((slot) => deferral(slot, nowMs, stopAtPercent) !== null);
 }
@@ -266,8 +286,42 @@ export async function readWithDiscoveryToken<T>(
     now = Date.now,
     env = process.env,
     stopAtPercent,
-  }: { now?: () => number; env?: Record<string, string | undefined>; stopAtPercent?: number } = {},
+    orgId,
+  }: {
+    now?: () => number;
+    env?: Record<string, string | undefined>;
+    stopAtPercent?: number;
+    /** The org the read is for. Its own Instagram account answers, when it has one. */
+    orgId?: string;
+  } = {},
 ): Promise<DiscoveryOutcome<T>> {
+  const own = orgId ? await getAgencyDiscoveryCredential(orgId, now()) : null;
+  if (orgId && own) {
+    const key = orgKey(orgId);
+    const wait = deferral(key, now(), stopAtPercent);
+    if (wait) throw wait;
+    const cred: DiscoveryCredential = {
+      slot: "org",
+      token: own.token,
+      graphOptions: { igUserId: own.igUserId, onHeaders: usageListener(key, now) },
+    };
+    try {
+      return { ok: true, value: await read(cred), slot: "org", via: { username: own.username } };
+    } catch (e) {
+      if (e instanceof InstagramRateLimitError) {
+        markLimited(key, now(), `code ${e.code}`, undefined, e.code);
+        throw e;
+      }
+      if (!(e instanceof InstagramAuthError)) throw e;
+      log().error("agency Instagram account rejected; the org reads with the operator token until it reconnects", {
+        orgId,
+        status: e.status,
+        code: e.code,
+      });
+      await markAgencyCredentialRejected(orgId, `Instagram refused this account (${e.message})`, new Date(now()));
+    }
+  }
+
   const a = await businessDiscoveryToken();
   const b = tokenB(env);
   const creds: DiscoveryCredential[] = [];

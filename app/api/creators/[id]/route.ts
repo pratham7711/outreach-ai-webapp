@@ -9,6 +9,7 @@ import { deriveCampaignCounts, deriveCreatorCampaigns } from "@/lib/creatorMetri
 import { rosterTablesReady } from "@/lib/creators/rosterTables";
 import { handleProblem } from "@/lib/creators/handleCheck";
 import { creatorFollowersTime, figureTimeDto, linkFollowersTime } from "@/lib/creators/figureTime";
+import { readThroughOwnAccount } from "@/lib/creators/agencyLookup";
 import { latestTrackerReadings } from "@/lib/creators/latestReadings";
 
 const updateCreatorSchema = z.object({
@@ -99,6 +100,16 @@ export async function GET(
       latestTrackerReadings(orgId, [creator.id]),
     ]);
     const primaryLink = profileLinks.find((l) => l.isPrimary) ?? null;
+    const followersTime = creatorFollowersTime({
+      followersCount: creator.followersCount,
+      primaryLink,
+      latestSnapshot: readings.get(creator.id) ?? null,
+    });
+    const instagramReadVia = await readThroughOwnAccount(
+      orgId,
+      primaryLink?.platform ?? creator.platform,
+      followersTime,
+    );
     return NextResponse.json({
       ...creator,
       campaignCount: campaignCounts.get(creator.id) ?? 0,
@@ -107,14 +118,9 @@ export async function GET(
          here because the read that failed is a server-side fact the page is
          otherwise only given as a problem badge. */
       figureTimes: {
-        followers: figureTimeDto(
-          creatorFollowersTime({
-            followersCount: creator.followersCount,
-            primaryLink,
-            latestSnapshot: readings.get(creator.id) ?? null,
-          }),
-        ),
+        followers: figureTimeDto(followersTime),
       },
+      instagramReadVia,
       profileLinks: profileLinks.map(({ refreshError, ...l }) => ({
         ...l,
         problem: handleProblem(l.platform, refreshError),
