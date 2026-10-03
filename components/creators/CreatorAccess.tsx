@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Badge, Card, Skeleton } from "@pratham7711/ui";
+import { Button } from "@/components/ds";
 import { formatDateAbs, platformLabel } from "@/lib/format";
 import type { AccessEntry, AccessStatus } from "@/lib/creators/grantAccess";
 
@@ -96,7 +97,124 @@ export default function CreatorAccess({ creatorId }: { creatorId: string }) {
           </ul>
         </Card>
       )}
+      {!failed && <RequestConnection creatorId={creatorId} />}
     </section>
+  );
+}
+
+type LinkStatus = { active: boolean; createdAt: string | null; usedAt: string | null };
+
+/**
+ * "Request connection": makes the creator's /connect/<token> link and shows it
+ * once, to copy. Nothing is sent to the creator; the agency shares the link from
+ * its own channels. Only a hash is stored, so a lost link is replaced by making
+ * a new one, which also turns the old one off (app/api/creators/[id]/connect-link).
+ * Hidden for anyone the route refuses (an API key, a viewer) and while connect
+ * links are not switched on.
+ */
+function RequestConnection({ creatorId }: { creatorId: string }) {
+  const [status, setStatus] = useState<LinkStatus | null>(null);
+  const [url, setUrl] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    fetch(`/api/creators/${creatorId}/connect-link`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((body: LinkStatus | null) => {
+        if (live && body) setStatus(body);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [creatorId]);
+
+  if (!status) return null;
+
+  const request = async () => {
+    setBusy(true);
+    setError(null);
+    setCopied(false);
+    try {
+      const res = await fetch(`/api/creators/${creatorId}/connect-link`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "request" }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || typeof body.url !== "string") {
+        setError(body.error ?? "The link could not be made. Try again.");
+        return;
+      }
+      setUrl(body.url);
+      setStatus({ active: true, createdAt: body.createdAt ?? new Date().toISOString(), usedAt: null });
+    } catch {
+      setError("Network error. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const copy = async () => {
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      window.prompt("Copy this connect link:", url);
+    }
+  };
+
+  return (
+    <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <Button variant="secondary" size="sm" loading={busy} onClick={request}>
+          {status.active ? "Make a new connect link" : "Request connection"}
+        </Button>
+        <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
+          {status.active && status.createdAt
+            ? `A link made ${formatDateAbs(status.createdAt)} is live${status.usedAt ? `, last opened ${formatDateAbs(status.usedAt)}` : ""}. A new one turns it off.`
+            : "Makes a link you send the creator yourself. We don't message them."}
+        </span>
+      </div>
+      {url && (
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", minWidth: 0 }}>
+          <input
+            readOnly
+            aria-label="Connect link"
+            value={url}
+            onFocus={(e) => e.currentTarget.select()}
+            style={{
+              flex: "1 1 260px",
+              minWidth: 0,
+              fontSize: "var(--cc-t-13)",
+              color: "var(--cc-text)",
+              background: "var(--cc-bg)",
+              border: "1px solid var(--cc-border)",
+              borderRadius: "var(--cc-r-control)",
+              padding: "8px 10px",
+            }}
+          />
+          <Button variant="primary" size="sm" onClick={copy}>
+            {copied ? "Copied" : "Copy link"}
+          </Button>
+        </div>
+      )}
+      {url && (
+        <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: 0 }}>
+          Shown once. The creator opens it, picks the accounts to connect, and approves each one on the platform&rsquo;s own screen.
+        </p>
+      )}
+      {error && (
+        <p role="alert" style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-danger-ink)", margin: 0 }}>
+          {error}
+        </p>
+      )}
+    </div>
   );
 }
 
