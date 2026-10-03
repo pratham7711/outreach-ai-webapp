@@ -30,9 +30,24 @@ export function sourceKillKey(source: OpsSource): string {
   return `${SOURCE_KILL_PREFIX}${source}`;
 }
 
+/**
+ * The plan-B post readers, each switchable on its own. Switching one off
+ * leaves that platform's plan A reading exactly as before; switching the
+ * platform off ("source:youtube") stops both. They share the source prefix so
+ * the ops page lists them with the read sources, but they are not OPS_SOURCES:
+ * no breaker, no platform mapping, and killedSources() never returns them.
+ */
+export const FALLBACK_READERS = ["youtube-watch-page", "tiktok-worker"] as const;
+export type FallbackReader = (typeof FALLBACK_READERS)[number];
+
+export function fallbackKillKey(reader: FallbackReader): string {
+  return `${SOURCE_KILL_PREFIX}${reader}`;
+}
+
 export const KILL_SWITCH_KEYS: string[] = [
   ...CRON_JOBS.map((j) => cronKillKey(j.job)),
   ...OPS_SOURCES.map((s) => sourceKillKey(s)),
+  ...FALLBACK_READERS.map((r) => fallbackKillKey(r)),
 ];
 
 export function isKillSwitchKey(v: unknown): v is string {

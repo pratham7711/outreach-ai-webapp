@@ -36,7 +36,7 @@ const QUOTA_403 = JSON.stringify({
   error: { code: 403, errors: [{ domain: "youtube.quota", reason: "quotaExceeded" }] },
 });
 
-type Asked = { method: "list" | "batch"; ids: string[] };
+type Asked = { method: "list" | "batch" | "page"; ids: string[] };
 
 function reply(status: number, body: unknown) {
   const text = typeof body === "string" ? body : JSON.stringify(body);
@@ -50,7 +50,9 @@ const stat = (id: string, views = 1000) => ({
   statistics: { viewCount: String(views), likeCount: "50", commentCount: "5" },
 });
 
-/** videos.list answers per `list`, batchGetStats per `batch`; both record what they were asked. */
+/** videos.list answers per `list`, batchGetStats per `batch`; both record what they were asked.
+ *  A watch page (plan B) is recorded as "page" and answers 404, so plan B reads nothing here
+ *  and every assertion below is about plan A alone. */
 function fakeYouTube({
   list,
   batch = (ids: string[]) => reply(200, { items: ids.map((id) => stat(id)) }),
@@ -61,6 +63,10 @@ function fakeYouTube({
   const asked: Asked[] = [];
   global.fetch = jest.fn(async (input: string) => {
     const u = new URL(input);
+    if (u.pathname === "/watch") {
+      asked.push({ method: "page", ids: [u.searchParams.get("v") ?? ""] });
+      return { ok: false, status: 404, url: input, text: async () => "" };
+    }
     const ids = (u.searchParams.get("id") ?? "").split(",").filter(Boolean);
     if (u.pathname.endsWith("/videos:batchGetStats")) {
       asked.push({ method: "batch", ids });
@@ -138,7 +144,9 @@ describe("fetchYouTubeMetrics (one post)", () => {
     const asked = fakeYouTube({ list: () => reply(403, { error: { errors: [{ reason: "forbidden" }] } }) });
     const m = await fetchYouTubeMetrics("vidAAAAAAA1");
     expect(m.fetchReason).toBe("platform-refused");
-    expect(asked.map((a) => a.method)).toEqual(["list"]);
+    /* Not sent to batchGetStats: a 403 that is not quota says nothing about its
+       bucket. Plan B is still asked, and reading nothing it leaves the reason. */
+    expect(asked.map((a) => a.method)).toEqual(["list", "page"]);
   });
 
   it("files a video the fallback did not return as unread, never deleted and never 0", async () => {
@@ -188,7 +196,9 @@ describe("fetchYouTubeMetricsBatch (the cron)", () => {
     const asked = fakeYouTube({ list: () => reply(500, "backend error") });
     const out = await fetchYouTubeMetricsBatch(ids.slice(0, 3));
     expect(out.size).toBe(0);
-    expect(asked.every((a) => a.method === "list")).toBe(true);
+    /* Never batchGetStats for a non-quota failure; plan B's pages are asked and read nothing. */
+    expect(asked.some((a) => a.method === "batch")).toBe(false);
+    expect(asked.filter((a) => a.method === "page").map((a) => a.ids[0])).toEqual(ids.slice(0, 3));
   });
 });
 

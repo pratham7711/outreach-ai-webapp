@@ -19,6 +19,7 @@ import { fetchInstagramEmbedPost } from "./instagramEmbed";
 import { fetchTikTokVideosByIds } from "./tiktokDisplay";
 import { isRounded, TIKTOK_DISPLAY } from "./precision";
 import { fetchTwitchMetrics } from "./twitch";
+import { readYouTubeWatchPage, readYouTubeWatchPages, type WatchPageCounts } from "./youtubeWatchPage";
 import { createLogger } from "../observability/logger";
 import { MEDIA_TYPES, detectPlatform, tiktokPageUrl, type MediaType } from "./postUrl";
 import type { MetricField } from "../metricDisplay";
@@ -329,11 +330,55 @@ function fetchTimeoutSignal(ms = 8000): AbortSignal | undefined {
 export { MEDIA_TYPES, detectPlatform };
 export type { MediaType };
 
+/**
+ * Plan A's answer, or plan B's reading when plan A came back empty.
+ *
+ * Plan B only ever adds a reading. When it reads nothing too, the post keeps
+ * plan A's reason, so retries, breakers and the canary see exactly what they
+ * saw before plan B existed. A verdict from plan A ("post-deleted") is never
+ * second-guessed.
+ */
+export async function withWatchPageFallback(
+  videoId: string,
+  planA: Partial<PostMetrics>,
+): Promise<Partial<PostMetrics>> {
+  if (!planA.fetchReason || !YOUTUBE_PLAN_B_REASONS.has(planA.fetchReason)) return planA;
+  const read = await readYouTubeWatchPage(videoId);
+  return read.ok ? mapWatchPageCounts(read.counts) : planA;
+}
+
+/** Plan A failures plan B is asked to cover: every one that is about us or the moment, none that is about the video. */
+const YOUTUBE_PLAN_B_REASONS: ReadonlySet<FetchReason> = new Set<FetchReason>([
+  "not-configured",
+  "platform-refused",
+  "platform-challenged",
+  "credentials-rejected",
+  "reader-timeout",
+]);
+
+function mapWatchPageCounts(c: WatchPageCounts): Partial<PostMetrics> {
+  return {
+    thumbnailUrl: null,
+    caption: null,
+    ...(c.viewsCount !== undefined ? { viewsCount: c.viewsCount } : {}),
+    ...(c.likesCount !== undefined ? { likesCount: c.likesCount } : {}),
+    ...(c.commentsCount !== undefined ? { commentsCount: c.commentsCount } : {}),
+    ...(c.viewsCount !== undefined && c.viewsCount > 0
+      ? { engagementRate: (((c.likesCount ?? 0) + (c.commentsCount ?? 0)) / c.viewsCount) * 100 }
+      : {}),
+    ...(c.postedAt ? { postedAt: c.postedAt } : {}),
+  };
+}
+
 export async function fetchYouTubeMetrics(videoId: string): Promise<Partial<PostMetrics>> {
+  return withWatchPageFallback(videoId, await fetchYouTubeMetricsPlanA(videoId));
+}
+
+async function fetchYouTubeMetricsPlanA(videoId: string): Promise<Partial<PostMetrics>> {
   const log = createLogger({ context: { platform: "YOUTUBE", videoId } });
   const apiKey = process.env.YOUTUBE_API_KEY;
   if (!apiKey) {
-    log.warn("YOUTUBE_API_KEY not set; storing no metric counts for this post");
+    log.warn("YOUTUBE_API_KEY not set; plan A has nothing to read with");
     // Settled, not retryable: a missing key is identical on all three sweeps.
     return stubMetrics("not-configured");
   }
@@ -441,7 +486,11 @@ export async function fetchYouTubeMetricsBatch(videoIds: string[]): Promise<Map<
   const log = createLogger({ context: { platform: "YOUTUBE", mode: "batch" } });
   const apiKey = process.env.YOUTUBE_API_KEY;
   if (!apiKey) {
-    log.warn("YOUTUBE_API_KEY not set; batch skipped", { count: ids.length });
+    log.warn("YOUTUBE_API_KEY not set; reading the batch through watch pages", { count: ids.length });
+    await fillFromWatchPages(out, ids);
+    /* Entered rather than left out, so the caller does not read each one
+       again by itself -- through the same plan B that just answered. */
+    for (const id of ids) if (!out.has(id)) out.set(id, assemblePostMetrics("YOUTUBE", id, stubMetrics("not-configured")));
     return out;
   }
 
@@ -509,7 +558,23 @@ export async function fetchYouTubeMetricsBatch(videoIds: string[]): Promise<Map<
       unread: unread.length,
     });
   }
+
+  /* Plan B for whatever plan A left unread: chunks that failed outright, and
+     the ones the quota fallback could not answer. */
+  const unreadIds = ids.filter((id) => {
+    const m = out.get(id);
+    return !m || (m.fetchReason !== undefined && YOUTUBE_PLAN_B_REASONS.has(m.fetchReason));
+  });
+  if (unreadIds.length > 0) await fillFromWatchPages(out, unreadIds);
   return out;
+}
+
+/** Reads these ids through watch pages and enters each one that answered. The rest are left as they were. */
+async function fillFromWatchPages(out: Map<string, PostMetrics>, ids: string[]): Promise<void> {
+  const reads = await readYouTubeWatchPages(ids);
+  for (const [id, read] of reads) {
+    if (read.ok) out.set(id, assemblePostMetrics("YOUTUBE", id, mapWatchPageCounts(read.counts)));
+  }
 }
 
 export function reasonFromLookup(lookup: TikTokPostLookup): FetchReason {
