@@ -53,7 +53,7 @@ export default async function DataDeletionPage({
         </ul>
         <p>
           Threads and Instagram Login publish no way for an app to withdraw its own access, so for
-          those, also remove {LEGAL.name} in the app&rsquo;s own settings (below).
+          those, also remove {LEGAL.name}{" "}in the app&rsquo;s own settings (below).
         </p>
       </LegalSection>
 

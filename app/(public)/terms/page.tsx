@@ -31,7 +31,7 @@ export default function TermsPage() {
 
       <LegalSection heading="Acceptable use">
         <p>
-          You may not use {LEGAL.name} to break the law, to infringe anyone&rsquo;s rights, to
+          You may not use {LEGAL.name}{" "}to break the law, to infringe anyone&rsquo;s rights, to
           upload malware, to attempt to access another organisation&rsquo;s data, or to scrape or
           resell data obtained through the connected platform APIs. You may not use it in a way that
           breaches the terms of any platform you connect, including TikTok, Instagram, and YouTube.
@@ -69,7 +69,7 @@ export default function TermsPage() {
       <LegalSection heading="Payment">
         <p>
           Fees, billing period, and payment terms are those agreed with your organisation. Payouts
-          you record inside {LEGAL.name} are a bookkeeping record only &mdash; we do not move money
+          you record inside {LEGAL.name}{" "}are a bookkeeping record only &mdash; we do not move money
           and are not a payment processor.
         </p>
       </LegalSection>

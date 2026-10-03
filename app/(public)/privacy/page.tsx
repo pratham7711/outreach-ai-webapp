@@ -61,12 +61,12 @@ export default function PrivacyPage() {
         </p>
         <ul>
           <li>
-            <strong>TikTok</strong> &mdash; with the <code>user.info.basic</code> permission we read
+            <strong>TikTok</strong> &mdash; with the <code>user.info.basic</code>{" "}permission we read
             the account&rsquo;s open ID, display name, and avatar. With{" "}
             <code>user.info.profile</code> we read the profile link, bio description, and
             verification status. With <code>user.info.stats</code> we read the follower, following,
             and likes counts, which is how campaign fees are agreed against audience size. With{" "}
-            <code>video.list</code> we read the account&rsquo;s public videos and their view, like,
+            <code>video.list</code>{" "}we read the account&rsquo;s public videos and their view, like,
             comment, and share counts. This is shown only to the campaign manager in the
             organisation that added that creator, on that organisation&rsquo;s campaign dashboard,
             and to the creator in their own creator portal.
@@ -97,10 +97,10 @@ export default function PrivacyPage() {
           </li>
           <li>
             <strong>Facebook Pages</strong> &mdash; with <code>pages_show_list</code> we list the
-            Pages you manage so you can choose one. With <code>pages_read_engagement</code> we read
+            Pages you manage so you can choose one. With <code>pages_read_engagement</code>{" "}we read
             that Page&rsquo;s name, username, link, about text, picture, follower count and verified
             status, and its recent posts with their text, date, link, picture, and like, comment and
-            share counts. With <code>pages_read_user_content</code> we read the comments left on
+            share counts. With <code>pages_read_user_content</code>{" "}we read the comments left on
             those posts: the comment, its date, its likes and the commenter&rsquo;s name. With{" "}
             <code>read_insights</code> we read how many views each post got.
           </li>
@@ -111,7 +111,7 @@ export default function PrivacyPage() {
             those posts, and the follower count.
           </li>
           <li>
-            <strong>YouTube</strong> &mdash; with <code>youtube.readonly</code> we read the
+            <strong>YouTube</strong> &mdash; with <code>youtube.readonly</code>{" "}we read the
             connected channel&rsquo;s name, handle, picture and description, its subscriber, view
             and video counts, and its recent videos with their title, date, views, likes and
             comments.

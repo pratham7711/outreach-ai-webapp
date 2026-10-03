@@ -35,7 +35,7 @@ export default function AboutPage() {
       <LegalSection heading="Connected accounts">
         <p>
           A creator connects an account through the platform&rsquo;s own sign-in screen, and can
-          disconnect it from <strong>My accounts</strong> at any time. We read the profile and the
+          disconnect it from <strong>My accounts</strong>{" "}at any time. We read the profile and the
           post performance the creator lets the platform share with us, to show the creator their
           numbers and to report the posts they deliver on a campaign. We never publish, edit or
           delete anything on a creator&rsquo;s account.
@@ -55,11 +55,18 @@ export default function AboutPage() {
       </LegalSection>
 
       <LegalSection heading="Contact" id="contact">
-        <p>
-          Email <a href={`mailto:${LEGAL.contactEmail}`}>{LEGAL.contactEmail}</a> about the product
-          or an account, and <a href={`mailto:${LEGAL.privacyEmail}`}>{LEGAL.privacyEmail}</a> about
-          your data.
-        </p>
+        {LEGAL.contactEmail === LEGAL.privacyEmail ? (
+          <p>
+            Email <a href={`mailto:${LEGAL.contactEmail}`}>{LEGAL.contactEmail}</a> about the
+            product, an account or your data.
+          </p>
+        ) : (
+          <p>
+            Email <a href={`mailto:${LEGAL.contactEmail}`}>{LEGAL.contactEmail}</a> about the product
+            or an account, and <a href={`mailto:${LEGAL.privacyEmail}`}>{LEGAL.privacyEmail}</a> about
+            your data.
+          </p>
+        )}
       </LegalSection>
     </LegalShell>
   );
