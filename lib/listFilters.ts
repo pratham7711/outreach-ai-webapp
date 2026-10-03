@@ -31,10 +31,25 @@ export const optionalDateParam = z.coerce.date().optional();
 
 export const optionalCountParam = z.coerce.number().int().nonnegative().optional();
 
-/** Inclusive range on a DateTime column, dropped entirely when both ends are absent. */
-function dateRange(from?: Date, to?: Date) {
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Inclusive range on a DateTime column, dropped entirely when both ends are absent.
+ *
+ * The drawer's date inputs send a bare day, which parses as that day's UTC
+ * midnight, so `lte` on it kept only rows stamped at exactly 00:00 and dropped
+ * the rest of the end day: "Added 29 Sep to 29 Sep" listed none of the 634
+ * creators LKM imported on 29 Sep. A bare day as the end now runs to the end of
+ * that day (UTC, the zone every date on these screens is shown in); an end
+ * with a time of its own is kept as given.
+ */
+export function dateRange(from?: Date, to?: Date) {
   if (!from && !to) return undefined;
-  return { ...(from && { gte: from }), ...(to && { lte: to }) };
+  const bareDay = to !== undefined && to.getTime() % DAY_MS === 0;
+  return {
+    ...(from && { gte: from }),
+    ...(to && (bareDay ? { lt: new Date(to.getTime() + DAY_MS) } : { lte: to })),
+  };
 }
 
 function countRange(min?: number, max?: number) {

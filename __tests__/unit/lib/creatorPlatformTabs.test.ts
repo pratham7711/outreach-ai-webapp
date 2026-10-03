@@ -4,7 +4,7 @@
  * node, not jsdom: listFilters imports the Prisma client for its generated
  * types, and the Prisma runtime needs TextEncoder, which jsdom does not provide.
  */
-import { creatorWhere, readCreatorFilters } from "@/lib/listFilters";
+import { creatorWhere, dateRange, readCreatorFilters } from "@/lib/listFilters";
 import { CREATOR_PLATFORM_TABS } from "@/lib/creators/platformTabs";
 
 const anyAccountOn = (platforms: string[]) => ({
@@ -49,5 +49,32 @@ describe("creatorWhere: the platform tab", () => {
 describe("CREATOR_PLATFORM_TABS", () => {
   it("names the platforms the Creators page has a tab for", () => {
     expect([...CREATOR_PLATFORM_TABS]).toEqual(["INSTAGRAM", "YOUTUBE", "TIKTOK", "TWITTER"]);
+  });
+});
+
+describe("dateRange: the drawer's date filters", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+
+  it("keeps the whole end day when the end is a bare day", () => {
+    // "Added 29 Sep to 29 Sep" listed nothing: the end parsed as 29 Sep 00:00
+    // and lte on it dropped every creator added later that day.
+    const where = creatorWhere("org-1", readCreatorFilters({ addedFrom: "2026-09-29", addedTo: "2026-09-29" }), { roster: true });
+    const from = Date.parse("2026-09-29T00:00:00Z");
+    expect(where.addedAt).toEqual({ gte: new Date(from), lt: new Date(from + DAY) });
+  });
+
+  it("counts a creator added at 06:00 on the end day, and none from the day after", () => {
+    const range = dateRange(undefined, new Date("2026-09-29")) as { lt: Date };
+    expect(new Date("2026-09-29T06:12:00Z") < range.lt).toBe(true);
+    expect(new Date("2026-09-30T00:00:00Z") < range.lt).toBe(false);
+  });
+
+  it("keeps an end that carries its own time exactly", () => {
+    const to = new Date("2026-09-29T12:30:00Z");
+    expect(dateRange(undefined, to)).toEqual({ lte: to });
+  });
+
+  it("is absent when neither end is set", () => {
+    expect(dateRange(undefined, undefined)).toBeUndefined();
   });
 });
