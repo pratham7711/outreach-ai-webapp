@@ -20,8 +20,9 @@ jest.mock("@/lib/db", () => ({
   },
 }));
 jest.mock("@/lib/platforms/tiktokSound", () => ({ fetchTikTokSoundStats: jest.fn() }));
+const mockBrowserRead = jest.fn();
 jest.mock("@/lib/platforms/tiktokSoundBrowser", () => ({
-  openSoundBrowserSession: () => ({ read: jest.fn().mockResolvedValue(null), close: jest.fn() }),
+  openSoundBrowserSession: () => ({ read: (...args: unknown[]) => mockBrowserRead(...args), close: jest.fn() }),
 }));
 /* The embed is the first rung and would otherwise reach the network. These
    tests are about the arithmetic the cron writes, so the batched reader is
@@ -106,6 +107,7 @@ beforeEach(() => {
   mockDb.organization.findMany.mockResolvedValue([{ id: "org-1", uiConfig: null }]);
   mockDb.soundTrackerSnapshot.create.mockResolvedValue({});
   mockEmbed.mockReset().mockResolvedValue(null);
+  mockBrowserRead.mockReset().mockResolvedValue(null);
 });
 
 it("floors videosAdded24h at zero when the uses count fell", async () => {
@@ -404,4 +406,54 @@ it("still records the snapshot when the cover write fails", async () => {
   // A piece of artwork is not worth discarding a reading that already landed.
   expect(written().usesCount).toBe(46);
   expect((await res.json()).snapshotted).toBe(1);
+});
+
+/* lib/sounds/precision: the embed's count above 10K is TikTok's display
+   rounding; /api/music/detail, which the browser reads, has the exact one. */
+describe("a rounded embed figure", () => {
+  it("is replaced by the browser's exact count when the browser answers", async () => {
+    mockDb.tikTokSound.findMany.mockResolvedValue(soundWithHistory(73_812));
+    mockEmbed.mockResolvedValue({ usesCount: 73_900, title: null, artist: null, coverImageUrl: null });
+    mockBrowserRead.mockResolvedValue({ usesCount: 73_961, title: null, artist: null, coverImageUrl: null });
+
+    const body = await (await runCron()).json();
+
+    expect(written().usesCount).toBe(73_961);
+    expect(written().videosAdded24h).toBe(149);
+    expect(body.decisions).toContainEqual(
+      expect.objectContaining({ soundId: "sound-1", action: "snapshot", reason: "ingested:browser" }),
+    );
+  });
+
+  it("stands, with no change recorded, when the browser cannot answer", async () => {
+    mockDb.tikTokSound.findMany.mockResolvedValue(soundWithHistory(73_500));
+    mockEmbed.mockResolvedValue({ usesCount: 73_900, title: null, artist: null, coverImageUrl: null });
+
+    await runCron();
+
+    expect(written().usesCount).toBe(73_900);
+    expect(written().videosAdded24h).toBe(0);
+    expect(written().velocityScore).toBe(0);
+  });
+
+  it("is not written over the exact count it agrees with", async () => {
+    mockDb.tikTokSound.findMany.mockResolvedValue(soundWithHistory(73_912));
+    mockEmbed.mockResolvedValue({ usesCount: 74_000, title: null, artist: null, coverImageUrl: null });
+
+    const body = await (await runCron()).json();
+
+    expect(mockDb.soundTrackerSnapshot.create).not.toHaveBeenCalled();
+    expect(body.decisions).toContainEqual(
+      expect.objectContaining({ soundId: "sound-1", action: "skip", reason: "rounded-agrees:embed-direct" }),
+    );
+  });
+
+  it("does not ask the browser about an exact embed figure", async () => {
+    mockDb.tikTokSound.findMany.mockResolvedValue(soundWithHistory(40));
+    mockEmbed.mockResolvedValue({ usesCount: 52, title: null, artist: null, coverImageUrl: null });
+
+    await runCron();
+
+    expect(mockBrowserRead).not.toHaveBeenCalled();
+  });
 });

@@ -32,3 +32,20 @@ export function changeOver(
     percent: baseline.value > 0 ? (added / baseline.value) * 100 : null,
   };
 }
+
+/**
+ * changeOver for a sound, which can hold rounded figures: a change with a
+ * rounded "74K" at either end is the rounding, not new uses
+ * (lib/sounds/precision), and is reported as that rather than as a number.
+ */
+export function soundChangeOver(
+  series: SeriesPoint[],
+  days: number
+): HorizonChange | "short-history" | "rounded" | null {
+  const change = changeOver(series, days);
+  if (change === null || change === "short-history") return change;
+  const latest = series[series.length - 1];
+  const cutoff = new Date(latest.recordedAt).getTime() - days * 86400_000;
+  const baseline = [...series].reverse().find((p) => new Date(p.recordedAt).getTime() <= cutoff);
+  return latest.rounded || baseline?.rounded ? "rounded" : change;
+}

@@ -193,8 +193,9 @@ export async function POST(request: NextRequest) {
     // One reading, one snapshot per tracker row: each org's delta is computed
     // against its OWN previous reading, which is what recordSoundSnapshot does.
     for (const sound of tracked) {
-      await recordSoundSnapshot(sound, reading);
-      recorded += 1;
+      // The worker reads /api/music/detail's stats, which are exact.
+      if (await recordSoundSnapshot(sound, reading, { precision: "exact" })) recorded += 1;
+      else skipped += 1;
     }
   }
 

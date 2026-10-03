@@ -114,3 +114,43 @@ it("never overwrites a title or artist the operator typed", () => {
   );
   expect(patch).toEqual({});
 });
+
+/* lib/sounds/precision. Production, 2026-10-03: a TikTok sound near 74K was
+   read 33 times, every reading a multiple of 100 (the embed's "73.9K"), and the
+   writer stored the wobble between roundings as +100, +400, +300 videos. */
+describe("rounded figures", () => {
+  it("records a rounded level but no change from it", async () => {
+    expect(await recordSoundSnapshot(sound([{ usesCount: 73_500 }]), { usesCount: 73_900 })).toBe(true);
+
+    expect(written().usesCount).toBe(73_900);
+    expect(written().videosAdded24h).toBe(0);
+    expect(written().deltaUses24h).toBe(0);
+    expect(written().velocityScore).toBe(0);
+  });
+
+  it("records no change across an exact reading and a rounded one", async () => {
+    await recordSoundSnapshot(sound([{ usesCount: 8_659 }]), { usesCount: 12_000 }, { precision: "rounded" });
+
+    expect(written().usesCount).toBe(12_000);
+    expect(written().videosAdded24h).toBe(0);
+  });
+
+  it("does not put a rounded figure in place of the exact count it agrees with", async () => {
+    expect(await recordSoundSnapshot(sound([{ usesCount: 73_912 }]), { usesCount: 74_000 })).toBe(false);
+
+    expect(mockDb.soundTrackerSnapshot.create).not.toHaveBeenCalled();
+  });
+
+  it("writes a rounded figure that has moved past the exact count", async () => {
+    expect(await recordSoundSnapshot(sound([{ usesCount: 73_912 }]), { usesCount: 74_100 })).toBe(true);
+
+    expect(written().usesCount).toBe(74_100);
+    expect(written().videosAdded24h).toBe(0);
+  });
+
+  it("takes a reader's word that its figure is exact", async () => {
+    await recordSoundSnapshot(sound([{ usesCount: 11_987 }]), { usesCount: 12_000 }, { precision: "exact" });
+
+    expect(written().videosAdded24h).toBe(13);
+  });
+});

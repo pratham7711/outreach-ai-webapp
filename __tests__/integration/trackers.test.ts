@@ -93,8 +93,10 @@ describe("GET /api/trackers", () => {
         trackedSince: new Date(),
         createdAt: new Date(),
         snapshots: [
-          { id: "snap-2", soundId: "sound-1", usesCount: 10500, videosAdded24h: 500, deltaUses24h: 500, velocityScore: 5, recordedAt: new Date(now) },
-          { id: "snap-1", soundId: "sound-1", usesCount: 10000, videosAdded24h: 0, deltaUses24h: 0, velocityScore: 0, recordedAt: new Date(now - 10 * 60 * 60 * 1000) },
+          // Exact counts: 10,000 and 10,500 would read as the platform's
+          // rounded "10K" / "10.5K" (lib/sounds/precision).
+          { id: "snap-2", soundId: "sound-1", usesCount: 8400, videosAdded24h: 400, deltaUses24h: 400, velocityScore: 5, recordedAt: new Date(now) },
+          { id: "snap-1", soundId: "sound-1", usesCount: 8000, videosAdded24h: 0, deltaUses24h: 0, velocityScore: 0, recordedAt: new Date(now - 10 * 60 * 60 * 1000) },
         ],
       },
     ]);
@@ -106,8 +108,37 @@ describe("GET /api/trackers", () => {
     expect(body.sounds).toHaveLength(1);
     expect(body.sounds[0].status).toBe("trending");
     expect(body.sounds[0].growthPercentage).toBeCloseTo(5, 5);
-    expect(body.sounds[0].addedInPeriod).toBe(500);
+    expect(body.sounds[0].addedInPeriod).toBe(400);
     expect(body.sounds[0].latestSnapshot).toBeTruthy();
+  });
+
+  /* Production 2026-10-03: a sound near 74K whose every reading was the
+     embed's K-rounding -- its "added" was the wobble between roundings. */
+  it("offers no change between two rounded figures, and flags the points", async () => {
+    const now = Date.now();
+    mockDb.tikTokSound.findMany.mockResolvedValue([
+      {
+        id: "sound-1",
+        orgId: "org-1",
+        tiktokSoundId: "tt-123",
+        title: "Hit Song",
+        artist: "Artist A",
+        coverImageUrl: null,
+        trackedSince: new Date(),
+        createdAt: new Date(),
+        snapshots: [
+          { id: "snap-2", soundId: "sound-1", usesCount: 74100, videosAdded24h: 400, deltaUses24h: 400, velocityScore: 0.54, recordedAt: new Date(now) },
+          { id: "snap-1", soundId: "sound-1", usesCount: 73700, videosAdded24h: 0, deltaUses24h: 0, velocityScore: 0, recordedAt: new Date(now - 10 * 60 * 60 * 1000) },
+        ],
+      },
+    ]);
+
+    const body = await (await getTrackers(makeRequest("http://localhost/api/trackers"))).json();
+
+    expect(body.sounds[0].addedInPeriod).toBeNull();
+    expect(body.sounds[0].growthPercentage).toBeNull();
+    expect(body.sounds[0].status).toBe("unknown");
+    expect(body.sounds[0].series.every((p: { rounded: boolean }) => p.rounded)).toBe(true);
   });
 
   it("reports unknown from a single snapshot, because change needs two points", async () => {

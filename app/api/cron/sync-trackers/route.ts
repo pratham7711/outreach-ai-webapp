@@ -12,12 +12,14 @@ import { readTikTokAudioUsage } from "@/lib/platforms/tiktokAudioUsage";
 import { openSandboxProfileFetcher } from "@/lib/platforms/tiktokProfileSandbox";
 import { readInstagramAudioUsage } from "@/lib/platforms/instagramAudioUsage";
 import { recordSoundSnapshot, soundMetadataPatch } from "@/lib/sounds/snapshot";
+import { holdSoundReading, type TrackerSnapshot } from "@/lib/trackers/metrics";
 import {
-  holdSoundReading,
-  previousOf,
-  velocityBetween,
-  type TrackerSnapshot,
-} from "@/lib/trackers/metrics";
+  readingPrecision,
+  roundedAddsNothing,
+  soundReadingChange,
+  usesPrecisionOf,
+  type UsesPrecision,
+} from "@/lib/sounds/precision";
 import { alertOps, shouldAlertOnBatch } from "@/lib/alerts";
 import {
   DEFAULT_GRANULARITY,
@@ -245,9 +247,11 @@ async function cronHandler(request: NextRequest) {
              rounded levels -- belongs beside the other two, not in a fourth.
              recordSoundSnapshot also applies soundMetadataPatch, which is why
              this branch returns before the TikTok tail does it again. */
-          await recordSoundSnapshot(sound, outcome.reading, {
-            deltaKnown: outcome.reading.precision === "exact",
-          });
+          if (!(await recordSoundSnapshot(sound, outcome.reading, { precision: outcome.reading.precision }))) {
+            decisions.push({ soundId: sound.id, action: "skip", reason: "rounded-agrees:instagram" });
+            skipped++;
+            continue;
+          }
         } catch (e) {
           log.error("snapshot write failed", {
             soundId: sound.id,
@@ -279,11 +283,30 @@ async function cronHandler(request: NextRequest) {
         continue;
       }
 
-      const { history } = sound;
       const embed = embedReadings.get(sound.tiktokSoundId);
       let stats = embed?.ok ? embed.stats : null;
       // Which rung answered, so a strange reading can be traced to its source.
       let rung: string = embed?.ok ? embed.rung : "none";
+      let precision: UsesPrecision | undefined;
+
+      /* The embed's count is TikTok's display rounding once a sound passes
+         10K -- every reading of a 74K sound on production was a multiple of 100
+         (lib/sounds/precision). The browser reads /api/music/detail, whose
+         stats are the exact count, so a rounded-looking embed figure is the one
+         case worth a browser read even though the embed answered. If the
+         browser cannot answer, the embed's figure stands and is written as the
+         rounded figure it is. */
+      if (stats && usesPrecisionOf(stats.usesCount) === "rounded") {
+        const exact = await tiktok.read(sound.tiktokSoundId).catch((e) => {
+          log.warn("browser read failed", { soundId: sound.id, error: String(e).slice(0, 120) });
+          return null;
+        });
+        if (exact && exact.usesCount > 0) {
+          stats = exact;
+          rung = "browser";
+          precision = "exact";
+        }
+      }
 
       /* Both kept behind the embed rather than deleted: the browser is the only
          path that can read a sound the embed refuses, and the plain fetch costs
@@ -293,7 +316,10 @@ async function cronHandler(request: NextRequest) {
           log.warn("browser read failed", { soundId: sound.id, error: String(e).slice(0, 120) });
           return null;
         });
-        if (stats) rung = "browser";
+        if (stats) {
+          rung = "browser";
+          precision = "exact";
+        }
       }
       if (!stats) {
         stats = await fetchTikTokSoundStats(sound.tiktokSoundId);
@@ -321,50 +347,42 @@ async function cronHandler(request: NextRequest) {
         continue;
       }
 
-      const latest: TrackerSnapshot = { value: stats.usesCount, recordedAt: now };
-      const withLatest = [...history, latest];
+      /* A rounded figure that agrees with the exact reading already stored
+         says nothing new, and writing it would replace 73,912 with 74,000. */
+      const readPrecision = readingPrecision(stats.usesCount, precision);
+      if (roundedAddsNothing(newestStored?.usesCount, stats.usesCount, readPrecision)) {
+        decisions.push({ soundId: sound.id, action: "skip", reason: `rounded-agrees:${rung}`, usesCount: stats.usesCount });
+        skipped++;
+        continue;
+      }
 
-      /* PERCENT growth against the previous reading, not uses/hour.
+      /* LATEST MINUS PREVIOUS, not a 24-hour window, and PERCENT growth, not
+         uses/hour -- the one arithmetic every sound writer shares
+         (soundReadingChange), so this route can no longer disagree with
+         recordSoundSnapshot about either.
 
-         velocityScore had two writers in two units: recordSoundSnapshot (and
-         the creator sweep, and the seed) store velocityBetween, a percentage,
-         while this route stored velocityPerHour. The column is one column, so
-         a sound read by one writer and then the other produced a series that
-         changes unit halfway along, and its one consumer -- the campaign audio
-         card, via lib/reports/campaignPerformance -- renders every point with a
-         "%" suffix. So percent is what the reader expects, and this was the
-         writer that disagreed. The trackers page does not read the column at
-         all; it recomputes velocityPerHour from the series (see
-         app/api/trackers/route.ts), which is why the mismatch stayed invisible
-         there. */
-      const previous = previousOf(withLatest);
-      const velocity = previous ? velocityBetween(previous.value, latest.value) : 0;
-      /* LATEST MINUS PREVIOUS, not a 24-hour window.
-
-         The column had two writers and two meanings: this route wrote
-         changeOverWindow(..., "24h").added — a whole day's gain — while
-         recordSoundSnapshot (manual Refresh, and the worker ingest) writes the
-         change since the reading before it. On an hourly cadence those are 24
-         readings apart, and the one label both feed, "Videos Added (Since Last
-         Sync)" on the campaign audio card, is only true of the second. So the
-         label picks the meaning, and both writers now agree on it. */
-      const delta = previous ? latest.value - previous.value : 0;
+         Both columns once had two writers and two meanings: this route wrote
+         changeOverWindow(..., "24h").added into videosAdded24h and
+         velocityPerHour into velocityScore, while recordSoundSnapshot wrote the
+         change since the reading before and a percentage. The one label both
+         feed, "Videos Added (Since Last Sync)" on the campaign audio card, is
+         only true of the first, and the card prints velocity with a "%". A
+         count of new videos is floored at zero (TikTok's uses figure does
+         fall, and the report duly showed "-1 videos added"); deltaUses24h
+         keeps the sign. And no change at all is recorded between two figures
+         unless both are exact: the difference between two roundings is the
+         rounding. */
+      const change = soundReadingChange(newestStored?.usesCount, stats.usesCount, readPrecision);
 
       try {
         await db.soundTrackerSnapshot.create({
           data: {
             soundId: sound.id,
             usesCount: stats.usesCount,
-            /* A count of new videos cannot be negative, and TikTok's uses figure
-               does fall — it fell by one here, and the report duly showed
-               "-1 videos added". deltaUses24h is the signed change and keeps the
-               sign; videosAdded24h is a count and is floored, exactly as
-               recordSoundSnapshot does it. Third copy of this arithmetic; the
-               second one put a percentage in the same column. */
-            videosAdded24h: Math.max(0, Math.round(delta)),
-            deltaUses24h: Math.round(delta),
+            videosAdded24h: change.videosAdded24h,
+            deltaUses24h: change.deltaUses24h,
             // Unit: percent change since the previous reading. See above.
-            velocityScore: velocity,
+            velocityScore: change.velocityScore,
             recordedAt: now,
           },
         });
