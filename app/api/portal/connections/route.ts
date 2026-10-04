@@ -5,6 +5,7 @@ import { isEncrypted } from "@/lib/crypto/encrypt";
 import { OAUTH_PLATFORMS, isProviderConfigured } from "@/lib/oauth/providers";
 import { resolveCapabilities } from "@/lib/capabilities";
 import { findLinkedCreatorsForHandle } from "@/lib/portal/creatorLink";
+import { findCreatorForPortalUser } from "@/lib/portal/creatorLookup";
 import { accountStatesFor } from "@/lib/platforms/accountState";
 import { disconnectSocialAccount } from "@/lib/portal/disconnect";
 
@@ -20,6 +21,10 @@ export async function GET() {
    account this data. See lib/portal/creatorLink.ts. */
     const creators = await findLinkedCreatorsForHandle(session);
     const creatorIds = creators.map((c) => c.id);
+    /* The start route refuses (reason=creator) when this lookup finds no roster
+       row, so the screens ask it first and offer "join a campaign" instead of
+       a Connect button that can only bounce. Same function, same answer. */
+    const canConnect = Boolean(await findCreatorForPortalUser(session));
 
     const accounts =
       creatorIds.length === 0
@@ -84,6 +89,7 @@ export async function GET() {
         OAUTH_PLATFORMS.map((platform) => [platform, isProviderConfigured(platform)]),
       ),
       capabilities: resolveCapabilities().platforms,
+      canConnect,
     });
   } catch (error) {
     console.error("Failed to list portal connections:", error);

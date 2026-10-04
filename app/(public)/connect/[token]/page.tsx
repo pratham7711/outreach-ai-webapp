@@ -4,7 +4,8 @@ import { db } from "@/lib/db";
 import { POWERED_BY } from "@/lib/brand";
 import { LegalLinks } from "@/components/LegalLinks";
 import { resolveConnectToken, type ConnectBinding } from "@/lib/creators/connectToken";
-import { isOAuthPlatform, isProviderConfigured, type OAuthPlatform } from "@/lib/oauth/providers";
+import { isOAuthPlatform, isProviderConfigured, toPlatformEnum, type OAuthPlatform } from "@/lib/oauth/providers";
+import { PlatformGlyph } from "@/components/ui/PlatformGlyph";
 import { resolvePlatformCapability } from "@/lib/capabilities";
 import { isInstagramLoginRow } from "@/lib/platforms/accountOrigin";
 import { CONNECT_READS, NEVER_DONE } from "@/lib/portal/permissionCopy";
@@ -195,12 +196,49 @@ export default async function ConnectLinkPage({
 
         {offered.map((platform) => {
           const isConnected = connected.has(platform);
+          const label = CONNECT_READS[platform].label;
+          const short = platform.startsWith("instagram") ? "Instagram" : label;
+          const action = isConnected ? `Connect another ${short} account` : `Continue with ${short}`;
           return (
             <div key={platform} style={card}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                <span style={{ fontSize: 16, fontWeight: 600 }}>{CONNECT_READS[platform].label}</span>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 10, fontSize: 16, fontWeight: 600, minWidth: 0 }}>
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flex: "none",
+                      width: 36,
+                      height: 36,
+                      borderRadius: 10,
+                      background: "var(--cc-bg)",
+                      border: "1px solid var(--cc-border)",
+                    }}
+                  >
+                    <PlatformGlyph platform={toPlatformEnum(platform)} size={18} />
+                  </span>
+                  {CONNECT_READS[platform].label}
+                </span>
                 {isConnected && (
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-success)" }}>Connected</span>
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: "var(--cc-text)",
+                      border: "1px solid var(--cc-success)",
+                      borderRadius: 999,
+                      padding: "3px 10px",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--cc-success)" }} />
+                    Connected
+                  </span>
                 )}
               </div>
               {!justConnected || justConnected !== platform ? (
@@ -211,8 +249,12 @@ export default async function ConnectLinkPage({
               ) : null}
               <a
                 href={startHref(platform)}
+                aria-label={isConnected ? `Connect another ${label} account` : `Continue with ${label}`}
                 style={{
-                  display: "block",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 10,
                   marginTop: 12,
                   textAlign: "center",
                   padding: "12px 16px",
@@ -225,9 +267,10 @@ export default async function ConnectLinkPage({
                   border: "1.5px solid var(--cc-primary)",
                 }}
               >
-                {isConnected
-                  ? `Connect another ${CONNECT_READS[platform].label} account`
-                  : `Continue with ${CONNECT_READS[platform].label}`}
+                <span aria-hidden="true" style={{ display: "inline-flex" }}>
+                  <PlatformGlyph platform={toPlatformEnum(platform)} size={18} />
+                </span>
+                {action}
               </a>
             </div>
           );

@@ -3,18 +3,21 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, MessageSquareOff, ShieldCheck, Unplug } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type { PlatformCapability } from "@/lib/capabilities";
 import { isInstagramLoginRow } from "@/lib/platforms/accountOrigin";
 import { OAUTH_PLATFORMS, toPlatformEnum, type OAuthPlatform } from "@/lib/oauth/providers";
 import { WHAT_WE_NEVER_DO, WHAT_WE_READ } from "@/lib/portal/whatWeRead";
 import { Button, useConfirm } from "@/components/ds";
+import { PlatformGlyph } from "@/components/ui/PlatformGlyph";
 import {
   Banner,
   ButtonLink,
   Card,
   LoadFailed,
   Screen,
+  SectionTitle,
   SkeletonBlock,
   StatusPill,
   formatCount,
@@ -52,13 +55,26 @@ const CARD_NOTE: Partial<Record<OAuthPlatform, string>> = {
   instagram: "Through the Facebook Page your Instagram is linked to.",
   "instagram-login": "For a professional account with no Facebook Page.",
 };
+/** What the Connect button names: the platform the creator signs in to. */
+const BUTTON_NAME: Record<OAuthPlatform, string> = {
+  instagram: "Instagram",
+  "instagram-login": "Instagram",
+  tiktok: "TikTok",
+  youtube: "YouTube",
+  facebook: "Facebook Page",
+  threads: "Threads",
+};
+/** One icon per line of WHAT_WE_NEVER_DO, in its order. */
+const NEVER_ICONS: LucideIcon[] = [ShieldCheck, MessageSquareOff, Unplug];
 
 const RETURN_TO = "/portal/accounts";
 
 /** The OAuth callback comes back with ?connected=<platform> or
-    ?error=<platform>&reason=<step>. Read once, during the first render: an
+    ?error=<platform>&reason=<step>. Shown as a banner rather than a toast: an
     effect-fired toast never appeared on this redirect (see the old Settings
-    screen, measured 2026-09-09), and a banner can be read twice. */
+    screen, measured 2026-09-09), and a banner can be read twice. Read after
+    mount, not during the first render: the server never sees the query, so a
+    banner rendered on the client's first pass failed hydration. */
 function readConnectResult(): { tone: "success" | "danger"; text: string } | null {
   if (typeof window === "undefined") return null;
   const params = new URLSearchParams(window.location.search);
@@ -90,7 +106,7 @@ function WhatWeRead({ platform }: { platform: OAuthPlatform }) {
   const [open, setOpen] = useState(false);
   const id = `what-we-read-${platform}`;
   return (
-    <div style={{ marginTop: 6 }}>
+    <>
       <button
         type="button"
         className="rsp-touch"
@@ -114,7 +130,7 @@ function WhatWeRead({ platform }: { platform: OAuthPlatform }) {
         What we read
       </button>
       {open && (
-        <ul id={id} style={{ margin: "4px 0 0", paddingLeft: 18, display: "flex", flexDirection: "column", gap: 6 }}>
+        <ul id={id} style={{ flex: "1 1 100%", minWidth: 0, margin: "0 0 2px", paddingLeft: 18, display: "flex", flexDirection: "column", gap: 6 }}>
           {WHAT_WE_READ[platform].map((r) => (
             <li key={r.scope} style={{ fontSize: 13, color: "var(--cc-text)", lineHeight: 1.5 }}>
               {r.reads} <span style={{ color: "var(--cc-text-muted)", fontSize: 12 }}>({r.scope.replace("https://www.googleapis.com/auth/", "")})</span>
@@ -122,7 +138,7 @@ function WhatWeRead({ platform }: { platform: OAuthPlatform }) {
           ))}
         </ul>
       )}
-    </div>
+    </>
   );
 }
 
@@ -134,6 +150,7 @@ function PlatformCard({
   capability,
   onDisconnect,
   disconnectingId,
+  canConnect,
 }: {
   platform: OAuthPlatform;
   accounts: Connection[];
@@ -142,6 +159,7 @@ function PlatformCard({
   capability: PlatformCapability | undefined;
   onDisconnect: (account: Connection) => void;
   disconnectingId: string | null;
+  canConnect: boolean;
 }) {
   const startHref = `/api/portal/connections/${platform}/start?returnTo=${encodeURIComponent(RETURN_TO)}`;
   const comingSoon = capability?.connect === "coming_soon";
@@ -156,81 +174,120 @@ function PlatformCard({
         ? { tone: "neutral", label: "Public only" }
         : { tone: "neutral", label: comingSoon ? "Coming soon" : "Not connected" };
 
+  const gated = comingSoon || (capability?.connect === "gated" && process.env.NODE_ENV === "production");
+  const followerWord = platform === "youtube" ? "subscribers" : "followers";
+
   return (
-    <Card>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
-        <div style={{ minWidth: 0 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>{CARD_LABEL[platform]}</h2>
-          {CARD_NOTE[platform] && <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "2px 0 0" }}>{CARD_NOTE[platform]}</p>}
-        </div>
-        <StatusPill tone={state.tone}>{state.label}</StatusPill>
-      </div>
-
-      {accounts.map((a) => {
-        const lapsed = reconnect.has(a.id);
-        return (
-          <div key={a.id} style={{ marginTop: 12, padding: 12, borderRadius: 10, background: "var(--cc-bg)", border: "1px solid var(--cc-border)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflowWrap: "anywhere" }}>
-                  {a.profileUrl ? (
-                    <a href={a.profileUrl} target="_blank" rel="noreferrer" style={{ color: "var(--cc-text)" }}>
-                      {a.handle}
-                    </a>
-                  ) : (
-                    a.handle
-                  )}
-                </div>
-                <div style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
-                  {formatCount(a.followersCount)} followers ·{" "}
-                  {a.statsSyncedAt ? `last synced ${formatDay(a.statsSyncedAt)} (${relativeDay(a.statsSyncedAt)})` : "not synced yet"}
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                {lapsed && (
-                  <ButtonLink href={startHref} external>
-                    Reconnect
-                  </ButtonLink>
-                )}
-                <Button variant="ghost" size="sm" loading={disconnectingId === a.id} onClick={() => onDisconnect(a)}>
-                  Disconnect
-                </Button>
-              </div>
-            </div>
-            {lapsed && (
-              <p style={{ fontSize: 13, color: "var(--cc-text)", margin: "8px 0 0" }}>
-                Access to this account has lapsed, so its numbers have stopped updating.
-              </p>
-            )}
+    <Card style={{ padding: 0 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: 16 }}>
+        <span
+          aria-hidden="true"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flex: "none",
+            width: 40,
+            height: 40,
+            borderRadius: 10,
+            background: "var(--cc-bg)",
+            border: "1px solid var(--cc-border)",
+            color: "var(--cc-text)",
+          }}
+        >
+          <PlatformGlyph platform={toPlatformEnum(platform)} size={20} />
+        </span>
+        <div style={{ minWidth: 0, flex: 1, minHeight: 40, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+            <h2 style={{ flex: "1 1 auto", minWidth: 0, fontSize: 16, fontWeight: 700, color: "var(--cc-text)", margin: 0, lineHeight: 1.35, paddingTop: 1 }}>
+              {CARD_LABEL[platform]}
+            </h2>
+            <span style={{ flex: "none" }}>
+              <StatusPill tone={state.tone}>{state.label}</StatusPill>
+            </span>
           </div>
-        );
-      })}
-
-      {accounts.length === 0 && publicProfile && (
-        <p style={{ fontSize: 13, color: "var(--cc-text)", margin: "10px 0 0", lineHeight: 1.5 }}>
-          We read the public numbers of <strong>{publicProfile.handle}</strong>
-          {publicProfile.lastReadAt ? `, last on ${formatDay(publicProfile.lastReadAt)}` : ""}. Connect it to add insights and keep them current.
-        </p>
-      )}
-
-      {/* A gated platform in production has no credentials behind it: the
-          start route can only bounce the creator back with reason=provider,
-          so the button is left out and the note says what to do instead.
-          Development keeps it, because there the route runs a mock flow. */}
-      {comingSoon || (capability?.connect === "gated" && process.env.NODE_ENV === "production") ? (
-        capability?.connectNote && <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: "10px 0 0" }}>{capability.connectNote}</p>
-      ) : (
-        <div style={{ marginTop: 12 }}>
-          <ButtonLink href={startHref} external variant={accounts.length > 0 ? "secondary" : "primary"}>
-            {accounts.length > 0 ? "Add another" : "Connect"}
-          </ButtonLink>
-          {capability?.connect === "gated" && capability.connectNote && accounts.length === 0 && (
-            <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "8px 0 0" }}>{capability.connectNote}</p>
+          {CARD_NOTE[platform] && <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: "2px 0 0", lineHeight: 1.45 }}>{CARD_NOTE[platform]}</p>}
+          {accounts.length === 0 && publicProfile && (
+            <p style={{ fontSize: 13, color: "var(--cc-text)", margin: "6px 0 0", lineHeight: 1.5 }}>
+              We read the public numbers of <strong>{publicProfile.handle}</strong>
+              {publicProfile.lastReadAt ? `, last on ${formatDay(publicProfile.lastReadAt)}` : ""}. Connect it to add insights and keep them current.
+            </p>
           )}
         </div>
+      </div>
+
+      {accounts.length > 0 && (
+        <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+          {accounts.map((a) => {
+            const lapsed = reconnect.has(a.id);
+            return (
+              <li key={a.id} style={{ borderTop: "1px solid var(--cc-border)", padding: "12px 16px 12px 68px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflowWrap: "anywhere" }}>
+                      {a.profileUrl ? (
+                        <a href={a.profileUrl} target="_blank" rel="noreferrer" style={{ color: "var(--cc-text)" }}>
+                          {a.handle}
+                        </a>
+                      ) : (
+                        a.handle
+                      )}
+                    </div>
+                    <div style={{ fontSize: 13, color: "var(--cc-text-muted)", fontVariantNumeric: "tabular-nums" }}>
+                      {formatCount(a.followersCount)} {followerWord} ·{" "}
+                      {a.statsSyncedAt ? `last synced ${formatDay(a.statsSyncedAt)} (${relativeDay(a.statsSyncedAt)})` : "not synced yet"}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {lapsed && (
+                      <ButtonLink href={startHref} external>
+                        Reconnect
+                      </ButtonLink>
+                    )}
+                    <Button variant="ghost" size="sm" loading={disconnectingId === a.id} onClick={() => onDisconnect(a)}>
+                      Disconnect
+                    </Button>
+                  </div>
+                </div>
+                {lapsed && (
+                  <p style={{ fontSize: 13, color: "var(--cc-text)", margin: "8px 0 0" }}>
+                    Access to this account has lapsed, so its numbers have stopped updating.
+                  </p>
+                )}
+              </li>
+            );
+          })}
+        </ul>
       )}
 
-      <WhatWeRead platform={platform} />
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "8px 16px",
+          flexWrap: "wrap",
+          borderTop: "1px solid var(--cc-border)",
+          padding: "12px 16px 10px 68px",
+        }}
+      >
+        {/* A gated platform in production has no credentials behind it: the
+            start route can only bounce the creator back with reason=provider,
+            so the button is left out and the note says what to do instead.
+            Development keeps it, because there the route runs a mock flow. */}
+        {gated ? (
+          capability?.connectNote && <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}>{capability.connectNote}</p>
+        ) : !canConnect ? null : (
+          <>
+            <ButtonLink href={startHref} external variant={accounts.length > 0 ? "secondary" : "primary"}>
+              {accounts.length > 0 ? "Add another account" : `Connect ${BUTTON_NAME[platform]}`}
+            </ButtonLink>
+            {capability?.connect === "gated" && capability.connectNote && accounts.length === 0 && (
+              <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: 0, flex: "1 1 220px" }}>{capability.connectNote}</p>
+            )}
+          </>
+        )}
+        <WhatWeRead platform={platform} />
+      </div>
     </Card>
   );
 }
@@ -251,16 +308,20 @@ export default function MyAccountsPage() {
   const confirm = useConfirm();
   const [connections, setConnections] = useState<Connection[] | null>(null);
   const [capabilities, setCapabilities] = useState<PlatformCapability[]>([]);
+  const [canConnect, setCanConnect] = useState(true);
   const [profiles, setProfiles] = useState<PublicProfile[]>([]);
   const [reconnect, setReconnect] = useState<Set<string>>(new Set());
   const [failed, setFailed] = useState(false);
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
-  const [result] = useState(readConnectResult);
+  const [result, setResult] = useState<ReturnType<typeof readConnectResult>>(null);
   const [resultShown, setResultShown] = useState(true);
 
   useEffect(() => {
-    if (result) window.history.replaceState(null, "", window.location.pathname);
-  }, [result]);
+    const read = readConnectResult();
+    if (!read) return;
+    setResult(read);
+    window.history.replaceState(null, "", window.location.pathname);
+  }, []);
 
   const load = useCallback(async () => {
     setFailed(false);
@@ -279,6 +340,7 @@ export default function MyAccountsPage() {
          profile, not a connection. */
       setConnections((data.accounts ?? []).filter((a: Connection) => a.origin !== "manual"));
       setCapabilities(data.capabilities ?? []);
+      setCanConnect(data.canConnect !== false);
       if (pubRes.ok) setProfiles((await pubRes.json()).profiles ?? []);
     } catch {
       setFailed(true);
@@ -352,6 +414,7 @@ export default function MyAccountsPage() {
       capabilities.find((c) => c.platform === platform)?.connect !== "coming_soon" || accountsFor(platform).length > 0,
   );
   const otherPublic = profiles.filter((p) => !cardPlatforms.has(p.platform));
+  const connectedCount = shown.filter((platform) => accountsFor(platform).length > 0).length;
 
   return (
     <Screen title="My accounts" subtitle="Connect your accounts so your posts report their own numbers.">
@@ -362,15 +425,38 @@ export default function MyAccountsPage() {
       )}
       {failed && <LoadFailed what="your accounts" onRetry={load} />}
 
-      <Card style={{ marginBottom: 16 }}>
-        <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 4 }}>
-          {WHAT_WE_NEVER_DO.map((line) => (
-            <li key={line} style={{ fontSize: 13, color: "var(--cc-text)", lineHeight: 1.5 }}>
-              {line}
+      {connections && !canConnect && (
+        <Card style={{ marginBottom: 16, padding: 20 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>Join a campaign to connect</h2>
+          <p style={{ fontSize: 14, color: "var(--cc-text-muted)", margin: "6px 0 14px", lineHeight: 1.5, maxWidth: 560 }}>
+            A connection is linked to the agency running your campaign, so Connect opens once you are on one. Join an
+            open campaign, or open the link an agency sent you.
+          </p>
+          <ButtonLink href="/portal/campaigns?tab=open">Browse open campaigns</ButtonLink>
+        </Card>
+      )}
+
+      <ul
+        aria-label="What we never do"
+        style={{
+          listStyle: "none",
+          margin: "0 0 20px",
+          padding: 0,
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+          gap: "10px 20px",
+        }}
+      >
+        {WHAT_WE_NEVER_DO.map((line, i) => {
+          const Icon = NEVER_ICONS[i] ?? ShieldCheck;
+          return (
+            <li key={line} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, color: "var(--cc-text)", lineHeight: 1.45 }}>
+              <Icon size={16} aria-hidden="true" style={{ flex: "none", marginTop: 1, color: "var(--cc-text-muted)" }} />
+              <span>{line}</span>
             </li>
-          ))}
-        </ul>
-      </Card>
+          );
+        })}
+      </ul>
 
       {!connections && !failed ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -381,6 +467,15 @@ export default function MyAccountsPage() {
       ) : (
         connections && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <SectionTitle
+              aside={
+                <span style={{ fontSize: 13, color: "var(--cc-text-muted)", fontVariantNumeric: "tabular-nums" }}>
+                  {connectedCount} of {shown.length} connected
+                </span>
+              }
+            >
+              Platforms
+            </SectionTitle>
             {shown.map((platform) => (
               <PlatformCard
                 key={platform}
@@ -391,6 +486,7 @@ export default function MyAccountsPage() {
                 capability={capabilities.find((c) => c.platform === platform)}
                 onDisconnect={disconnect}
                 disconnectingId={disconnectingId}
+                canConnect={canConnect}
               />
             ))}
             {otherPublic.length > 0 && (

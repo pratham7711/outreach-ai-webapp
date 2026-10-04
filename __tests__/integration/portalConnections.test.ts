@@ -149,6 +149,18 @@ describe("GET /api/portal/connections", () => {
     expect(body.accounts).toEqual([]);
     expect(mockDb.creatorSocialAccount.findMany).not.toHaveBeenCalled();
   });
+
+  it("reports canConnect from the roster lookup the start route refuses on", async () => {
+    expect((await (await listConnections()).json()).canConnect).toBe(true);
+
+    mockDb.creator.findFirst.mockResolvedValue(null);
+    expect((await (await listConnections()).json()).canConnect).toBe(false);
+    const start = await startConnect(
+      makeRequest("http://localhost/api/portal/connections/tiktok/start"),
+      makeParams("tiktok"),
+    );
+    expect(start.headers.get("location")).toContain("reason=creator");
+  });
 });
 
 describe("DELETE /api/portal/connections", () => {
