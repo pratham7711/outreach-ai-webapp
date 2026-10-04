@@ -120,26 +120,40 @@ describe("fetchInstagramPublicPostMetrics — paging", () => {
     // No cursor on the last page means the post is genuinely not on this
     // account -- a different answer from running out of pages.
     get.mockResolvedValueOnce(page([media("OTHER1")]));
+    const onNotOnAccount = jest.fn();
+    const onPastLookupDepth = jest.fn();
     const out = await fetchInstagramPublicPostMetrics(
       "creator",
       "https://www.instagram.com/p/WANTED/",
       "tok",
+      undefined,
+      { onNotOnAccount, onPastLookupDepth },
     );
     expect(out).toBeNull();
     expect(get).toHaveBeenCalledTimes(1);
+    expect(onNotOnAccount).toHaveBeenCalledTimes(1);
+    expect(onPastLookupDepth).not.toHaveBeenCalled();
   });
 
   it("bounds the walk even when Instagram keeps offering cursors", async () => {
     // A refresh has a 260s budget for a whole campaign, so an unbounded walk on
     // one post is a way to starve every post behind it.
     get.mockResolvedValue(page([media("OTHER")], "ALWAYS_MORE"));
+    const onNotOnAccount = jest.fn();
+    const onPastLookupDepth = jest.fn();
     const out = await fetchInstagramPublicPostMetrics(
       "creator",
       "https://www.instagram.com/p/WANTED/",
       "tok",
+      undefined,
+      { onNotOnAccount, onPastLookupDepth },
     );
     expect(out).toBeNull();
     expect(get).toHaveBeenCalledTimes(MAX_MEDIA_PAGES);
+    /* Instagram still had older media, so "not on the account" would be a
+       guess: the post may only be older than the pages we read. */
+    expect(onPastLookupDepth).toHaveBeenCalledTimes(1);
+    expect(onNotOnAccount).not.toHaveBeenCalled();
   });
 
   it("gives up immediately on a URL with no shortcode", async () => {

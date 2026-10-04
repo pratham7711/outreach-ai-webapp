@@ -428,6 +428,15 @@ describe("fetchInstagramMetrics — a post the account does not list", () => {
     expect(m.fetchReason).toBe("not-on-account");
   });
 
+  it("files a walk that stopped at its page limit as not-in-newest-media", async () => {
+    bizPost.mockImplementation(async (_h: string, _u: string, _t: string, _s: unknown, opts: { onPastLookupDepth?: () => void }) => {
+      opts.onPastLookupDepth?.();
+      return null;
+    });
+    const m = await fetchInstagramMetrics(URL, undefined, "creator.name");
+    expect(m.fetchReason).toBe("not-in-newest-media");
+  });
+
   it("is no reason at all once the embed answers", async () => {
     embed.mockResolvedValue({ likesCount: 12, commentsCount: 1, likesHidden: false, thumbnailUrl: "t.jpg", caption: "c" });
     const m = await fetchInstagramMetrics(URL, undefined, "creator.name");

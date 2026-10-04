@@ -116,7 +116,9 @@ const POST_SOURCE_FAILURES = new Set(["platform-challenged", "platform-refused",
    not on it. Neutral until 2026-10-03, so they never closed a breaker; with the
    cron's Instagram queue headed by 94 such posts (measured that day), the only
    reads that could ever close it were the ones it was skipping. */
-const POST_ANSWERS = new Set(["post-deleted", "unrecognised-url", "not-a-professional-account", "not-on-account"]);
+const POST_ANSWERS = new Set([
+  "post-deleted", "unrecognised-url", "not-a-professional-account", "not-on-account", "not-in-newest-media",
+]);
 
 /** A post metrics read, as the breaker counts it. */
 export function classifyPostRead(outcome: { status: string; reason?: string | null }): ReadOutcome {

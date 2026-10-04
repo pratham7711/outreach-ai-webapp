@@ -100,17 +100,35 @@ const SETTLED_REASONS: ReadonlySet<FetchReason> = new Set<FetchReason>([
 ]);
 
 /* Empty reads that were still answers about the post or its account, so the
-   outage alert leaves them out. */
-const ANSWERED_REASONS: ReadonlySet<FetchReason> = new Set<FetchReason>([
-  ...SETTLED_REASONS,
-  "no-counts-published",
-  "not-a-professional-account",
-  "post-hidden",
+   outage alert leaves them out.
+
+   Declared total over FetchReason, like SOURCE_WENT_QUIET, so a new reason
+   cannot be added without deciding which side it falls on. As a set it could:
+   not-on-account was added on 2026-10-03 and never listed here, and at 03:14Z
+   on 2026-10-04 eleven Instagram posts that each got that answer were counted
+   as an outage and paged "Post metric sync returning nothing" as critical. */
+const ANSWERED: Record<FetchReason, boolean> = {
+  "post-deleted": true,
+  "unrecognised-url": true,
+  "no-counts-published": true,
+  "not-a-professional-account": true,
+  "not-on-account": true,
+  "not-in-newest-media": true,
+  "post-hidden": true,
   /* Answered, with numbers that contradicted each other. A post TikTok keeps
      answering this way does so every run, and five of them inside a ten-post
      run would page as an outage. */
-  "counts-inconsistent",
-]);
+  "counts-inconsistent": true,
+
+  unknown: false,
+  "reader-unavailable": false,
+  "reader-timeout": false,
+  "backing-off": false,
+  "not-configured": false,
+  "credentials-rejected": false,
+  "platform-challenged": false,
+  "platform-refused": false,
+};
 
 type Decision = { postId: string; platform: string; action: PostTrackingAction; reason: string };
 
@@ -909,7 +927,7 @@ export async function runPostSweep(request: NextRequest, options: PostSweepOptio
        2026-09-24, and ~40 Instagram posts that no longer exist kept every run
        between 46% and 53% for the week after. */
     const answered = Object.entries(noCountReasons)
-      .filter(([reason]) => ANSWERED_REASONS.has(reason as FetchReason))
+      .filter(([reason]) => ANSWERED[reason as FetchReason] === true)
       .reduce((sum, [, n]) => sum + n, 0);
     const unproductive = noCounts - answered + failed;
     if (shouldAlertOnBatch({ failed: unproductive, total: attempted })) {

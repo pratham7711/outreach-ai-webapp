@@ -202,9 +202,9 @@ export type FetchReason =
    *  handle would never be read. */
   | "not-a-professional-account"
   /** Instagram: Business Discovery answered for the account, page after page,
-   *  and the post was on none of them -- and the embed showed nothing either.
-   *  Usually the post was deleted or archived; it can also sit on a different
-   *  account from the one we hold, or be older than the newest 500 media.
+   *  to the end of its library, and the post was on none of them -- and the
+   *  embed showed nothing either. Usually the post was deleted or archived; it
+   *  can also sit on a different account from the one we hold.
    *
    *  An answer, not a refusal. It used to be filed as "platform-refused", which
    *  the source breaker counts against Instagram: on 2026-10-03 fourteen such
@@ -213,6 +213,12 @@ export type FetchReason =
    *  reading only live posts, measured fine. Not charged, for the same reason as
    *  the one above: the name is ours to get wrong. */
   | "not-on-account"
+  /** Instagram: as not-on-account, except Instagram still had older media to
+   *  offer when the walk stopped at its page limit (MAX_MEDIA_PAGES), so the
+   *  post may simply be older than the account's newest 500. Filed as
+   *  not-on-account until 2026-10-04, which told the agency it was probably
+   *  deleted. Uncharged and an answer, like that one. */
+  | "not-in-newest-media"
   /** The reading carried numbers that cannot all be true -- more likes,
    *  comments, shares or saves than views -- so none of it was kept and the
    *  post keeps its last consistent figures. Not charged: the post is fine and
@@ -269,8 +275,9 @@ const SOURCE_WENT_QUIET: Record<FetchReason, boolean> = {
   "post-hidden": false,
   /* A verdict about the account, said out loud as error 110. */
   "not-a-professional-account": false,
-  /* The account answered; the post was not on it. */
+  /* The account answered; the post was not on it, or not in its newest pages. */
   "not-on-account": false,
+  "not-in-newest-media": false,
   /* The round trip carried numbers; we refused them. */
   "counts-inconsistent": false,
 };
@@ -639,6 +646,7 @@ export const UNCHARGEABLE_REASONS: ReadonlySet<FetchReason> = new Set<FetchReaso
   /* About a name we chose, not about the post -- see the reason's own note. */
   "not-a-professional-account",
   "not-on-account",
+  "not-in-newest-media",
   /* The creator can undo it, and a dead letter is forever. */
   "post-hidden",
   /* A reading we refused is about the reading. On 2026-10-02 four live posts
@@ -1383,6 +1391,9 @@ export async function fetchInstagramMetrics(
   /* Set when Business Discovery answered every page it was asked for and the
      post was on none of them; see "not-on-account". */
   let notOnAccount = false;
+  /* Set when it answered every page it was asked for, none held the post, and
+     it still had older media; see "not-in-newest-media". */
+  let pastLookupDepth = false;
   let bizRateLimited = false;
 
   if (token) {
@@ -1454,6 +1465,9 @@ export async function fetchInstagramMetrics(
             ...cred.graphOptions,
             onNotOnAccount: () => {
               notOnAccount = true;
+            },
+            onPastLookupDepth: () => {
+              pastLookupDepth = true;
             },
           }),
         { stopAtPercent, orgId },
@@ -1585,6 +1599,8 @@ export async function fetchInstagramMetrics(
         ? "not-a-professional-account"
         : notOnAccount && !bizRateLimited
           ? "not-on-account"
+          : pastLookupDepth && !bizRateLimited
+          ? "not-in-newest-media"
           : /* Meta's hourly limit, or a sweep holding back below it. Not a
                refusal of this post and not the source failing: filed as
                platform-refused, 26 throttled reads in a row opened the

@@ -78,6 +78,8 @@ const UNREAD_REASON: Record<string, string> = {
     "Instagram shares nothing for this account; it may be personal, private, renamed or gone",
   "not-on-account":
     "Instagram did not list it on the creator's account; it may have been deleted or archived, or be on another account",
+  "not-in-newest-media":
+    "it was not among the creator's newest 500 Instagram posts, which is as far back as we can look; it may be older, or deleted or archived",
   "counts-inconsistent":
     "the platform's numbers for it could not all be true (more likes than views, or views falling to zero), so its last consistent numbers are kept",
 };

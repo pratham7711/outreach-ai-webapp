@@ -165,6 +165,7 @@ const REASON_IS_RETRYABLE: Record<RefreshFailReason, boolean> = {
   /* The same name gets the same answer within one request. */
   "not-a-professional-account": false,
   "not-on-account": false,
+  "not-in-newest-media": false,
   /* Another lane renders another page; the neighbour's stats were one page's. */
   "counts-inconsistent": true,
   // Our bug, not their verdict -- and a thrown call is often transient.

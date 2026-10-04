@@ -1118,7 +1118,10 @@ describe("cron sync — alerting on a run that measured nothing", () => {
     };
   }
 
-  it.each(["post-deleted", "not-a-professional-account", "no-counts-published", "unrecognised-url", "post-hidden"])(
+  it.each([
+    "post-deleted", "not-a-professional-account", "no-counts-published", "unrecognised-url", "post-hidden",
+    "not-on-account", "not-in-newest-media", "counts-inconsistent",
+  ])(
     "sends nothing when every post answered %s",
     async (reason) => {
       mockPostCandidates(challengedPosts(6));

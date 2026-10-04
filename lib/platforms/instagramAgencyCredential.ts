@@ -203,6 +203,28 @@ export async function deleteAgencyCredential(
   };
 }
 
+/**
+ * Removes every org's own account that this Facebook user granted, and returns
+ * those orgs. Meta's deauthorize and data-deletion callbacks name the user, not
+ * an org, and the token is dead the moment the user removes the app -- left in
+ * place, the row would keep its settings card saying "Connected" and every
+ * read would fail against it until the daily refresh noticed.
+ */
+export async function deleteAgencyCredentialsGrantedBy(fbUserId: string): Promise<string[]> {
+  if (!fbUserId) return [];
+  const table = await credentials();
+  const rows = await table.findMany({
+    where: { provider: { startsWith: AGENCY_PROVIDER_PREFIX } },
+    select: { provider: true, source: true },
+  });
+  const providers = rows.filter((r) => parseAgencyMeta(r.source)?.fbUserId === fbUserId).map((r) => r.provider);
+  if (providers.length === 0) return [];
+  await table.deleteMany({ where: { provider: { in: providers } } });
+  const orgIds = providers.map((p) => p.slice(AGENCY_PROVIDER_PREFIX.length));
+  for (const orgId of orgIds) clearAgencyCredentialCache(orgId);
+  return orgIds;
+}
+
 /** Every other credential's granting Facebook user, for the revoke check. */
 export async function otherAgencyGrantors(exceptOrgId: string): Promise<Set<string>> {
   const rows = await (await credentials()).findMany({

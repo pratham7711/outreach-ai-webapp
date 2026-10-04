@@ -10,6 +10,7 @@ import { isGrantorPlatform } from "@/lib/platforms/metaGrantor";
 import { toPlatformEnum, type OAuthPlatform } from "./providers";
 import { grantTablesReady } from "@/lib/creators/grantTables";
 import { REVOKE_REASONS, revokeGrantsForConnections, type RevokeReason } from "@/lib/creators/grants";
+import { deleteAgencyCredentialsGrantedBy } from "@/lib/platforms/instagramAgencyCredential";
 
 /**
  * Meta posts `signed_request` as a form field. The JSON and query-string forms
@@ -60,6 +61,10 @@ export async function readSignedRequest(req: NextRequest): Promise<string | null
  *
  * Absent CreatorAccountState table: the grantor half matches nothing and this
  * behaves exactly as it did before the table existed.
+ *
+ * An agency's own Instagram account (Settings → Integrations) is granted
+ * through the same Facebook Login app, so an Instagram-signed request also
+ * removes every org's account that this user granted, and counts it.
  */
 export async function forgetMetaUser(
   userId: string,
@@ -124,5 +129,14 @@ export async function forgetMetaUser(
     }
   }
   const { count } = await db.creatorSocialAccount.deleteMany({ where });
-  return count;
+  let agencies = 0;
+  if (platforms.includes("instagram")) {
+    try {
+      agencies = (await deleteAgencyCredentialsGrantedBy(userId)).length;
+    } catch {
+      /* The creator rows are already gone; an agency row left behind is
+         stamped rejected by its next read, as any dead token is. */
+    }
+  }
+  return count + agencies;
 }

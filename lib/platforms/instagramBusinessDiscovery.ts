@@ -240,11 +240,17 @@ export async function fetchInstagramPublicPostMetrics(
   signal?: AbortSignal,
   {
     onNotOnAccount,
+    onPastLookupDepth,
     ...options
   }: Omit<DiscoveryReadOptions, "noSuchAccountThrows"> & {
-    /** Told when every page asked for answered and none held the post -- an
-     *  answer about the post, where a null alone also covers a failed page. */
+    /** Told when the walk reached the end of the creator's library and no page
+     *  held the post -- an answer about the post, where a null alone also
+     *  covers a failed page. */
     onNotOnAccount?: () => void;
+    /** Told when every page asked for answered, none held the post, and
+     *  Instagram still offered more: the post may simply be older than the
+     *  newest MAX_MEDIA_PAGES x MEDIA_PAGE_SIZE media. */
+    onPastLookupDepth?: () => void;
   } = {},
 ): Promise<(IgPublicPost & { authorFollowers?: number }) | null> {
   const shortcode = shortcodeFromUrl(postUrl);
@@ -261,16 +267,17 @@ export async function fetchInstagramPublicPostMetrics(
 
   const walkStartedAt = Date.now();
   const found = await walkForPost(username, shortcode, token, signal, read, MAX_MEDIA_PAGES, false);
-  if (found !== "not-found") return found;
+  if (found !== "not-found" && found !== "out-of-pages") return found;
   /* On no page we were given -- but the newest page may be one remembered
      from minutes ago, and a post published since is on none of them. That
      page alone is asked again before the answer stands. */
   const newest = postPages.get(pageKey(token, username, undefined, rateLimitThrows, true));
   if (rememberOn && newest && newest.at < walkStartedAt) {
     const again = await walkForPost(username, shortcode, token, signal, read, 1, true);
-    if (again !== "not-found") return again;
+    if (again !== "not-found" && again !== "out-of-pages") return again;
   }
-  onNotOnAccount?.();
+  if (found === "out-of-pages") onPastLookupDepth?.();
+  else onNotOnAccount?.();
   return null;
 }
 
@@ -282,7 +289,7 @@ async function walkForPost(
   options: Omit<DiscoveryReadOptions, "noSuchAccountThrows">,
   pages: number,
   fresh: boolean,
-): Promise<(IgPublicPost & { authorFollowers?: number }) | null | "not-found"> {
+): Promise<(IgPublicPost & { authorFollowers?: number }) | null | "not-found" | "out-of-pages"> {
   let cursor: string | undefined;
   let followers: number | undefined;
 
@@ -318,5 +325,5 @@ async function walkForPost(
     if (!profile.nextMediaCursor) return "not-found";
     cursor = profile.nextMediaCursor;
   }
-  return "not-found";
+  return "out-of-pages";
 }

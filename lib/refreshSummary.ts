@@ -114,6 +114,7 @@ const REASON_LABEL: Record<RefreshFailReason, (n: number) => string> = {
   "credentials-rejected": (n) => `${n} need Instagram reconnected`,
   "not-a-professional-account": (n) => `${n} are on Instagram accounts that share no numbers`,
   "not-on-account": (n) => `${n} were not found on their creator's Instagram`,
+  "not-in-newest-media": (n) => `${n} were not among their creator's newest 500 Instagram posts`,
   "counts-inconsistent": (n) => `${n} came back with numbers that could not be right, kept their last good numbers`,
   error: (n) => `${n} errored`,
 };

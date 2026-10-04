@@ -101,6 +101,7 @@ export const DAILY_RECHECK_REASONS: ReadonlySet<string> = new Set([
   "post-hidden",
   "not-a-professional-account",
   "not-on-account",
+  "not-in-newest-media",
   "credentials-rejected",
 ]);
 

@@ -11,6 +11,10 @@ jest.mock("@/lib/db", () => ({
     creatorSocialAccount: {
       deleteMany: jest.fn(),
     },
+    platformCredential: {
+      findMany: jest.fn(),
+      deleteMany: jest.fn(),
+    },
   },
 }));
 
@@ -23,7 +27,10 @@ jest.mock("@/lib/platforms/accountState", () => ({
 import { db } from "@/lib/db";
 import { accountIdsForGrantor } from "@/lib/platforms/accountState";
 
-const mockDb = db as unknown as { creatorSocialAccount: { deleteMany: jest.Mock } };
+const mockDb = db as unknown as {
+  creatorSocialAccount: { deleteMany: jest.Mock };
+  platformCredential: { findMany: jest.Mock; deleteMany: jest.Mock };
+};
 const mockGrantor = accountIdsForGrantor as jest.Mock;
 
 const ENV_KEYS = [
@@ -66,8 +73,18 @@ beforeEach(() => {
   process.env.THREADS_CLIENT_SECRET = "threads-secret";
   process.env.APP_URL = "https://campaign.madeboring.com";
   mockDb.creatorSocialAccount.deleteMany.mockResolvedValue({ count: 2 });
+  mockDb.platformCredential.findMany.mockResolvedValue([]);
+  mockDb.platformCredential.deleteMany.mockResolvedValue({ count: 0 });
   mockGrantor.mockResolvedValue([]);
 });
+
+/** An org's own Instagram account row, as Settings → Integrations stores it. */
+function agencyRow(orgId: string, fbUserId: string | null) {
+  return {
+    provider: `instagram_business:org:${orgId}`,
+    source: JSON.stringify({ via: "oauth", igUserId: `ig-${orgId}`, username: `agency_${orgId}`, pageId: null, fbUserId }),
+  };
+}
 
 afterEach(() => {
   for (const k of ENV_KEYS) {
@@ -116,6 +133,36 @@ describe("POST /api/webhooks/meta/deauthorize", () => {
     ]);
   });
 
+  it("also removes an agency's own Instagram account that this Facebook user granted", async () => {
+    mockDb.platformCredential.findMany.mockResolvedValue([
+      agencyRow("org-a", "fb-user-1"),
+      agencyRow("org-b", "fb-user-2"),
+      agencyRow("org-c", null),
+    ]);
+    const res = await deauthorize(
+      formPost(
+        "https://campaign.madeboring.com/api/webhooks/meta/deauthorize",
+        signRequest({ user_id: "fb-user-1" }, "meta-secret"),
+      ),
+    );
+    expect(await res.json()).toEqual({ ok: true, removed: 3 });
+    expect(mockDb.platformCredential.deleteMany).toHaveBeenCalledTimes(1);
+    expect(mockDb.platformCredential.deleteMany.mock.calls[0][0]).toEqual({
+      where: { provider: { in: ["instagram_business:org:org-a"] } },
+    });
+  });
+
+  it("still forgets the creator rows when the agency lookup fails", async () => {
+    mockDb.platformCredential.findMany.mockRejectedValue(new Error("db down"));
+    const res = await deauthorize(
+      formPost(
+        "https://campaign.madeboring.com/api/webhooks/meta/deauthorize",
+        signRequest({ user_id: "fb-user-1" }, "meta-secret"),
+      ),
+    );
+    expect(await res.json()).toEqual({ ok: true, removed: 2 });
+  });
+
   it("scopes a Threads-signed request to Threads rows only", async () => {
     const res = await deauthorize(
       formPost(
@@ -129,6 +176,7 @@ describe("POST /api/webhooks/meta/deauthorize", () => {
        sends the Threads user id, which IS the stored platformUserId. */
     expect(where).toEqual({ platformUserId: "th-user", platform: "THREADS" });
     expect(mockGrantor).not.toHaveBeenCalled();
+    expect(mockDb.platformCredential.findMany).not.toHaveBeenCalled();
   });
 
   it("verifies an Instagram Login request with that app's own secret and forgets only Instagram Login rows", async () => {
