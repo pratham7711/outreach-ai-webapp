@@ -34,7 +34,7 @@ export default function TermsPage() {
           You may not use {LEGAL.name}{" "}to break the law, to infringe anyone&rsquo;s rights, to
           upload malware, to attempt to access another organisation&rsquo;s data, or to scrape or
           resell data obtained through the connected platform APIs. You may not use it in a way that
-          breaches the terms of any platform you connect, including TikTok, Instagram, and YouTube.
+          breaches the terms of any platform you connect, including TikTok, Instagram, Facebook and YouTube.
         </p>
       </LegalSection>
 

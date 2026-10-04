@@ -195,7 +195,7 @@ export default async function CampaignLandingPage({
             {deadline && (
               <span style={chipStyle}>Submit by {deadline}</span>
             )}
-            <span style={chipStyle}>{formatCount(campaign.creatorCount)} creators joined</span>
+            <span style={chipStyle}>{formatCount(campaign.creatorCount)} {campaign.creatorCount === 1 ? "creator" : "creators"} joined</span>
             <span style={chipStyle}>Auto-approves in {campaign.autoApproveHours}h</span>
           </div>
         </div>

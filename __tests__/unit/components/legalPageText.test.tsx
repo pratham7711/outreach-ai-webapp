@@ -61,6 +61,7 @@ describe("public policy pages keep the space after an inline element", () => {
       "you agree to be bound by the YouTube Terms of Service, and Google handles your data under the Google Privacy Policy."
     );
     expect(page).toContain(`Google security settings or by disconnecting the channel in ${LEGAL.name}.`);
+    expect(page).toContain("including TikTok, Instagram, Facebook and YouTube.");
   });
 
   it("/data-deletion", async () => {
