@@ -212,7 +212,7 @@ function AccountBlock({ block }: { block: PlatformInsights }) {
     .filter(([, value, published]) => published || typeof value === "number")
     .map(([label, value]) => [label, value]);
   const figures: Array<[string, number | null]> = [
-    ["Followers", block.followers],
+    [block.platform === "YOUTUBE" ? "Subscribers" : "Followers", block.followers],
     ...lifetime,
     [`Median views, last ${block.sampleSize}`, block.medianViews],
     ["Best post views", block.bestPost?.views ?? null],

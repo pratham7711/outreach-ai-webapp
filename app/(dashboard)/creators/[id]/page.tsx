@@ -1324,7 +1324,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                     <div style={{ display: "flex", gap: 16, fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginBottom: 8 }}>
                       {/* Both columns default to 0 on a connected account, so 0 here
                           is "not read yet" far more often than a real count. */}
-                      <span><Users size={12} style={{ marginRight: 4, verticalAlign: "middle" }} /><MetricFigure value={followersValue(acct.followersCount)} format={formatNumber} /> followers</span>
+                      <span><Users size={12} style={{ marginRight: 4, verticalAlign: "middle" }} /><MetricFigure value={followersValue(acct.followersCount)} format={formatNumber} /> {acct.platform === "YOUTUBE" ? "subscribers" : "followers"}</span>
                       <span><Eye size={12} style={{ marginRight: 4, verticalAlign: "middle" }} /><MetricFigure value={avgViewsValue(acct.avgViews)} format={formatNumber} /> avg views</span>
                     </div>
                     {/* The account's own statistics are read daily (plan A6); one

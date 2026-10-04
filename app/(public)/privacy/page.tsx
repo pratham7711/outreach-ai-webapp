@@ -222,6 +222,21 @@ export default function PrivacyPage() {
         </p>
       </LegalSection>
 
+      <LegalSection heading="Cookies and storage on your device">
+        <p>
+          {LEGAL.name}{" "}stores a small amount of information in your browser. Cookies keep you signed
+          in to the agency app and to the creator portal. Short-lived cookies protect the connection
+          flow while you connect a social account, and expire when it finishes. Your browser&rsquo;s
+          local storage remembers display preferences, such as the colour theme, the sidebar state
+          and when you last opened notifications.
+        </p>
+        <p>
+          We do not use advertising or analytics cookies, and we do not allow third parties to place
+          cookies on, or collect information from, your device through {LEGAL.name}. Our server logs
+          record your IP address and browser type for security, and are kept for up to 90 days.
+        </p>
+      </LegalSection>
+
       <LegalSection heading="How long we keep it">
         <p>
           Account and campaign data is kept while your organisation has an active account. Connected

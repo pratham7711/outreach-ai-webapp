@@ -46,6 +46,22 @@ export default function TermsPage() {
           their APIs, including changes that remove data the product previously displayed.
         </p>
         <p>
+          Connecting a YouTube channel uses YouTube API Services. By connecting one you agree to be
+          bound by the{" "}
+          <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener noreferrer">
+            YouTube Terms of Service
+          </a>
+          , and Google handles your data under the{" "}
+          <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">
+            Google Privacy Policy
+          </a>
+          . You can withdraw our access at any time from your{" "}
+          <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer">
+            Google security settings
+          </a>{" "}
+          or by disconnecting the channel in {LEGAL.name}.
+        </p>
+        <p>
           Where a platform does not expose a metric, {LEGAL.name} does not estimate or infer it.
           Reporting reflects only what the platform actually returns.
         </p>

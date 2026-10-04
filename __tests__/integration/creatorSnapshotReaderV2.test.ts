@@ -99,7 +99,7 @@ describe("reader v2 through snapshotCreators", () => {
     await snapshotCreators({ plan: "A", readTikTokProfileVia: via });
 
     expect(via).not.toHaveBeenCalled();
-    expect(mockRead).toHaveBeenCalledWith("INSTAGRAM", "@someone", { instagramStopAtPercent: undefined });
+    expect(mockRead).toHaveBeenCalledWith("INSTAGRAM", "@someone", { instagramStopAtPercent: undefined, orgId: "org-1" });
   });
 
   it("does not fall back to the old sandbox fetcher when the lanes fail", async () => {
@@ -187,6 +187,6 @@ describe("reader v2 through snapshotCreators", () => {
     expect(mockGate).not.toHaveBeenCalled();
     expect(mockSources).not.toHaveBeenCalled();
     expect(mockDb.creatorProfileLink.updateMany).not.toHaveBeenCalled();
-    expect(mockRead).toHaveBeenCalledWith("TIKTOK", "@someone", { instagramStopAtPercent: undefined });
+    expect(mockRead).toHaveBeenCalledWith("TIKTOK", "@someone", { instagramStopAtPercent: undefined, orgId: "org-1" });
   });
 });

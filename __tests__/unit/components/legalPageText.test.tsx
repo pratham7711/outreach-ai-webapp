@@ -46,6 +46,8 @@ describe("public policy pages keep the space after an inline element", () => {
       "pages_read_engagement we read that Page’s name",
       "pages_read_user_content we read the comments",
       "youtube.readonly we read the connected channel’s name",
+      `${LEGAL.name} stores a small amount of information in your browser.`,
+      `collect information from, your device through ${LEGAL.name}.`,
     ]) {
       expect(page).toContain(phrase);
     }
@@ -55,6 +57,10 @@ describe("public policy pages keep the space after an inline element", () => {
     const page = text(TermsPage());
     expect(page).toContain(`You may not use ${LEGAL.name} to break the law`);
     expect(page).toContain(`you record inside ${LEGAL.name} are a bookkeeping record only`);
+    expect(page).toContain(
+      "you agree to be bound by the YouTube Terms of Service, and Google handles your data under the Google Privacy Policy."
+    );
+    expect(page).toContain(`Google security settings or by disconnecting the channel in ${LEGAL.name}.`);
   });
 
   it("/data-deletion", async () => {
