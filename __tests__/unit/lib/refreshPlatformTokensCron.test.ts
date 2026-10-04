@@ -20,8 +20,10 @@ const mockAlert = jest.fn();
 jest.mock("@/lib/alerts", () => ({ alertOps: (...args: unknown[]) => mockAlert(...args) }));
 
 const mockConnections = jest.fn();
+const mockYouTubeRevoked = jest.fn();
 jest.mock("@/lib/platforms/connectionRefresh", () => ({
   refreshConnectedAccounts: (...args: unknown[]) => mockConnections(...args),
+  forgetRevokedYouTubeConnections: (...args: unknown[]) => mockYouTubeRevoked(...args),
 }));
 
 const mockAgencies = jest.fn();
@@ -45,6 +47,7 @@ function call(query = "", auth: string | null = `Bearer ${SECRET}`) {
 beforeEach(() => {
   mockRefresh.mockReset().mockResolvedValue({ status: "not-due", expiresAt: "x", daysLeft: 40 });
   mockAlert.mockReset().mockResolvedValue(undefined);
+  mockYouTubeRevoked.mockReset().mockResolvedValue(0);
   mockConnections.mockReset().mockResolvedValue({
     considered: 0,
     refreshed: 0,
@@ -157,6 +160,21 @@ describe("the creators' own connections", () => {
     expect(deadlineAt).toBeGreaterThanOrEqual(before + 30_000);
     expect(deadlineAt).toBeLessThanOrEqual(Date.now() + 40_000);
     expect((await res.json()).connections).toMatchObject({ considered: 0 });
+  });
+
+  it("then disconnect YouTube connections Google has refused for three weeks", async () => {
+    mockYouTubeRevoked.mockResolvedValue(2);
+    const body = await (await call()).json();
+    expect(mockYouTubeRevoked).toHaveBeenCalledTimes(1);
+    expect(body.youtubeRevoked).toBe(2);
+  });
+
+  it("cannot fail the run, or page anyone, when the YouTube cleanup crashes", async () => {
+    mockYouTubeRevoked.mockRejectedValue(new Error("db down"));
+    const res = await call();
+    expect(res.status).toBe(200);
+    expect((await res.json()).youtubeRevoked).toEqual({ error: "youtube revoked cleanup failed" });
+    expect(mockAlert).not.toHaveBeenCalled();
   });
 
   it("cannot fail the credential run when they crash", async () => {

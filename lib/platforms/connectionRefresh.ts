@@ -9,6 +9,9 @@ import { ensureFreshInstagramLoginToken } from "./instagramLoginToken";
 import { ensureFreshThreadsToken } from "./threadsToken";
 import { ensureFreshTikTokToken } from "./tiktokToken";
 import { ensureFreshYouTubeToken } from "./youtubeToken";
+import { connectTablesReady } from "@/lib/creators/connectTables";
+import { REVOKE_REASONS } from "@/lib/creators/grants";
+import { disconnectSocialAccount } from "@/lib/portal/disconnect";
 
 /**
  * The daily pass over creators' own connections: keep each token alive, then
@@ -206,4 +209,65 @@ export async function refreshConnectedAccounts(options: {
 
   log.info("connections refreshed", { ...summary });
   return summary;
+}
+
+/**
+ * Days a YouTube connection may stay "Reconnect needed" for Google's
+ * invalid_grant before it is disconnected.
+ *
+ * YouTube API Services policy: when a user revokes access from Google's own
+ * settings, what was stored through that grant must be deleted within 30 days.
+ * Google tells nobody. The next refresh answers invalid_grant, and the pass
+ * above refreshes every connection daily, so the mark lands within about a day
+ * of the revoke. 21 leaves the creator three weeks to reconnect and a week of
+ * margin for missed runs. A reconnect clears the mark, so nothing is lost by a
+ * creator who comes back.
+ */
+export const YOUTUBE_REVOKED_DELETE_AFTER_DAYS = 21;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Disconnects every YouTube connection Google has refused for longer than
+ * YOUTUBE_REVOKED_DELETE_AFTER_DAYS, exactly as the creator's own Disconnect
+ * does, minus the revoke call Google has already made moot. Returns how many
+ * went.
+ */
+export async function forgetRevokedYouTubeConnections(now = new Date()): Promise<number> {
+  if (!(await connectTablesReady())) return 0;
+  const cutoff = new Date(now.getTime() - YOUTUBE_REVOKED_DELETE_AFTER_DAYS * DAY_MS);
+  const marked = await db.creatorAccountState.findMany({
+    where: { reconnectNeededAt: { lt: cutoff }, reconnectReason: REVOKE_REASONS.INVALID_GRANT },
+    select: { accountId: true },
+  });
+  if (marked.length === 0) return 0;
+  const rows = await db.creatorSocialAccount.findMany({
+    where: { id: { in: marked.map((m) => m.accountId) }, platform: "YOUTUBE" },
+    select: {
+      id: true,
+      creatorId: true,
+      platform: true,
+      accessToken: true,
+      origin: true,
+      creator: { select: { orgId: true } },
+    },
+  });
+  const log = createLogger({ context: { call: "connections.forgetRevokedYouTube" } });
+  let forgotten = 0;
+  for (const { creator, ...account } of rows) {
+    try {
+      await disconnectSocialAccount(account, creator.orgId, {
+        alreadyRevoked: true,
+        revokeReason: REVOKE_REASONS.INVALID_GRANT,
+      });
+      await db.creatorAccountState.deleteMany({ where: { accountId: account.id } });
+      forgotten++;
+    } catch (err) {
+      log.warn("revoked YouTube connection could not be removed", {
+        accountId: account.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+  if (forgotten > 0) log.info("revoked YouTube connections removed", { forgotten });
+  return forgotten;
 }

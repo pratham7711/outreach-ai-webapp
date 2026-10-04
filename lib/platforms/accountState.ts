@@ -63,6 +63,8 @@ export async function isReconnectNeeded(accountId: string): Promise<boolean> {
  * invalid_grant) fires for every YouTube connection every seven days while the
  * Google app is in Testing mode, so deleting on it would wipe them all weekly.
  * The row, its token and its history all stay; the reconnect clears the mark.
+ * A YouTube row still marked after three weeks is disconnected by the daily
+ * pass (forgetRevokedYouTubeConnections in lib/platforms/connectionRefresh).
  */
 export async function markReconnectNeeded(accountId: string, reason: string): Promise<boolean> {
   if (!(await connectTablesReady())) return false;

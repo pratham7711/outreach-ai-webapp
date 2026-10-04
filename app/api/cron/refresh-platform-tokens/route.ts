@@ -7,6 +7,7 @@ import {
 import { createLogger } from "@/lib/observability/logger";
 import { alertOps } from "@/lib/alerts";
 import {
+  forgetRevokedYouTubeConnections,
   refreshConnectedAccounts,
   type ConnectionRefreshSummary,
 } from "@/lib/platforms/connectionRefresh";
@@ -74,12 +75,14 @@ async function cronHandler(request: NextRequest) {
     await alertFor(instagram);
     const agencies = await refreshAgencyAccounts(force, startedAt + AGENCY_BUDGET_MS);
     const connections = await refreshCreatorConnections(startedAt + CONNECTION_BUDGET_MS);
+    const youtubeRevoked = await forgetRevokedYouTube();
     return NextResponse.json({
       instagram,
       refreshWindowDays: REFRESH_WHEN_DAYS_LEFT,
       force,
       agencies,
       connections,
+      youtubeRevoked,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -119,6 +122,23 @@ async function refreshCreatorConnections(
       facts: { error: message },
     }).catch(() => undefined);
     return { error: "connection refresh failed" };
+  }
+}
+
+/**
+ * YouTube connections Google has refused for three weeks are disconnected
+ * (lib/platforms/connectionRefresh, forgetRevokedYouTubeConnections). Isolated
+ * like the pass above: a failure here is logged and never fails the run.
+ */
+async function forgetRevokedYouTube(): Promise<number | { error: string }> {
+  try {
+    return await forgetRevokedYouTubeConnections();
+  } catch (error) {
+    createLogger({ context: { route: "cron/refresh-platform-tokens", call: "youtubeRevoked" } }).error(
+      "revoked YouTube connections could not be removed",
+      { error: error instanceof Error ? error.message : String(error) },
+    );
+    return { error: "youtube revoked cleanup failed" };
   }
 }
 

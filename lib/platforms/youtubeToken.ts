@@ -51,7 +51,10 @@ export type YouTubeAccountTokens = {
  * refresh token dies after seven days, so treating invalid_grant as a
  * disconnect would delete every YouTube connection weekly. A marked connection
  * is not refreshed again — the answer will not change until the creator
- * reconnects, and the reconnect clears the mark (the OAuth callback).
+ * reconnects, and the reconnect clears the mark (the OAuth callback). One
+ * still marked after three weeks is disconnected by the daily pass, because
+ * Google's policy wants a revoked grant's data gone within 30 days
+ * (forgetRevokedYouTubeConnections in lib/platforms/connectionRefresh).
  */
 export async function ensureFreshYouTubeToken(
   account: YouTubeAccountTokens | null | undefined,
