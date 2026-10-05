@@ -11,7 +11,7 @@ export const BRAND = {
   contactEmail: process.env.NEXT_PUBLIC_CONTACT_EMAIL ?? "prathamsharma7711@gmail.com",
   privacyEmail: process.env.NEXT_PUBLIC_PRIVACY_EMAIL ?? "prathamsharma7711@gmail.com",
   jurisdiction: "India",
-  updated: "5 October 2026",
+  updated: "6 October 2026",
 } as const;
 
 export const POWERED_BY = `Powered by ${BRAND.name}`;

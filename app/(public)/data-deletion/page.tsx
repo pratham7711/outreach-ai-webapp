@@ -44,7 +44,9 @@ export default async function DataDeletionPage({
         <ul>
           <li>
             withdraw our access at the platform where it offers a way to (TikTok, Google, and
-            Facebook once your last Facebook or Instagram connection through Facebook goes);
+            Facebook once nothing here still uses that Facebook login: your last Facebook or
+            Instagram connection through Facebook has gone, and the same login does not also
+            connect another account or an agency workspace with us);
           </li>
           <li>
             delete the stored access, and the profile details stored with it, at once. Numbers
