@@ -12,6 +12,7 @@ import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
 import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
 import { METRIC_WRITERS_KEY, rankPostCounters, type WriterNotes } from "@/lib/metrics/postWriters";
 import { protectedCreatorFollowers } from "@/lib/creators/followerWriter";
+import { UNATTRIBUTED_CREATOR_WHERE } from "@/lib/posts/unattributedCreator";
 import { countsContradict, engagementExceedsViews } from "@/lib/metrics/coherence";
 
 /**
@@ -355,6 +356,9 @@ export async function applyPostMetrics(
         db.creator.updateMany({
           where: {
             id: post.creatorId,
+            /* Each post under the Unattributed row has a different author, so
+               none of their follower counts is this row's. */
+            AND: [{ NOT: UNATTRIBUTED_CREATOR_WHERE }],
             ...(followerStep !== null
               ? {
                   OR: [

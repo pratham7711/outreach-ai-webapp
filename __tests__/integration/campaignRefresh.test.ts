@@ -39,6 +39,10 @@ import { db } from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { fetchPostMetrics } from '@/lib/platforms/fetchPostMetrics';
 import { snapshotSounds } from '@/lib/sounds/snapshot';
+import { UNATTRIBUTED_CREATOR_WHERE } from '@/lib/posts/unattributedCreator';
+
+// The follower write never lands on the holding row for unattributed posts.
+const NOT_HOLDING = { AND: [{ NOT: UNATTRIBUTED_CREATOR_WHERE }] };
 import { rateLimit } from '@/lib/rateLimit';
 
 const mockDb = db as any;
@@ -203,6 +207,7 @@ describe('single post sync', () => {
           { followersCount: { lt: 22650 } },
           { followersCount: { gte: 22800 } },
         ],
+        ...NOT_HOLDING,
       },
       data: { followersCount: 22700 },
     });
@@ -216,7 +221,7 @@ describe('single post sync', () => {
     await syncReq();
 
     expect(mockDb.creator.updateMany).toHaveBeenCalledWith({
-      where: { id: 'creator-1' },
+      where: { id: 'creator-1', ...NOT_HOLDING },
       data: { followersCount: 22749 },
     });
   });

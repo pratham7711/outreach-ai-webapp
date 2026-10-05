@@ -41,6 +41,10 @@ jest.mock("@/lib/creators/followerWriter", () => ({
 import { applyPostMetrics, keepPrecise } from "@/lib/sync/syncPost";
 import { EXACT, TIKTOK_DISPLAY, YOUTUBE_SUBSCRIBERS } from "@/lib/platforms/precision";
 import type { PostMetrics } from "@/lib/platforms/fetchPostMetrics";
+import { UNATTRIBUTED_CREATOR_WHERE } from "@/lib/posts/unattributedCreator";
+
+// The follower write never lands on the holding row for unattributed posts.
+const NOT_HOLDING = { AND: [{ NOT: UNATTRIBUTED_CREATOR_WHERE }] };
 
 const post = {
   id: "post_1",
@@ -487,7 +491,7 @@ describe("a rounded read never destroys an exact figure", () => {
         metrics({ viewsCount: 100, authorFollowers: 215_293 }),
       );
       const call = mockCreatorUpdateMany.mock.calls[0][0];
-      expect(call.where).toEqual({ id: post.creatorId });
+      expect(call.where).toEqual({ id: post.creatorId, ...NOT_HOLDING });
     });
   });
 });
@@ -551,7 +555,7 @@ describe("applyPostMetrics — the source order", () => {
     );
     expect(mockProtectedFollowers).toHaveBeenCalledWith(post.creatorId, expect.any(Date));
     const call = mockCreatorUpdateMany.mock.calls[0][0];
-    expect(call.where).toEqual({ id: post.creatorId, NOT: { followersCount: 215_400 } });
+    expect(call.where).toEqual({ id: post.creatorId, NOT: { followersCount: 215_400 }, ...NOT_HOLDING });
     expect(call.data).toEqual({ followersCount: 215_293 });
   });
 

@@ -3,6 +3,7 @@ import { loadImage } from "@/lib/media/loadImage";
 import { readCreatorProfile, type CreatorReadResult } from "@/lib/platforms/creatorProfile";
 import { TRACKER_SWEEP_STOP_PERCENT } from "@/lib/platforms/instagramDiscoveryTokens";
 import { createLogger } from "@/lib/observability/logger";
+import { UNATTRIBUTED_CREATOR_WHERE } from "@/lib/posts/unattributedCreator";
 
 /**
  * Creator profile pictures, kept as bytes.
@@ -220,6 +221,9 @@ export async function refreshCreatorAvatars({
     creators = await db.creator.findMany({
       where: {
         deletedAt: null,
+        /* The holding row for unattributed posts is nobody. Its first post's
+           author picture is a stranger's face. */
+        NOT: UNATTRIBUTED_CREATOR_WHERE,
         OR: [
           { avatar: null },
           {

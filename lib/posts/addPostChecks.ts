@@ -200,6 +200,12 @@ export type PostPrecheck = {
   creator: { id: string; name: string; handle: string } | null;
   /** No creator matched, but the link names one and this seat may add them. */
   creatorWillBeAdded: boolean;
+  /**
+   * Nobody can be named, so the post will be filed under the org's holding row
+   * for this platform (lib/posts/unattributedCreator) unless a creator is picked.
+   * Not a refusal: the post is still added and tracked.
+   */
+  willBeUnattributed: boolean;
   /** The same post already in the campaign being added to. */
   inThisCampaign: ExistingPost | null;
   /** The same post in other campaigns in this org. */
@@ -252,6 +258,8 @@ export async function precheckPostUrl(
       ? { id: fromRecord.creatorId, name: fromRecord.creatorName, handle: fromRecord.creatorHandle }
       : null);
 
+  const creatorWillBeAdded = Boolean(handle) && !creator && mayCreateCreator;
+
   return {
     url,
     platform: detected?.platform ?? null,
@@ -260,7 +268,8 @@ export async function precheckPostUrl(
     handleSource: handle ? (urlHandle ? "url" : "platform") : fromRecord ? "record" : null,
     authorName: fromPlatform?.name ?? null,
     creator,
-    creatorWillBeAdded: Boolean(handle) && !creator && mayCreateCreator,
+    creatorWillBeAdded,
+    willBeUnattributed: Boolean(detected?.platform) && !creator && !creatorWillBeAdded,
     inThisCampaign: existing.find((e) => e.campaignId === campaignId) ?? null,
     inOtherCampaigns: existing.filter((e) => e.campaignId !== campaignId),
   };

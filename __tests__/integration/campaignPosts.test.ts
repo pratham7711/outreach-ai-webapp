@@ -9,6 +9,8 @@ jest.mock('@/lib/db', () => ({
   db: {
     campaign: { findFirst: jest.fn() },
     creator: { findFirst: jest.fn(), create: jest.fn() },
+    $transaction: jest.fn(),
+    $queryRaw: jest.fn(),
     creatorSocialAccount: { findFirst: jest.fn() },
     activation: { findFirst: jest.fn() },
     post: { findMany: jest.fn(), create: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
@@ -430,6 +432,77 @@ describe('POST /api/campaigns/[id]/posts', () => {
 
     expect(res.status).toBe(201);
     expect(mockDb.post.create).toHaveBeenCalled();
+  });
+
+  /* The 2026-10-05 report: three Instagram links Instagram calls removed, so no
+     author could be read, and each add answered "No creator" four times over.
+     Adding a post is a request to track it; it goes under the holding row. */
+  it('adds a post nobody can attribute under the unattributed holding row', async () => {
+    mockAuthor.mockResolvedValue(null);
+    const holding = { id: 'c-hold', orgId: 'org-1', name: 'Unattributed Instagram posts', handle: '', deletedAt: null, socialAccounts: [] };
+    // The holding row lookup, then the route's own re-read by id.
+    mockDb.creator.findFirst.mockResolvedValueOnce(null).mockResolvedValue(holding);
+    mockDb.$transaction.mockImplementation((fn: (tx: unknown) => unknown) =>
+      fn({
+        $queryRaw: jest.fn().mockResolvedValue([{ '?column?': 1 }]),
+        creator: { findFirst: jest.fn().mockResolvedValue(null), create: mockDb.creator.create },
+      })
+    );
+    mockDb.creator.create.mockResolvedValue({ id: 'c-hold', name: 'Unattributed Instagram posts', handle: '' });
+    mockDb.post.create.mockResolvedValue({ id: 'post-new', creator: { id: 'c-hold', handle: '' } });
+
+    const req = makeRequest('http://localhost/api/campaigns/camp-1/posts', {
+      method: 'POST',
+      body: JSON.stringify({ postUrl: 'https://www.instagram.com/reel/DeEk5XkzCfk/' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await POST(req, makeParams('camp-1'));
+    const body = await res.json();
+
+    expect(res.status).toBe(201);
+    expect(body.unattributed).toBe(true);
+    expect(body.creatorAutoAdded).toBeNull();
+    expect(mockDb.creator.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ orgId: 'org-1', platform: 'INSTAGRAM', handle: '', name: 'Unattributed Instagram posts' }),
+      })
+    );
+    expect(mockDb.post.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ creatorId: 'c-hold' }) })
+    );
+  });
+
+  it('reuses the holding row rather than making a second one', async () => {
+    mockAuthor.mockResolvedValue(null);
+    mockDb.creator.findFirst.mockResolvedValue({
+      id: 'c-hold', orgId: 'org-1', name: 'Unattributed Instagram posts', handle: '', deletedAt: null, socialAccounts: [],
+    });
+    mockDb.post.create.mockResolvedValue({ id: 'post-new', creator: { id: 'c-hold', handle: '' } });
+
+    const req = makeRequest('http://localhost/api/campaigns/camp-1/posts', {
+      method: 'POST',
+      body: JSON.stringify({ postUrl: 'https://www.instagram.com/reel/DeCRA8EyZjy/' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await POST(req, makeParams('camp-1'));
+
+    expect(res.status).toBe(201);
+    expect((await res.json()).unattributed).toBe(true);
+    expect(mockDb.$transaction).not.toHaveBeenCalled();
+    expect(mockDb.creator.create).not.toHaveBeenCalled();
+  });
+
+  it('still refuses a link that is not a post on any platform', async () => {
+    const req = makeRequest('http://localhost/api/campaigns/camp-1/posts', {
+      method: 'POST',
+      body: JSON.stringify({ postUrl: 'https://example.com/not-a-post' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await POST(req, makeParams('camp-1'));
+
+    expect(res.status).toBe(400);
+    expect(mockDb.post.create).not.toHaveBeenCalled();
+    expect(mockDb.creator.create).not.toHaveBeenCalled();
   });
 
   it('still refuses when the seat is not allowed to add creators', async () => {

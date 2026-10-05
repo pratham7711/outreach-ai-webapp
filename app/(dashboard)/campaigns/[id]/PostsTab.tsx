@@ -121,6 +121,8 @@ type PostCheck = {
   authorName: string | null;
   creator: { id: string; name: string; handle: string } | null;
   creatorWillBeAdded: boolean;
+  /** Nobody can be named; the post is filed under the org's Unattributed row. */
+  willBeUnattributed?: boolean;
   inThisCampaign: { id: string; campaignId: string; campaignName: string } | null;
   inOtherCampaigns: { id: string; campaignId: string; campaignName: string }[];
 };
@@ -168,7 +170,6 @@ type AddRow = {
  */
 function addRowProblem(
   row: AddRow,
-  detectedHandle: string | undefined,
 ): { blocking: boolean; message: string; kind?: "author_mismatch"; handle?: string } | null {
   if (row.state === "done") return null;
   /* Marked, not blocking. The submit loop skips it, so a messy paste with one
@@ -245,25 +246,10 @@ function addRowProblem(
       message: `Posted by @${authored}, not the creator picked.`,
     };
   }
-  if (row.creatorId) return null;
-  if (!detectedHandle) {
-    /* The precheck asks the platform whenever the link itself names nobody, so
-       until it has answered there is nothing to complain about. Blocking on the
-       URL alone is what used to make every YouTube link demand a creator the
-       platform would have handed over for free. */
-    if (!row.check) return null;
-    return { blocking: true, message: "Neither this link nor the platform names a creator — pick one." };
-  }
-  /* A handle the roster has never seen is not an error any more -- the post add
-     creates the creator from the link. It only blocks on a seat that is not
-     allowed to add creators, which is the one case where nothing downstream can
-     resolve it. */
-  if (row.check && !row.check.creator && !row.check.creatorWillBeAdded) {
-    return {
-      blocking: true,
-      message: `No creator on the roster is @${detectedHandle}, and this account cannot add one — pick a creator.`,
-    };
-  }
+  /* Not knowing who posted it no longer holds a row back. Adding a post is a
+     request to track it; a link nobody can attribute is added under the org's
+     Unattributed row for its platform, and the row says so in a note rather
+     than a refusal (see lib/posts/unattributedCreator). */
   return null;
 }
 
@@ -656,8 +642,8 @@ export default function PostsTab({
   const addProblems = useMemo(
     /* The server's handle wins over the URL's: for a link that names
        nobody it is the one the platform answered with. */
-    () => addRows.map((r, i) => addRowProblem(r, r.check?.handle ?? addDetections[i]?.handle)),
-    [addRows, addDetections]
+    () => addRows.map((r) => addRowProblem(r)),
+    [addRows]
   );
 
   /* The rows that will actually be sent: not already added, not a repeat of an
@@ -2633,6 +2619,13 @@ export default function PostsTab({
                               {row.check.authorName ?? `@${row.check.handle}`}
                             </strong>
                             .
+                          </p>
+                        )}
+                        {row.check?.willBeUnattributed && !row.creatorId && (
+                          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
+                            {platformLabel(row.check.platform)} doesn’t say who posted this, so it will be added under{" "}
+                            <strong style={{ color: "var(--cc-text)" }}>Unattributed {platformLabel(row.check.platform)} posts</strong>
+                            . Pick a creator if you know who it is.
                           </p>
                         )}
                         {row.check?.creatorWillBeAdded && !row.creatorId && (

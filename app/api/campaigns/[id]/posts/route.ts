@@ -28,6 +28,7 @@ import {
 } from "@/lib/posts/addPostChecks";
 import { resolveAuthorFromPlatform } from "@/lib/platforms/postAuthor";
 import { hasPermission } from "@/lib/rbac";
+import { getUnattributedCreator } from "@/lib/posts/unattributedCreator";
 import { isLiveCampaign, trackingView } from "@/lib/sync/postTracking";
 import { parsePostTracking } from "@/lib/trackers/granularity";
 import {
@@ -286,6 +287,7 @@ export async function POST(
        seat still has to be one that could have added that creator directly. */
     let creatorId = parsed.data.creatorId;
     let addedCreator: { id: string; handle: string } | null = null;
+    let unattributed = false;
     /* The link's own handle first, then the platform's answer for a link that
        carries none -- a YouTube watch URL names no channel, and oEmbed hands
        the channel over for free. Only when neither says is anybody asked.
@@ -309,24 +311,32 @@ export async function POST(
       const found = mayCreate
         ? await ensureCreatorForHandle(orgId, bare, detected.platform)
         : { creator: await findCreatorByHandle(orgId, bare, detected.platform), created: false };
-      if (!found.creator) {
-        return NextResponse.json(
-          { error: `No creator matches @${bare}. Pick one, or add @${bare} first.`, detectedHandle: bare },
-          { status: 404 }
-        );
+      /* A seat that may not add creators still gets its post tracked. It lands
+         under the holding row below rather than under a roster entry this seat
+         was never allowed to create. */
+      if (found.creator) {
+        creatorId = found.creator.id;
+        if (found.created) addedCreator = { id: found.creator.id, handle: found.creator.handle };
       }
-      creatorId = found.creator.id;
-      if (found.created) addedCreator = { id: found.creator.id, handle: found.creator.handle };
     }
     /* The org's own copy of this exact post, when nothing else named anybody.
        Same rule as the precheck, and it has to be here too or the dialog would
        promise a creator this handler then refuses. */
     if (!creatorId && existing.length > 0) creatorId = existing[0].creatorId;
+    /* Nobody named anybody, and the post is still added. Adding a post is a
+       request to track it, and asking the operator who posted it got nothing the
+       platform would confirm -- see lib/posts/unattributedCreator. A link no
+       detector recognises is the one refusal left: with no platform there is
+       nothing to track and no holding row to file it under. */
     if (!creatorId) {
-      return NextResponse.json(
-        { error: "Neither this link nor the platform names its creator, so please choose one." },
-        { status: 400 }
-      );
+      if (!detected?.platform) {
+        return NextResponse.json(
+          { error: "That is not a post link we can track. Check the URL." },
+          { status: 400 }
+        );
+      }
+      creatorId = (await getUnattributedCreator(orgId, detected.platform)).id;
+      unattributed = true;
     }
 
     const creator = await db.creator.findFirst({
@@ -349,7 +359,7 @@ export async function POST(
        A creator we just created FROM this handle cannot disagree with it, and
        skipping the comparison there keeps the batch path honest about what it
        checked. */
-    if (resolvedHandle && !addedCreator && !parsed.data.allowHandleMismatch) {
+    if (resolvedHandle && !addedCreator && !unattributed && !parsed.data.allowHandleMismatch) {
       const known = [
         creator.handle,
         ...creator.socialAccounts
@@ -476,7 +486,7 @@ export async function POST(
       });
     }
 
-    return NextResponse.json({ ...post, creatorAutoAdded: addedCreator?.handle ?? null }, { status: 201 });
+    return NextResponse.json({ ...post, creatorAutoAdded: addedCreator?.handle ?? null, unattributed }, { status: 201 });
   } catch (error) {
     console.error("Failed to create post:", error);
     return NextResponse.json({ error: "Failed to create post" }, { status: 500 });

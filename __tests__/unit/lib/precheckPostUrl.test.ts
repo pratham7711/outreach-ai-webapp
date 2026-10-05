@@ -77,10 +77,33 @@ describe("precheckPostUrl", () => {
     expect(r).toMatchObject({ handle: null, handleSource: null, creator: null, creatorWillBeAdded: false });
   });
 
+  // The removed-reel case from 2026-10-05: nobody names an author, and the post
+  // is still added -- under the holding row, which the dialog says up front.
+  it("says the post will be filed unattributed when nobody names an author", async () => {
+    const r = await precheckPostUrl(ORG, CAMPAIGN, "https://www.instagram.com/reel/GONE/", true);
+    expect(r.willBeUnattributed).toBe(true);
+  });
+
+  it("does not call a post unattributed when a creator is known or will be added", async () => {
+    mockResolveAuthor.mockResolvedValue({ handle: "jawed", name: "jawed" });
+    const added = await precheckPostUrl(ORG, CAMPAIGN, "https://www.youtube.com/watch?v=jNQXAC9IVRw", true);
+    expect(added).toMatchObject({ creatorWillBeAdded: true, willBeUnattributed: false });
+
+    mockPostFindMany.mockResolvedValue([existingRow("wave_of_change_")]);
+    const onRecord = await precheckPostUrl(ORG, CAMPAIGN, "https://www.instagram.com/reel/DbBr2C5TAxu/", true);
+    expect(onRecord.willBeUnattributed).toBe(false);
+  });
+
   it("will not offer to add a creator on a seat that cannot add one", async () => {
     mockResolveAuthor.mockResolvedValue({ handle: "jawed", name: null });
     const r = await precheckPostUrl(ORG, CAMPAIGN, "https://www.youtube.com/watch?v=jNQXAC9IVRw", false);
-    expect(r).toMatchObject({ handle: "jawed", creatorWillBeAdded: false });
+    // That seat's post is still tracked, under the holding row.
+    expect(r).toMatchObject({ handle: "jawed", creatorWillBeAdded: false, willBeUnattributed: true });
+  });
+
+  it("calls nothing unattributed for a link no platform recognises", async () => {
+    const r = await precheckPostUrl(ORG, CAMPAIGN, "https://example.com/not-a-post", true);
+    expect(r.willBeUnattributed).toBe(false);
   });
 
   it("reports the same post in this campaign separately from other campaigns", async () => {
