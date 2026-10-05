@@ -102,11 +102,12 @@ export const PLATFORMS: readonly PlatformDef[] = [
     brandColor: "#1877F2",
     chartVar: "var(--chart-1)",
     tone: "accent",
-    // Manual until Meta Advanced Access lands. The Graph app holds these
-    // scopes at Standard Access, which is granted only to users with a ROLE on
-    // the app, so a real creator's connect is declined -- see the note in
-    // lib/oauth/providers.ts. Unblocked by the same App Review as Instagram.
-    tracking: "manual",
+    // Auto for a post on a Page somebody in the org connected: it is read with
+    // that Page's own token (lib/platforms/facebookPost). A post on any other
+    // Page is still added, and reads "page-not-connected" until its Page
+    // connects. Real creators can connect once Meta grants Advanced Access; the
+    // scopes sit at Standard Access until then -- see lib/oauth/providers.ts.
+    tracking: "auto",
     hosts: ["facebook.com", "fb.watch", "fb.com"],
     urlPatterns: [
       /facebook\.com\/[\w.]+\/(?:posts|videos)\/(\d+)/i,

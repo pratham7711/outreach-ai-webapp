@@ -83,8 +83,7 @@ export function CreatorSelect({
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{picked.name}</div>
           <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
-            @{picked.handle.replace(/^@/, "")}
-            {picked.platform ? ` — ${picked.platform}` : ""}
+            {[picked.handle.replace(/^@/, "") && `@${picked.handle.replace(/^@/, "")}`, picked.platform].filter(Boolean).join(" — ")}
           </div>
         </div>
         <button
@@ -182,8 +181,7 @@ export function CreatorSelect({
                     {c.name}
                   </span>
                   <span style={{ display: "block", fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
-                    @{c.handle.replace(/^@/, "")}
-                    {c.platform ? ` — ${c.platform}` : ""}
+                    {[c.handle.replace(/^@/, "") && `@${c.handle.replace(/^@/, "")}`, c.platform].filter(Boolean).join(" — ")}
                   </span>
                 </span>
                 {already && (

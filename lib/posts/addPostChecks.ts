@@ -12,6 +12,7 @@ import { db } from "@/lib/db";
 import { creatorHandleVariants } from "@/lib/creator-auth";
 import { resolveAuthorFromPlatform } from "@/lib/platforms/postAuthor";
 import { detectPlatform } from "@/lib/platforms/postUrl";
+import { matchFacebookPost } from "@/lib/platforms/facebookPost";
 import { readCreatorProfile } from "@/lib/platforms/creatorProfile";
 import type { Platform, Prisma } from "@/lib/generated/prisma/client";
 
@@ -233,12 +234,22 @@ export async function precheckPostUrl(
      hand over for free -- see resolveAuthorFromPlatform for what each platform
      actually answers. Runs alongside the row reads rather than before them,
      because it is a network call and the rest of this is indexed lookups. */
-  const [fromPlatform, existing] = await Promise.all([
+  const [fromPlatform, existing, facebook] = await Promise.all([
     urlHandle ? Promise.resolve(null) : resolveAuthorFromPlatform(url, detected?.platform),
     findExistingPosts(orgId, url),
+    /* The same Page match the POST handler makes first, so the row shows the
+       creator the save will file it under. An org with no connected Page pays
+       one indexed read for it and no call to Facebook. */
+    detected?.platform === "FACEBOOK" ? matchFacebookPost(orgId, url) : Promise.resolve(null),
   ]);
-  const handle = urlHandle ?? fromPlatform?.handle ?? null;
-  const byHandle = handle ? await findCreatorByHandle(orgId, handle, detected?.platform) : null;
+  const byPage = facebook
+    ? await db.creator.findFirst({
+        where: { id: facebook.creatorId, orgId },
+        select: { id: true, name: true, handle: true },
+      })
+    : null;
+  const handle = urlHandle ?? byPage?.handle ?? fromPlatform?.handle ?? null;
+  const byHandle = byPage ?? (handle ? await findCreatorByHandle(orgId, handle, detected?.platform) : null);
 
   /* Last, and only when nothing named anybody: the org's own copy of this exact
      post. A link the platform will not talk about -- a deleted Instagram reel,
@@ -265,7 +276,7 @@ export async function precheckPostUrl(
     platform: detected?.platform ?? null,
     mediaType: detected?.mediaType ?? null,
     handle: handle ?? fromRecord?.creatorHandle.replace(/^@/, "") ?? null,
-    handleSource: handle ? (urlHandle ? "url" : "platform") : fromRecord ? "record" : null,
+    handleSource: handle ? (urlHandle && !byPage ? "url" : "platform") : fromRecord ? "record" : null,
     authorName: fromPlatform?.name ?? null,
     creator,
     creatorWillBeAdded,

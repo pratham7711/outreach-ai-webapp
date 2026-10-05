@@ -27,6 +27,7 @@ import {
   handleMatchesCreator,
 } from "@/lib/posts/addPostChecks";
 import { resolveAuthorFromPlatform } from "@/lib/platforms/postAuthor";
+import { matchFacebookPost } from "@/lib/platforms/facebookPost";
 import { hasPermission } from "@/lib/rbac";
 import { getUnattributedCreator } from "@/lib/posts/unattributedCreator";
 import { isLiveCampaign, trackingView } from "@/lib/sync/postTracking";
@@ -288,6 +289,16 @@ export async function POST(
     let creatorId = parsed.data.creatorId;
     let addedCreator: { id: string; handle: string } | null = null;
     let unattributed = false;
+    /* A Facebook post is readable only through the connected Page it sits on, so
+       the Page decides whose post it is: matched against the org's connected
+       Pages (a chosen creator's own Pages, when one was chosen), and filed under
+       that Page's creator. Nobody is asked. A link on no connected Page falls
+       through to the same handle and holding-row rules as every other link. */
+    const facebookMatch =
+      detected?.platform === "FACEBOOK"
+        ? await matchFacebookPost(orgId, postUrl, creatorId ? { creatorId } : {})
+        : null;
+    if (!creatorId && facebookMatch) creatorId = facebookMatch.creatorId;
     /* The link's own handle first, then the platform's answer for a link that
        carries none -- a YouTube watch URL names no channel, and oEmbed hands
        the channel over for free. Only when neither says is anybody asked.
@@ -358,8 +369,9 @@ export async function POST(
 
        A creator we just created FROM this handle cannot disagree with it, and
        skipping the comparison there keeps the batch path honest about what it
-       checked. */
-    if (resolvedHandle && !addedCreator && !unattributed && !parsed.data.allowHandleMismatch) {
+       checked. Nor can a Facebook post found on the creator's own connected
+       Page: the Page answering for it is the strongest attribution there is. */
+    if (resolvedHandle && !addedCreator && !unattributed && !facebookMatch && !parsed.data.allowHandleMismatch) {
       const known = [
         creator.handle,
         ...creator.socialAccounts
@@ -399,6 +411,7 @@ export async function POST(
       instagramHandle: instagram?.handle,
       instagramOrgId: orgId,
       tiktokToken,
+      ...(detectedPlatform === "FACEBOOK" ? { facebook: { orgId, creatorId, match: facebookMatch } } : {}),
     });
 
     const initialStatus: PostStatus = campaign.postApprovalMode === "AUTO_APPROVED" ? "APPROVED" : "PENDING_REVIEW";

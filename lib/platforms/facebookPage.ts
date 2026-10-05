@@ -247,49 +247,108 @@ export async function fetchFacebookPagePosts(
       typeof p === "object" && p !== null,
   );
 
-  return await Promise.all(
-    posts.map(async (post) => {
-      const id = String(post.id ?? "");
-      const message = typeof post.message === "string" ? post.message : "";
-      const created =
-        typeof post.created_time === "string" ? post.created_time : null;
+  return await Promise.all(posts.map((post) => toPagePost(post, pageAccessToken, signal)));
+}
 
-      const likes = optNum(
-        (post.likes as { summary?: { total_count?: unknown } } | undefined)?.summary
-          ?.total_count,
-      );
-      const comments = optNum(
-        (post.comments as { summary?: { total_count?: unknown } } | undefined)
-          ?.summary?.total_count,
-      );
-      const shares = optNum(
-        (post.shares as { count?: unknown } | undefined)?.count,
-      );
-      const views = await fetchPostImpressions(id, pageAccessToken, signal);
-
-      return {
-        id,
-        title: firstLine(message),
-        description: message,
-        coverImageUrl:
-          typeof post.full_picture === "string" ? post.full_picture : null,
-        shareUrl:
-          typeof post.permalink_url === "string" ? post.permalink_url : null,
-        postedAt: created ?? new Date().toISOString(),
-        viewsCount: num(views),
-        likesCount: num(likes),
-        commentsCount: num(comments),
-        sharesCount: num(shares),
-        exact: {
-          views,
-          likes,
-          comments,
-          shares,
-          ...(created ? { createdAt: new Date(created) } : {}),
-        },
-      };
-    }),
+/**
+ * One Page post by its Graph id (`{page-id}_{post-id}`), with its views.
+ *
+ * `null` when Facebook will not hand the post over with this Page's token: it is
+ * not this Page's post, it was deleted, or the id is not a post id at all. Graph
+ * answers all three with the same error, so the caller must not read deletion
+ * into it.
+ */
+export async function fetchFacebookPost(
+  graphPostId: string,
+  pageAccessToken: string,
+  signal?: AbortSignal,
+): Promise<FacebookPagePost | null> {
+  const data = await graphGet(
+    graphPostId,
+    { fields: POST_FIELDS, access_token: pageAccessToken },
+    signal,
   );
+  if (!data || typeof data !== "object" || typeof data.id !== "string") return null;
+  return toPagePost(data as Record<string, unknown>, pageAccessToken, signal);
+}
+
+/** How far back a pasted link is looked for among the Page's own posts. */
+const PERMALINK_SCAN_LIMIT = 100;
+
+/**
+ * The Page's recent post ids and the permalinks Facebook gives for them.
+ *
+ * What a pasted link is matched against when it does not carry the numeric
+ * story id: a pfbid, a reel or a video id only appear in the permalink. Ids and
+ * permalinks only, so a scan costs one call and carries nobody's content.
+ */
+export async function fetchFacebookPagePermalinks(
+  pageId: string,
+  pageAccessToken: string,
+  signal?: AbortSignal,
+): Promise<{ id: string; permalink: string | null }[] | null> {
+  const data = await graphGet(
+    `${pageId}/posts`,
+    {
+      fields: "id,permalink_url",
+      access_token: pageAccessToken,
+      limit: String(PERMALINK_SCAN_LIMIT),
+    },
+    signal,
+  );
+  if (!data || !Array.isArray(data.data)) return null;
+  return data.data
+    .filter((p: unknown): p is Record<string, unknown> => typeof p === "object" && p !== null && typeof (p as { id?: unknown }).id === "string")
+    .map((p: Record<string, unknown>) => ({
+      id: p.id as string,
+      permalink: typeof p.permalink_url === "string" ? p.permalink_url : null,
+    }));
+}
+
+async function toPagePost(
+  post: Record<string, unknown>,
+  pageAccessToken: string,
+  signal?: AbortSignal,
+): Promise<FacebookPagePost> {
+  const id = String(post.id ?? "");
+  const message = typeof post.message === "string" ? post.message : "";
+  const created =
+    typeof post.created_time === "string" ? post.created_time : null;
+
+  const likes = optNum(
+    (post.likes as { summary?: { total_count?: unknown } } | undefined)?.summary
+      ?.total_count,
+  );
+  const comments = optNum(
+    (post.comments as { summary?: { total_count?: unknown } } | undefined)
+      ?.summary?.total_count,
+  );
+  const shares = optNum(
+    (post.shares as { count?: unknown } | undefined)?.count,
+  );
+  const views = await fetchPostImpressions(id, pageAccessToken, signal);
+
+  return {
+    id,
+    title: firstLine(message),
+    description: message,
+    coverImageUrl:
+      typeof post.full_picture === "string" ? post.full_picture : null,
+    shareUrl:
+      typeof post.permalink_url === "string" ? post.permalink_url : null,
+    postedAt: created ?? new Date().toISOString(),
+    viewsCount: num(views),
+    likesCount: num(likes),
+    commentsCount: num(comments),
+    sharesCount: num(shares),
+    exact: {
+      views,
+      likes,
+      comments,
+      shares,
+      ...(created ? { createdAt: new Date(created) } : {}),
+    },
+  };
 }
 
 /** How many comment bodies a live read pulls back. Deliberately small: this is

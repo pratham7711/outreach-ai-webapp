@@ -162,6 +162,8 @@ const REASON_IS_RETRYABLE: Record<RefreshFailReason, boolean> = {
      cron route's SETTLED_REASONS, because across runs it is very much
      retryable -- the moment a creator reconnects, the post reads again. */
   "credentials-rejected": false,
+  /* No Page will connect inside one request. */
+  "page-not-connected": false,
   /* The same name gets the same answer within one request. */
   "not-a-professional-account": false,
   "not-on-account": false,
@@ -364,6 +366,8 @@ export async function refreshCampaign(input: {
       sharesCount: true, savesCount: true,
       /* Only for the tally: a photo without views is a complete read. */
       mediaType: true,
+      /* A Facebook post is read straight by its Graph id once it has one. */
+      platformPostId: true,
     },
     // Oldest sync first, so a campaign too big for one run still makes
     // progress on the stalest posts each time.

@@ -37,7 +37,7 @@ export async function POST(
     const detected = detectPlatform(postUrl);
     if (!detected) {
       return NextResponse.json(
-        { error: "Unrecognized URL. Provide a public TikTok, Instagram, or YouTube post link." },
+        { error: "Unrecognized URL. Provide a public TikTok, Instagram, YouTube or Facebook Page post link." },
         { status: 400 }
       );
     }
@@ -148,8 +148,12 @@ export async function POST(
     const duplicate = await db.post.findFirst({
       where: {
         campaignId: campaign.id,
-        platformPostId: detected.id,
         platform: detected.platform,
+        /* A Facebook post is stored under its Graph id, not the link's, so the
+           same link pasted again is recognised by the link itself. */
+        ...(detected.platform === "FACEBOOK"
+          ? { OR: [{ platformPostId: detected.id }, { postUrl }] }
+          : { platformPostId: detected.id }),
       },
       select: { id: true, creatorId: true },
     });
@@ -181,6 +185,10 @@ export async function POST(
         instagramHandle: instagram?.handle,
         instagramOrgId: campaign.orgId,
         tiktokToken,
+        /* The creator's own Pages only: a creator submits their own post. */
+        ...(detected.platform === "FACEBOOK"
+          ? { facebook: { orgId: campaign.orgId, creatorId: creator.id } }
+          : {}),
       });
     } catch {
       metrics = null;
@@ -197,7 +205,11 @@ export async function POST(
         creatorId: creator.id,
         activationId: activation.id,
         platform: detected.platform,
-        platformPostId: detected.id,
+        /* Facebook's Graph id, once the post was found on the creator's Page:
+           the comments edge and every later read need it, and a pasted pfbid or
+           share code is not one. Every other platform keeps the link's own id. */
+        platformPostId:
+          detected.platform === "FACEBOOK" ? metrics?.platformPostId ?? detected.id : detected.id,
         postUrl,
         thumbnailUrl: metrics?.thumbnailUrl ?? null,
         caption: metrics?.caption ?? null,

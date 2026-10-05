@@ -59,6 +59,8 @@ type SyncablePost = {
   platform: string;
   creatorId: string;
   postUrl: string;
+  /** Read for Facebook only, where it is the Graph id once the post was found. */
+  platformPostId?: string;
   thumbnailUrl: string | null;
   caption: string | null;
   /** Read to merge into rather than clobber -- the importer's raw record lives here. */
@@ -472,8 +474,22 @@ export async function syncPost(
     tiktokToken,
     countsOnly: options.countsOnly,
     tiktokSandbox: options.tiktokSandbox,
+    ...(post.platform === "FACEBOOK"
+      ? { facebook: { orgId, creatorId: post.creatorId, knownPostId: post.platformPostId } }
+      : {}),
   });
   if (!metrics) return { status: "unfetchable", reason: "unrecognised-url" };
+
+  /* A Facebook post added before its Page connected is stored under the link's
+     own id. The first read that finds it on the Page hands back the Graph id,
+     which the comments edge and every later read need. */
+  if (
+    post.platform === "FACEBOOK" &&
+    /^\d+_\d+$/.test(metrics.platformPostId) &&
+    metrics.platformPostId !== post.platformPostId
+  ) {
+    await db.post.update({ where: { id: post.id }, data: { platformPostId: metrics.platformPostId } });
+  }
 
   return applyPostMetrics(post, metrics);
 }

@@ -119,6 +119,8 @@ const ANSWERED: Record<FetchReason, boolean> = {
      answering this way does so every run, and five of them inside a ten-post
      run would page as an outage. */
   "counts-inconsistent": true,
+  /* Answered by our own records: no connected Page holds the post. */
+  "page-not-connected": true,
 
   unknown: false,
   "reader-unavailable": false,

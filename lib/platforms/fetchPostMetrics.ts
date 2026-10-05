@@ -19,6 +19,7 @@ import { fetchInstagramEmbedPost } from "./instagramEmbed";
 import { fetchTikTokVideosByIds } from "./tiktokDisplay";
 import { isRounded, TIKTOK_DISPLAY } from "./precision";
 import { fetchTwitchMetrics } from "./twitch";
+import type { FacebookPostMatch } from "./facebookPost";
 import { readYouTubeWatchPage, readYouTubeWatchPages, type WatchPageCounts } from "./youtubeWatchPage";
 import { createLogger } from "../observability/logger";
 import { MEDIA_TYPES, detectPlatform, tiktokPageUrl, type MediaType } from "./postUrl";
@@ -56,10 +57,23 @@ export type FetchMetricsContext = {
    * where a sandbox boot costs more than the read is worth.
    */
   tiktokSandbox?: SandboxPostFetcher;
+  /**
+   * The org whose connected Facebook Pages may read this post, and, when known,
+   * the creator it is filed under and the Graph id already stored for it. A
+   * caller that already matched the link passes `match` so the post is not looked
+   * up twice; `match: null` means it looked and found no Page. Absent, a Facebook
+   * post is not read at all.
+   */
+  facebook?: {
+    orgId: string;
+    creatorId?: string;
+    knownPostId?: string | null;
+    match?: FacebookPostMatch | null;
+  };
 };
 
 export type PostMetrics = {
-  platform: "TIKTOK" | "INSTAGRAM" | "YOUTUBE" | "TWITCH";
+  platform: "TIKTOK" | "INSTAGRAM" | "YOUTUBE" | "TWITCH" | "FACEBOOK";
   platformPostId: string;
   thumbnailUrl: string | null;
   caption: string | null;
@@ -224,6 +238,11 @@ export type FetchReason =
    *  post keeps its last consistent figures. Not charged: the post is fine and
    *  its next reading usually is too. See lib/metrics/coherence. */
   | "counts-inconsistent"
+  /** Facebook: the post is not on any Page connected in this org. Facebook shares
+   *  a Page post's numbers only with a token for that Page, so there is nobody to
+   *  ask until its creator connects. Not a verdict about the post, never charged,
+   *  and read again once the Page connects. */
+  | "page-not-connected"
   /** A fetcher came back empty without saying why.
    *
    *  Exists so that "we do not know" stops being spelled
@@ -277,6 +296,8 @@ const SOURCE_WENT_QUIET: Record<FetchReason, boolean> = {
   "not-a-professional-account": false,
   /* The account answered; the post was not on it, or not in its newest pages. */
   "not-on-account": false,
+  /* Nobody to ask: no connected Page holds the post. */
+  "page-not-connected": false,
   "not-in-newest-media": false,
   /* The round trip carried numbers; we refused them. */
   "counts-inconsistent": false,
@@ -649,6 +670,8 @@ export const UNCHARGEABLE_REASONS: ReadonlySet<FetchReason> = new Set<FetchReaso
   "not-in-newest-media",
   /* The creator can undo it, and a dead letter is forever. */
   "post-hidden",
+  /* Readable the moment the Page connects. */
+  "page-not-connected",
   /* A reading we refused is about the reading. On 2026-10-02 four live posts
      were switched off for good this way, filed as "unknown". */
   "counts-inconsistent",
@@ -1709,9 +1732,63 @@ export async function fetchPostMetrics(
     case "TWITCH":
       metrics = await fetchTwitchMetrics(url, detected.id, fetchTimeoutSignal());
       break;
+    case "FACEBOOK": {
+      const read = await fetchFacebookMetrics(url, context?.facebook);
+      return assemblePostMetrics("FACEBOOK", read.graphPostId ?? detected.id, read.metrics);
+    }
   }
 
   return assemblePostMetrics(detected.platform, detected.id, metrics);
+}
+
+/**
+ * A Facebook Page post, read with the token of the connected Page it is on.
+ *
+ * Every counter here comes through the Page's own connection, so all of them are
+ * connected readings. `graphPostId` is the `{page}_{post}` id the post should be
+ * stored under: the comments edge and every later read need it, and a pasted
+ * pfbid or share code is not one.
+ */
+async function fetchFacebookMetrics(
+  url: string,
+  context: FetchMetricsContext["facebook"],
+): Promise<{ metrics: Partial<PostMetrics>; graphPostId?: string }> {
+  if (!context) return { metrics: stubMetrics("page-not-connected") };
+  let match = context.match;
+  if (match === undefined) {
+    /* Loaded here, not at the top: facebookPost reads the database, and this
+       module must stay importable without a PrismaClient. */
+    const { connectedFacebookPages, resolveFacebookPost } = await import("./facebookPost");
+    const pages = await connectedFacebookPages(context.orgId, { creatorId: context.creatorId });
+    try {
+      match = await resolveFacebookPost(url, pages, {
+        knownPostId: context.knownPostId,
+        signal: fetchTimeoutSignal(),
+      });
+    } catch (err) {
+      if (err instanceof InstagramAuthError) return { metrics: stubMetrics("credentials-rejected") };
+      return { metrics: stubMetrics("platform-refused") };
+    }
+  }
+  if (!match) return { metrics: stubMetrics("page-not-connected") };
+
+  const p = match.post.exact;
+  const counted: Partial<PostMetrics> = {
+    ...(p.views !== undefined ? { viewsCount: p.views } : {}),
+    ...(p.likes !== undefined ? { likesCount: p.likes } : {}),
+    ...(p.comments !== undefined ? { commentsCount: p.comments } : {}),
+    ...(p.shares !== undefined ? { sharesCount: p.shares } : {}),
+  };
+  return {
+    graphPostId: match.graphPostId,
+    metrics: {
+      thumbnailUrl: match.post.coverImageUrl,
+      caption: match.post.description || null,
+      ...(p.createdAt ? { postedAt: p.createdAt } : {}),
+      ...counted,
+      connectedCounters: countersIn(counted),
+    },
+  };
 }
 
 /**

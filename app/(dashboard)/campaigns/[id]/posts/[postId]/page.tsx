@@ -584,7 +584,7 @@ export default function PostDetailPage() {
             </div>
             <p style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>
               <CreatorAvatar id={post.creator.id} name={post.creator.name} size="sm" />
-              by <strong>{post.creator.name}</strong> (@{stripAt(post.creator.handle)}) · {post.platform} · Posted {formatDateAbs(post.postedAt)}
+              by <strong>{post.creator.name}</strong>{stripAt(post.creator.handle) ? ` (@${stripAt(post.creator.handle)})` : ""} · {post.platform} · Posted {formatDateAbs(post.postedAt)}
             </p>
             {post.lastSyncedAt ? (
               <p style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)", margin: "4px 0 0" }}>
@@ -597,7 +597,7 @@ export default function PostDetailPage() {
               </p>
             ) : (
               <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)", margin: "4px 0 0" }}>
-                Never synced \u2014 the counts below are unknown, not zero.
+                Never synced — the counts below are unknown, not zero.
               </p>
             )}
             {syncNote && (

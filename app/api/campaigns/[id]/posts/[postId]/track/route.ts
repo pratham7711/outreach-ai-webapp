@@ -130,6 +130,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           instagramHandle: instagram?.handle,
           instagramOrgId: orgId,
           tiktokToken,
+          ...(post.platform === "FACEBOOK"
+            ? { facebook: { orgId, creatorId: post.creatorId, knownPostId: post.platformPostId } }
+            : {}),
         });
         /* The shared writer rather than a third hand-rolled copy of it. The
            version here coerced every absent counter with `?? 0` and wrote all

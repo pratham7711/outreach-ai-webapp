@@ -77,6 +77,21 @@ export function detectPlatform(
   }
 
 
+  /* Facebook: a Page post in any of the shapes Facebook hands out. The handle is
+     the Page's vanity name when the link spells one; a numeric Page id is not a
+     handle anybody would recognise on the roster, so it stays off this field and
+     only the Page matcher (lib/platforms/facebookPost) reads it. */
+  const fb = parseFacebookLink(url);
+  if (fb) {
+    const handle = fb.pageRef && !/^\d+$/.test(fb.pageRef) ? fb.pageRef : undefined;
+    return {
+      platform: "FACEBOOK",
+      id: fb.id,
+      mediaType: FACEBOOK_MEDIA_TYPE[fb.kind],
+      ...(handle ? { handle } : {}),
+    };
+  }
+
   /* Twitch: a VOD is /videos/<numeric id>, a clip is either clips.twitch.tv/<slug>
      or /<channel>/clip/<slug>. The two are served by different Helix endpoints,
      which is why fetchTwitchMetrics re-reads the kind off the url. Clips are
@@ -99,6 +114,110 @@ export function detectPlatform(
     };
   }
 
+  return null;
+}
+
+/**
+ * What a Facebook link says about the post it points at.
+ *
+ * Facebook has no one post URL. A Page post is /{page}/posts/{id}, where the id
+ * is either the numeric story id or an opaque pfbid; the classic form is
+ * permalink.php?story_fbid={id}&id={page id}; a video is /{page}/videos/{id} or
+ * /watch?v={id}; a reel is /reel/{id}; and the share sheet hands out
+ * /share/p/{code} or fb.watch/{code}, which name neither the Page nor the post
+ * until Facebook redirects them -- `shared` marks those.
+ *
+ * `pageRef` is the Page as the link spells it, a vanity name or a numeric id,
+ * and is absent when the link does not say.
+ */
+export type FacebookLink = {
+  kind: "post" | "photo" | "video" | "reel" | "group";
+  id: string;
+  pageRef?: string;
+  shared?: boolean;
+};
+
+const FACEBOOK_MEDIA_TYPE: Record<FacebookLink["kind"], MediaType> = {
+  post: "POST",
+  photo: "POST",
+  group: "POST",
+  video: "VIDEO",
+  reel: "REEL",
+};
+
+/** First path segments that are Facebook's own routes, never a Page's name. */
+const FACEBOOK_ROUTES = new Set([
+  "watch", "reel", "reels", "share", "photo", "photo.php", "photos", "permalink.php",
+  "story.php", "groups", "events", "profile.php", "people", "pages", "hashtag",
+  "marketplace", "gaming", "stories", "video.php", "login", "help", "sharer", "sharer.php",
+]);
+
+const FACEBOOK_SHARE_KIND: Record<string, FacebookLink["kind"]> = { p: "post", v: "video", r: "reel" };
+
+const numericId = (s: string | null | undefined): s is string => Boolean(s && /^\d+$/.test(s));
+const storyId = (s: string | null | undefined): s is string => Boolean(s && /^(?:\d+|pfbid\w+)$/i.test(s));
+
+export function parseFacebookLink(url: string): FacebookLink | null {
+  let u: URL;
+  try {
+    u = new URL(/^[a-z][\w+.-]*:\/\//i.test(url) ? url : `https://${url}`);
+  } catch {
+    return null;
+  }
+  const host = u.hostname.toLowerCase();
+  const parts = u.pathname.split("/").filter(Boolean);
+
+  if (host === "fb.watch" || host.endsWith(".fb.watch")) {
+    return parts[0] ? { kind: "video", id: parts[0], shared: true } : null;
+  }
+  if (!/(?:^|\.)(?:facebook|fb)\.com$/.test(host)) return null;
+
+  const q = u.searchParams;
+  const first = parts[0]?.toLowerCase();
+  if (!first) return null;
+
+  if (first === "permalink.php" || first === "story.php") {
+    const id = q.get("story_fbid");
+    const page = q.get("id");
+    if (!storyId(id)) return null;
+    return { kind: "post", id, ...(numericId(page) ? { pageRef: page } : {}) };
+  }
+  if (first === "photo.php" || first === "photo") {
+    const id = q.get("fbid");
+    return numericId(id) ? { kind: "photo", id } : null;
+  }
+  if (first === "watch") {
+    const id = q.get("v");
+    return numericId(id) ? { kind: "video", id } : null;
+  }
+  if (first === "reel" || first === "reels") {
+    return numericId(parts[1]) ? { kind: "reel", id: parts[1] } : null;
+  }
+  if (first === "share") {
+    const typed = parts[1] ? FACEBOOK_SHARE_KIND[parts[1].toLowerCase()] : undefined;
+    const code = typed ? parts[2] : parts[1];
+    return code ? { kind: typed ?? "post", id: code, shared: true } : null;
+  }
+  if (first === "groups") {
+    const section = parts[2]?.toLowerCase();
+    return (section === "posts" || section === "permalink") && storyId(parts[3])
+      ? { kind: "group", id: parts[3] }
+      : null;
+  }
+  if (FACEBOOK_ROUTES.has(first)) return null;
+
+  const pageRef = parts[0];
+  const section = parts[1]?.toLowerCase();
+  if (section === "posts") {
+    return storyId(parts[2]) ? { kind: "post", id: parts[2], pageRef } : null;
+  }
+  if (section === "videos" || section === "photos") {
+    /* /videos/{id}, /videos/{title-slug}/{id}, /photos/a.{album}/{id}: the
+       object id is the last numeric segment. */
+    const id = [...parts.slice(2)].reverse().find((p) => numericId(p));
+    if (!id) return null;
+    return { kind: section === "videos" ? "video" : "photo", id, pageRef };
+  }
   return null;
 }
 

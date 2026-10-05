@@ -143,6 +143,9 @@ type AddRow = {
   creatorHandle?: string;
   /** The operator has seen the author warning and said file it there anyway. */
   allowMismatch?: boolean;
+  /** The operator asked to choose the creator, on a row the server had
+   *  already filed without asking. */
+  pickCreator?: boolean;
   /** The author the server said posted this, when it refused the add over it.
    *  Set from the 409, so a row the precheck could not judge still offers the
    *  same two ways out. */
@@ -512,6 +515,8 @@ export default function PostsTab({
   const addDraftRef = useRef<HTMLInputElement>(null);
   /** True while the paste is being checked against the roster and the org's posts. */
   const [checkingUrls, setCheckingUrls] = useState(false);
+  /** The paste (addUrlsKey) the last precheck finished for, answered or not. */
+  const [precheckSettledKey, setPrecheckSettledKey] = useState<string | null>(null);
   /** Where a submit in flight has got to; null when nothing is being sent. */
   const [addProgress, setAddProgress] = useState<AddProgress | null>(null);
   /** The last submit's receipt, kept on screen while the dialog stays open. */
@@ -633,7 +638,10 @@ export default function PostsTab({
         /* A failed check is not a failed add: leave the rows unmarked and let
            the server have the final word at submit time, as it always did. */
       } finally {
-        if (!cancelled) setCheckingUrls(false);
+        if (!cancelled) {
+          setCheckingUrls(false);
+          setPrecheckSettledKey(urls.join("\n"));
+        }
       }
     }, 400);
     return () => { cancelled = true; clearTimeout(t); setCheckingUrls(false); };
@@ -2486,6 +2494,21 @@ export default function PostsTab({
               const authorSaid =
                 row.mismatchHandle ?? (problem?.kind === "author_mismatch" ? problem.handle : undefined);
               const otherCampaigns = row.check?.inOtherCampaigns ?? [];
+              /* Who posted it is the server's to answer, and it does for every
+                 link it recognises: a creator on the roster, one it will add, or
+                 the platform's Unattributed row. The roster list stays shut on
+                 those rows until somebody asks for it. It opens on its own only
+                 where the answer did not come -- the check failed, the row was
+                 refused, or the add came back disputed. */
+              const resolvedByServer = Boolean(
+                row.check && (row.check.creator || row.check.creatorWillBeAdded || row.check.willBeUnattributed)
+              );
+              const showPicker =
+                Boolean(row.creatorId) ||
+                Boolean(row.pickCreator) ||
+                Boolean(authorSaid) ||
+                Boolean(problem?.blocking) ||
+                !(resolvedByServer || (!row.check && precheckSettledKey !== addUrlsKey));
               /* Said, not asked. The post is going in either way; what is worth
                  knowing is that its views are also counted somewhere else. Not
                  shown for a link pasted twice or one this campaign already
@@ -2580,6 +2603,7 @@ export default function PostsTab({
                   {row.state !== "done" && !row.repeatOfPaste && (
                     <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                       <div style={{ flex: "1 1 220px", minWidth: 200 }}>
+                        {showPicker && (
                         <CreatorSelect
                           value={row.creatorId}
                           onChange={(id, creator) =>
@@ -2602,14 +2626,21 @@ export default function PostsTab({
                             )
                           }
                         />
+                        )}
+                        {!showPicker && !row.check && (
+                          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: 0 }}>
+                            Checking who posted it…
+                          </p>
+                        )}
                         {row.check?.creator && !row.creatorId && (
-                          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
+                          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: showPicker ? "6px 0 0" : 0 }}>
                             Matched <strong style={{ color: "var(--cc-text)" }}>{creatorNameText(row.check.creator.name, row.check.creator.handle)}</strong>
                             {row.check.handleSource === "platform"
                               ? " from the post itself"
                               : row.check.handleSource === "record"
                                 ? " from the copy already on record"
-                                : " from the link"} — leave blank to use them.
+                                : " from the link"}
+                            {showPicker ? " — leave blank to use them." : "."}
                           </p>
                         )}
                         {row.check?.handleSource === "platform" && !row.check.creator && !row.check.creatorWillBeAdded && !row.creatorId && (
@@ -2622,24 +2653,44 @@ export default function PostsTab({
                           </p>
                         )}
                         {row.check?.willBeUnattributed && !row.creatorId && (
-                          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
+                          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: showPicker ? "6px 0 0" : 0 }}>
                             {platformLabel(row.check.platform)} doesn’t say who posted this, so it will be added under{" "}
                             <strong style={{ color: "var(--cc-text)" }}>Unattributed {platformLabel(row.check.platform)} posts</strong>
-                            . Pick a creator if you know who it is.
+                            .{showPicker ? " Pick a creator if you know who it is." : ""}
                           </p>
                         )}
                         {row.check?.creatorWillBeAdded && !row.creatorId && (
-                          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
+                          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: showPicker ? "6px 0 0" : 0 }}>
                             <strong style={{ color: "var(--cc-text)" }}>@{row.check.handle}</strong>
                             {row.check.handleSource === "platform" ? " — read off the post itself — " : " "}
-                            is not on the roster yet, and will be added with this post. Pick someone else to
-                            attribute it differently.
+                            is not on the roster yet, and will be added with this post.
+                            {showPicker ? " Pick someone else to attribute it differently." : ""}
                           </p>
                         )}
-                        {det?.handle && !row.check && !row.creatorId && (
+                        {det?.handle && !row.check && !row.creatorId && showPicker && (
                           <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
                             Detected <strong style={{ color: "var(--cc-text)" }}>@{det.handle}</strong> — leave blank to use them.
                           </p>
+                        )}
+                        {!showPicker && row.check && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setAddRows((prev) => prev.map((r, j) => (j === i ? { ...r, pickCreator: true } : r)))
+                            }
+                            style={{
+                              marginTop: 6,
+                              border: "1px solid var(--cc-border)",
+                              background: "var(--cc-card)",
+                              color: "var(--cc-text)",
+                              borderRadius: 6,
+                              padding: "4px 10px",
+                              fontSize: "var(--cc-t-12)",
+                              cursor: "pointer",
+                            }}
+                          >
+                            {row.check.willBeUnattributed ? "Pick a creator" : "Pick someone else"}
+                          </button>
                         )}
                         {/* The picker lists the whole roster whatever the link is, and every
                             creator is labelled with its own platform -- so the operator can
