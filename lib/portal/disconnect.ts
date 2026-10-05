@@ -6,6 +6,7 @@ import { revokeYouTubeToken } from "@/lib/platforms/youtube";
 import { revokeFacebookToken } from "@/lib/platforms/facebookPage";
 import { isInstagramLoginRow } from "@/lib/platforms/accountOrigin";
 import { REVOKE_REASONS, revokeGrantsForConnections, type RevokeReason } from "@/lib/creators/grants";
+import { forgetConnectedReadings } from "@/lib/creators/forgetConnectedReadings";
 
 /**
  * Disconnect: revoke at the platform where one can, then delete the row.
@@ -42,6 +43,10 @@ export async function disconnectSocialAccount(
      connection, the grant is the record that this org was allowed to read it
      and when that stopped (lib/creators/grants). Never throws. */
   await revokeGrantsForConnections([account.id], options.revokeReason ?? REVOKE_REASONS.DISCONNECT);
+  /* What the tracker copied from this connection goes with it, before the row
+     and not after: if this throws, the row stays and the disconnect is retried
+     (the creator presses again, the purge runs tomorrow, TikTok resends). */
+  await forgetConnectedReadings(account.creatorId, account.platform);
   await db.creatorSocialAccount.delete({ where: { id: account.id } });
 }
 

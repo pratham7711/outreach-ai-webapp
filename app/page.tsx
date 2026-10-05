@@ -86,7 +86,7 @@ const CONNECTIONS = [
   {
     platform: "YouTube",
     tone: "lp-tone-orange",
-    reads: "Channel name and the public view and engagement counts on the videos delivered against a brief.",
+    reads: "The connected channel's name, handle, picture and description, its subscriber, view and video counts, and its recent videos with their title, date, views, likes and comments.",
   },
 ];
 

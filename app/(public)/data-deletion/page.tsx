@@ -95,8 +95,9 @@ export default async function DataDeletionPage({
           <li>Facebook, Instagram and Threads: Settings &rarr; Apps and websites.</li>
         </ul>
         <p>
-          Revoking there stops our reads at once. It does not delete what we already stored; use one
-          of the routes above for that.
+          Revoking there stops our reads at once. If you remove access in your Google account, we
+          also delete the YouTube data we stored within 30 days. For the other platforms, use one of
+          the routes above to delete what we stored.
         </p>
       </LegalSection>
 
@@ -114,7 +115,8 @@ export default async function DataDeletionPage({
         <p>
           For anything not covered here, or a copy of your data, email{" "}
           <a href={`mailto:${LEGAL.privacyEmail}`}>{LEGAL.privacyEmail}</a>. We respond within 30
-          days.
+          days. We delete YouTube data within 7 days of your request. Deleting data here does not
+          affect anything stored on YouTube; to delete videos or your channel, use YouTube.
         </p>
       </LegalSection>
     </LegalShell>

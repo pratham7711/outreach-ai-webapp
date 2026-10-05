@@ -31,10 +31,12 @@ export function isTrackerPosition(v: unknown): v is TrackerPosition {
 let ready = false;
 let checkedAt = 0;
 
-/** Same contract as rosterTablesReady: true sticks, false is re-asked each minute. */
-export async function trackerSourceTablesReady(): Promise<boolean> {
+/** Same contract as rosterTablesReady: true sticks, false is re-asked each minute.
+ *  `fresh` skips the negative cache, as grantTablesReady's does, for a rare
+ *  write that must not be skipped (a disconnect deleting connected readings). */
+export async function trackerSourceTablesReady(options: { fresh?: boolean } = {}): Promise<boolean> {
   if (ready) return true;
-  if (Date.now() - checkedAt < 60_000) return false;
+  if (!options.fresh && Date.now() - checkedAt < 60_000) return false;
   checkedAt = Date.now();
   try {
     const rows = await db.$queryRawUnsafe<{ n: number }[]>(

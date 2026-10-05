@@ -11,6 +11,7 @@ import { OAUTH_PLATFORMS, toPlatformEnum, type OAuthPlatform } from "@/lib/oauth
 import { WHAT_WE_NEVER_DO, WHAT_WE_READ } from "@/lib/portal/whatWeRead";
 import { Button, useConfirm } from "@/components/ds";
 import { PlatformGlyph } from "@/components/ui/PlatformGlyph";
+import { YouTubeConnectAgreement } from "@/components/LegalLinks";
 import {
   Banner,
   ButtonLink,
@@ -287,6 +288,9 @@ function PlatformCard({
           </>
         )}
         <WhatWeRead platform={platform} />
+        {platform === "youtube" && !gated && canConnect && (
+          <YouTubeConnectAgreement style={{ flex: "1 1 100%" }} />
+        )}
       </div>
     </Card>
   );

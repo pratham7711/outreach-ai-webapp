@@ -2,7 +2,7 @@ import { cache } from "react";
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { POWERED_BY } from "@/lib/brand";
-import { LegalLinks } from "@/components/LegalLinks";
+import { LegalLinks, YouTubeConnectAgreement } from "@/components/LegalLinks";
 import { resolveConnectToken, type ConnectBinding } from "@/lib/creators/connectToken";
 import { isOAuthPlatform, isProviderConfigured, toPlatformEnum, type OAuthPlatform } from "@/lib/oauth/providers";
 import { PlatformGlyph } from "@/components/ui/PlatformGlyph";
@@ -272,6 +272,9 @@ export default async function ConnectLinkPage({
                 </span>
                 {action}
               </a>
+              {platform === "youtube" && (
+                <YouTubeConnectAgreement style={{ marginTop: 8, textAlign: "center" }} />
+              )}
             </div>
           );
         })}

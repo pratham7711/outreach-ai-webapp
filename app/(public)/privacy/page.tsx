@@ -216,8 +216,9 @@ export default function PrivacyPage() {
       <LegalSection heading="Who we share it with">
         <p>
           We share data only with the infrastructure providers needed to run the service &mdash; our
-          hosting provider and our managed database provider &mdash; and with the social platforms
-          you explicitly connect. We do not sell personal data. We disclose data to authorities only
+          hosting provider and our managed database provider &mdash; with the social platforms you
+          explicitly connect, and, for a creator who connects an account, with the organisations
+          running a campaign that creator joined, as shown on the connect screen. We do not sell personal data. We disclose data to authorities only
           where legally compelled.
         </p>
       </LegalSection>
@@ -240,7 +241,9 @@ export default function PrivacyPage() {
       <LegalSection heading="How long we keep it">
         <p>
           Account and campaign data is kept while your organisation has an active account. Connected
-          platform tokens are deleted on disconnection. Server logs are retained for up to 90 days.
+          platform tokens are deleted on disconnection. For a connected YouTube channel, we refresh its
+          statistics at least every 30 days, delete its tokens on disconnection, and delete its YouTube
+          data within 7 days of a deletion request. Server logs are retained for up to 90 days.
           On account closure we delete your data within 30 days, except where we are required to
           retain records for legal or accounting reasons.
         </p>
@@ -250,7 +253,9 @@ export default function PrivacyPage() {
         <p>
           You can request a copy of your data, correction of inaccurate data, or deletion of your
           data by emailing <a href={`mailto:${LEGAL.privacyEmail}`}>{LEGAL.privacyEmail}</a>. We
-          respond within 30 days. If a creator wants their connected-account data removed, they can
+          respond within 30 days. We delete YouTube data within 7 days of your request. Deleting data
+          here does not affect anything stored on YouTube; to delete videos or your channel, use
+          YouTube. If a creator wants their connected-account data removed, they can
           email us directly and do not need to go through the agency.
         </p>
         <p>
