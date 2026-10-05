@@ -28,9 +28,25 @@ jest.mock("@/lib/db", () => ({
 }));
 
 jest.mock("@/lib/creator-auth", () => ({ getCreatorSession: jest.fn() }));
+jest.mock("@/lib/platforms/accountState", () => ({
+  ...jest.requireActual("@/lib/platforms/accountState"),
+  accountStatesFor: jest.fn(),
+  accountIdsForGrantor: jest.fn(),
+}));
+jest.mock("@/lib/platforms/instagramAgencyCredential", () => ({
+  ...jest.requireActual("@/lib/platforms/instagramAgencyCredential"),
+  otherAgencyGrantors: jest.fn(),
+}));
+jest.mock("@/lib/platforms/instagramBusinessToken", () => ({
+  ...jest.requireActual("@/lib/platforms/instagramBusinessToken"),
+  getInstagramBusinessToken: jest.fn(),
+}));
 
 import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
+import { accountIdsForGrantor, accountStatesFor } from "@/lib/platforms/accountState";
+import { otherAgencyGrantors } from "@/lib/platforms/instagramAgencyCredential";
+import { getInstagramBusinessToken } from "@/lib/platforms/instagramBusinessToken";
 
 const mockGetCreatorSession = getCreatorSession as jest.Mock;
 const mockDb = db as unknown as {
@@ -89,6 +105,11 @@ beforeEach(() => {
   mockDb.creatorSocialAccount.upsert.mockResolvedValue({ id: "sa-1" });
   mockDb.creatorSocialAccount.delete.mockResolvedValue({ id: "sa-1" });
   mockDb.creatorSocialAccount.count.mockResolvedValue(0);
+  (accountStatesFor as jest.Mock).mockResolvedValue(new Map([["sa-fb", { grantorUserId: "fb-user-1" }]]));
+  (accountIdsForGrantor as jest.Mock).mockResolvedValue(["sa-fb"]);
+  (otherAgencyGrantors as jest.Mock).mockResolvedValue(new Set());
+  (getInstagramBusinessToken as jest.Mock).mockResolvedValue(null);
+  delete process.env.INSTAGRAM_BD_TOKEN_B;
 });
 
 describe("GET /api/portal/connections", () => {
@@ -253,6 +274,106 @@ describe("DELETE /api/portal/connections", () => {
       },
     });
     expect(mockDb.creatorSocialAccount.delete).toHaveBeenCalledWith({ where: { id: "sa-fb" } });
+  });
+
+  describe("last Meta row, grant held elsewhere", () => {
+    /* DELETE /me/permissions ends everything that Facebook user gave the app,
+       not just this creator's rows. Each case below is a token some other
+       reader depends on; the row still goes, the grant at Meta stays. */
+    function lastFacebookRow() {
+      mockDb.creatorSocialAccount.findFirst.mockResolvedValue({
+        id: "sa-fb",
+        creatorId: "c1",
+        platform: "FACEBOOK",
+        accessToken: encrypt("fb-user-token", "org-1"),
+      });
+    }
+    function graph(meId: string | null) {
+      const fetchMock = jest.fn(async (url: string | URL) =>
+        String(url).includes("/me/permissions")
+          ? { ok: true, json: async () => ({ success: true }) }
+          : meId
+            ? { ok: true, json: async () => ({ id: meId }) }
+            : { ok: false, status: 400, json: async () => ({ error: { code: 190 } }) },
+      );
+      global.fetch = fetchMock as unknown as typeof fetch;
+      return fetchMock;
+    }
+    const revoked = (f: jest.Mock) => f.mock.calls.some(([u]) => String(u).includes("/me/permissions"));
+    async function disconnect() {
+      const res = await deleteConnection(
+        makeRequest("http://localhost:3009/api/portal/connections?id=sa-fb", { method: "DELETE" }),
+      );
+      expect(res.status).toBe(200);
+      expect(mockDb.creatorSocialAccount.delete).toHaveBeenCalledWith({ where: { id: "sa-fb" } });
+    }
+
+    it("does not revoke when the same user granted the platform's Business Discovery token", async () => {
+      lastFacebookRow();
+      (getInstagramBusinessToken as jest.Mock).mockResolvedValue("operator-token");
+      const fetchMock = graph("fb-user-1");
+      await disconnect();
+      expect(revoked(fetchMock)).toBe(false);
+    });
+
+    it("does not revoke when the same user's grant backs the standby token B", async () => {
+      lastFacebookRow();
+      process.env.INSTAGRAM_BD_TOKEN_B = "standby-token";
+      const fetchMock = graph("fb-user-1");
+      await disconnect();
+      expect(revoked(fetchMock)).toBe(false);
+    });
+
+    it("revokes when the platform token was granted by someone else", async () => {
+      lastFacebookRow();
+      (getInstagramBusinessToken as jest.Mock).mockResolvedValue("operator-token");
+      const fetchMock = graph("someone-else");
+      await disconnect();
+      expect(revoked(fetchMock)).toBe(true);
+    });
+
+    it("does not revoke when the same user holds an agency's Instagram credential", async () => {
+      lastFacebookRow();
+      (otherAgencyGrantors as jest.Mock).mockResolvedValue(new Set(["fb-user-1"]));
+      const fetchMock = graph(null);
+      await disconnect();
+      expect(revoked(fetchMock)).toBe(false);
+    });
+
+    it("does not revoke while the same user's connection on another creator record is live", async () => {
+      lastFacebookRow();
+      (accountIdsForGrantor as jest.Mock).mockResolvedValue(["sa-fb", "sa-elsewhere"]);
+      mockDb.creatorSocialAccount.count.mockImplementation(async ({ where }) => ("creatorId" in where ? 0 : 1));
+      const fetchMock = graph(null);
+      await disconnect();
+      expect(mockDb.creatorSocialAccount.count).toHaveBeenLastCalledWith({ where: { id: { in: ["sa-elsewhere"] } } });
+      expect(revoked(fetchMock)).toBe(false);
+    });
+
+    it("revokes when that other connection is already gone", async () => {
+      lastFacebookRow();
+      (accountIdsForGrantor as jest.Mock).mockResolvedValue(["sa-fb", "sa-deleted"]);
+      mockDb.creatorSocialAccount.count.mockResolvedValue(0);
+      const fetchMock = graph(null);
+      await disconnect();
+      expect(revoked(fetchMock)).toBe(true);
+    });
+
+    it("leaves the grant when the granting user cannot be established", async () => {
+      lastFacebookRow();
+      (accountStatesFor as jest.Mock).mockResolvedValue(new Map());
+      const fetchMock = graph(null);
+      await disconnect();
+      expect(revoked(fetchMock)).toBe(false);
+    });
+
+    it("reads the grantor from Facebook when none was recorded, and revokes when it is unshared", async () => {
+      lastFacebookRow();
+      (accountStatesFor as jest.Mock).mockResolvedValue(new Map());
+      const fetchMock = graph("fb-user-1");
+      await disconnect();
+      expect(revoked(fetchMock)).toBe(true);
+    });
   });
 });
 

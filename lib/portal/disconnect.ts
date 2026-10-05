@@ -5,6 +5,10 @@ import { revokeInstagramToken } from "@/lib/platforms/instagramAccount";
 import { revokeYouTubeToken } from "@/lib/platforms/youtube";
 import { revokeFacebookToken } from "@/lib/platforms/facebookPage";
 import { isInstagramLoginRow } from "@/lib/platforms/accountOrigin";
+import { accountIdsForGrantor, accountStatesFor } from "@/lib/platforms/accountState";
+import { fetchMetaGrantorId } from "@/lib/platforms/metaGrantor";
+import { otherAgencyGrantors } from "@/lib/platforms/instagramAgencyCredential";
+import { operatorTokenGrantedBy } from "@/lib/platforms/instagramAgencyConnect";
 import { REVOKE_REASONS, revokeGrantsForConnections, type RevokeReason } from "@/lib/creators/grants";
 import { forgetConnectedReadings } from "@/lib/creators/forgetConnectedReadings";
 
@@ -101,11 +105,12 @@ async function revokeAtPlatform(account: DisconnectableAccount, orgId: string): 
        Threads. */
     else if (isIgLogin) {
       // no-op by design
-    } else if (account.platform === "INSTAGRAM" && siblingMetaRows === 0)
-      await revokeInstagramToken(token);
-    else if (account.platform === "YOUTUBE") await revokeYouTubeToken(token);
-    else if (account.platform === "FACEBOOK" && siblingMetaRows === 0)
-      await revokeFacebookToken(token);
+    } else if (account.platform === "INSTAGRAM" && siblingMetaRows === 0) {
+      if (!(await metaGrantHeldElsewhere(account, token))) await revokeInstagramToken(token);
+    } else if (account.platform === "YOUTUBE") await revokeYouTubeToken(token);
+    else if (account.platform === "FACEBOOK" && siblingMetaRows === 0) {
+      if (!(await metaGrantHeldElsewhere(account, token))) await revokeFacebookToken(token);
+    }
     /* THREADS is deliberately absent: the Threads API publishes no revoke
        endpoint, so there is nothing to call. Deleting the row is the whole of
        what we can do, and the creator withdraws the grant from their own
@@ -113,5 +118,31 @@ async function revokeAtPlatform(account: DisconnectableAccount, orgId: string): 
        the Facebook host and it does not govern a Threads token. */
   } catch {
     // A revoke that fails must not block the creator from disconnecting.
+  }
+}
+
+/**
+ * The siblings check above only sees this creator's own rows, but
+ * DELETE /me/permissions ends everything the Facebook user gave the app: the
+ * platform's Business Discovery token, an agency's credential in any org, the
+ * same person's connection on another creator record. So the revoke runs only
+ * when none of those was granted by this user. When the grantor cannot be
+ * established the grant is left in place, as for the agency disconnect
+ * (revokeAgencyGrantIfUnshared); the row and its token still go.
+ */
+async function metaGrantHeldElsewhere(account: DisconnectableAccount, token: string): Promise<boolean> {
+  try {
+    const grantor =
+      (await accountStatesFor([account.id])).get(account.id)?.grantorUserId ??
+      (await fetchMetaGrantorId(account.platform === "FACEBOOK" ? "facebook" : "instagram", token));
+    if (!grantor) return true;
+    if ((await otherAgencyGrantors()).has(grantor)) return true;
+    const others = (await accountIdsForGrantor(grantor)).filter((id) => id !== account.id);
+    if (others.length > 0 && (await db.creatorSocialAccount.count({ where: { id: { in: others } } })) > 0) {
+      return true;
+    }
+    return (await operatorTokenGrantedBy(grantor)) !== false;
+  } catch {
+    return true;
   }
 }

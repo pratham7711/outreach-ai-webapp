@@ -192,11 +192,26 @@ export async function revokeAgencyGrantIfUnshared(
   } catch {
     return "unknown-grantor";
   }
+  const operator = await operatorTokenGrantedBy(fbUserId, env);
+  if (operator === null) return "unknown-grantor";
+  if (operator) return "shared-grant";
+  return (await revokeInstagramToken(token)) ? "revoked" : "revoke-failed";
+}
+
+/**
+ * Whether a token the platform itself reads Business Discovery with (the
+ * operator token, the standby token B) was granted by this Facebook user.
+ * null when a token's grantor could not be read.
+ */
+export async function operatorTokenGrantedBy(
+  fbUserId: string,
+  env: Record<string, string | undefined> = process.env,
+): Promise<boolean | null> {
   for (const platformToken of [await getInstagramBusinessToken(), env[TOKEN_B_ENV]?.trim()]) {
     if (!platformToken) continue;
     const grantor = await fetchMetaGrantorId("instagram", platformToken);
-    if (!grantor) return "unknown-grantor";
-    if (grantor === fbUserId) return "shared-grant";
+    if (!grantor) return null;
+    if (grantor === fbUserId) return true;
   }
-  return (await revokeInstagramToken(token)) ? "revoked" : "revoke-failed";
+  return false;
 }

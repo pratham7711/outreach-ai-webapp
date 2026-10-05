@@ -225,10 +225,15 @@ export async function deleteAgencyCredentialsGrantedBy(fbUserId: string): Promis
   return orgIds;
 }
 
-/** Every other credential's granting Facebook user, for the revoke check. */
-export async function otherAgencyGrantors(exceptOrgId: string): Promise<Set<string>> {
+/** Every other credential's granting Facebook user, for the revoke check.
+ *  Without an org, every agency credential's. */
+export async function otherAgencyGrantors(exceptOrgId?: string): Promise<Set<string>> {
   const rows = await (await credentials()).findMany({
-    where: { provider: { startsWith: AGENCY_PROVIDER_PREFIX, not: agencyProvider(exceptOrgId) } },
+    where: {
+      provider: exceptOrgId
+        ? { startsWith: AGENCY_PROVIDER_PREFIX, not: agencyProvider(exceptOrgId) }
+        : { startsWith: AGENCY_PROVIDER_PREFIX },
+    },
     select: { source: true },
   });
   const out = new Set<string>();
