@@ -15,6 +15,7 @@ import {
 } from "@/lib/metricDisplay";
 import { UNKNOWN } from "@/lib/format";
 import { asOfCell, dataAsOf } from "@/lib/dataAge";
+import { UNKNOWN_CREATOR_LABEL, isUnattributedCreator } from "@/lib/posts/unattributedName";
 import { postMeasuredAt, postStatus, postStatusSummary } from "@/lib/posts/postStatus";
 
 type Format = "xlsx" | "csv" | "pdf";
@@ -123,7 +124,9 @@ export async function GET(
     const creatorIds = Array.from(
       new Set<string>([
         ...activations.map((a) => a.creator.id),
-        ...posts.map((p) => p.creator.id),
+        /* The Unattributed holding row is not a creator; its posts are still
+           on the posts sheet and in every total. */
+        ...posts.filter((p) => !isUnattributedCreator(p.creator)).map((p) => p.creator.id),
       ])
     );
 
@@ -204,7 +207,7 @@ export async function GET(
           const measured = postMeasuredAt(p);
           return [
             day(p.postedAt),
-            p.creator.name,
+            isUnattributedCreator(p.creator) ? UNKNOWN_CREATOR_LABEL : p.creator.name,
             p.creator.handle,
             p.platform,
             p.status,

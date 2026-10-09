@@ -121,6 +121,8 @@ const ANSWERED: Record<FetchReason, boolean> = {
   "counts-inconsistent": true,
   /* Answered by our own records: no connected Page holds the post. */
   "page-not-connected": true,
+  /* Answered by our own records: no account is known to read it under. */
+  "author-unknown": true,
 
   unknown: false,
   "reader-unavailable": false,

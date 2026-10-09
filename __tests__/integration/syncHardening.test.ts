@@ -1243,6 +1243,7 @@ describe("cron sync — uncharged reasons", () => {
     "not-configured",
     "not-a-professional-account",
     "post-hidden",
+    "author-unknown",
   ] as const;
 
   it.each(uncharged)("does not charge %s to the post", async (fetchReason) => {

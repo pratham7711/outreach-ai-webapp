@@ -82,6 +82,8 @@ const UNREAD_REASON: Record<string, string> = {
     "it was not among the creator's newest 500 Instagram posts, which is as far back as we can look; it may be older, or deleted or archived",
   "page-not-connected":
     "Facebook shares a Page post's numbers only with that Page's owner, and the Page it is on has not been connected here",
+  "author-unknown":
+    "we do not know whose account it is on, so there is no account to read its numbers through; assign a creator to read it",
   "counts-inconsistent":
     "the platform's numbers for it could not all be true (more likes than views, or views falling to zero), so its last consistent numbers are kept",
 };

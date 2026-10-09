@@ -243,6 +243,15 @@ export type FetchReason =
    *  ask until its creator connects. Not a verdict about the post, never charged,
    *  and read again once the Page connects. */
   | "page-not-connected"
+  /** Instagram: we hold no account name for the post, so Business Discovery --
+   *  the only source of its views -- has nothing to look it up under. The link
+   *  names nobody and the platform would not say (a post filed under the
+   *  Unattributed row), or the creator it is filed under has no Instagram
+   *  handle. Distinct from "not-configured", which this was filed as until
+   *  2026-10-10 and which told LKM's report "needs an API key" for posts
+   *  Instagram itself would not name. Never charged: it reads the moment a
+   *  creator is assigned. */
+  | "author-unknown"
   /** A fetcher came back empty without saying why.
    *
    *  Exists so that "we do not know" stops being spelled
@@ -298,6 +307,8 @@ const SOURCE_WENT_QUIET: Record<FetchReason, boolean> = {
   "not-on-account": false,
   /* Nobody to ask: no connected Page holds the post. */
   "page-not-connected": false,
+  /* Nobody to ask: no account is known to look the post up under. */
+  "author-unknown": false,
   "not-in-newest-media": false,
   /* The round trip carried numbers; we refused them. */
   "counts-inconsistent": false,
@@ -672,6 +683,8 @@ export const UNCHARGEABLE_REASONS: ReadonlySet<FetchReason> = new Set<FetchReaso
   "post-hidden",
   /* Readable the moment the Page connects. */
   "page-not-connected",
+  /* Readable the moment a creator is assigned. */
+  "author-unknown",
   /* A reading we refused is about the reading. On 2026-10-02 four live posts
      were switched off for good this way, filed as "unknown". */
   "counts-inconsistent",
@@ -1601,10 +1614,10 @@ export async function fetchInstagramMetrics(
      Instagram posts therefore reported zero engagement and were never re-asked,
      whether the deployment simply held no credential or the Graph call failed.
 
-     "not-configured" covers a missing handle as well as a missing token: with
-     no handle there is no Business Discovery lookup to make, so the shortfall
-     is still something the deployment has to supply, not something Instagram
-     refused us. */
+     With no handle there is no Business Discovery lookup to make, and that is
+     "author-unknown": nobody can name the account, which no key would fix.
+     "not-configured" is left for a handle we could not ask about because the
+     deployment holds no token. */
   const attempted = Boolean(token) || bizAttempted;
   /* A rejected credential outranks both other verdicts. "platform-refused"
      would send this back through the retry cycle every hour with the same dead
@@ -1634,7 +1647,9 @@ export async function fetchInstagramMetrics(
             ? "backing-off"
             : attempted
               ? "platform-refused"
-              : "not-configured";
+              : handle
+                ? "not-configured"
+                : "author-unknown";
   log.warn("instagram metrics unavailable from every source", { reason, sources });
 
   try {

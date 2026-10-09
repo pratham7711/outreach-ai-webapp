@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { formatDateAbs, formatFull, formatFullCurrency, fitFigureSize } from "@/lib/format";
 import { fieldMetricValue, rollupEngagement, viewsCoverageNote } from "@/lib/metricDisplay";
 import { CreatorSelect } from "@/components/CreatorSelect";
+import { isUnattributedCreator } from "@/lib/posts/unattributedName";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import { loadCharts } from "@/components/charts/lazyCharts";
 
@@ -142,7 +143,10 @@ function buildRoster(activations: Activation[], posts: Post[]): RosterEntry[] {
     });
   }
   for (const post of posts) {
-    if (!post.creator) continue;
+    /* The Unattributed holding row is a filing place, not a creator on the
+       campaign: it was listed here as "Unattributed Instagram posts" and
+       counted in "N creators". Its posts stay in every total. */
+    if (!post.creator || isUnattributedCreator(post.creator)) continue;
     const entry = byCreator.get(post.creator.id) ?? {
       creator: post.creator,
       activationStatus: null,
@@ -739,6 +743,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
      over the posts that measured it, so a creator whose likes (or, on Instagram
      photos, views) were never read gets no bar rather than a bar at 0. */
   const creatorStats = campaign.posts.reduce((acc, p) => {
+    if (isUnattributedCreator(p.creator)) return acc;
     const key = p.creator?.id ?? "unknown";
     if (!acc[key]) acc[key] = { name: p.creator?.name ?? "Unknown", views: null, likes: null, posts: 0 };
     const metrics = (p as { platformMetrics?: unknown }).platformMetrics;

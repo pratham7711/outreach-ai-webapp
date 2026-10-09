@@ -16,6 +16,8 @@ import type { ComplianceFlag } from "@/lib/compliance/postCompliance";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import CreatorName from "@/components/creators/CreatorName";
 import { creatorNameText } from "@/lib/creators/creatorName";
+import { UNKNOWN_CREATOR_LABEL, isUnattributedCreator } from "@/lib/posts/unattributedName";
+import UnknownCreator from "@/components/posts/UnknownCreator";
 
 /**
  * One post tile in the campaign grid.
@@ -77,6 +79,7 @@ function PostGridCardImpl({
   selectionActive,
   onToggleSelect,
   onOpenMenu,
+  onAssignCreator,
 }: {
   post: PostCardPost;
   selected: boolean;
@@ -85,7 +88,10 @@ function PostGridCardImpl({
   selectionActive: boolean;
   onToggleSelect: (postId: string) => void;
   onOpenMenu: (postId: string, x: number, y: number) => void;
+  /** Offered only on a post filed under the Unattributed row. Stable, like the two above. */
+  onAssignCreator?: (postId: string) => void;
 }) {
+  const unknownCreator = isUnattributedCreator(post.creator);
   const tracking = post.trackingEnabled === true;
   const status = postStatus(post);
   const measured = postMeasuredAt(post);
@@ -195,8 +201,18 @@ function PostGridCardImpl({
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, minWidth: 0 }}>
-          <CreatorAvatar id={post.creator.id} name={post.creator.name} size="sm" />
-          <CreatorName name={post.creator.name} handle={post.creator.handle} tone="overlay" />
+          {unknownCreator ? (
+            <UnknownCreator
+              platform={post.platform}
+              tone="overlay"
+              onAssign={onAssignCreator ? () => onAssignCreator(post.id) : undefined}
+            />
+          ) : (
+            <>
+              <CreatorAvatar id={post.creator.id} name={post.creator.name} size="sm" />
+              <CreatorName name={post.creator.name} handle={post.creator.handle} tone="overlay" />
+            </>
+          )}
         </div>
         {/* One row per counter the platform actually reported, which is
             how the reference card behaves too: it prints a downloads
@@ -292,7 +308,7 @@ function PostGridCardImpl({
         type="checkbox"
         checked={selected}
         onChange={() => onToggleSelect(post.id)}
-        aria-label={`Select post by ${creatorNameText(post.creator.name, post.creator.handle)}`}
+        aria-label={`Select post by ${unknownCreator ? UNKNOWN_CREATOR_LABEL.toLowerCase() : creatorNameText(post.creator.name, post.creator.handle)}`}
       />
       <span className="cc-postpick-box" aria-hidden="true">
         <Check size={13} strokeWidth={3} />

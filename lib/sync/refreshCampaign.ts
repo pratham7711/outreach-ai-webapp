@@ -164,6 +164,8 @@ const REASON_IS_RETRYABLE: Record<RefreshFailReason, boolean> = {
   "credentials-rejected": false,
   /* No Page will connect inside one request. */
   "page-not-connected": false,
+  /* Nor will anyone assign a creator. */
+  "author-unknown": false,
   /* The same name gets the same answer within one request. */
   "not-a-professional-account": false,
   "not-on-account": false,

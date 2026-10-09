@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api/client";
+import { isUnattributedCreator } from "@/lib/posts/unattributedName";
 
 /**
  * Pick one creator out of the whole roster.
@@ -60,7 +61,9 @@ export function CreatorSelect({
         `/api/creators?limit=20${debounced ? `&search=${encodeURIComponent(debounced)}` : ""}`
       ),
   });
-  const results = data?.creators ?? [];
+  /* The Unattributed holding row is on the roster but is nobody: picking it
+     would file a post under "creator unknown" on purpose. */
+  const results = (data?.creators ?? []).filter((c) => !isUnattributedCreator(c));
 
   // The caller owns the id; clearing it from outside has to clear the row too.
   useEffect(() => {

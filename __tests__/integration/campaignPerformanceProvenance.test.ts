@@ -651,3 +651,27 @@ describe("computeCampaignPerformance views coverage", () => {
     expect(result.kpis.viewsKnownPosts).toBe(2);
   });
 });
+
+/* LKM's client report printed "Unattributed Instagram posts" as the creator of
+   two cards (2026-10-09). The holding row is our filing label, never a person. */
+describe("computeCampaignPerformance with a post nobody could attribute", () => {
+  const holding = { id: "unattr-ig", name: "Unattributed Instagram posts", handle: "", avatarUrl: null };
+
+  it("sends no creator for it, flags it, and keeps it off the leaderboard but in the totals", async () => {
+    mockDb.post.findMany.mockResolvedValue([
+      post({ id: "known", creator: { ...creator, handle: "ada" } }),
+      post({ id: "unknown", platform: "INSTAGRAM", viewsCount: 0, creator: holding }),
+    ]);
+
+    const result = await computeCampaignPerformance(campaign);
+    const rows = Object.fromEntries(result.posts.map((p) => [p.id, p]));
+
+    expect(rows.unknown.creator).toBeNull();
+    expect(rows.unknown.unattributed).toBe(true);
+    expect(rows.known.unattributed).toBe(false);
+    expect(rows.known.creator).toMatchObject({ id: "creator-1" });
+    expect(result.leaderboard.map((r) => r.creatorId)).toEqual(["creator-1"]);
+    expect(result.kpis.posts).toBe(2);
+    expect(JSON.stringify(result)).not.toContain("Unattributed");
+  });
+});

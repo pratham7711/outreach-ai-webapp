@@ -233,8 +233,14 @@ describe("fetchInstagramMetrics — sources are merged, not raced", () => {
 
   it("distinguishes a deployment with no credential from a platform refusal", async () => {
     bizToken.mockReturnValue(undefined);
-    const out = await fetchInstagramMetrics(URL, undefined, undefined);
+    const out = await fetchInstagramMetrics(URL, undefined, "iamswarat");
     expect(out.fetchReason).toBe("not-configured");
+  });
+
+  it("says author-unknown, not not-configured, when there is no account to ask about", async () => {
+    bizToken.mockReturnValue("biz-token");
+    const out = await fetchInstagramMetrics(URL, undefined, undefined);
+    expect(out.fetchReason).toBe("author-unknown");
   });
 
   it("keeps a partial answer's thumbnail even when no counter was found", async () => {

@@ -8,6 +8,7 @@ import { stripAt, formatDateAbs, timeAgo } from "@/lib/format";
 import { creatorNameParts, creatorNameText } from "@/lib/creators/creatorName";
 import RemovedPostOverlay from "@/components/posts/RemovedPostOverlay";
 import PostStatusChip from "@/components/posts/PostStatusChip";
+import { UNKNOWN_CREATOR_LABEL, unknownCreatorReason } from "@/lib/posts/unattributedName";
 
 /**
  * The post grid on a shared client report.
@@ -62,12 +63,22 @@ export default function SharedPostList({
         const shown = METRICS.map((m) => ({ ...m, value: post[m.key] as number | null })).filter(
           (m) => m.value !== null
         );
-        const label = who && post.creator ? creatorNameText(post.creator.name, post.creator.handle) : post.platform;
+        /* A post nobody could attribute arrives with no creator at all, rather
+           than as the holding row's name, which is our filing label and was
+           being printed here as if it were a person. */
+        const unknownCreator = showCreators && post.unattributed === true;
+        const label = who && post.creator
+          ? creatorNameText(post.creator.name, post.creator.handle)
+          : unknownCreator
+            ? UNKNOWN_CREATOR_LABEL
+            : post.platform;
         const shownLabel = who ? (
           <>
             <span className="spr-post-name">{who.name}</span>
             {who.handle && <span className="spr-post-at"> {who.handle}</span>}
           </>
+        ) : unknownCreator ? (
+          <span className="spr-post-name">{UNKNOWN_CREATOR_LABEL}</span>
         ) : (
           post.platform
         );
@@ -171,7 +182,11 @@ export default function SharedPostList({
                     gap there being under a second. The client's answer is the
                     correct one; only the complaint is unwanted. */}
                 <span suppressHydrationWarning>
-                  {post.lastSyncedAt ? `Last updated ${timeAgo(post.lastSyncedAt)}` : "Not yet updated"}
+                  {post.lastSyncedAt
+                    ? `Last updated ${timeAgo(post.lastSyncedAt)}`
+                    : post.unattributed
+                      ? unknownCreatorReason(post.platform)
+                      : "Not yet updated"}
                 </span>
               </div>
             </div>

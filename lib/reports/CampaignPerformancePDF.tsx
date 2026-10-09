@@ -3,6 +3,7 @@ import type { SharedReportData } from "@/lib/reports/campaignPerformance";
 import { DEFAULT_SHARE_VISIBILITY, type ShareVisibility } from "@/lib/reports/shareVisibility";
 import { formatFull } from "@/lib/format";
 import { creatorNameText } from "@/lib/creators/creatorName";
+import { UNKNOWN_CREATOR_LABEL } from "@/lib/posts/unattributedName";
 import { ACTIVATION_STATUS_LABEL } from "@/lib/activationQueues";
 import { POWERED_BY } from "@/lib/brand";
 import { dataAsOf, dataAsOfLine } from "@/lib/dataAge";
@@ -302,7 +303,7 @@ export function CampaignPerformancePDF({
                 <View key={row.id} style={styles.tableRow} wrap={false}>
                   {showPostCreators && (
                     <Text style={[styles.tableCell, { flex: 1.6 }]}>
-                      {row.creator ? creatorNameText(row.creator.name, row.creator.handle) : "—"}
+                      {row.creator ? creatorNameText(row.creator.name, row.creator.handle) : row.unattributed ? UNKNOWN_CREATOR_LABEL : "—"}
                     </Text>
                   )}
                   <Text style={[styles.tableCell, { flex: 1.1 }]}>{row.platform}</Text>

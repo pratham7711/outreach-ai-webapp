@@ -8,6 +8,7 @@ import { unwrittenMetricValue, fieldMetricValue, rollupEngagement, snapshotViews
 import type { MetricField } from "@/lib/metricDisplay";
 import { isPostRemoved } from "@/lib/postRemoval";
 import { postStatus, type PostStatusKind } from "@/lib/posts/postStatus";
+import { isUnattributedCreator } from "@/lib/posts/unattributedName";
 import { carryForwardViewsByDay } from "@/lib/analytics/viewsSeries";
 import { soundSeries, videosAddedSinceLast } from "@/lib/sounds/usageSeries";
 import { usesPrecisionOf } from "@/lib/sounds/precision";
@@ -150,8 +151,16 @@ export type SharedPostRow = {
   postedAt: string;
   /** Null for a post never synced, which is "unknown", not "never updated". */
   lastSyncedAt: string | null;
-  /** Null when the link hides creators, exactly as the leaderboard is withheld. */
+  /** Null when the link hides creators, exactly as the leaderboard is withheld,
+   *  and on a post nobody could attribute (see `unattributed`). */
   creator: { id: string; name: string; handle: string | null; avatarUrl: string | null } | null;
+  /**
+   * Filed under the org's Unattributed row: the link named nobody and the
+   * platform would not say. The row's reserved name is a filing label of ours,
+   * and it was printed on LKM's client report as if it were a creator, so the
+   * row is never sent; the card says "Creator unknown" and why instead.
+   */
+  unattributed?: boolean;
   /** Null when views were never measured, or were set aside for being lower
    *  than the post's likes -- printed as a dash, never as 0 views. */
   views: number | null;
@@ -635,6 +644,9 @@ async function computeCampaignPerformanceUncached(
      copy of the definition sitting twenty lines below the first. */
   const postsByCreator = new Map<string, typeof posts>();
   for (const p of posts) {
+    /* Not a creator, so not ranked among them. Its posts still count in every
+       total above. */
+    if (isUnattributedCreator(p.creator)) continue;
     const bucket = postsByCreator.get(p.creator.id);
     if (bucket) bucket.push(p);
     else postsByCreator.set(p.creator.id, [p]);
@@ -697,12 +709,15 @@ async function computeCampaignPerformanceUncached(
         caption: p.caption,
         postedAt: p.postedAt.toISOString(),
         lastSyncedAt: p.lastSyncedAt ? p.lastSyncedAt.toISOString() : null,
-        creator: {
-          id: p.creator.id,
-          name: p.creator.name,
-          handle: p.creator.handle,
-          avatarUrl: p.creator.avatarUrl,
-        },
+        creator: isUnattributedCreator(p.creator)
+          ? null
+          : {
+              id: p.creator.id,
+              name: p.creator.name,
+              handle: p.creator.handle,
+              avatarUrl: p.creator.avatarUrl,
+            },
+        unattributed: isUnattributedCreator(p.creator),
         views,
         likes,
         comments,

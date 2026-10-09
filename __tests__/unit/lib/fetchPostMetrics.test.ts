@@ -226,8 +226,19 @@ describe("fetchPostMetrics — Instagram names its own failure", () => {
     delete process.env.INSTAGRAM_BUSINESS_TOKEN;
     global.fetch = jest.fn().mockResolvedValue({ ok: false }) as unknown as typeof fetch;
 
-    const m = (await fetchPostMetrics("https://instagram.com/reel/Cabc")) as PostMetrics;
+    const m = (await fetchPostMetrics("https://instagram.com/reel/Cabc", { instagramHandle: "someone" })) as PostMetrics;
     expect(m.fetchReason).toBe("not-configured");
+  });
+
+  /* An unattributed post: no handle, so there was nobody to look it up under.
+     It used to read "not-configured", which the report printed as "needs an
+     API key" on posts Instagram itself would not name. */
+  it("reports author-unknown when no account name is known", async () => {
+    process.env.INSTAGRAM_BUSINESS_TOKEN = "biz-token";
+    global.fetch = jest.fn().mockResolvedValue({ ok: false }) as unknown as typeof fetch;
+
+    const m = (await fetchPostMetrics("https://instagram.com/reel/Cabc")) as PostMetrics;
+    expect(m.fetchReason).toBe("author-unknown");
   });
 
   /* The bug in one assertion: this is the value that used to be undefined. */
@@ -249,7 +260,7 @@ describe("fetchPostMetrics — Instagram names its own failure", () => {
       json: async () => ({ thumbnail_url: "ig.jpg", title: "cap" }),
     }) as unknown as typeof fetch;
 
-    const m = (await fetchPostMetrics("https://instagram.com/reel/Cabc")) as PostMetrics;
+    const m = (await fetchPostMetrics("https://instagram.com/reel/Cabc", { instagramHandle: "someone" })) as PostMetrics;
     expect(m.thumbnailUrl).toBe("ig.jpg");
     expect(hasMetricCounts(m)).toBe(false);
     expect(m.fetchReason).toBe("not-configured");

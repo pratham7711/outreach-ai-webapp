@@ -1,6 +1,8 @@
 import { db } from "@/lib/db";
-import { platformLabel } from "@/lib/format";
 import type { Platform, Prisma } from "@/lib/generated/prisma/client";
+import { UNATTRIBUTED_CREATOR_NAMES, isUnattributedCreator, unattributedCreatorName } from "@/lib/posts/unattributedName";
+
+export { UNATTRIBUTED_CREATOR_NAMES, isUnattributedCreator, unattributedCreatorName };
 
 /**
  * Where a post goes when nobody can say who posted it.
@@ -33,28 +35,14 @@ import type { Platform, Prisma } from "@/lib/generated/prisma/client";
  * so a roster row that merely lacks a handle is never mistaken for it.
  */
 
-const NAME_SUFFIX = "posts";
 const NOTE =
   "Holds posts added without a known creator: the link named nobody and the platform would not say who posted them. Not a real account, and never tracked.";
-
-export function unattributedCreatorName(platform: Platform): string {
-  return `Unattributed ${platformLabel(platform)} ${NAME_SUFFIX}`;
-}
-
-const PLATFORMS: Platform[] = ["TIKTOK", "INSTAGRAM", "YOUTUBE", "TWITCH"];
-
-/** Every reserved name, for filters that cannot know the platform in advance. */
-export const UNATTRIBUTED_CREATOR_NAMES = PLATFORMS.map(unattributedCreatorName);
 
 /** Matches the holding rows; wrap in NOT to leave them out of a query. */
 export const UNATTRIBUTED_CREATOR_WHERE = {
   handle: "",
-  name: { in: UNATTRIBUTED_CREATOR_NAMES },
+  name: { in: [...UNATTRIBUTED_CREATOR_NAMES] },
 } satisfies Prisma.CreatorWhereInput;
-
-export function isUnattributedCreator(creator: { handle: string; name: string }): boolean {
-  return creator.handle === "" && UNATTRIBUTED_CREATOR_NAMES.includes(creator.name);
-}
 
 /**
  * The org's holding row for this platform, created on first use.
