@@ -34,6 +34,7 @@ jest.mock("@/components/providers/SidebarProvider", () => ({ SidebarProvider: ()
 jest.mock("@/components/layout/DashboardContent", () => ({ DashboardContent: () => null }));
 jest.mock("@/components/layout/VerifyEmailBanner", () => ({ VerifyEmailBanner: () => null }));
 jest.mock("@/components/ds", () => ({ ConfirmProvider: () => null }));
+jest.mock("@/components/feedback/FeedbackButton", () => ({ FeedbackButton: () => null }));
 jest.mock("sonner", () => ({ Toaster: () => null }));
 jest.mock("@/lib/billing/subscription", () => ({ isPlatformAdmin: jest.fn().mockResolvedValue(false) }));
 jest.mock("@/lib/dashboardPolicy", () => ({ resolveDashboardPolicy: jest.fn().mockReturnValue({}) }));

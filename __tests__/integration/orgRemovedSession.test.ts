@@ -31,6 +31,7 @@ jest.mock("@/components/providers/TenantProvider", () => ({ TenantProvider: () =
 jest.mock("@/components/providers/SidebarProvider", () => ({ SidebarProvider: () => null }));
 jest.mock("@/components/layout/DashboardContent", () => ({ DashboardContent: () => null }));
 jest.mock("@/components/ds", () => ({ ConfirmProvider: () => null }));
+jest.mock("@/components/feedback/FeedbackButton", () => ({ FeedbackButton: () => null }));
 jest.mock("sonner", () => ({ Toaster: () => null }));
 jest.mock("@/lib/entitlements", () => ({ getOrgEntitlements: jest.fn() }));
 
