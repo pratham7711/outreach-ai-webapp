@@ -110,14 +110,19 @@ async function readIn(region: string, shortcode: string): Promise<RegionPageRead
 }
 
 /**
- * What each other region was shown, in OTHER_REGIONS order; a region whose
- * sandbox would not boot or whose page did not load is left out. Never throws.
+ * What each other region was shown, in OTHER_REGIONS order and skipping the
+ * one this runs in; a region whose sandbox would not boot or whose page did
+ * not load is left out. Never throws.
  */
 export async function readInstagramPostPageElsewhere(shortcode: string): Promise<RegionPageRead[]> {
-  /* Off Vercel with no OIDC token the Sandbox SDK falls back to an interactive
-     device login, which would hold a local sync for minutes. With no way to
-     boot, nobody else can answer, and the verdict made here stands. */
-  if (!process.env.VERCEL && !process.env.VERCEL_OIDC_TOKEN) return [];
-  const reads = await Promise.all(OTHER_REGIONS.map((region) => readIn(region, shortcode)));
+  /* Only inside a deployed function. VERCEL_REGION is set there (prod logs
+     "sin1") and nowhere else: a `vercel env pull` copy carries VERCEL and an
+     OIDC token, so testing those let a local E2E run boot real sandboxes for
+     its seeded posts, and Track waited on them past its timeout. Off Vercel
+     nobody else is asked, and the verdict made here stands. */
+  const here = process.env.VERCEL_REGION;
+  if (!here) return [];
+  const regions = OTHER_REGIONS.filter((region) => region !== here);
+  const reads = await Promise.all(regions.map((region) => readIn(region, shortcode)));
   return reads.filter((r): r is RegionPageRead => r !== null);
 }

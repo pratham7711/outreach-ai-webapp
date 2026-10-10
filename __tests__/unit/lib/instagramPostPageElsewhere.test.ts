@@ -27,11 +27,14 @@ function fakeSandbox(page: Answer, media: Answer) {
   return { sandbox: { runCommand, delete: del }, runCommand, del };
 }
 
-const savedEnv = { VERCEL: process.env.VERCEL, VERCEL_OIDC_TOKEN: process.env.VERCEL_OIDC_TOKEN };
+const savedEnv = {
+  VERCEL: process.env.VERCEL,
+  VERCEL_OIDC_TOKEN: process.env.VERCEL_OIDC_TOKEN,
+  VERCEL_REGION: process.env.VERCEL_REGION,
+};
 beforeEach(() => {
   create.mockReset();
-  process.env.VERCEL = "1";
-  delete process.env.VERCEL_OIDC_TOKEN;
+  process.env.VERCEL_REGION = "sin1";
 });
 afterAll(() => {
   for (const [k, v] of Object.entries(savedEnv)) {
@@ -40,14 +43,21 @@ afterAll(() => {
   }
 });
 
-it("boots nothing where the Sandbox SDK has no credentials -- off Vercel and with no OIDC token", async () => {
-  delete process.env.VERCEL;
+it("boots nothing outside a deployed function -- even with a pulled env's VERCEL and OIDC token", async () => {
+  delete process.env.VERCEL_REGION;
+  process.env.VERCEL = "1";
+  process.env.VERCEL_OIDC_TOKEN = "t";
   await expect(readInstagramPostPageElsewhere(CODE)).resolves.toEqual([]);
   expect(create).not.toHaveBeenCalled();
+});
 
-  process.env.VERCEL_OIDC_TOKEN = "t";
+it("does not ask the region it is already running in", async () => {
+  process.env.VERCEL_REGION = "bom1";
   create.mockResolvedValue(fakeSandbox({ stdout: "<html/>" }, { stdout: "404 " }).sandbox as never);
-  await expect(readInstagramPostPageElsewhere(CODE)).resolves.toHaveLength(OTHER_REGIONS.length);
+  await expect(readInstagramPostPageElsewhere(CODE)).resolves.toEqual([
+    { region: "iad1", html: "<html/>", mediaStatus: 404, mediaLocation: null },
+  ]);
+  expect(create.mock.calls.map(([params]) => params.region)).toEqual(["iad1"]);
 });
 
 it("asks Mumbai and Virginia, each from a short-lived sandbox that is never kept", async () => {
