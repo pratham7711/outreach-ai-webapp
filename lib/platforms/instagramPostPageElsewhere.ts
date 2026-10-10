@@ -114,6 +114,10 @@ async function readIn(region: string, shortcode: string): Promise<RegionPageRead
  * sandbox would not boot or whose page did not load is left out. Never throws.
  */
 export async function readInstagramPostPageElsewhere(shortcode: string): Promise<RegionPageRead[]> {
+  /* Off Vercel with no OIDC token the Sandbox SDK falls back to an interactive
+     device login, which would hold a local sync for minutes. With no way to
+     boot, nobody else can answer, and the verdict made here stands. */
+  if (!process.env.VERCEL && !process.env.VERCEL_OIDC_TOKEN) return [];
   const reads = await Promise.all(OTHER_REGIONS.map((region) => readIn(region, shortcode)));
   return reads.filter((r): r is RegionPageRead => r !== null);
 }

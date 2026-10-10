@@ -27,7 +27,28 @@ function fakeSandbox(page: Answer, media: Answer) {
   return { sandbox: { runCommand, delete: del }, runCommand, del };
 }
 
-beforeEach(() => create.mockReset());
+const savedEnv = { VERCEL: process.env.VERCEL, VERCEL_OIDC_TOKEN: process.env.VERCEL_OIDC_TOKEN };
+beforeEach(() => {
+  create.mockReset();
+  process.env.VERCEL = "1";
+  delete process.env.VERCEL_OIDC_TOKEN;
+});
+afterAll(() => {
+  for (const [k, v] of Object.entries(savedEnv)) {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
+});
+
+it("boots nothing where the Sandbox SDK has no credentials -- off Vercel and with no OIDC token", async () => {
+  delete process.env.VERCEL;
+  await expect(readInstagramPostPageElsewhere(CODE)).resolves.toEqual([]);
+  expect(create).not.toHaveBeenCalled();
+
+  process.env.VERCEL_OIDC_TOKEN = "t";
+  create.mockResolvedValue(fakeSandbox({ stdout: "<html/>" }, { stdout: "404 " }).sandbox as never);
+  await expect(readInstagramPostPageElsewhere(CODE)).resolves.toHaveLength(OTHER_REGIONS.length);
+});
 
 it("asks Mumbai and Virginia, each from a short-lived sandbox that is never kept", async () => {
   const boxes = OTHER_REGIONS.map(() => fakeSandbox({ stdout: "<html>page</html>" }, { stdout: "302 https://scontent.cdninstagram.com/c.jpg" }));

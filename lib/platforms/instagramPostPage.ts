@@ -206,7 +206,9 @@ export async function readInstagramPostPage(postUrl: string, timeoutMs = TIMEOUT
   const html = await fetchPage(shortcode, timeoutMs);
   if (html === null) return { kind: "unreadable", thumbnailUrl: null };
   const media = await get(`https://www.instagram.com/p/${shortcode}/media/?size=l`, timeoutMs, "manual");
-  const here = verdict(html, shortcode, media?.status ?? null, media?.headers.get("location") ?? null);
+  const status = media?.status ?? null;
+  const location = status !== null && status >= 300 && status < 400 ? (media?.headers?.get("location") ?? null) : null;
+  const here = verdict(html, shortcode, status, location);
   if (here.kind !== "not-public") return here;
 
   /* Regions that could not answer are left out, so a sandbox that will not
