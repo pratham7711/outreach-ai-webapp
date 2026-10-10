@@ -21,16 +21,19 @@ export default function UnknownCreator({
   platform,
   tone = "default",
   notPublic = false,
+  ageLimitPossible = false,
 }: {
   platform: string;
   /** "overlay" for the dark gradient over a post thumbnail. */
   tone?: "default" | "overlay";
   /** The platform does not show the post publicly (isPostNotPublic). */
   notPublic?: boolean;
+  /** Not public but not removed, so the creator's age limit may be why (mayBeAgeLimited). */
+  ageLimitPossible?: boolean;
 }) {
   const overlay = tone === "overlay";
   const reason = notPublic
-    ? `${notPublicCreatorReason(platform)}.`
+    ? `${notPublicCreatorReason(platform, ageLimitPossible)}.`
     : `${unknownCreatorReason(platform)}. ${UNKNOWN_CREATOR_NEXT}.`;
   return (
     <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flexWrap: "wrap" }}>

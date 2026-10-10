@@ -60,8 +60,20 @@ export const UNKNOWN_CREATOR_NEXT = "We check again automatically on every refre
  * The reason once the platform has said the public cannot see the post at all
  * (lib/postRemoval). Nobody can be named then, and "yet" would promise a
  * creator that no refresh will find while the post stays that way.
+ *
+ * An Instagram post that is only not public, not removed (mayBeAgeLimited),
+ * leads with the creator's age limit and who can lift it, since that is the
+ * explanation an agency can do something about. It cannot be claimed outright:
+ * from outside, an age-limited account looks the same as a private one or a
+ * deleted post.
  */
-export function notPublicCreatorReason(platform: string | null | undefined): string {
+export function notPublicCreatorReason(
+  platform: string | null | undefined,
+  ageLimitPossible = false,
+): string {
+  if (platform === "INSTAGRAM" && ageLimitPossible) {
+    return "Instagram hides this post from the public: the creator may have set an age limit, or it is private or deleted. Ask them to lift any age limit";
+  }
   const label = platformLabel(platform) || "The platform";
   return `${label} won’t show this post publicly: it was deleted, the account is private, or it is limited by region`;
 }

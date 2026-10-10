@@ -117,7 +117,7 @@ const REASON_LABEL: Record<RefreshFailReason, (n: number) => string> = {
   "author-unknown": (n) => `${n} have no creator yet; we keep looking automatically`,
   "not-on-account": (n) => `${n} were not found on their creator's Instagram`,
   "not-in-newest-media": (n) => `${n} were not among their creator's newest 500 Instagram posts`,
-  "not-public": (n) => `${n} are not public on Instagram: deleted, private or region-limited`,
+  "not-public": (n) => `${n} are not public on Instagram: age-limited by the creator, private or deleted`,
   "counts-inconsistent": (n) => `${n} came back with numbers that could not be right, kept their last good numbers`,
   error: (n) => `${n} errored`,
 };

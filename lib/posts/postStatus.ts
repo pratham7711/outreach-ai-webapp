@@ -79,7 +79,7 @@ const UNREAD_REASON: Record<string, string> = {
   "not-on-account":
     "Instagram did not list it on the creator's account; it may have been deleted or archived, or be on another account",
   "not-public":
-    "Instagram won’t show it publicly; it was deleted, the account is private, or it is limited by region",
+    "Instagram hides it from the public; the creator may have set an age limit on the account (Instagram then shows logged-out visitors an age notice), or it is private, deleted or limited to other countries. Once the creator lifts the limit (Creator tools and controls → Minimum age), the next daily check fills in the creator and numbers",
   "not-in-newest-media":
     "it was not among the creator's newest 500 Instagram posts, which is as far back as we can look; it may be older, or deleted or archived",
   "page-not-connected":

@@ -21,7 +21,8 @@
  * below) when Business Discovery knows no Business or Creator account by the
  * post's handle -- a statement about the account, which is all we measured.
  * Nor does a post Instagram will not show publicly (NOT_PUBLIC_REASON below):
- * deleted, private or region-limited, and only the first is final.
+ * age-limited by its creator, private, deleted or region-limited, and only
+ * deletion is final.
  */
 
 import { lastFetchNote, type LastFetchNote } from "@/lib/metricDisplay";
@@ -106,13 +107,31 @@ export function noPublicNumbersLabel(): string {
  * The FetchReason for an Instagram post whose public page shows no post while
  * its public thumbnail address answers 404 -- two routes agreeing that nobody
  * outside can see it (lib/platforms/instagramPostPage). A deleted post, a
- * private account and a post Instagram limits by region all look identical
- * from our servers, so the label names all three.
+ * private account, a post Instagram limits by region and an account whose
+ * creator has set a minimum age all look identical from our servers, so the
+ * label names them rather than picking one.
+ *
+ * The age limit comes first because it is the one an agency can act on: the
+ * creator lifts it and the next daily recheck reads the post. MEASURED
+ * 2026-10-11: LKM's two posts stuck this way were both on accounts showing
+ * logged-out visitors "People under 13 can't see this content" -- open to a
+ * logged-in viewer, and to no reader of ours (Business Discovery, oEmbed and
+ * the embed all leave age-gated accounts out, per Meta's docs).
  */
 export const NOT_PUBLIC_REASON = "not-public";
 
 export function notPublicLabel(): string {
-  return "Not public — deleted, private or region-limited";
+  return "Not public — age-limited by the creator, private or deleted";
+}
+
+/**
+ * Whether the creator's age limit is one of the explanations: an Instagram post
+ * that is not public, never one filed as removed or hidden, which the platform
+ * named outright.
+ */
+export function mayBeAgeLimited(post: RemovablePost | null | undefined): boolean {
+  if (!post || isPostRemoved(post)) return false;
+  return lastFetchNote(post.platformMetrics)?.reason === NOT_PUBLIC_REASON;
 }
 
 /** The platform does not show the post publicly: removed, hidden or not public. */

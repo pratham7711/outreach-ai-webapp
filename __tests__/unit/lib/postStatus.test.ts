@@ -80,10 +80,13 @@ describe("postStatus", () => {
     expect(s.detail).toContain("personal, private, renamed or gone");
   });
 
-  it("never calls a post that is not public deleted: a private or region-limited one looks the same", () => {
+  it("never calls a post that is not public deleted: an age-limited, private or region-limited one looks the same", () => {
     const s = postStatus({ platformMetrics: note("not-public") });
     expect(s.kind).toBe("unverified");
-    expect(s.detail).toContain("Instagram won’t show it publicly; it was deleted, the account is private, or it is limited by region");
+    expect(s.detail).toContain("the creator may have set an age limit on the account");
+    expect(s.detail).toContain("private, deleted or limited to other countries");
+    expect(s.detail).toContain("Creator tools and controls → Minimum age");
+    expect(s.detail).not.toMatch(/was deleted|is deleted/);
   });
 
   it("takes an imported post's live status from the import, and says so", () => {

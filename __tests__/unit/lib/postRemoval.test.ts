@@ -5,6 +5,7 @@ import {
   REMOVED_FETCH_REASON,
   isPostRemoved,
   isPostNotPublic,
+  mayBeAgeLimited,
   postNotice,
   removedNote,
   removedPostLabel,
@@ -130,9 +131,9 @@ describe("a post its creator hid", () => {
   });
 });
 
-/* Two public routes agree the post is not public from where we ask: deleted,
-   private or region-limited. Only the first is final, so it is never filed as
-   removed -- that verdict dead-letters the post for good. */
+/* Two public routes agree the post is not public from where we ask: age-limited
+   by its creator, private, deleted or region-limited. Only deletion is final, so
+   it is never filed as removed -- that verdict dead-letters the post for good. */
 describe("a post Instagram shows to no one", () => {
   const post = { fetchState: null, platformMetrics: note(NOT_PUBLIC_REASON) };
 
@@ -140,8 +141,8 @@ describe("a post Instagram shows to no one", () => {
     expect(isPostRemoved(post)).toBe(false);
   });
 
-  it("names both causes in its own pill and claims neither", () => {
-    expect(postNotice(post)?.label).toBe("Not public — deleted, private or region-limited");
+  it("names the causes in its own pill, the creator's age limit first, and claims none", () => {
+    expect(postNotice(post)?.label).toBe("Not public — age-limited by the creator, private or deleted");
     expect(postNotice(post)?.note?.reason).toBe(NOT_PUBLIC_REASON);
   });
 
@@ -153,5 +154,18 @@ describe("a post Instagram shows to no one", () => {
       expect(isPostNotPublic({ platformMetrics: note(reason) })).toBe(false);
     }
     expect(isPostNotPublic(null)).toBe(false);
+  });
+
+  /* The age limit is offered as a reason only where nothing firmer was said:
+     a removed or hidden post was named outright by the platform. */
+  it("may be age-limited, unlike a removed, hidden or merely unread post", () => {
+    expect(mayBeAgeLimited(post)).toBe(true);
+    expect(mayBeAgeLimited({ fetchState: "UNAVAILABLE", platformMetrics: note(NOT_PUBLIC_REASON) })).toBe(false);
+    expect(mayBeAgeLimited({ platformMetrics: note(REMOVED_FETCH_REASON) })).toBe(false);
+    expect(mayBeAgeLimited({ platformMetrics: note(HIDDEN_FETCH_REASON) })).toBe(false);
+    for (const reason of ["reader-timeout", "author-unknown", NO_PUBLIC_NUMBERS_REASON]) {
+      expect(mayBeAgeLimited({ platformMetrics: note(reason) })).toBe(false);
+    }
+    expect(mayBeAgeLimited(null)).toBe(false);
   });
 });

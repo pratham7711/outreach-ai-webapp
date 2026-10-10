@@ -48,6 +48,19 @@ describe("unattributed holding row, recognised without the database", () => {
     expect(notPublicCreatorReason(null)).toMatch(/^The platform won’t show this post publicly/);
     expect(notPublicCreatorReason("INSTAGRAM")).not.toMatch(/again|yet/);
   });
+
+  /* The one cause an agency can act on, so it leads and says who acts -- but
+     only as a possibility, since it looks the same as a private or deleted
+     post from outside, and never on another platform or a removed post. */
+  it("leads with the creator's age limit for an Instagram post that may be age-limited", () => {
+    const reason = notPublicCreatorReason("INSTAGRAM", true);
+    expect(reason).toBe(
+      "Instagram hides this post from the public: the creator may have set an age limit, or it is private or deleted. Ask them to lift any age limit",
+    );
+    expect(reason).not.toMatch(/again|yet/);
+    expect(notPublicCreatorReason("TIKTOK", true)).toBe(notPublicCreatorReason("TIKTOK"));
+    expect(notPublicCreatorReason("INSTAGRAM", false)).toBe(notPublicCreatorReason("INSTAGRAM"));
+  });
 });
 
 describe("the roster leaves the holding row out", () => {

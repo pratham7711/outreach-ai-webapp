@@ -17,7 +17,7 @@ import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import CreatorName from "@/components/creators/CreatorName";
 import { creatorNameText } from "@/lib/creators/creatorName";
 import { UNKNOWN_CREATOR_LABEL, isUnattributedCreator } from "@/lib/posts/unattributedName";
-import { isPostNotPublic } from "@/lib/postRemoval";
+import { isPostNotPublic, mayBeAgeLimited } from "@/lib/postRemoval";
 import UnknownCreator from "@/components/posts/UnknownCreator";
 
 /**
@@ -200,7 +200,12 @@ function PostGridCardImpl({
       >
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, minWidth: 0 }}>
           {unknownCreator ? (
-            <UnknownCreator platform={post.platform} tone="overlay" notPublic={isPostNotPublic(post)} />
+            <UnknownCreator
+              platform={post.platform}
+              tone="overlay"
+              notPublic={isPostNotPublic(post)}
+              ageLimitPossible={mayBeAgeLimited(post)}
+            />
           ) : (
             <>
               <CreatorAvatar id={post.creator.id} name={post.creator.name} size="sm" />
