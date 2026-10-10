@@ -18,6 +18,7 @@ import {
   type PostMetrics,
 } from "@/lib/platforms/fetchPostMetrics";
 import { applyPostMetrics } from "@/lib/sync/syncPost";
+import { detectPostCreator } from "@/lib/posts/detectCreator";
 import {
   laneCountFor,
   type SandboxPostFetcher,
@@ -294,6 +295,9 @@ export async function runPostSweep(request: NextRequest, options: PostSweepOptio
   const attempts: Record<string, number> = {};
 
   let synced = 0;
+  /* Posts filed under the creator their platform named this run; see
+     lib/posts/detectCreator. */
+  let creatorsDetected = 0;
   let noCounts = 0;
   const noCountReasons: Record<string, number> = {};
   let sealed = 0;
@@ -689,7 +693,7 @@ export async function runPostSweep(request: NextRequest, options: PostSweepOptio
             : undefined;
         const detected = post.platform === "YOUTUBE" ? detectPlatform(post.postUrl) : null;
         const cached = detected ? youtubeCache.get(detected.id) : undefined;
-        const metrics =
+        let metrics =
           cached ??
           (await fetchPostMetrics(post.postUrl, {
             instagramToken,
@@ -720,7 +724,34 @@ export async function runPostSweep(request: NextRequest, options: PostSweepOptio
          *
          * applyPostMetrics stamps lastSyncedAt only when counts actually
          * arrived, and writes only the counters the platform reported. */
-        const outcome = await applyPostMetrics(post, metrics, { syncSource: "cron" });
+        /* No account name to read it under: possibly a post nobody could
+           attribute. Its creator is worked out from what this read and the
+           org already know, and the post is read again under them so its
+           views arrive in this run. See lib/posts/detectCreator. */
+        let target = post;
+        if (post.platform === "INSTAGRAM" && !instagramHandle) {
+          const found = await detectPostCreator(
+            {
+              id: post.id,
+              postUrl: post.postUrl,
+              authorHandle: metrics.authorHandle,
+              stopAtPercent: options.instagramStopAtPercent,
+            },
+            post.creator.orgId,
+          );
+          if (found) {
+            creatorsDetected++;
+            target = { ...post, creatorId: found.creatorId };
+            metrics =
+              (await fetchPostMetrics(post.postUrl, {
+                instagramHandle: found.handle,
+                instagramStopAtPercent: options.instagramStopAtPercent,
+                instagramOrgId: post.creator.orgId,
+              })) ?? metrics;
+          }
+        }
+
+        const outcome = await applyPostMetrics(target, metrics, { syncSource: "cron" });
         sourceGuard.record(post.platform, classifyPostRead(outcome), outcome.status === "measured" ? null : outcome.reason);
 
         if (outcome.status === "measured") {
@@ -990,6 +1021,7 @@ export async function runPostSweep(request: NextRequest, options: PostSweepOptio
          operator was emailed. */
       instagramCredentialsRejected,
       instagramSourceAlert,
+      creatorsDetected,
       sealed,
       failed,
       deadLettered,

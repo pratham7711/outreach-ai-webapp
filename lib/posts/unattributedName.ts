@@ -39,15 +39,19 @@ export function isUnattributedCreator(creator: { handle: string | null; name: st
 export const UNKNOWN_CREATOR_LABEL = "Creator unknown";
 
 /**
- * Why the post has no creator, said about one post. The platform would not
+ * Why the post has no creator yet, said about one post. The platform would not
  * name the account: on 2026-10-09 Instagram's oEmbed refused all ten such posts
  * on LKM's campaigns and the embed page named nobody, which is what a private
  * account, a trial reel (shown only to non-followers) or a removed post looks
- * like from outside.
+ * like from outside. "Yet", because nobody is asked to fill it in: every read
+ * of the post looks again (lib/posts/detectCreator).
  */
 export function unknownCreatorReason(platform: string | null | undefined): string {
   const label = platformLabel(platform) || "The platform";
   return platform === "INSTAGRAM"
-    ? `${label} won’t show us this post (private, trial reel or removed)`
-    : `${label} won’t say who posted this`;
+    ? `${label} isn’t showing who posted this yet`
+    : `${label} isn’t saying who posted this yet`;
 }
+
+/** What happens next, said wherever the reason is. */
+export const UNKNOWN_CREATOR_NEXT = "We check again automatically on every refresh";

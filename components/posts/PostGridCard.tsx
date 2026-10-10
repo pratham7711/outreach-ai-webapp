@@ -79,7 +79,6 @@ function PostGridCardImpl({
   selectionActive,
   onToggleSelect,
   onOpenMenu,
-  onAssignCreator,
 }: {
   post: PostCardPost;
   selected: boolean;
@@ -88,8 +87,6 @@ function PostGridCardImpl({
   selectionActive: boolean;
   onToggleSelect: (postId: string) => void;
   onOpenMenu: (postId: string, x: number, y: number) => void;
-  /** Offered only on a post filed under the Unattributed row. Stable, like the two above. */
-  onAssignCreator?: (postId: string) => void;
 }) {
   const unknownCreator = isUnattributedCreator(post.creator);
   const tracking = post.trackingEnabled === true;
@@ -202,11 +199,7 @@ function PostGridCardImpl({
       >
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, minWidth: 0 }}>
           {unknownCreator ? (
-            <UnknownCreator
-              platform={post.platform}
-              tone="overlay"
-              onAssign={onAssignCreator ? () => onAssignCreator(post.id) : undefined}
-            />
+            <UnknownCreator platform={post.platform} tone="overlay" />
           ) : (
             <>
               <CreatorAvatar id={post.creator.id} name={post.creator.name} size="sm" />

@@ -35,7 +35,7 @@ jest.mock("@/lib/platforms/instagramEmbed", () => ({
   fetchInstagramEmbedPost: jest.fn(),
 }));
 
-import { fetchInstagramMetrics } from "@/lib/platforms/fetchPostMetrics";
+import { fetchInstagramMetrics, fetchPostMetrics } from "@/lib/platforms/fetchPostMetrics";
 import { fetchInstagramMetricsGraph } from "@/lib/platforms/instagram";
 import {
   businessDiscoveryToken,
@@ -241,6 +241,66 @@ describe("fetchInstagramMetrics — sources are merged, not raced", () => {
     bizToken.mockReturnValue("biz-token");
     const out = await fetchInstagramMetrics(URL, undefined, undefined);
     expect(out.fetchReason).toBe("author-unknown");
+  });
+
+  it("carries the owner the embed names, so a post with no creator can be filed", async () => {
+    embed.mockResolvedValue({
+      shortcode: "DcQFHR5pdYw",
+      caption: "metadata only",
+      thumbnailUrl: "https://cdn/embed.jpg",
+      likesHidden: true,
+      copyrightBlocked: false,
+      authorHandle: "@iamswarat",
+    });
+    const out = await fetchInstagramMetrics(URL, undefined, undefined);
+    expect(out.authorHandle).toBe("iamswarat");
+    expect(out.fetchReason).toBe("author-unknown");
+  });
+
+  it("carries the owner beside the counters when the embed has them too", async () => {
+    embed.mockResolvedValue({
+      shortcode: "DcQFHR5pdYw",
+      caption: null,
+      thumbnailUrl: null,
+      likesCount: 1428,
+      likesHidden: false,
+      commentsCount: 9,
+      copyrightBlocked: false,
+      authorHandle: "iamswarat",
+    });
+    const out = await fetchInstagramMetrics(URL, undefined, undefined);
+    expect(out).toMatchObject({ likesCount: 1428, authorHandle: "iamswarat" });
+  });
+
+  it("names no owner when the embed did not", async () => {
+    embed.mockResolvedValue({
+      shortcode: "DcQFHR5pdYw",
+      caption: null,
+      thumbnailUrl: null,
+      likesCount: 1428,
+      likesHidden: false,
+      copyrightBlocked: false,
+    });
+    const out = await fetchInstagramMetrics(URL, undefined, "iamswarat");
+    expect(out).not.toHaveProperty("authorHandle");
+  });
+
+  /* The gap the two tests above could not see: every caller reads through
+     fetchPostMetrics, whose assemblePostMetrics is a whitelist, and the owner
+     was not on it. Found on a local run where both posts read their likes and
+     neither was filed. */
+  it("carries the owner all the way out of fetchPostMetrics", async () => {
+    embed.mockResolvedValue({
+      shortcode: "DcQFHR5pdYw",
+      caption: null,
+      thumbnailUrl: null,
+      likesCount: 1428,
+      likesHidden: false,
+      copyrightBlocked: false,
+      authorHandle: "@iamswarat",
+    });
+    const out = await fetchPostMetrics(URL);
+    expect(out).toMatchObject({ platform: "INSTAGRAM", likesCount: 1428, authorHandle: "iamswarat" });
   });
 
   it("keeps a partial answer's thumbnail even when no counter was found", async () => {

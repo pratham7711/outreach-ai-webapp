@@ -83,7 +83,7 @@ const UNREAD_REASON: Record<string, string> = {
   "page-not-connected":
     "Facebook shares a Page post's numbers only with that Page's owner, and the Page it is on has not been connected here",
   "author-unknown":
-    "we do not know whose account it is on, so there is no account to read its numbers through; assign a creator to read it",
+    "the platform is not showing whose account it is on yet, so there is no account to read its numbers through; every refresh looks for the creator again and reads it once found",
   "counts-inconsistent":
     "the platform's numbers for it could not all be true (more likes than views, or views falling to zero), so its last consistent numbers are kept",
 };

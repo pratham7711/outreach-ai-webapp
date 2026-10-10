@@ -5,6 +5,10 @@
  * the same blind lookup forever.
  */
 jest.mock("@/lib/platforms/instagram", () => ({
+  /* The real error classes: the owner lookup tells a missing account from a
+     rate limit by `instanceof`. */
+  InstagramNoSuchAccountError: jest.requireActual("@/lib/platforms/instagram").InstagramNoSuchAccountError,
+  InstagramRateLimitError: jest.requireActual("@/lib/platforms/instagram").InstagramRateLimitError,
   graphGet: jest.fn(),
   resolveIgUserId: jest.fn(async () => "ig-user-1"),
   shortcodeFromUrl: (u: string) => u.match(/\/(?:p|reel)\/([\w-]+)/)?.[1] ?? null,
@@ -13,12 +17,13 @@ jest.mock("@/lib/platforms/instagram", () => ({
 import {
   parseBusinessDiscovery,
   fetchInstagramPublicPostMetrics,
+  findInstagramPostOwner,
   MAX_MEDIA_PAGES,
   MEDIA_PAGE_SIZE,
   POST_PAGE_TTL_MS,
   setPostPageCache,
 } from "@/lib/platforms/instagramBusinessDiscovery";
-import { graphGet, resolveIgUserId } from "@/lib/platforms/instagram";
+import { graphGet, resolveIgUserId, InstagramNoSuchAccountError, InstagramRateLimitError } from "@/lib/platforms/instagram";
 
 const get = graphGet as jest.Mock;
 
@@ -273,5 +278,48 @@ describe("a post that is not on the account", () => {
       onNotOnAccount: told,
     });
     expect(told).not.toHaveBeenCalled();
+  });
+});
+
+describe("findInstagramPostOwner -- which campaign creator posted it", () => {
+  const URL_WANTED = "https://www.instagram.com/reel/WANTED/";
+  beforeEach(() => get.mockReset());
+
+  it("names the account whose newest page holds the post", async () => {
+    get
+      .mockResolvedValueOnce(page([media("OTHER1")], "CURSOR_A"))
+      .mockResolvedValueOnce(page([media("WANTED", { view_count: 9100 })], "CURSOR_B"));
+    const out = await findInstagramPostOwner(["@alice", "bob"], URL_WANTED, "tok");
+    expect(out).toMatchObject({ handle: "bob", post: { viewsCount: 9100, authorFollowers: 114574 } });
+    expect(get.mock.calls[0][1].fields).toContain("business_discovery.username(alice)");
+    expect(get.mock.calls[1][1].fields).toContain("business_discovery.username(bob)");
+  });
+
+  it("asks each account for its newest page only, never a second", async () => {
+    get.mockResolvedValueOnce(page([media("OTHER1")], "CURSOR_A"));
+    const out = await findInstagramPostOwner(["alice"], URL_WANTED, "tok");
+    expect(out).toBeNull();
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(get.mock.calls[0][1].fields).not.toContain(".after(");
+  });
+
+  it("passes over an account Business Discovery cannot see", async () => {
+    get
+      .mockRejectedValueOnce(new InstagramNoSuchAccountError(undefined))
+      .mockResolvedValueOnce(page([media("WANTED")]));
+    const out = await findInstagramPostOwner(["personal.one", "bob"], URL_WANTED, "tok");
+    expect(out?.handle).toBe("bob");
+  });
+
+  it("stops at a rate limit and says so, rather than asking every account into it", async () => {
+    get.mockRejectedValueOnce(new InstagramRateLimitError(4));
+    await expect(findInstagramPostOwner(["alice", "bob"], URL_WANTED, "tok")).rejects.toBeInstanceOf(InstagramRateLimitError);
+    expect(get).toHaveBeenCalledTimes(1);
+  });
+
+  it("makes no call with nobody to ask or no post to look for", async () => {
+    expect(await findInstagramPostOwner([], URL_WANTED, "tok")).toBeNull();
+    expect(await findInstagramPostOwner(["alice"], "https://www.instagram.com/alice/", "tok")).toBeNull();
+    expect(get).not.toHaveBeenCalled();
   });
 });

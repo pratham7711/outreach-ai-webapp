@@ -14,6 +14,7 @@ import { resolveAuthorFromPlatform } from "@/lib/platforms/postAuthor";
 import { detectPlatform } from "@/lib/platforms/postUrl";
 import { matchFacebookPost } from "@/lib/platforms/facebookPost";
 import { readCreatorProfile } from "@/lib/platforms/creatorProfile";
+import { isUnattributedCreator } from "@/lib/posts/unattributedName";
 import type { Platform, Prisma } from "@/lib/generated/prisma/client";
 
 /**
@@ -261,8 +262,12 @@ export async function precheckPostUrl(
      Only when NOTHING named anybody, not merely when the roster has no match:
      a link that names @jane belongs to @jane even if an older copy of the post
      was filed against somebody else, and quietly preferring the older filing
-     would spread one wrong attribution to every later paste of that link. */
-  const fromRecord = !handle && existing.length > 0 ? existing[0] : null;
+     would spread one wrong attribution to every later paste of that link.
+
+     A copy filed under the Unattributed row is no answer: it is the same
+     question asked earlier, and naming that row here would file this paste
+     under it while the dialog called it matched. */
+  const fromRecord = handle ? null : (existing.find((e) => !isUnattributedCreator({ name: e.creatorName, handle: e.creatorHandle })) ?? null);
   const creator =
     byHandle ??
     (fromRecord

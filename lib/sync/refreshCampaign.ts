@@ -164,7 +164,8 @@ const REASON_IS_RETRYABLE: Record<RefreshFailReason, boolean> = {
   "credentials-rejected": false,
   /* No Page will connect inside one request. */
   "page-not-connected": false,
-  /* Nor will anyone assign a creator. */
+  /* Each read already looked for the creator (lib/posts/detectCreator); the
+     same embed asked again seconds later says the same. */
   "author-unknown": false,
   /* The same name gets the same answer within one request. */
   "not-a-professional-account": false,

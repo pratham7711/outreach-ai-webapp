@@ -13,6 +13,7 @@ import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
 import { METRIC_WRITERS_KEY, rankPostCounters, type WriterNotes } from "@/lib/metrics/postWriters";
 import { protectedCreatorFollowers } from "@/lib/creators/followerWriter";
 import { UNATTRIBUTED_CREATOR_WHERE } from "@/lib/posts/unattributedCreator";
+import { detectPostCreator } from "@/lib/posts/detectCreator";
 import { countsContradict, engagementExceedsViews } from "@/lib/metrics/coherence";
 
 /**
@@ -458,7 +459,7 @@ export async function applyPostMetrics(
 export async function syncPost(
   post: SyncablePost,
   orgId: string,
-  options: { countsOnly?: boolean; tiktokSandbox?: SandboxPostFetcher } = {},
+  options: { countsOnly?: boolean; tiktokSandbox?: SandboxPostFetcher; afterDetection?: boolean } = {},
 ): Promise<SyncPostOutcome> {
   const instagram =
     post.platform === "INSTAGRAM"
@@ -479,6 +480,15 @@ export async function syncPost(
       : {}),
   });
   if (!metrics) return { status: "unfetchable", reason: "unrecognised-url" };
+
+  /* No account name to read it under means the post may be one nobody could
+     attribute. Its creator is worked out here, never asked for -- and once
+     found, the post is read again straight away under that account, so this
+     refresh is the one that brings its views. See lib/posts/detectCreator. */
+  if (post.platform === "INSTAGRAM" && !instagram?.handle && !options.afterDetection) {
+    const found = await detectPostCreator({ id: post.id, postUrl: post.postUrl, authorHandle: metrics.authorHandle }, orgId);
+    if (found) return syncPost({ ...post, creatorId: found.creatorId }, orgId, { ...options, afterDetection: true });
+  }
 
   /* A Facebook post added before its Page connected is stored under the link's
      own id. The first read that finds it on the Page hands back the Graph id,

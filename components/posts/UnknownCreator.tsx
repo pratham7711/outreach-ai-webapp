@@ -1,7 +1,7 @@
 "use client";
 
-import { UserPlus, UserRoundSearch } from "lucide-react";
-import { UNKNOWN_CREATOR_LABEL, unknownCreatorReason } from "@/lib/posts/unattributedName";
+import { UserRoundSearch } from "lucide-react";
+import { UNKNOWN_CREATOR_LABEL, UNKNOWN_CREATOR_NEXT, unknownCreatorReason } from "@/lib/posts/unattributedName";
 
 /**
  * Where a creator's name goes on a post nobody could attribute.
@@ -9,21 +9,19 @@ import { UNKNOWN_CREATOR_LABEL, unknownCreatorReason } from "@/lib/posts/unattri
  * The post is filed under the org's Unattributed row, whose name ("Unattributed
  * Instagram posts") is our filing label, not a person -- and it was rendered as
  * if it were one, avatar initials and all. This says what is actually known:
- * no creator, the platform's reason, and the one thing that fixes it.
+ * no creator yet, the platform's reason, and that finding one is automatic.
+ * Nothing here asks the viewer to supply a creator; see lib/posts/detectCreator.
  */
 export default function UnknownCreator({
   platform,
-  onAssign,
   tone = "default",
 }: {
   platform: string;
-  /** Absent where the viewer may not assign one. */
-  onAssign?: () => void;
   /** "overlay" for the dark gradient over a post thumbnail. */
   tone?: "default" | "overlay";
 }) {
   const overlay = tone === "overlay";
-  const reason = unknownCreatorReason(platform);
+  const reason = `${unknownCreatorReason(platform)}. ${UNKNOWN_CREATOR_NEXT}.`;
   return (
     <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flexWrap: "wrap" }}>
       <span
@@ -64,34 +62,6 @@ export default function UnknownCreator({
           {reason}
         </span>
       </span>
-      {onAssign && (
-        <button
-          type="button"
-          onClick={(e) => {
-            /* The card and the row are both links out to the platform. */
-            e.preventDefault();
-            e.stopPropagation();
-            onAssign();
-          }}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 4,
-            padding: "3px 8px",
-            borderRadius: 6,
-            border: `1px solid ${overlay ? "var(--cc-overlay-ink-text)" : "var(--cc-primary)"}`,
-            background: overlay ? "transparent" : "var(--cc-card)",
-            color: overlay ? "var(--cc-overlay-ink-text)" : "var(--cc-primary)",
-            fontSize: "var(--cc-t-12)",
-            fontWeight: "var(--cc-fw-strong)",
-            cursor: "pointer",
-            whiteSpace: "nowrap",
-          }}
-        >
-          <UserPlus size={12} aria-hidden="true" />
-          Assign creator
-        </button>
-      )}
     </span>
   );
 }

@@ -46,6 +46,10 @@ jest.mock("@/lib/alerts", () => ({
   alertOps: jest.fn().mockResolvedValue(undefined),
 }));
 
+/* Real detection asks the database and Business Discovery; what this file
+   checks is what the sweep does with its answer. */
+jest.mock("@/lib/posts/detectCreator", () => ({ detectPostCreator: jest.fn().mockResolvedValue(null) }));
+
 const mockPool = { size: 1, readPost: jest.fn(), close: jest.fn().mockResolvedValue(undefined) };
 jest.mock("@/lib/platforms/tiktokPostSandbox", () => ({
   laneCountFor: jest.fn((n: number) => (n > 0 ? 1 : 0)),
@@ -56,6 +60,7 @@ import { db } from "@/lib/db";
 import { alertOps } from "@/lib/alerts";
 import { fetchPostMetrics } from "@/lib/platforms/fetchPostMetrics";
 import { openSandboxPostPool } from "@/lib/platforms/tiktokPostSandbox";
+import { detectPostCreator } from "@/lib/posts/detectCreator";
 
 const mockDb = db as any;
 
@@ -1273,5 +1278,85 @@ describe("cron sync — uncharged reasons", () => {
        or the summary line goes back to saying nothing moved and not why. */
     expect(body.noCounts).toBe(1);
     expect(body.noCountReasons[fetchReason]).toBe(1);
+  });
+});
+
+describe("cron sync — a post nobody could attribute", () => {
+  const mockDetect = detectPostCreator as jest.Mock;
+  const holding = { orgId: "org-1", handle: "", platform: "INSTAGRAM", profileLinks: [], socialAccounts: [] };
+
+  it("files it under the creator the read named and reads its views in the same run", async () => {
+    mockPostCandidates([makePost({ id: "p-unattr", creatorId: "unattr-ig", creator: holding })]);
+    mockFetch
+      .mockResolvedValueOnce({
+        platform: "INSTAGRAM",
+        platformPostId: "AAA1",
+        thumbnailUrl: null,
+        caption: null,
+        authorHandle: "jane",
+        fetchReason: "author-unknown",
+      })
+      .mockResolvedValueOnce({
+        platform: "INSTAGRAM",
+        platformPostId: "AAA1",
+        thumbnailUrl: null,
+        caption: null,
+        viewsCount: 9000,
+        likesCount: 50,
+        commentsCount: 3,
+      });
+    mockDetect.mockResolvedValueOnce({
+      creatorId: "c-jane",
+      handle: "jane",
+      source: "post-read",
+      created: true,
+      movedPostIds: ["p-unattr"],
+    });
+    mockDb.$transaction.mockResolvedValue([{}, {}]);
+
+    const body = await (await cronSync(cronReq())).json();
+
+    expect(mockDetect).toHaveBeenCalledWith(expect.objectContaining({ id: "p-unattr", authorHandle: "jane" }), "org-1");
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockFetch).toHaveBeenLastCalledWith(
+      "https://www.instagram.com/reel/AAA1/",
+      expect.objectContaining({ instagramHandle: "jane", instagramOrgId: "org-1" }),
+    );
+    expect(body).toMatchObject({ synced: 1, creatorsDetected: 1 });
+  });
+
+  it("keeps it tracked and uncharged when nobody can be found yet", async () => {
+    mockPostCandidates([makePost({ id: "p-unattr", creatorId: "unattr-ig", syncFailCount: 4, creator: holding })]);
+    mockFetch.mockResolvedValue({
+      platform: "INSTAGRAM",
+      platformPostId: "AAA1",
+      thumbnailUrl: null,
+      caption: null,
+      fetchReason: "author-unknown",
+    });
+
+    const body = await (await cronSync(cronReq())).json();
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(body).toMatchObject({ synced: 0, creatorsDetected: 0, deadLettered: 0 });
+    const charged = mockDb.post.update.mock.calls.map((c: any[]) => c[0]).find((a: any) => a.data?.syncFailCount !== undefined);
+    expect(charged).toBeUndefined();
+  });
+
+  it("does not look for a creator when the post is read under a known account", async () => {
+    mockPostCandidates([
+      makePost({ id: "p-jane", creator: { ...holding, handle: "jane", name: "Jane" } }),
+    ]);
+    mockFetch.mockResolvedValue({
+      platform: "INSTAGRAM",
+      platformPostId: "AAA1",
+      thumbnailUrl: null,
+      caption: null,
+      viewsCount: 10,
+    });
+    mockDb.$transaction.mockResolvedValue([{}, {}]);
+
+    await cronSync(cronReq());
+    expect(mockDetect).not.toHaveBeenCalled();
   });
 });

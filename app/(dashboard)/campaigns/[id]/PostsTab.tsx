@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState, useEffect, useMemo, useCallback, useDeferredValue, useRef } from "react";
 import { Card, Badge, Input, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
 import { Dropdown, StatusTabs, Pagination, Button } from "@/components/ds";
-import { Grid3X3, List, Plus, Check, X, TrendingUp, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Flag, Video, AlertTriangle, RefreshCw, Info, Radio, ExternalLink, UserPlus } from "lucide-react";
+import { Grid3X3, List, Plus, Check, X, TrendingUp, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Flag, Video, AlertTriangle, RefreshCw, Info, Radio, ExternalLink } from "lucide-react";
 import { CreatorSelect } from "@/components/CreatorSelect";
 import { stripAt, formatDateAbs, formatFull } from "@/lib/format";
 import type { ComplianceFlag } from "@/lib/compliance/postCompliance";
@@ -503,11 +503,6 @@ export default function PostsTab({
 
   const [showAddPost, setShowAddPost] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
-  /* The post whose creator is being filled in: only ever one filed under the
-     Unattributed row, which the route refuses to move off anything else. */
-  const [assignPostId, setAssignPostId] = useState<string | null>(null);
-  const [assignCreatorId, setAssignCreatorId] = useState("");
-  const [assignBusy, setAssignBusy] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   /* One pasted blob, many posts. Operators receive links in batches (a client
@@ -904,38 +899,6 @@ export default function PostsTab({
       body: JSON.stringify({ status: "APPROVED" }),
     });
     fetchPosts();
-  };
-
-  const closeAssign = () => {
-    setAssignPostId(null);
-    setAssignCreatorId("");
-  };
-
-  const handleAssignCreator = async () => {
-    if (!assignPostId || !assignCreatorId) return;
-    setAssignBusy(true);
-    try {
-      const res = await fetch(`/api/campaigns/${campaignId}/posts/${assignPostId}/creator`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ creatorId: assignCreatorId }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(body.error ?? "Could not assign the creator.");
-        return;
-      }
-      const who = body.creator ? creatorNameText(body.creator.name, body.creator.handle) : "that creator";
-      if (body.metricsFound) toast.success(`Assigned to ${who}, and its numbers were read.`);
-      else
-        toast.success(`Assigned to ${who}.`, {
-          description: "Its numbers did not come back just now; the next refresh reads it under their account.",
-        });
-      closeAssign();
-      fetchPosts();
-    } finally {
-      setAssignBusy(false);
-    }
   };
 
   const handleReject = async () => {
@@ -1510,10 +1473,6 @@ export default function PostsTab({
   const [menu, setMenu] = useState<{ postId: string; x: number; y: number } | null>(null);
   const openMenu = useCallback((postId: string, x: number, y: number) => setMenu({ postId, x, y }), []);
   const closeMenu = useCallback(() => setMenu(null), []);
-  const openAssign = useCallback((postId: string) => {
-    setAssignCreatorId("");
-    setAssignPostId(postId);
-  }, []);
 
   const toggleSelectAllOnPage = useCallback(() => {
     setSelectedIds((prev) => {
@@ -1642,16 +1601,6 @@ export default function PostsTab({
               ? UNKNOWN_CREATOR_LABEL
               : creatorNameText(menuPost.creator.name, menuPost.creator.handle),
         },
-        ...(!menuOnSelection && isUnattributedCreator(menuPost.creator)
-          ? [
-              {
-                kind: "action" as const,
-                label: "Assign creator…",
-                icon: <UserPlus size={14} />,
-                onSelect: () => openAssign(menuPost.id),
-              },
-            ]
-          : []),
         ...(menuOnSelection || !menuTracked
           ? [
               {
@@ -2175,7 +2124,7 @@ export default function PostsTab({
                         detail page — tracking and bot signals — is still reached
                         from the Performance tab's post table. */}
                     {isUnattributedCreator(post.creator) ? (
-                      <UnknownCreator platform={post.platform} onAssign={() => openAssign(post.id)} />
+                      <UnknownCreator platform={post.platform} />
                     ) : (
                       <a href={post.postUrl} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", minWidth: 0 }}>
                         <CreatorAvatar id={post.creator.id} name={post.creator.name} size="sm" />
@@ -2346,7 +2295,6 @@ export default function PostsTab({
                 selectionActive={selectedIds.size > 0}
                 onToggleSelect={toggleSelect}
                 onOpenMenu={openMenu}
-                onAssignCreator={openAssign}
               />
             ))}
           </div>
@@ -2715,8 +2663,8 @@ export default function PostsTab({
                         {row.check?.willBeUnattributed && !row.creatorId && (
                           <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: showPicker ? "6px 0 0" : 0 }}>
                             <strong style={{ color: "var(--cc-text)" }}>{unknownCreatorReason(row.check.platform)}.</strong>{" "}
-                            It can still be added, with the creator unknown, but its views can’t be read until it has one.{" "}
-                            {showPicker ? "Pick the creator if you know who it is, or add it anyway and assign one later." : "Add it anyway and assign one later, or pick the creator now."}
+                            It is added and tracked anyway. We look for the creator automatically on every refresh and fill
+                            them in, with the post’s views, as soon as we find them.
                           </p>
                         )}
                         {row.check?.creatorWillBeAdded && !row.creatorId && (
@@ -2732,7 +2680,7 @@ export default function PostsTab({
                             Detected <strong style={{ color: "var(--cc-text)" }}>@{det.handle}</strong> — leave blank to use them.
                           </p>
                         )}
-                        {!showPicker && row.check && (
+                        {!showPicker && row.check && !row.check.willBeUnattributed && (
                           <button
                             type="button"
                             onClick={() =>
@@ -2749,7 +2697,7 @@ export default function PostsTab({
                               cursor: "pointer",
                             }}
                           >
-                            {row.check.willBeUnattributed ? "Pick a creator" : "Pick someone else"}
+                            Pick someone else
                           </button>
                         )}
                         {/* The picker lists the whole roster whatever the link is, and every
@@ -2906,46 +2854,6 @@ export default function PostsTab({
           </div>
         </Modal>
       )}
-
-      {assignPostId && (() => {
-        const target = posts.find((p) => p.id === assignPostId);
-        return (
-          <Modal
-            open={true}
-            onClose={closeAssign}
-            title="Assign creator"
-            size="sm"
-            footer={
-              <div className="cc-modal-footer">
-                <Button variant="secondary" onClick={closeAssign}>Cancel</Button>
-                <Button variant="primary" onClick={handleAssignCreator} loading={assignBusy} disabled={!assignCreatorId}>
-                  Assign
-                </Button>
-              </div>
-            }
-          >
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>
-                {target ? `${unknownCreatorReason(target.platform)}, so we can’t tell whose post this is. ` : ""}
-                Pick the creator and it is read under their account straight away; the views it earns from then on count
-                towards them.
-              </p>
-              {target && (
-                <a
-                  href={target.postUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-primary)", overflowWrap: "anywhere", display: "inline-flex", alignItems: "center", gap: 4 }}
-                >
-                  <ExternalLink size={12} aria-hidden="true" />
-                  {target.postUrl}
-                </a>
-              )}
-              <CreatorSelect value={assignCreatorId} onChange={(id) => setAssignCreatorId(id)} />
-            </div>
-          </Modal>
-        );
-      })()}
 
       {menu && menuItems.length > 0 && (
         <PostActionMenu x={menu.x} y={menu.y} items={menuItems} onClose={closeMenu} />

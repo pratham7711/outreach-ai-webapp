@@ -122,6 +122,14 @@ export type PostMetrics = {
    */
   authorFollowers?: number;
   /**
+   * The account that published the post, when a source named it. Instagram's
+   * embed page carries the owner's username beside the counters, and for a
+   * post filed with no creator that is the one read that can say whose it is
+   * -- see lib/posts/detectCreator. Absent when nothing named the owner; never
+   * guessed from the creator the post happens to be filed under.
+   */
+  authorHandle?: string;
+  /**
    * The counters read through the creator's own connection -- their token, on
    * the platform's API -- rather than off a public page. Every other counter
    * here is a public reading. Absent when none was.
@@ -683,7 +691,7 @@ export const UNCHARGEABLE_REASONS: ReadonlySet<FetchReason> = new Set<FetchReaso
   "post-hidden",
   /* Readable the moment the Page connects. */
   "page-not-connected",
-  /* Readable the moment a creator is assigned. */
+  /* Readable the moment its creator is found, which every read tries. */
   "author-unknown",
   /* A reading we refused is about the reading. On 2026-10-02 four live posts
      were switched off for good this way, filed as "unknown". */
@@ -1590,6 +1598,7 @@ export async function fetchInstagramMetrics(
         ...(typeof embed.authorFollowers === "number"
           ? { authorFollowers: embed.authorFollowers }
           : {}),
+        ...(embed.authorHandle ? { authorHandle: embed.authorHandle.replace(/^@/, "") } : {}),
         /* embed.embedViewCount is deliberately NOT mapped to viewsCount. It
            read 3337 against Business Discovery's 24245 for the same post at the
            same moment -- a different quantity, wrong by a factor we cannot
@@ -1849,6 +1858,10 @@ export function assemblePostMetrics(
   if (reach !== undefined) result.reachCount = reach;
   const followers = finite(m.authorFollowers);
   if (followers !== undefined) result.authorFollowers = followers;
+  /* Same whitelist trap: the owner the embed names was dropped here, so every
+     post filed with no creator stayed that way however often it was read. */
+  const author = typeof m.authorHandle === "string" ? m.authorHandle.trim().replace(/^@/, "") : "";
+  if (author) result.authorHandle = author;
   if (engagement !== undefined) result.engagementRate = engagement;
   /* Only counters that survived the whitelist above: a connected claim about a
      counter that is not here would describe nothing. */

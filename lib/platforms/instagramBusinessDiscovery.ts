@@ -1,5 +1,11 @@
 import { getInstagramBusinessToken } from "@/lib/platforms/instagramBusinessToken";
-import { graphGet, resolveIgUserId, shortcodeFromUrl, type GraphHeadersListener } from "./instagram";
+import {
+  InstagramNoSuchAccountError,
+  graphGet,
+  resolveIgUserId,
+  shortcodeFromUrl,
+  type GraphHeadersListener,
+} from "./instagram";
 
 export type IgPublicPost = {
   id: string;
@@ -278,6 +284,55 @@ export async function fetchInstagramPublicPostMetrics(
   }
   if (found === "out-of-pages") onPastLookupDepth?.();
   else onNotOnAccount?.();
+  return null;
+}
+
+/**
+ * Which of these accounts published the post, judged from each one's newest
+ * page of media.
+ *
+ * A post read run backwards, for a post filed with no creator. Instagram's
+ * embed does not always name a post's owner, but the owner's own media list
+ * still carries the post. Only the newest page of each account is asked -- a
+ * post pasted into a campaign is a recent one -- and it is the same remembered
+ * page the campaign's other post reads fetch, so inside a sweep the lookup
+ * usually costs no call at all.
+ *
+ * An account Business Discovery cannot see (personal, renamed, gone) is passed
+ * over. A rate limit ends the lookup, because every later account would be
+ * refused the same way, and the caller's token chooser needs to hear it.
+ */
+export async function findInstagramPostOwner(
+  handles: readonly string[],
+  postUrl: string,
+  token: string,
+  signal?: AbortSignal,
+  options: Omit<DiscoveryReadOptions, "noSuchAccountThrows"> = {},
+): Promise<{ handle: string; post: IgPublicPost & { authorFollowers?: number } } | null> {
+  const shortcode = shortcodeFromUrl(postUrl);
+  if (!shortcode || handles.length === 0) return null;
+
+  const rateLimitThrows = options.rateLimitThrows ?? true;
+  const igUserId =
+    options.igUserId ||
+    (await remember(readerIds, `${token}\n${rateLimitThrows}`, READER_ID_TTL_MS, false, () =>
+      resolveIgUserId(token, signal, { rateLimitThrows, onHeaders: options.onHeaders }),
+    ));
+  if (!igUserId) return null;
+  const read = { ...options, rateLimitThrows, igUserId };
+
+  for (const handle of handles) {
+    let found: Awaited<ReturnType<typeof walkForPost>>;
+    try {
+      found = await walkForPost(handle, shortcode, token, signal, read, 1, false);
+    } catch (err) {
+      if (err instanceof InstagramNoSuchAccountError) continue;
+      throw err;
+    }
+    if (found && found !== "not-found" && found !== "out-of-pages") {
+      return { handle: normalizeUsername(handle), post: found };
+    }
+  }
   return null;
 }
 

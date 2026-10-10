@@ -158,6 +158,11 @@ describe("assemblePostMetrics", () => {
     expect("reachCount" in out).toBe(false);
   });
 
+  it("carries the post's owner through the whitelist, without the @", () => {
+    expect(assemblePostMetrics("INSTAGRAM", "ig-1", { authorHandle: "@jane" }).authorHandle).toBe("jane");
+    expect("authorHandle" in assemblePostMetrics("INSTAGRAM", "ig-1", { authorHandle: "  " })).toBe(false);
+  });
+
   it("keeps a genuine zero reach", () => {
     const out = assemblePostMetrics("INSTAGRAM", "ig-1", { reachCount: 0 });
     expect(out.reachCount).toBe(0);

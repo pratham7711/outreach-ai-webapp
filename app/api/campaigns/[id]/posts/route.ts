@@ -11,7 +11,7 @@ import {
   hasMetricCounts,
   MEDIA_TYPES as DETECTABLE_MEDIA_TYPES,
 } from "@/lib/platforms/fetchPostMetrics";
-import { countsFrom } from "@/lib/sync/syncPost";
+import { countsFrom, syncPost, SYNC_POST_INCLUDE } from "@/lib/sync/syncPost";
 import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
 import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
 import { checkPostCompliance } from "@/lib/compliance/postCompliance";
@@ -29,7 +29,8 @@ import {
 import { resolveAuthorFromPlatform } from "@/lib/platforms/postAuthor";
 import { matchFacebookPost } from "@/lib/platforms/facebookPost";
 import { hasPermission } from "@/lib/rbac";
-import { getUnattributedCreator } from "@/lib/posts/unattributedCreator";
+import { getUnattributedCreator, isUnattributedCreator } from "@/lib/posts/unattributedCreator";
+import { detectPostCreator, type CreatorDetection } from "@/lib/posts/detectCreator";
 import { isLiveCampaign, trackingView } from "@/lib/sync/postTracking";
 import { parsePostTracking } from "@/lib/trackers/granularity";
 import {
@@ -333,7 +334,10 @@ export async function POST(
     /* The org's own copy of this exact post, when nothing else named anybody.
        Same rule as the precheck, and it has to be here too or the dialog would
        promise a creator this handler then refuses. */
-    if (!creatorId && existing.length > 0) creatorId = existing[0].creatorId;
+    const attributedCopy = existing.find(
+      (e) => !isUnattributedCreator({ name: e.creatorName, handle: e.creatorHandle }),
+    );
+    if (!creatorId && attributedCopy) creatorId = attributedCopy.creatorId;
     /* Nobody named anybody, and the post is still added. Adding a post is a
        request to track it, and asking the operator who posted it got nothing the
        platform would confirm -- see lib/posts/unattributedCreator. A link no
@@ -499,7 +503,40 @@ export async function POST(
       });
     }
 
-    return NextResponse.json({ ...post, creatorAutoAdded: addedCreator?.handle ?? null, unattributed }, { status: 201 });
+    /* Nobody named the creator before the save, but the read that just ran may
+       have, and the campaign's own creators' media may hold the post. Tried
+       once here so the row usually comes back with its creator and views; a
+       miss is not a failure -- every later read of the post tries again. See
+       lib/posts/detectCreator. */
+    let saved: Record<string, unknown> = post;
+    let detection: CreatorDetection | null = null;
+    if (unattributed) {
+      try {
+        detection = await detectPostCreator(
+          { id: post.id, postUrl, authorHandle: metrics?.authorHandle, timeoutMs: 6_000 },
+          orgId,
+        );
+        if (detection) {
+          unattributed = false;
+          await syncPost({ ...post, creatorId: detection.creatorId }, orgId, { afterDetection: true }).catch(
+            (err) => console.error("Found the creator of a new post but the read under them failed:", err),
+          );
+          saved = (await db.post.findUnique({ where: { id: post.id }, include: { creator: SYNC_POST_INCLUDE.creator } })) ?? post;
+        }
+      } catch (err) {
+        console.error("Creator detection for a new post failed; the next read tries again:", err);
+      }
+    }
+
+    return NextResponse.json(
+      {
+        ...saved,
+        creatorAutoAdded: addedCreator?.handle ?? (detection?.created ? detection.handle : null),
+        unattributed,
+        creatorDetected: detection ? { handle: detection.handle, source: detection.source } : null,
+      },
+      { status: 201 },
+    );
   } catch (error) {
     console.error("Failed to create post:", error);
     return NextResponse.json({ error: "Failed to create post" }, { status: 500 });

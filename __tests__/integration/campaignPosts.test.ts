@@ -13,7 +13,7 @@ jest.mock('@/lib/db', () => ({
     $queryRaw: jest.fn(),
     creatorSocialAccount: { findFirst: jest.fn() },
     activation: { findFirst: jest.fn() },
-    post: { findMany: jest.fn(), create: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
+    post: { findMany: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
     viewFraudFlag: { findMany: jest.fn() },
     organization: { findUnique: jest.fn() },
   },
@@ -56,8 +56,19 @@ jest.mock('@/lib/platforms/fetchPostMetrics', () => ({
   }),
 }));
 
+/* The add route looks for an unattributed post's creator right after saving
+   it. Detection has its own suite; here it answers what each case says. */
+jest.mock('@/lib/posts/detectCreator', () => ({ detectPostCreator: jest.fn().mockResolvedValue(null) }));
+jest.mock('@/lib/sync/syncPost', () => ({
+  ...jest.requireActual('@/lib/sync/syncPost'),
+  syncPost: jest.fn().mockResolvedValue({ status: 'measured', post: {} }),
+}));
+
 import { db } from '@/lib/db';
 import { auth } from '@/lib/auth';
+import { detectPostCreator } from '@/lib/posts/detectCreator';
+import { syncPost } from '@/lib/sync/syncPost';
+import { fetchPostMetrics } from '@/lib/platforms/fetchPostMetrics';
 import { resolveAuthorFromPlatform } from '@/lib/platforms/postAuthor';
 
 const mockAuthor = resolveAuthorFromPlatform as jest.Mock;
@@ -470,6 +481,68 @@ describe('POST /api/campaigns/[id]/posts', () => {
     expect(mockDb.post.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ creatorId: 'c-hold' }) })
     );
+  });
+
+  it('files a new post under the creator found right after it was saved, and reads it under them', async () => {
+    mockAuthor.mockResolvedValue(null);
+    mockDb.creator.findFirst.mockResolvedValue({
+      id: 'c-hold', orgId: 'org-1', name: 'Unattributed Instagram posts', handle: '', deletedAt: null, socialAccounts: [],
+    });
+    (fetchPostMetrics as jest.Mock).mockResolvedValueOnce({
+      platform: 'INSTAGRAM',
+      platformPostId: 'DeX1',
+      thumbnailUrl: null,
+      caption: null,
+      authorHandle: 'jane',
+      fetchReason: 'author-unknown',
+    });
+    mockDb.post.create.mockResolvedValue({ id: 'post-new', creatorId: 'c-hold', creator: { id: 'c-hold', handle: '' } });
+    (detectPostCreator as jest.Mock).mockResolvedValueOnce({
+      creatorId: 'c-jane', handle: 'jane', source: 'post-read', created: true, movedPostIds: ['post-new'],
+    });
+    mockDb.post.findUnique.mockResolvedValue({
+      id: 'post-new', creatorId: 'c-jane', viewsCount: 9000, creator: { id: 'c-jane', name: 'jane', handle: 'jane' },
+    });
+
+    const postUrl = 'https://www.instagram.com/reel/DeX1/';
+    const res = await POST(
+      makeRequest('http://localhost/api/campaigns/camp-1/posts', {
+        method: 'POST',
+        body: JSON.stringify({ postUrl }),
+        headers: { 'Content-Type': 'application/json' },
+      }),
+      makeParams('camp-1'),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(201);
+    expect(detectPostCreator).toHaveBeenCalledWith({ id: 'post-new', postUrl, authorHandle: 'jane', timeoutMs: 6000 }, 'org-1');
+    expect(syncPost).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'post-new', creatorId: 'c-jane' }),
+      'org-1',
+      { afterDetection: true },
+    );
+    expect(body).toMatchObject({
+      unattributed: false,
+      creatorAutoAdded: 'jane',
+      creatorDetected: { handle: 'jane', source: 'post-read' },
+      creator: { handle: 'jane' },
+      viewsCount: 9000,
+    });
+  });
+
+  it('does not look for a creator for a post that already has one', async () => {
+    mockDb.post.create.mockResolvedValue({ id: 'post-new', creator: { id: 'c1', handle: '@jane' } });
+    const res = await POST(
+      makeRequest('http://localhost/api/campaigns/camp-1/posts', {
+        method: 'POST',
+        body: JSON.stringify({ postUrl: 'https://www.tiktok.com/@jane/video/7300000000000000001', creatorId: 'c1' }),
+        headers: { 'Content-Type': 'application/json' },
+      }),
+      makeParams('camp-1'),
+    );
+    expect(res.status).toBe(201);
+    expect(detectPostCreator).not.toHaveBeenCalled();
   });
 
   it('reuses the holding row rather than making a second one', async () => {

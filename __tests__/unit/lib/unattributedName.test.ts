@@ -33,9 +33,9 @@ describe("unattributed holding row, recognised without the database", () => {
 
   it("says why, in the words the add dialog and the report use", () => {
     expect(UNKNOWN_CREATOR_LABEL).toBe("Creator unknown");
-    expect(unknownCreatorReason("INSTAGRAM")).toBe("Instagram won’t show us this post (private, trial reel or removed)");
-    expect(unknownCreatorReason("YOUTUBE")).toBe("YouTube won’t say who posted this");
-    expect(unknownCreatorReason(null)).toBe("The platform won’t say who posted this");
+    expect(unknownCreatorReason("INSTAGRAM")).toBe("Instagram isn’t showing who posted this yet");
+    expect(unknownCreatorReason("YOUTUBE")).toBe("YouTube isn’t saying who posted this yet");
+    expect(unknownCreatorReason(null)).toBe("The platform isn’t saying who posted this yet");
   });
 });
 
