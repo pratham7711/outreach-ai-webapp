@@ -1,4 +1,5 @@
 import { shortcodeFromUrl } from "@/lib/platforms/instagram";
+import { readInstagramPostPageElsewhere } from "@/lib/platforms/instagramPostPageElsewhere";
 
 /**
  * A post's own public page, read the way a link preview reads it.
@@ -33,6 +34,11 @@ import { shortcodeFromUrl } from "@/lib/platforms/instagram";
  * The public thumbnail address answers a public post with a redirect to the
  * clean cover (720x1280 and up on the same four), so that is the cover kept;
  * og:image is the fallback when it does not.
+ *
+ * "Not public" is per country, and this server sits in one. Before that
+ * verdict stands it is asked again from other regions
+ * (lib/platforms/instagramPostPageElsewhere); one of the six LKM posts was
+ * hidden from Singapore only.
  *
  * Views are on none of this. They stay with the official readers.
  */
@@ -171,15 +177,27 @@ async function fetchPage(shortcode: string, timeoutMs: number): Promise<string |
   }
 }
 
-function mediaCover(media: Response | null): string | null {
-  if (!media || media.status < 300 || media.status >= 400) return null;
-  return cdnUrl(media.headers.get("location"));
+function mediaCover(status: number | null, location: string | null): string | null {
+  if (status === null || status < 300 || status >= 400) return null;
+  return cdnUrl(location);
+}
+
+/* What one place was shown -- the page and the thumbnail address's answer --
+   as a verdict. A 404 alone is not enough: the page must be empty too. */
+function verdict(html: string, shortcode: string, mediaStatus: number | null, mediaLocation: string | null): InstagramPostPage {
+  const reading = parseInstagramPostPage(html, shortcode);
+  const cover = mediaCover(mediaStatus, mediaLocation);
+  if (reading) return { kind: "public", ...reading, thumbnailUrl: cover ?? reading.thumbnailUrl };
+  if (mediaStatus === 404) return { kind: "not-public" };
+  return { kind: "unreadable", thumbnailUrl: cover };
 }
 
 /**
  * Reads the post's public page and its public thumbnail address; never
  * throws. The address gives the clean cover for a public post, and tells "not
- * public" apart from a page that simply came back short.
+ * public" apart from a page that simply came back short. A post not public
+ * from here is asked about from other regions, and the first that sees it
+ * wins; not public is the answer only when none does.
  */
 export async function readInstagramPostPage(postUrl: string, timeoutMs = TIMEOUT_MS): Promise<InstagramPostPage> {
   const shortcode = shortcodeFromUrl(postUrl);
@@ -187,12 +205,17 @@ export async function readInstagramPostPage(postUrl: string, timeoutMs = TIMEOUT
 
   const html = await fetchPage(shortcode, timeoutMs);
   if (html === null) return { kind: "unreadable", thumbnailUrl: null };
-  const reading = parseInstagramPostPage(html, shortcode);
   const media = await get(`https://www.instagram.com/p/${shortcode}/media/?size=l`, timeoutMs, "manual");
-  if (reading) return { kind: "public", ...reading, thumbnailUrl: mediaCover(media) ?? reading.thumbnailUrl };
+  const here = verdict(html, shortcode, media?.status ?? null, media?.headers.get("location") ?? null);
+  if (here.kind !== "not-public") return here;
 
-  if (media?.status === 404) return { kind: "not-public" };
-  return { kind: "unreadable", thumbnailUrl: mediaCover(media) };
+  /* Regions that could not answer are left out, so a sandbox that will not
+     boot keeps the verdict made here rather than inventing a doubt. */
+  for (const there of await readInstagramPostPageElsewhere(shortcode)) {
+    const seen = verdict(there.html, shortcode, there.mediaStatus, there.mediaLocation);
+    if (seen.kind === "public") return seen;
+  }
+  return here;
 }
 
 /** The owner's handle, without the "@", or null when the page names nobody. */

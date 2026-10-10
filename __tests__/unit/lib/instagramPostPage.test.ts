@@ -5,11 +5,16 @@
  * exactly owner/kind/this-shortcode names nobody, and a count that is rounded,
  * hidden or absent is never stored.
  */
+jest.mock("@/lib/platforms/instagramPostPageElsewhere", () => ({ readInstagramPostPageElsewhere: jest.fn() }));
+
 import {
   parseInstagramPostPage,
   readInstagramPostPage,
   readInstagramPostPageOwner,
 } from "@/lib/platforms/instagramPostPage";
+import { readInstagramPostPageElsewhere } from "@/lib/platforms/instagramPostPageElsewhere";
+
+const elsewhere = readInstagramPostPageElsewhere as jest.MockedFunction<typeof readInstagramPostPageElsewhere>;
 
 const CODE = "DeKIkbgzlYq";
 const COVER = "https://scontent-bom1-1.cdninstagram.com/v/t51/cover.jpg?stp=dst-jpg&amp;oh=abc";
@@ -117,6 +122,8 @@ describe("readInstagramPostPage", () => {
   beforeEach(() => {
     fetchMock.mockReset();
     global.fetch = fetchMock as unknown as typeof fetch;
+    elsewhere.mockReset();
+    elsewhere.mockResolvedValue([]);
   });
   afterAll(() => {
     global.fetch = realFetch;
@@ -202,10 +209,88 @@ describe("readInstagramPostPage", () => {
   it("does not call out for a link with no shortcode", async () => {
     await expect(readInstagramPostPage("https://www.instagram.com/jane/")).resolves.toEqual({ kind: "unreadable", thumbnailUrl: null });
     expect(fetchMock).not.toHaveBeenCalled();
+    expect(elsewhere).not.toHaveBeenCalled();
+  });
+
+  /* Measured 2026-10-10: one LKM post was the shell plus a 404 from sin1, the
+     region every function runs in, and the full page from bom1 and iad1. */
+  describe("a post not public from here", () => {
+    const shellHere = () => fetchMock.mockReturnValueOnce(html(page(null))).mockReturnValueOnce(media(404));
+
+    it("is asked about from other regions -- and only then", async () => {
+      fetchMock.mockReturnValueOnce(html(page(`https://www.instagram.com/jane/reel/${CODE}/`))).mockReturnValueOnce(media(404));
+      await readInstagramPostPage(`https://www.instagram.com/p/${CODE}/`);
+      fetchMock.mockReturnValueOnce(html(page(null))).mockReturnValueOnce(media(302, "https://scontent.cdninstagram.com/t.jpg"));
+      await readInstagramPostPage(`https://www.instagram.com/p/${CODE}/`);
+      fetchMock.mockReturnValueOnce(html("", false));
+      await readInstagramPostPage(`https://www.instagram.com/p/${CODE}/`);
+      expect(elsewhere).not.toHaveBeenCalled();
+
+      shellHere();
+      await readInstagramPostPage(`https://www.instagram.com/reel/${CODE}/?igsh=abc`);
+      expect(elsewhere).toHaveBeenCalledTimes(1);
+      expect(elsewhere).toHaveBeenCalledWith(CODE);
+    });
+
+    it("is public, with its owner, counts and clean cover, when another region sees it", async () => {
+      shellHere();
+      elsewhere.mockResolvedValueOnce([
+        { region: "bom1", html: page(null), mediaStatus: 404, mediaLocation: null },
+        {
+          region: "iad1",
+          html: page(`https://www.instagram.com/jane/reel/${CODE}/`, { description: "116 likes, 0 comments - jane on October 6, 2026: hi" }),
+          mediaStatus: 302,
+          mediaLocation: "https://scontent-iad3-1.cdninstagram.com/clean.jpg",
+        },
+      ]);
+      await expect(readInstagramPostPage(`https://www.instagram.com/p/${CODE}/`)).resolves.toEqual({
+        kind: "public",
+        owner: "jane",
+        caption: "hi",
+        likesCount: 116,
+        commentsCount: 0,
+        thumbnailUrl: "https://scontent-iad3-1.cdninstagram.com/clean.jpg",
+      });
+    });
+
+    it("stays not public when every region that answered agrees, or when none could answer", async () => {
+      shellHere();
+      elsewhere.mockResolvedValueOnce([
+        { region: "bom1", html: page(null), mediaStatus: 404, mediaLocation: null },
+        { region: "iad1", html: page(null), mediaStatus: 404, mediaLocation: null },
+      ]);
+      await expect(readInstagramPostPage(`https://www.instagram.com/p/${CODE}/`)).resolves.toEqual({ kind: "not-public" });
+
+      shellHere();
+      elsewhere.mockResolvedValueOnce([]);
+      await expect(readInstagramPostPage(`https://www.instagram.com/p/${CODE}/`)).resolves.toEqual({ kind: "not-public" });
+    });
+
+    it("is not overturned by a region that names no post, or names another one", async () => {
+      shellHere();
+      elsewhere.mockResolvedValueOnce([
+        { region: "bom1", html: page(null), mediaStatus: 302, mediaLocation: "https://scontent.cdninstagram.com/t.jpg" },
+        { region: "iad1", html: page("https://www.instagram.com/jane/reel/SomeOtherCode/"), mediaStatus: 302, mediaLocation: "https://scontent.cdninstagram.com/t.jpg" },
+      ]);
+      await expect(readInstagramPostPage(`https://www.instagram.com/p/${CODE}/`)).resolves.toEqual({ kind: "not-public" });
+    });
+
+    it("keeps og:image when the other region's thumbnail address points off the CDN", async () => {
+      shellHere();
+      elsewhere.mockResolvedValueOnce([
+        { region: "bom1", html: page(`https://www.instagram.com/jane/reel/${CODE}/`), mediaStatus: 302, mediaLocation: "https://evil.example/t.jpg" },
+      ]);
+      await expect(readInstagramPostPage(`https://www.instagram.com/p/${CODE}/`)).resolves.toMatchObject({
+        kind: "public",
+        owner: "jane",
+        thumbnailUrl: expect.stringMatching(/^https:\/\/scontent-bom1-1\.cdninstagram\.com\//),
+      });
+    });
   });
 });
 
 describe("readInstagramPostPageOwner", () => {
+
   const realFetch = global.fetch;
   const fetchMock = jest.fn();
   beforeEach(() => {
