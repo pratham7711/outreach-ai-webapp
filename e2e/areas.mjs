@@ -181,6 +181,19 @@ export const AREAS = {
       "app/api/admin/migrate-ops-quota/",
     ],
   },
+  /* The Feedback button (every client and creator page) and the operator's
+     inbox at /platform/feedback, with their API, DDL route and helpers. */
+  feedback: {
+    specs: ["feedback.spec.ts"],
+    sources: [
+      "components/feedback/",
+      "lib/feedback/",
+      "app/api/feedback/",
+      "app/api/platform/feedback/",
+      "app/(dashboard)/platform/feedback/",
+      "app/api/admin/migrate-feedback/",
+    ],
+  },
   nav: {
     specs: ["navigation.spec.ts"],
     sources: ["components/layout/", "components/NewSidebar.tsx"],

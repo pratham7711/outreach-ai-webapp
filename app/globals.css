@@ -10921,3 +10921,102 @@ a.cc-platform-chip[data-problem]:hover {
 .cc-tracker-ops-table td { padding: 10px 12px; border-bottom: 1px solid var(--cc-border); white-space: nowrap; }
 .cc-tracker-ops-table tr:last-child td { border-bottom: none; }
 .cc-tracker-ops-log { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-direction: column; gap: 6px; font-size: var(--cc-t-13); color: var(--cc-text); }
+
+/* ── Feedback button (components/feedback/FeedbackButton) ──────────────────
+   Bottom-right on every client and creator page: above the page and the rail,
+   under scrims, drawers and dialogs, so an open menu or modal covers it. */
+.cc-feedback-fab {
+  position: fixed;
+  right: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  z-index: 50;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid var(--cc-border);
+  border-radius: var(--cc-r-pill);
+  background: var(--cc-card);
+  color: var(--cc-text);
+  font-size: var(--cc-t-13);
+  font-weight: var(--cc-fw-label);
+  line-height: 1.2;
+  box-shadow: var(--cc-popover-shadow);
+  cursor: pointer;
+}
+.cc-feedback-fab:hover { border-color: var(--cc-primary); color: var(--cc-primary); }
+.cc-feedback-fab:disabled { cursor: progress; opacity: 0.8; }
+/* The creator portal's phone tab bar is ~57px plus the safe area. */
+@media (max-width: 1023.98px) {
+  .cc-feedback-fab-raised { bottom: calc(72px + env(safe-area-inset-bottom)); }
+}
+@media print {
+  .cc-feedback-fab { display: none; }
+}
+.cc-feedback-panel { display: flex; flex-direction: column; gap: 10px; }
+.cc-feedback-shot { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.cc-feedback-shot img {
+  display: block;
+  width: 100%;
+  max-height: 240px;
+  object-fit: contain;
+  object-position: top;
+  border: 1px solid var(--cc-border);
+  border-radius: 8px;
+  background: var(--cc-bg);
+}
+.cc-feedback-shot figcaption,
+.cc-feedback-note { font-size: var(--cc-t-12); color: var(--cc-text-muted); margin: 0; }
+.cc-feedback-label { font-size: var(--cc-t-13); font-weight: var(--cc-fw-label); color: var(--cc-text); }
+.cc-feedback-label span { font-weight: normal; color: var(--cc-text-muted); }
+.cc-feedback-input {
+  width: 100%;
+  resize: vertical;
+  min-height: 88px;
+  padding: 10px 12px;
+  border: 1px solid var(--cc-border);
+  border-radius: 8px;
+  background: var(--cc-card);
+  color: var(--cc-text);
+  font: inherit;
+  font-size: var(--cc-t-14);
+}
+.cc-feedback-error { margin: 0; font-size: var(--cc-t-13); color: var(--cc-danger); }
+.cc-feedback-thanks { margin: 0; font-size: var(--cc-t-14); color: var(--cc-text); }
+/* The operator's inbox (/platform/feedback). */
+.cc-feedback-inbox-empty { margin: 24px 0; font-size: var(--cc-t-14); color: var(--cc-text-muted); }
+.cc-feedback-inbox-list { list-style: none; margin: 16px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.cc-feedback-inbox-item {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) auto;
+  gap: 16px;
+  padding: 16px;
+  background: var(--cc-card);
+  border: 1px solid var(--cc-border);
+  border-radius: 12px;
+}
+@media (max-width: 767.98px) {
+  .cc-feedback-inbox-item { grid-template-columns: minmax(0, 1fr); }
+}
+.cc-feedback-inbox-thumb img {
+  display: block;
+  width: 100%;
+  max-height: 160px;
+  object-fit: cover;
+  object-position: top;
+  border: 1px solid var(--cc-border);
+  border-radius: 8px;
+}
+.cc-feedback-inbox-thumb span { font-size: var(--cc-t-12); color: var(--cc-text-muted); }
+.cc-feedback-inbox-body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.cc-feedback-inbox-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: var(--cc-t-13); color: var(--cc-text-muted); }
+.cc-feedback-inbox-meta strong { color: var(--cc-text); font-weight: var(--cc-fw-strong); }
+.cc-feedback-inbox-message { margin: 0; font-size: var(--cc-t-14); color: var(--cc-text); white-space: pre-wrap; overflow-wrap: anywhere; }
+.cc-feedback-inbox-muted { color: var(--cc-text-muted); }
+.cc-feedback-inbox-page { font-size: var(--cc-t-13); color: var(--cc-primary); overflow-wrap: anywhere; }
+.cc-feedback-inbox-details { font-size: var(--cc-t-12); color: var(--cc-text-muted); }
+.cc-feedback-inbox-details summary { cursor: pointer; }
+.cc-feedback-inbox-details p,
+.cc-feedback-inbox-details ul { margin: 6px 0 0; padding: 0; list-style: none; }
+.cc-feedback-inbox-details h4 { margin: 8px 0 0; font-size: var(--cc-t-12); font-weight: var(--cc-fw-label); color: var(--cc-text); }
+.cc-feedback-inbox-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }

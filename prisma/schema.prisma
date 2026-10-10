@@ -2483,3 +2483,44 @@ model OpsMeterWeek {
 
   @@index([meter, weekStart])
 }
+
+// ─── Feedback ─────────────────────────────────────────────────────────────────
+
+/// What someone sent with the Feedback button: their message, a screenshot of
+/// the page as they saw it, and where and how they were looking at it. Read on
+/// /platform/feedback by the platform operator only. Reaches production through
+/// /api/admin/migrate-feedback (lib/feedback/feedbackSchemaDdl.ts).
+model Feedback {
+  id              String    @id @default(cuid())
+  createdAt       DateTime  @default(now())
+  /// Where the button was pressed: "dashboard", "portal", "share" or "list".
+  surface         String
+  /// The agency the page belongs to: the signed-in user's org, or the org of
+  /// the shared link. Null for a creator in the portal.
+  orgId           String?
+  userId          String?
+  /// The real person's email for a signed-in agency user, also while acting as
+  /// another org.
+  userEmail       String?
+  creatorUserId   String?
+  /// The share or list link a logged-out viewer sent it from.
+  linkToken       String?
+  /// Optional: the screenshot is the report, the words are extra.
+  message         String?
+  pageUrl         String
+  pageTitle       String?
+  screenshot      Bytes?
+  /// "image/jpeg" etc.
+  screenshotType  String?
+  /// Why there is no screenshot, when the browser could not capture one.
+  screenshotError String?
+  /// Browser, viewport, recent page errors and failed requests, and the build
+  /// that served the page.
+  context         Json?
+  resolvedAt      DateTime?
+  resolvedBy      String?
+
+  // The inbox lists newest first; per-org for when an agency asks what it sent.
+  @@index([createdAt])
+  @@index([orgId, createdAt])
+}

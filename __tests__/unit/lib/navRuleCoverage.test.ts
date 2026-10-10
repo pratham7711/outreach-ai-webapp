@@ -97,6 +97,7 @@ describe("every dashboard route is accounted for", () => {
     // — see PLATFORM_SECTION in NewSidebar.tsx, which skips the nav rules.
     "/platform": "operator-only, exempt from per-org entitlements",
     // The tracker reader's ops page (plan T7): same allowlist as /platform.
+    "/platform/feedback": "operator-only, exempt from per-org entitlements",
     "/platform/ops": "operator-only, exempt from per-org entitlements",
     "/platform/trackers": "operator-only, exempt from per-org entitlements",
     // A second way to create a campaign, linked from the /campaigns header.

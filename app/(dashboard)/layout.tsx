@@ -7,6 +7,7 @@ import { DashboardContent } from "@/components/layout/DashboardContent";
 import { ShellRoot } from "@/components/layout/ShellRoot";
 import { ConfirmProvider } from "@/components/ds";
 import { ThemedToaster } from "@/components/layout/ThemedToaster";
+import { FeedbackButton } from "@/components/feedback/FeedbackButton";
 import { NavigationProgress } from "@/components/layout/NavigationProgress";
 import { Suspense } from "react";
 import { auth } from "@/lib/auth";
@@ -131,6 +132,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </a>
 
           <ThemedToaster richColors position="bottom-right" />
+          <FeedbackButton surface="dashboard" />
           <Suspense fallback={null}>
             <NavigationProgress />
           </Suspense>

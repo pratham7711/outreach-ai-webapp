@@ -91,6 +91,9 @@ jobs:
       # empty state -- one of the contrast ratchet's recorded pairs -- off the
       # page.
       YOUTUBE_WATCH_PAGE_FALLBACK: 'off'
+      # e2e/feedback.spec.ts reads the operator inbox as the seeded admin, as
+      # .env.local allows locally.
+      PLATFORM_ADMIN_EMAILS: admin@demo.com
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { computeCampaignPerformance, redactForShare } from "@/lib/reports/campaignPerformance";
 import { parseShareVisibility } from "@/lib/reports/shareVisibility";
 import SharedPerformanceReport from "./SharedPerformanceReport";
+import { FeedbackButton } from "@/components/feedback/FeedbackButton";
 
 const SHARE_KIND = "campaign-performance";
 
@@ -113,19 +114,22 @@ export default async function SharedReportPage({
   );
 
   return (
-    <SharedPerformanceReport
-      token={token}
-      campaignTitle={link.campaign.title}
-      orgName={link.campaign.org?.name ?? null}
-      // Redacted here rather than in the component: props cross into the RSC
-      // payload, so a conditionally-rendered leaderboard still publishes every
-      // creator name to anyone who reads the HTML.
-      data={redactForShare(performance, visibility)}
-      campaignStatus={link.campaign.status}
-      visibility={visibility}
-      // Only reaches the client when the link is allowed to show it, so a
-      // hidden budget is absent from the payload rather than merely unrendered.
-      budget={visibility.showBudget ? link.campaign.budget : null}
-    />
+    <>
+      <SharedPerformanceReport
+        token={token}
+        campaignTitle={link.campaign.title}
+        orgName={link.campaign.org?.name ?? null}
+        // Redacted here rather than in the component: props cross into the RSC
+        // payload, so a conditionally-rendered leaderboard still publishes every
+        // creator name to anyone who reads the HTML.
+        data={redactForShare(performance, visibility)}
+        campaignStatus={link.campaign.status}
+        visibility={visibility}
+        // Only reaches the client when the link is allowed to show it, so a
+        // hidden budget is absent from the payload rather than merely unrendered.
+        budget={visibility.showBudget ? link.campaign.budget : null}
+      />
+      <FeedbackButton surface="share" linkToken={token} />
+    </>
   );
 }

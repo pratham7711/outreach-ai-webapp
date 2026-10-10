@@ -8,6 +8,7 @@ import { Home, Briefcase, Link2, BarChart3, UserRound, LogOut } from "lucide-rea
 import { BRAND } from "@/lib/brand";
 import { ConfirmProvider } from "@/components/ds";
 import { LegalLinks } from "@/components/LegalLinks";
+import { FeedbackButton } from "@/components/feedback/FeedbackButton";
 
 /**
  * The creator app's frame: five places, and nothing that talks to the creator.
@@ -212,6 +213,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       <div style={{ minHeight: "100vh", background: "var(--cc-bg)" }}>
         <ThemedToaster richColors position="top-center" />
         {!isAuthPage && <PortalNav />}
+        {!isAuthPage && <FeedbackButton surface="portal" raiseOnPhone />}
         {children}
         {/* The sign-in pages carry these under their own card. */}
         {!isAuthPage && (

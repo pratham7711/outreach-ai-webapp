@@ -11,7 +11,7 @@ import {
   LayoutDashboard, Megaphone, Calendar, Users, Users2, LineChart,
   List, CreditCard, Shield,
   ChevronDown, Settings, LogOut, Menu, X, Key, BarChart2, Activity, Music, Tags,
-  Globe
+  Globe, MessageSquareWarning
 } from "lucide-react";
 import { mediaUrl } from "@/lib/postMedia";
 import { useSidebar } from "@/components/providers/SidebarProvider";
@@ -91,7 +91,10 @@ export const NAV_SECTIONS = [
  */
 const PLATFORM_SECTION = {
   label: "Platform",
-  items: [{ href: "/platform", icon: Globe, label: "All Organizations" }],
+  items: [
+    { href: "/platform", icon: Globe, label: "All Organizations" },
+    { href: "/platform/feedback", icon: MessageSquareWarning, label: "Feedback" },
+  ],
 };
 
 /**
