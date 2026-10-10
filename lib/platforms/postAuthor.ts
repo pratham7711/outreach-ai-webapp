@@ -1,6 +1,7 @@
 import type { Platform } from "@/lib/generated/prisma/client";
 import { createLogger } from "@/lib/observability/logger";
 import { fetchInstagramEmbedPost } from "@/lib/platforms/instagramEmbed";
+import { readInstagramPostPageOwner } from "@/lib/platforms/instagramPostPage";
 
 /**
  * Who posted this, asked of the platform rather than of the operator.
@@ -28,8 +29,11 @@ import { fetchInstagramEmbedPost } from "@/lib/platforms/instagramEmbed";
  *              post may have been removed") and carries "contextJSON":null.
  *              The documented public endpoints are all still shut --
  *              graph.facebook.com/instagram_oembed answers `(#200) Provide
- *              valid app ID` with or without a fields list -- so the embed is
- *              the only source, and a deleted post is still a manual pick.
+ *              valid app ID` with or without a fields list. When the embed
+ *              names nobody, the post's own public page is asked next
+ *              (lib/platforms/instagramPostPage): an owner who switched
+ *              embedding off gets the same "removed" embed as a deleted post,
+ *              but their page still names them.
  *
  * Never throws and never blocks for long. A platform that will not answer
  * leaves the caller exactly where it was -- asking.
@@ -72,13 +76,14 @@ async function instagramAuthor(url: string): Promise<PostAuthor | null> {
   try {
     const post = await fetchInstagramEmbedPost(url, timeoutSignal(TIMEOUT_MS));
     const handle = post?.authorHandle?.trim().replace(/^@/, "");
-    return handle ? { handle, name: null } : null;
+    if (handle) return { handle, name: null };
   } catch (err) {
     log.debug("instagram embed author lookup failed", {
       error: err instanceof Error ? err.message : String(err),
     });
-    return null;
   }
+  const owner = await readInstagramPostPageOwner(url, TIMEOUT_MS);
+  return owner ? { handle: owner, name: null } : null;
 }
 
 async function youtubeAuthor(url: string): Promise<PostAuthor | null> {

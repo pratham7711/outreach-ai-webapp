@@ -2,8 +2,8 @@
  * @jest-environment node
  *
  * A post filed with no creator gets one without anybody being asked: from the
- * read that just ran, from another copy of the same post, or from the
- * campaign's own creators' media -- in that order.
+ * read that just ran, from another copy of the same post, from the post's own
+ * public page, or from the campaign's own creators' media -- in that order.
  */
 jest.mock("@/lib/db", () => ({
   db: {
@@ -17,6 +17,7 @@ jest.mock("@/lib/posts/addPostChecks", () => ({
   findExistingPosts: jest.fn(),
 }));
 jest.mock("@/lib/platforms/instagramBusinessDiscovery", () => ({ findInstagramPostOwner: jest.fn() }));
+jest.mock("@/lib/platforms/instagramPostPage", () => ({ readInstagramPostPageOwner: jest.fn() }));
 jest.mock("@/lib/platforms/instagramDiscoveryTokens", () => ({
   readWithDiscoveryToken: jest.fn(async (read: (c: unknown) => Promise<unknown>) => ({
     ok: true,
@@ -28,6 +29,7 @@ import { db } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
 import { ensureCreatorForHandle, findExistingPosts } from "@/lib/posts/addPostChecks";
 import { findInstagramPostOwner } from "@/lib/platforms/instagramBusinessDiscovery";
+import { readInstagramPostPageOwner } from "@/lib/platforms/instagramPostPage";
 import { InstagramRateLimitError } from "@/lib/platforms/instagram";
 import { detectPostCreator, MAX_OWNER_CANDIDATES } from "@/lib/posts/detectCreator";
 
@@ -35,6 +37,7 @@ const mockDb = db as any;
 const ensure = ensureCreatorForHandle as jest.Mock;
 const existing = findExistingPosts as jest.Mock;
 const owner = findInstagramPostOwner as jest.Mock;
+const postPage = readInstagramPostPageOwner as jest.Mock;
 
 const URL = "https://www.instagram.com/reel/ABC123/";
 const HOLDING = { name: "Unattributed Instagram posts", handle: "" };
@@ -52,6 +55,7 @@ beforeEach(() => {
   mockDb.activation.findMany.mockResolvedValue([]);
   existing.mockResolvedValue([]);
   owner.mockResolvedValue(null);
+  postPage.mockResolvedValue(null);
 });
 
 describe("detectPostCreator", () => {
@@ -136,6 +140,30 @@ describe("detectPostCreator", () => {
     expect(out).toMatchObject({ creatorId: "c-jane", handle: "jane", source: "same-post", created: false });
   });
 
+  it("files the post under the owner its public page names, before spending a Graph call", async () => {
+    postPage.mockResolvedValue("jane.doe");
+    ensure.mockResolvedValue({ creator: { id: "c-jane", name: "jane.doe", handle: "jane.doe" }, created: false });
+    mockDb.post.findMany.mockResolvedValue([creator("c-alice", "alice")]);
+
+    const out = await detectPostCreator({ id: "p1", postUrl: URL }, "org-1");
+
+    expect(postPage).toHaveBeenCalledWith(URL, expect.any(Number));
+    expect(ensure).toHaveBeenCalledWith("org-1", "jane.doe", "INSTAGRAM");
+    expect(owner).not.toHaveBeenCalled();
+    expect(out).toMatchObject({ creatorId: "c-jane", handle: "jane.doe", source: "post-page", created: false });
+    expect(logAudit).toHaveBeenCalledWith(expect.objectContaining({ metadata: expect.objectContaining({ source: "post-page" }) }));
+  });
+
+  it("does not fetch the page when the read or another copy already named the owner", async () => {
+    ensure.mockResolvedValue({ creator: { id: "c-jane", name: "jane", handle: "jane" }, created: false });
+    await detectPostCreator({ id: "p1", postUrl: URL, authorHandle: "jane" }, "org-1");
+    existing.mockResolvedValue([
+      { id: "p9", campaignId: "camp-9", creatorId: "c-jane", creatorName: "Jane", creatorHandle: "jane" },
+    ]);
+    await detectPostCreator({ id: "p1", postUrl: URL }, "org-1");
+    expect(postPage).not.toHaveBeenCalled();
+  });
+
   it("finds the post in a campaign creator's own media when nothing else names anybody", async () => {
     mockDb.post.findMany.mockResolvedValue([creator("c-alice", "alice"), creator("c-bob", "@bob")]);
     mockDb.activation.findMany.mockResolvedValue([creator("c-alice", "alice"), creator("c-cara", "cara")]);
@@ -179,6 +207,7 @@ describe("detectPostCreator", () => {
     });
     expect(await detectPostCreator({ id: "p1", postUrl: "https://youtu.be/abc" }, "org-1")).toBeNull();
     expect(owner).not.toHaveBeenCalled();
+    expect(postPage).not.toHaveBeenCalled();
   });
 
   it("never fails the read it rides on: an error is a miss", async () => {

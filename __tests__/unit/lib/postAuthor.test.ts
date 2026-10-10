@@ -1,8 +1,12 @@
 import { resolveAuthorFromPlatform } from "@/lib/platforms/postAuthor";
 import { fetchInstagramEmbedPost } from "@/lib/platforms/instagramEmbed";
 
+import { readInstagramPostPageOwner } from "@/lib/platforms/instagramPostPage";
+
 jest.mock("@/lib/platforms/instagramEmbed", () => ({ fetchInstagramEmbedPost: jest.fn() }));
+jest.mock("@/lib/platforms/instagramPostPage", () => ({ readInstagramPostPageOwner: jest.fn() }));
 const embed = fetchInstagramEmbedPost as jest.MockedFunction<typeof fetchInstagramEmbedPost>;
+const postPage = readInstagramPostPageOwner as jest.MockedFunction<typeof readInstagramPostPageOwner>;
 
 /**
  * The whole point of this module is removing a question from the operator, so
@@ -17,6 +21,7 @@ describe("resolveAuthorFromPlatform", () => {
   beforeEach(() => {
     fetchMock.mockReset();
     embed.mockReset();
+    postPage.mockReset().mockResolvedValue(null);
     global.fetch = fetchMock as unknown as typeof fetch;
   });
   afterAll(() => {
@@ -81,11 +86,35 @@ describe("resolveAuthorFromPlatform", () => {
     ).resolves.toEqual({ handle: "iamswarat", name: null });
   });
 
-  it("returns null for a deleted Instagram post, whose embed names nobody", async () => {
+  it("does not ask the post page when the embed already named the owner", async () => {
+    embed.mockResolvedValue({ authorHandle: "@iamswarat", likesHidden: false, copyrightBlocked: false } as never);
+    await resolveAuthorFromPlatform("https://www.instagram.com/reel/DcQFHR5pdYw/", "INSTAGRAM");
+    expect(postPage).not.toHaveBeenCalled();
+  });
+
+  it("asks the post page when the embed names nobody, as it does when embedding is off", async () => {
+    embed.mockResolvedValue(null);
+    postPage.mockResolvedValue("jane.doe");
+    await expect(
+      resolveAuthorFromPlatform("https://www.instagram.com/reel/DeKIkbgzlYq/", "INSTAGRAM")
+    ).resolves.toEqual({ handle: "jane.doe", name: null });
+    expect(postPage).toHaveBeenCalledWith("https://www.instagram.com/reel/DeKIkbgzlYq/", expect.any(Number));
+  });
+
+  it("asks the post page when the embed read throws", async () => {
+    embed.mockRejectedValue(new Error("socket hang up"));
+    postPage.mockResolvedValue("jane.doe");
+    await expect(
+      resolveAuthorFromPlatform("https://www.instagram.com/reel/DeKIkbgzlYq/", "INSTAGRAM")
+    ).resolves.toEqual({ handle: "jane.doe", name: null });
+  });
+
+  it("returns null for a deleted Instagram post, whose embed and page both name nobody", async () => {
     embed.mockResolvedValue(null);
     await expect(
       resolveAuthorFromPlatform("https://www.instagram.com/reel/DbBr2C5TAxu/", "INSTAGRAM")
     ).resolves.toBeNull();
+    expect(postPage).toHaveBeenCalledTimes(1);
   });
 
   it("does not call out for a platform that cannot answer", async () => {
@@ -93,5 +122,6 @@ describe("resolveAuthorFromPlatform", () => {
     await expect(resolveAuthorFromPlatform("https://x.com/a/status/1", "TWITTER")).resolves.toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
     expect(embed).not.toHaveBeenCalled();
+    expect(postPage).not.toHaveBeenCalled();
   });
 });

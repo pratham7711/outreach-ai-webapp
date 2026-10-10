@@ -7,6 +7,7 @@ import { isUnattributedCreator, UNATTRIBUTED_CREATOR_WHERE } from "@/lib/posts/u
 import { INSTAGRAM_HANDLE_SELECT, instagramLookupHandle } from "@/lib/platforms/instagramToken";
 import { findInstagramPostOwner } from "@/lib/platforms/instagramBusinessDiscovery";
 import { readWithDiscoveryToken } from "@/lib/platforms/instagramDiscoveryTokens";
+import { readInstagramPostPageOwner } from "@/lib/platforms/instagramPostPage";
 
 /**
  * Finding whose post it is, for a post filed with no creator.
@@ -16,7 +17,7 @@ import { readWithDiscoveryToken } from "@/lib/platforms/instagramDiscoveryTokens
  * (lib/posts/unattributedCreator) so it is tracked at all. Nobody is ever asked
  * to fill the creator in: the agency adds links, and the app works out whose
  * they are. That is the rule, and this is where it is kept -- every read of
- * such a post tries again, three ways, cheapest first:
+ * such a post tries again, four ways, cheapest first:
  *
  *   1. post-read     The read that just ran named the owner. Instagram's embed
  *                    carries the username beside the counters, and a post it
@@ -26,7 +27,12 @@ import { readWithDiscoveryToken } from "@/lib/platforms/instagramDiscoveryTokens
  *   2. same-post     Another copy of the same post in this org already has a
  *                    creator. The same reel is routinely added to two
  *                    campaigns.
- *   3. creator-media The post is in one of the campaign's own creators' newest
+ *   3. post-page     The post's public Instagram page names its owner even when
+ *                    the owner has switched embedding off, which the embed
+ *                    reports exactly like a deleted post (see
+ *                    lib/platforms/instagramPostPage). One plain page fetch, no
+ *                    Graph quota.
+ *   4. creator-media The post is in one of the campaign's own creators' newest
  *                    Instagram media. Business Discovery lists a professional
  *                    account's posts whether or not the embed will show them.
  *
@@ -36,7 +42,7 @@ import { readWithDiscoveryToken } from "@/lib/platforms/instagramDiscoveryTokens
  * doing. Not found, nothing changes and the next read asks again.
  */
 
-export type CreatorDetectionSource = "post-read" | "same-post" | "creator-media";
+export type CreatorDetectionSource = "post-read" | "same-post" | "post-page" | "creator-media";
 
 export type CreatorDetection = {
   creatorId: string;
@@ -121,6 +127,12 @@ async function detect(post: DetectInput, orgId: string): Promise<CreatorDetectio
   }
 
   if (platform === "INSTAGRAM") {
+    const pageOwner = await readInstagramPostPageOwner(post.postUrl, Math.min(post.timeoutMs ?? 6000, 6000));
+    if (pageOwner) {
+      const { creator, created } = await ensureCreatorForHandle(orgId, pageOwner, platform);
+      return file(row, orgId, post.postUrl, { creatorId: creator.id, handle: bare(creator.handle) || pageOwner, created }, "post-page");
+    }
+
     const owner = await findOwnerInCampaignMedia(orgId, row.campaignId, post.postUrl, {
       stopAtPercent: post.stopAtPercent,
       timeoutMs: post.timeoutMs,
