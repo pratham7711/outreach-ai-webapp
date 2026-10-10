@@ -92,11 +92,13 @@ describe("exit lane pool", () => {
     for (const e of log) byLane.set(e.id, [...(byLane.get(e.id) ?? []), e.at]);
     expect([...byLane.keys()].sort()).toEqual(["lane0#1", "lane1#1"]);
     /* The gate schedules slots, so one late timer makes the next gap look
-       short; the pace is the schedule, measured end to end per lane. */
+       short; the pace is the schedule. So each read is held to its slot --
+       never before the lane's first read plus that many gaps -- rather than to
+       the gap since the read before it, which a loaded runner shortens (7ms
+       against 18 on CI, 2026-10-10). */
     for (const times of byLane.values()) {
       expect(times.length).toBe(150);
-      expect(times[times.length - 1] - times[0]).toBeGreaterThanOrEqual((times.length - 1) * FAST.minGapMs - 10);
-      for (let i = 1; i < times.length; i++) expect(times[i] - times[i - 1]).toBeGreaterThanOrEqual(FAST.minGapMs - 8);
+      for (let i = 1; i < times.length; i++) expect(times[i] - times[0]).toBeGreaterThanOrEqual(i * FAST.minGapMs - 10);
     }
     const stats = pool.stats();
     expect(stats.reduce((n, s) => n + s.proper, 0)).toBe(300);
