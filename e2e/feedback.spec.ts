@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { waitForMain } from './helpers';
 
 /**
  * The Feedback button, from both ends: the person who presses it (an agency
@@ -70,7 +71,10 @@ test.describe('Feedback', () => {
     await expectStoredJpeg(page, row.id);
 
     await page.goto('/platform/feedback');
-    const item = page.getByTestId('feedback-row').filter({ hasText: marker });
+    await waitForMain(page);
+    // Briefly duplicated while the outgoing and incoming trees overlap during
+    // the page-enter transition, which trips strict mode (as in audit-log.spec).
+    const item = page.getByTestId('feedback-row').filter({ hasText: marker }).first();
     await expect(item).toBeVisible({ timeout: 20000 });
     await expect(item.getByText('Agency app')).toBeVisible();
     const thumb = item.getByRole('img', { name: 'Screenshot sent with this feedback' });
