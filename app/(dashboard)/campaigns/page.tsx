@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { UNATTRIBUTED_CREATOR_WHERE } from "@/lib/posts/unattributedName";
 import CampaignsClient from "./CampaignsClient";
 import { CAMPAIGNS_PAGE_SIZE } from "@/lib/listPageSize";
 import { campaignWhere, countCampaignFilters, readCampaignFilters, campaignOrderBy, CAMPAIGNS_DEFAULT_STATUS } from "@/lib/listFilters";
@@ -73,7 +74,7 @@ export default async function CampaignsPage({
     db.campaign.count({ where }),
     // One grouped query replaces counting each status tab off the full array.
     db.campaign.groupBy({ by: ["status"], where: tabBase, _count: true }),
-    db.creator.count({ where: { orgId, deletedAt: null } }),
+    db.creator.count({ where: { orgId, deletedAt: null, NOT: UNATTRIBUTED_CREATOR_WHERE } }),
     // The org's own currency, so the wizard does not open on USD for an agency
     // that bills in something else. /campaigns/self-serve already reads this.
     db.organization.findUnique({ where: { id: orgId }, select: { currency: true } }),
@@ -140,7 +141,7 @@ export default async function CampaignsPage({
   // thousands of posts, and only covers the page being shown.
   const visibleIds = campaigns.map((c) => c.id);
   const [postPairs, activationPairs] = await Promise.all([
-    db.post.groupBy({ by: ["campaignId", "creatorId"], where: { campaignId: { in: visibleIds } } }),
+    db.post.groupBy({ by: ["campaignId", "creatorId"], where: { campaignId: { in: visibleIds }, creator: { NOT: UNATTRIBUTED_CREATOR_WHERE } } }),
     db.activation.groupBy({ by: ["campaignId", "creatorId"], where: { campaignId: { in: visibleIds } } }),
   ]);
   const creatorsByCampaign = new Map<string, Set<string>>();

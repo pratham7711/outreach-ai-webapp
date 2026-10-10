@@ -1,11 +1,16 @@
+/**
+ * @jest-environment node
+ */
 import {
   UNATTRIBUTED_CREATOR_NAMES,
+  UNATTRIBUTED_CREATOR_WHERE,
   UNKNOWN_CREATOR_LABEL,
   isUnattributedCreator,
   unattributedCreatorName,
   unknownCreatorReason,
 } from "@/lib/posts/unattributedName";
 import { PLATFORM_VALUES } from "@/lib/platforms/constants";
+import { creatorWhere, readCreatorFilters } from "@/lib/listFilters";
 
 describe("unattributed holding row, recognised without the database", () => {
   /* The add route files any detected platform under a holding row, so a
@@ -31,5 +36,21 @@ describe("unattributed holding row, recognised without the database", () => {
     expect(unknownCreatorReason("INSTAGRAM")).toBe("Instagram won’t show us this post (private, trial reel or removed)");
     expect(unknownCreatorReason("YOUTUBE")).toBe("YouTube won’t say who posted this");
     expect(unknownCreatorReason(null)).toBe("The platform won’t say who posted this");
+  });
+});
+
+describe("the roster leaves the holding row out", () => {
+  /* It showed on /creators as a creator called "Unattributed Instagram posts",
+     and counted in the roster's total, its platform tabs and "select all". */
+  it("excludes it from every roster query, filtered or not", () => {
+    for (const sp of [{}, { q: "unattributed" }, { platform: "INSTAGRAM" }, { hasPosts: "1" }]) {
+      for (const roster of [true, false]) {
+        expect(creatorWhere("org-1", readCreatorFilters(sp), { roster }).AND).toContainEqual({ NOT: UNATTRIBUTED_CREATOR_WHERE });
+      }
+    }
+  });
+
+  it("matches on the empty handle and every reserved name", () => {
+    expect(UNATTRIBUTED_CREATOR_WHERE).toEqual({ handle: "", name: { in: [...UNATTRIBUTED_CREATOR_NAMES] } });
   });
 });

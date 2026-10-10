@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { UNATTRIBUTED_CREATOR_WHERE } from "@/lib/posts/unattributedName";
 import { getOrgEntitlements } from "@/lib/entitlements";
 import DashboardClient from "./DashboardClient";
 import { NOTIFIABLE_ACTIONS, NOTIFICATION_LOOKBACK_DAYS } from "@/lib/notificationFeed";
@@ -14,7 +15,7 @@ export default async function DashboardPage() {
 
   const [campaignCount, creatorCount, recentCampaigns, recentEvents, entitlements] = await Promise.all([
     db.campaign.count({ where: { orgId, deletedAt: null } }),
-    db.creator.count({ where: { orgId, deletedAt: null } }),
+    db.creator.count({ where: { orgId, deletedAt: null, NOT: UNATTRIBUTED_CREATOR_WHERE } }),
     db.campaign.findMany({
       where: { orgId, deletedAt: null },
       include: { client: { select: { name: true } } },

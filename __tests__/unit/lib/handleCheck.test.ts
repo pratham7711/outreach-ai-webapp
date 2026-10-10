@@ -65,7 +65,7 @@ describe("the Account not found filter", () => {
   it("matches creators holding a flagged account, on the roster tables only", () => {
     const f = readCreatorFilters({ handleIssues: "1" });
     expect(creatorWhere("org-1", f, { roster: true }).AND).toContainEqual({ profileLinks: { some: HANDLE_PROBLEM_WHERE } });
-    expect(creatorWhere("org-1", f, { roster: false }).AND).toBeUndefined();
+    expect(creatorWhere("org-1", f, { roster: false }).AND).not.toContainEqual({ profileLinks: { some: HANDLE_PROBLEM_WHERE } });
     expect(creatorWhere("org-1", f, { roster: true }).orgId).toBe("org-1");
   });
 });

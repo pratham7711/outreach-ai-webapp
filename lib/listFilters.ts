@@ -2,6 +2,7 @@ import { z } from "zod";
 import { csvParam, firstParam, UNFILED, type CampaignSort, type CreatorSort } from "@/lib/listParams";
 import { Prisma, type CampaignStatus, type CampaignType, type Platform } from "@/lib/generated/prisma/client";
 import { HANDLE_PROBLEM_WHERE } from "@/lib/creators/handleCheck";
+import { UNATTRIBUTED_CREATOR_WHERE } from "@/lib/posts/unattributedName";
 
 /**
  * Filters for the server-paginated list pages, defined once and read from the
@@ -314,7 +315,9 @@ export function readCreatorFilters(sp: Record<string, string | string[] | undefi
  * lib/creators/rosterTables.ts.
  */
 export function creatorWhere(orgId: string, f: CreatorFilters, { roster = false }: { roster?: boolean } = {}): Prisma.CreatorWhereInput {
-  const and: Prisma.CreatorWhereInput[] = [];
+  // The holding row for posts nobody could attribute is a filing label, not a
+  // creator: it never appears on the roster, in its counts or in a bulk action.
+  const and: Prisma.CreatorWhereInput[] = [{ NOT: UNATTRIBUTED_CREATOR_WHERE }];
   if (countRange(f.minAvgViews, f.maxAvgViews)) and.push({ averageViews: countRange(f.minAvgViews, f.maxAvgViews) });
   if (countRange(f.minRate, f.maxRate)) and.push({ rate: countRange(f.minRate, f.maxRate) });
   // The platform tab and the drawer's "Has an account on" are one rule. The tab

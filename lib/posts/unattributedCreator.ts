@@ -1,8 +1,8 @@
 import { db } from "@/lib/db";
-import type { Platform, Prisma } from "@/lib/generated/prisma/client";
-import { UNATTRIBUTED_CREATOR_NAMES, isUnattributedCreator, unattributedCreatorName } from "@/lib/posts/unattributedName";
+import type { Platform } from "@/lib/generated/prisma/client";
+import { UNATTRIBUTED_CREATOR_NAMES, UNATTRIBUTED_CREATOR_WHERE, isUnattributedCreator, unattributedCreatorName } from "@/lib/posts/unattributedName";
 
-export { UNATTRIBUTED_CREATOR_NAMES, isUnattributedCreator, unattributedCreatorName };
+export { UNATTRIBUTED_CREATOR_NAMES, UNATTRIBUTED_CREATOR_WHERE, isUnattributedCreator, unattributedCreatorName };
 
 /**
  * Where a post goes when nobody can say who posted it.
@@ -37,12 +37,6 @@ export { UNATTRIBUTED_CREATOR_NAMES, isUnattributedCreator, unattributedCreatorN
 
 const NOTE =
   "Holds posts added without a known creator: the link named nobody and the platform would not say who posted them. Not a real account, and never tracked.";
-
-/** Matches the holding rows; wrap in NOT to leave them out of a query. */
-export const UNATTRIBUTED_CREATOR_WHERE = {
-  handle: "",
-  name: { in: [...UNATTRIBUTED_CREATOR_NAMES] },
-} satisfies Prisma.CreatorWhereInput;
 
 /**
  * The org's holding row for this platform, created on first use.

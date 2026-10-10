@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { UNATTRIBUTED_CREATOR_WHERE } from "@/lib/posts/unattributedName";
 import { deriveAverageViews, deriveCampaignCounts } from "@/lib/creatorMetrics";
 import { auth } from "@/lib/auth";
 import { getOrgEntitlements, hasOrgFeature } from "@/lib/entitlements";
@@ -51,7 +52,7 @@ export async function GET(req: NextRequest) {
   } = parsed.data;
   const niches = parsed.data.niches.split(",").filter(Boolean);
 
-  const where: any = { orgId, deletedAt: null };
+  const where: any = { orgId, deletedAt: null, NOT: UNATTRIBUTED_CREATOR_WHERE };
 
   if (search) {
     where.OR = [

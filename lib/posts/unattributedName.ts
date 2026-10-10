@@ -1,5 +1,6 @@
 import { platformLabel } from "@/lib/format";
 import { PLATFORM_VALUES } from "@/lib/platforms/constants";
+import type { Prisma } from "@/lib/generated/prisma/client";
 
 /**
  * Recognising the holding row a post goes under when nobody can say who posted
@@ -23,6 +24,12 @@ export function unattributedCreatorName(platform: string): string {
 
 /** Every reserved name, for filters that cannot know the platform in advance. */
 export const UNATTRIBUTED_CREATOR_NAMES: readonly string[] = PLATFORM_VALUES.map(unattributedCreatorName);
+
+/** Matches the holding rows; wrap in NOT to leave them out of a query. */
+export const UNATTRIBUTED_CREATOR_WHERE = {
+  handle: "",
+  name: { in: [...UNATTRIBUTED_CREATOR_NAMES] },
+} satisfies Prisma.CreatorWhereInput;
 
 export function isUnattributedCreator(creator: { handle: string | null; name: string } | null | undefined): boolean {
   return Boolean(creator) && (creator!.handle ?? "") === "" && UNATTRIBUTED_CREATOR_NAMES.includes(creator!.name);
