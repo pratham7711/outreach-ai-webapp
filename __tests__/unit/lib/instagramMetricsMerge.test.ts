@@ -34,6 +34,9 @@ jest.mock("@/lib/platforms/instagramBusinessDiscovery", () => ({
 jest.mock("@/lib/platforms/instagramEmbed", () => ({
   fetchInstagramEmbedPost: jest.fn(),
 }));
+jest.mock("@/lib/platforms/instagramPostPage", () => ({
+  readInstagramPostPage: jest.fn(),
+}));
 
 import { fetchInstagramMetrics, fetchPostMetrics } from "@/lib/platforms/fetchPostMetrics";
 import { fetchInstagramMetricsGraph } from "@/lib/platforms/instagram";
@@ -42,12 +45,14 @@ import {
   fetchInstagramPublicPostMetrics,
 } from "@/lib/platforms/instagramBusinessDiscovery";
 import { fetchInstagramEmbedPost } from "@/lib/platforms/instagramEmbed";
+import { readInstagramPostPage } from "@/lib/platforms/instagramPostPage";
 import { InstagramAuthError, InstagramNoSuchAccountError } from "@/lib/platforms/instagram";
 
 const graph = fetchInstagramMetricsGraph as jest.Mock;
 const bizToken = businessDiscoveryToken as jest.Mock;
 const bizPost = fetchInstagramPublicPostMetrics as jest.Mock;
 const embed = fetchInstagramEmbedPost as jest.Mock;
+const postPage = readInstagramPostPage as jest.Mock;
 
 const URL = "https://www.instagram.com/reel/DcQFHR5pdYw/";
 
@@ -60,6 +65,7 @@ describe("fetchInstagramMetrics — sources are merged, not raced", () => {
     bizToken.mockReturnValue(undefined);
     bizPost.mockResolvedValue(null);
     embed.mockResolvedValue(null);
+    postPage.mockResolvedValue({ kind: "unreadable", thumbnailUrl: null });
     // The metadata-only endpoint at the end of the chain must never be the
     // reason a test passes.
     global.fetch = jest.fn(async () => ({ ok: false, status: 500 })) as any;
@@ -520,5 +526,87 @@ describe("fetchInstagramMetrics — a post the account does not list", () => {
        either: that reason counts toward the post-reads breaker, and Meta's
        hourly limit is a window, not the source failing. */
     expect(m.fetchReason).toBe("backing-off");
+  });
+});
+
+/* The page is our own reader, asked last: it is what answers while Meta's
+   hourly allowance is spent (appTimePct 112 on 2026-10-10) and for a post
+   whose owner switched embedding off. */
+describe("fetchInstagramMetrics — the post's public page", () => {
+  const realFetch = global.fetch;
+  const { InstagramRateLimitError } = jest.requireActual("@/lib/platforms/instagram");
+  const PAGE = {
+    kind: "public",
+    owner: "jane.doe",
+    thumbnailUrl: "https://scontent.cdninstagram.com/cover.jpg",
+    caption: "from the page",
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    graph.mockResolvedValue(null);
+    bizToken.mockReturnValue("biz-token");
+    bizPost.mockRejectedValue(new InstagramRateLimitError(4));
+    embed.mockResolvedValue(null);
+    postPage.mockResolvedValue({ kind: "unreadable", thumbnailUrl: null });
+    global.fetch = jest.fn(async () => ({ ok: false, status: 500 })) as unknown as typeof fetch;
+  });
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  it("fills the owner, the cover and printed counts while Meta is throttled", async () => {
+    postPage.mockResolvedValue({ ...PAGE, likesCount: 116, commentsCount: 0 });
+    const out = await fetchInstagramMetrics(URL, undefined, "jane.doe");
+    expect(out).toMatchObject({
+      thumbnailUrl: PAGE.thumbnailUrl,
+      likesCount: 116,
+      commentsCount: 0,
+      authorHandle: "jane.doe",
+    });
+    expect(out.viewsCount).toBeUndefined();
+    expect(out.fetchReason).toBeUndefined();
+  });
+
+  it("keeps the cover and the owner when the page prints no counts, and says why there are none", async () => {
+    postPage.mockResolvedValue(PAGE);
+    const out = await fetchInstagramMetrics(URL, undefined, undefined);
+    expect(out.thumbnailUrl).toBe(PAGE.thumbnailUrl);
+    expect(out.authorHandle).toBe("jane.doe");
+    expect(out.likesCount).toBeUndefined();
+    expect(out.fetchReason).toBe("author-unknown");
+  });
+
+  it("never overwrites an official figure, only fills what it left", async () => {
+    bizPost.mockResolvedValue({ thumbnailUrl: null, caption: null, viewsCount: 9000, likesCount: 200, commentsCount: 4 });
+    postPage.mockResolvedValue({ ...PAGE, likesCount: 116, commentsCount: 0 });
+    const out = await fetchInstagramMetrics(URL, undefined, "jane.doe");
+    expect(out).toMatchObject({ viewsCount: 9000, likesCount: 200, commentsCount: 4, thumbnailUrl: PAGE.thumbnailUrl });
+  });
+
+  it("is not asked once nothing is missing", async () => {
+    bizPost.mockResolvedValue({ thumbnailUrl: "https://cdn/official.jpg", caption: "c", viewsCount: 1, likesCount: 2, commentsCount: 3 });
+    await fetchInstagramMetrics(URL, undefined, "jane.doe");
+    expect(postPage).not.toHaveBeenCalled();
+  });
+
+  it("files a post the public cannot see as not-public -- never post-deleted, which dead-letters it for good", async () => {
+    postPage.mockResolvedValue({ kind: "not-public" });
+    const out = await fetchInstagramMetrics(URL, undefined, undefined);
+    expect(out.fetchReason).toBe("not-public");
+  });
+
+  it("still gives way to a rejected credential, which is ours to fix", async () => {
+    bizPost.mockRejectedValue(new InstagramAuthError(400, 190, "expired"));
+    postPage.mockResolvedValue({ kind: "not-public" });
+    const out = await fetchInstagramMetrics(URL, undefined, "jane.doe");
+    expect(out.fetchReason).toBe("credentials-rejected");
+  });
+
+  it("keeps a cover from the thumbnail address when the page itself named nothing", async () => {
+    postPage.mockResolvedValue({ kind: "unreadable", thumbnailUrl: "https://scontent.cdninstagram.com/t.jpg" });
+    const out = await fetchInstagramMetrics(URL, undefined, "jane.doe");
+    expect(out.thumbnailUrl).toBe("https://scontent.cdninstagram.com/t.jpg");
+    expect(out.fetchReason).toBe("backing-off");
   });
 });

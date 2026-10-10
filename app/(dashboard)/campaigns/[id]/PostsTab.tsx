@@ -48,6 +48,7 @@ import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import CreatorName from "@/components/creators/CreatorName";
 import { creatorNameText } from "@/lib/creators/creatorName";
 import { UNKNOWN_CREATOR_LABEL, isUnattributedCreator, unknownCreatorReason } from "@/lib/posts/unattributedName";
+import { isPostNotPublic } from "@/lib/postRemoval";
 import UnknownCreator from "@/components/posts/UnknownCreator";
 import { SHOW_MONEY } from "@/lib/moneyUi";
 
@@ -2124,7 +2125,7 @@ export default function PostsTab({
                         detail page — tracking and bot signals — is still reached
                         from the Performance tab's post table. */}
                     {isUnattributedCreator(post.creator) ? (
-                      <UnknownCreator platform={post.platform} />
+                      <UnknownCreator platform={post.platform} notPublic={isPostNotPublic(post)} />
                     ) : (
                       <a href={post.postUrl} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", minWidth: 0 }}>
                         <CreatorAvatar id={post.creator.id} name={post.creator.name} size="sm" />

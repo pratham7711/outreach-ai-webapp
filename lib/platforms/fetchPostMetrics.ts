@@ -16,6 +16,7 @@ import {
   type BatchStatItem,
 } from "./youtubeBatchStats";
 import { fetchInstagramEmbedPost } from "./instagramEmbed";
+import { readInstagramPostPage } from "./instagramPostPage";
 import { fetchTikTokVideosByIds } from "./tiktokDisplay";
 import { isRounded, TIKTOK_DISPLAY } from "./precision";
 import { fetchTwitchMetrics } from "./twitch";
@@ -241,6 +242,15 @@ export type FetchReason =
    *  not-on-account until 2026-10-04, which told the agency it was probably
    *  deleted. Uncharged and an answer, like that one. */
   | "not-in-newest-media"
+  /** Instagram: the post's public page shows no post and its public thumbnail
+   *  address answers 404 (lib/platforms/instagramPostPage) -- two routes
+   *  agreeing that it is not public from where we ask. Deleted, on a private
+   *  account, or limited by region (on 2026-10-10 one LKM post read from India
+   *  and not from production); Instagram does not say which. Not
+   *  "post-deleted": that one dead-letters on the first answer and nothing
+   *  switches it back on, while the other two can change. Uncharged and an
+   *  answer, re-read once a day. */
+  | "not-public"
   /** The reading carried numbers that cannot all be true -- more likes,
    *  comments, shares or saves than views -- so none of it was kept and the
    *  post keeps its last consistent figures. Not charged: the post is fine and
@@ -318,6 +328,7 @@ const SOURCE_WENT_QUIET: Record<FetchReason, boolean> = {
   /* Nobody to ask: no account is known to look the post up under. */
   "author-unknown": false,
   "not-in-newest-media": false,
+  "not-public": false,
   /* The round trip carried numbers; we refused them. */
   "counts-inconsistent": false,
 };
@@ -687,8 +698,9 @@ export const UNCHARGEABLE_REASONS: ReadonlySet<FetchReason> = new Set<FetchReaso
   "not-a-professional-account",
   "not-on-account",
   "not-in-newest-media",
-  /* The creator can undo it, and a dead letter is forever. */
+  /* The creator can undo these, and a dead letter is forever. */
   "post-hidden",
+  "not-public",
   /* Readable the moment the Page connects. */
   "page-not-connected",
   /* Readable the moment its creator is found, which every read tries. */
@@ -1384,6 +1396,7 @@ async function fetchTikTokOEmbed(url: string): Promise<Partial<PostMetrics>> {
  *   1. Graph, with the creator's own token -- their own post, their own numbers
  *   2. Business Discovery, with our business token -- official, but partial
  *   3. The captioned embed -- unofficial, credential-free, fills what is left
+ *   4. The post's public page -- owner, cover, and likes/comments when printed
  *
  * A field written by a higher source is never overwritten by a lower one, so
  * adding the scrape cannot degrade an official number. And a source failing
@@ -1607,6 +1620,29 @@ export async function fetchInstagramMetrics(
     }
   }
 
+  /* Our own read of the post's public page, for whatever is still missing.
+     It is the one source that answers while Meta's hourly allowance is spent
+     and for a post whose owner switched embedding off: the owner, the cover,
+     and likes and comments where the page prints them (never views). Lowest
+     rank, so it only fills holes. See lib/platforms/instagramPostPage. */
+  let notPublic = false;
+  if (!counted() || !merged.thumbnailUrl || (!handle && !merged.authorHandle)) {
+    const page = await readInstagramPostPage(url);
+    if (page.kind === "public") {
+      fill("post-page", {
+        thumbnailUrl: page.thumbnailUrl,
+        caption: page.caption,
+        ...(typeof page.likesCount === "number" ? { likesCount: page.likesCount } : {}),
+        ...(typeof page.commentsCount === "number" ? { commentsCount: page.commentsCount } : {}),
+        ...(page.owner ? { authorHandle: page.owner } : {}),
+      });
+    } else if (page.kind === "not-public") {
+      notPublic = true;
+    } else {
+      fill("post-page", { thumbnailUrl: page.thumbnailUrl });
+    }
+  }
+
   if (counted()) {
     log.info("instagram metrics resolved", {
       sources,
@@ -1638,7 +1674,12 @@ export async function fetchInstagramMetrics(
      to check tokens that were fine. Only then is a refusal the platform's. */
   const reason: FetchReason = authFailed
     ? "credentials-rejected"
-    : timedOut
+    : /* Instagram stating, on two public routes, that nobody outside can see
+         the post -- more specific than anything below, all of which are about
+         the account or the moment. */
+      notPublic
+      ? "not-public"
+      : timedOut
       ? "reader-timeout"
       : noSuchAccount
         ? "not-a-professional-account"

@@ -55,3 +55,13 @@ export function unknownCreatorReason(platform: string | null | undefined): strin
 
 /** What happens next, said wherever the reason is. */
 export const UNKNOWN_CREATOR_NEXT = "We check again automatically on every refresh";
+
+/**
+ * The reason once the platform has said the public cannot see the post at all
+ * (lib/postRemoval). Nobody can be named then, and "yet" would promise a
+ * creator that no refresh will find while the post stays that way.
+ */
+export function notPublicCreatorReason(platform: string | null | undefined): string {
+  const label = platformLabel(platform) || "The platform";
+  return `${label} won’t show this post publicly: it was deleted, the account is private, or it is limited by region`;
+}

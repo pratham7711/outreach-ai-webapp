@@ -20,6 +20,8 @@
  * post-deleted for it. What it does get is its own, weaker pill (postNotice
  * below) when Business Discovery knows no Business or Creator account by the
  * post's handle -- a statement about the account, which is all we measured.
+ * Nor does a post Instagram will not show publicly (NOT_PUBLIC_REASON below):
+ * deleted, private or region-limited, and only the first is final.
  */
 
 import { lastFetchNote, type LastFetchNote } from "@/lib/metricDisplay";
@@ -100,6 +102,25 @@ export function noPublicNumbersLabel(): string {
   return "No Instagram numbers — the post or account may be gone";
 }
 
+/**
+ * The FetchReason for an Instagram post whose public page shows no post while
+ * its public thumbnail address answers 404 -- two routes agreeing that nobody
+ * outside can see it (lib/platforms/instagramPostPage). A deleted post, a
+ * private account and a post Instagram limits by region all look identical
+ * from our servers, so the label names all three.
+ */
+export const NOT_PUBLIC_REASON = "not-public";
+
+export function notPublicLabel(): string {
+  return "Not public — deleted, private or region-limited";
+}
+
+/** The platform does not show the post publicly: removed, hidden or not public. */
+export function isPostNotPublic(post: RemovablePost | null | undefined): boolean {
+  if (!post) return false;
+  return isPostRemoved(post) || lastFetchNote(post.platformMetrics)?.reason === NOT_PUBLIC_REASON;
+}
+
 export type PostNotice = { label: string; note: LastFetchNote | null };
 
 /**
@@ -114,5 +135,6 @@ export function postNotice(post: RemovablePost | null | undefined): PostNotice |
   const note = lastFetchNote(post.platformMetrics);
   if (note?.reason === HIDDEN_FETCH_REASON) return { label: hiddenPostLabel(), note };
   if (isPostRemoved(post)) return { label: removedPostLabel(), note: removedNote(post) };
+  if (note?.reason === NOT_PUBLIC_REASON) return { label: notPublicLabel(), note };
   return note?.reason === NO_PUBLIC_NUMBERS_REASON ? { label: noPublicNumbersLabel(), note } : null;
 }

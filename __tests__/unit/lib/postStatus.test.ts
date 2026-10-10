@@ -80,6 +80,12 @@ describe("postStatus", () => {
     expect(s.detail).toContain("personal, private, renamed or gone");
   });
 
+  it("never calls a post that is not public deleted: a private or region-limited one looks the same", () => {
+    const s = postStatus({ platformMetrics: note("not-public") });
+    expect(s.kind).toBe("unverified");
+    expect(s.detail).toContain("Instagram won’t show it publicly; it was deleted, the account is private, or it is limited by region");
+  });
+
   it("takes an imported post's live status from the import, and says so", () => {
     const s = postStatus({ fetchState: "LIVE", lastFreshAt: "2026-07-20T00:00:00.000Z" });
     expect(s.kind).toBe("live");

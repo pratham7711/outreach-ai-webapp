@@ -1,7 +1,12 @@
 "use client";
 
 import { UserRoundSearch } from "lucide-react";
-import { UNKNOWN_CREATOR_LABEL, UNKNOWN_CREATOR_NEXT, unknownCreatorReason } from "@/lib/posts/unattributedName";
+import {
+  UNKNOWN_CREATOR_LABEL,
+  UNKNOWN_CREATOR_NEXT,
+  notPublicCreatorReason,
+  unknownCreatorReason,
+} from "@/lib/posts/unattributedName";
 
 /**
  * Where a creator's name goes on a post nobody could attribute.
@@ -15,13 +20,18 @@ import { UNKNOWN_CREATOR_LABEL, UNKNOWN_CREATOR_NEXT, unknownCreatorReason } fro
 export default function UnknownCreator({
   platform,
   tone = "default",
+  notPublic = false,
 }: {
   platform: string;
   /** "overlay" for the dark gradient over a post thumbnail. */
   tone?: "default" | "overlay";
+  /** The platform does not show the post publicly (isPostNotPublic). */
+  notPublic?: boolean;
 }) {
   const overlay = tone === "overlay";
-  const reason = `${unknownCreatorReason(platform)}. ${UNKNOWN_CREATOR_NEXT}.`;
+  const reason = notPublic
+    ? `${notPublicCreatorReason(platform)}.`
+    : `${unknownCreatorReason(platform)}. ${UNKNOWN_CREATOR_NEXT}.`;
   return (
     <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flexWrap: "wrap" }}>
       <span

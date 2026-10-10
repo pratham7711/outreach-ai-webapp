@@ -1248,6 +1248,7 @@ describe("cron sync — uncharged reasons", () => {
     "not-configured",
     "not-a-professional-account",
     "post-hidden",
+    "not-public",
     "author-unknown",
   ] as const;
 

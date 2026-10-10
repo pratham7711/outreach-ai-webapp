@@ -171,6 +171,8 @@ const REASON_IS_RETRYABLE: Record<RefreshFailReason, boolean> = {
   "not-a-professional-account": false,
   "not-on-account": false,
   "not-in-newest-media": false,
+  /* Two public routes asked again seconds later say the same. */
+  "not-public": false,
   /* Another lane renders another page; the neighbour's stats were one page's. */
   "counts-inconsistent": true,
   // Our bug, not their verdict -- and a thrown call is often transient.

@@ -118,6 +118,7 @@ const POST_SOURCE_FAILURES = new Set(["platform-challenged", "platform-refused",
    reads that could ever close it were the ones it was skipping. */
 const POST_ANSWERS = new Set([
   "post-deleted", "unrecognised-url", "not-a-professional-account", "not-on-account", "not-in-newest-media",
+  "not-public",
 ]);
 
 /** A post metrics read, as the breaker counts it. */

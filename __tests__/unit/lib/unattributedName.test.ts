@@ -6,6 +6,7 @@ import {
   UNATTRIBUTED_CREATOR_WHERE,
   UNKNOWN_CREATOR_LABEL,
   isUnattributedCreator,
+  notPublicCreatorReason,
   unattributedCreatorName,
   unknownCreatorReason,
 } from "@/lib/posts/unattributedName";
@@ -36,6 +37,16 @@ describe("unattributed holding row, recognised without the database", () => {
     expect(unknownCreatorReason("INSTAGRAM")).toBe("Instagram isn’t showing who posted this yet");
     expect(unknownCreatorReason("YOUTUBE")).toBe("YouTube isn’t saying who posted this yet");
     expect(unknownCreatorReason(null)).toBe("The platform isn’t saying who posted this yet");
+  });
+
+  /* A post nobody outside can see will not name its owner, so "we check again"
+     would promise something no check can deliver. */
+  it("says the post is not public, without promising a retry, when the platform hides it", () => {
+    expect(notPublicCreatorReason("INSTAGRAM")).toBe(
+      "Instagram won’t show this post publicly: it was deleted, the account is private, or it is limited by region",
+    );
+    expect(notPublicCreatorReason(null)).toMatch(/^The platform won’t show this post publicly/);
+    expect(notPublicCreatorReason("INSTAGRAM")).not.toMatch(/again|yet/);
   });
 });
 

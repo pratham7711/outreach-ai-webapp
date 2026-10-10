@@ -115,6 +115,7 @@ const ANSWERED: Record<FetchReason, boolean> = {
   "not-a-professional-account": true,
   "not-on-account": true,
   "not-in-newest-media": true,
+  "not-public": true,
   "post-hidden": true,
   /* Answered, with numbers that contradicted each other. A post TikTok keeps
      answering this way does so every run, and five of them inside a ten-post

@@ -311,7 +311,7 @@ describe("a post its creator hid", () => {
           lastReason,
         }),
       );
-    for (const reason of ["not-a-professional-account", "not-on-account", "credentials-rejected"]) {
+    for (const reason of ["not-a-professional-account", "not-on-account", "not-public", "credentials-rejected"]) {
       expect(young(reason, 7)).toEqual({ action: "skip", reason: "answered-throttle" });
       expect(young(reason, 24)).toEqual({ action: "sync", reason: "answered-recheck" });
     }

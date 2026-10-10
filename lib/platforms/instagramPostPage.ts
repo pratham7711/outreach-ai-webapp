@@ -1,27 +1,40 @@
 import { shortcodeFromUrl } from "@/lib/platforms/instagram";
 
 /**
- * Whose post it is, read off the post's own public page.
+ * A post's own public page, read the way a link preview reads it.
  *
- * The embed is the first place this app asks, and it names the owner -- when
- * it shows the post at all. An owner can switch embedding off, and then the
- * embed serves the same "may have been removed" page a deleted post gets, so a
- * live reel looked deleted and stayed unattributed. MEASURED 2026-10-10 on the
- * six live LKM posts stuck under the holding row: the embed refused five, and
- * the post page, fetched by a non-browser client, named the owner in og:url for
- * four of them -- three of the five the embed called removed, plus the one it
- * did show, where both agreed.
+ * Instagram's official reader (Business Discovery) answers only while Meta's
+ * hourly allowance lasts and only for professional accounts, and the embed
+ * shows nothing for a post whose owner switched embedding off -- it serves the
+ * same "may have been removed" page a deleted post gets. Both failed at once on
+ * 2026-10-10 for the six LKM posts stuck under the holding row: Meta's app usage
+ * stood at 112% and the embed refused five of the six.
+ *
+ * The page itself, fetched by a non-browser client, still carries an Open Graph
+ * block. MEASURED that day on those six posts from a residential address:
+ *
+ *   og:url          https://www.instagram.com/<owner>/reel/<shortcode>/ -- the
+ *                   owner, on four of six (and the one the embed did name
+ *                   agreed with it)
+ *   og:image        the cover with a play button drawn on it, 360x640
+ *   og:description  "116 likes, 0 comments - <owner> on <date>: …" when the
+ *                   counts are public; "<owner> on <date>: …" when they are not
  *
  * Same rules as the audio page reader (lib/platforms/instagramAudioPage): an
- * honest bot user-agent gets the server-rendered Open Graph block, a browser
- * user-agent gets the empty shell. The remaining two posts, and a fabricated
- * shortcode, all came back as that identical ~631KB shell with no og:url --
- * a deleted post and a private account's post look the same logged out, and
- * this reader says nothing about either.
+ * honest bot user-agent gets the server-rendered block, a browser user-agent
+ * gets the empty shell. No cookie, no login, nothing but the public page.
  *
- * Only og:url is trusted, and only when it names this post's shortcode: it is
- * `https://www.instagram.com/<owner>/reel/<shortcode>/`, the one field on the
- * page that is structured rather than prose.
+ * The other two posts got the ~631KB shell a made-up shortcode also gets, and
+ * Instagram's public thumbnail address (/p/<code>/media/) answered 404 for both
+ * while it redirected to an image for the four live ones. Two routes agreeing
+ * that the public cannot see a post is the "not-public" verdict below; either
+ * alone is not, since a page can come back short for reasons of our own.
+ *
+ * The public thumbnail address answers a public post with a redirect to the
+ * clean cover (720x1280 and up on the same four), so that is the cover kept;
+ * og:image is the fallback when it does not.
+ *
+ * Views are on none of this. They stay with the official readers.
  */
 
 const USER_AGENT = "MadeBoringBot/1.0 (+https://campaign.madeboring.com)";
@@ -29,17 +42,68 @@ const TIMEOUT_MS = 6000;
 
 /* Instagram's own rule: letters, digits, dot, underscore, at most 30. */
 const HANDLE = /^[A-Za-z0-9._]{1,30}$/;
+const POST_KINDS = new Set(["p", "reel", "reels", "tv"]);
+const CDN_HOST = /(^|\.)(cdninstagram\.com|fbcdn\.net)$/;
 
-function ogUrl(html: string): string | null {
-  const m =
-    html.match(/<meta[^>]*property=["']og:url["'][^>]*content=["']([^"']*)["']/i) ??
-    html.match(/<meta[^>]*content=["']([^"']*)["'][^>]*property=["']og:url["']/i);
-  return m ? m[1].trim() || null : null;
+export type InstagramPostPageReading = {
+  owner: string | null;
+  thumbnailUrl: string | null;
+  caption: string | null;
+  /** Present only when the page printed an exact count. */
+  likesCount?: number;
+  commentsCount?: number;
+};
+
+export type InstagramPostPage =
+  | ({ kind: "public" } & InstagramPostPageReading)
+  /** The page shows no post and the public thumbnail address says 404:
+   *  deleted, or on a private account. Instagram does not say which. */
+  | { kind: "not-public" }
+  /** We could not tell -- a failed request, or a page that named nothing while
+   *  the thumbnail address still answered. Says nothing about the post. */
+  | { kind: "unreadable"; thumbnailUrl: string | null };
+
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;|&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
 }
 
-/** The owner the page names for this shortcode, or null when it names nobody. */
-export function parseInstagramPostPageOwner(html: string, shortcode: string): string | null {
-  const url = ogUrl(html);
+function og(html: string, property: string): string | null {
+  const m =
+    html.match(new RegExp(`<meta[^>]*property=["']og:${property}["'][^>]*content=["']([^"']*)["']`, "i")) ??
+    html.match(new RegExp(`<meta[^>]*content=["']([^"']*)["'][^>]*property=["']og:${property}["']`, "i"));
+  return m ? decodeEntities(m[1]).trim() || null : null;
+}
+
+function cdnUrl(raw: string | null): string | null {
+  if (!raw) return null;
+  try {
+    const u = new URL(raw);
+    return u.protocol === "https:" && CDN_HOST.test(u.hostname) ? u.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+/* "1,234" only. An abbreviated "12K" is a rounded figure, and storing it would
+   put a made-up exact number on a post. */
+function exactCount(raw: string): number | undefined {
+  if (!/^\d{1,3}(,\d{3})*$|^\d+$/.test(raw)) return undefined;
+  return Number(raw.replace(/,/g, ""));
+}
+
+/**
+ * What the page says about this shortcode, or null when it does not name this
+ * post at all -- the shell, or a page about something else.
+ */
+export function parseInstagramPostPage(html: string, shortcode: string): InstagramPostPageReading | null {
+  const url = og(html, "url");
   if (!url) return null;
   let path: string[];
   try {
@@ -49,34 +113,92 @@ export function parseInstagramPostPageOwner(html: string, shortcode: string): st
   } catch {
     return null;
   }
-  /* Exactly owner / kind / shortcode. A page that drops the owner
-     (/reel/<code>/) would otherwise hand back "reel" as a handle. */
-  if (path.length !== 3) return null;
-  const [owner, kind, code] = path;
-  if (!["p", "reel", "reels", "tv"].includes(kind) || code !== shortcode) return null;
-  return HANDLE.test(owner) ? owner : null;
+  /* owner/kind/shortcode, or kind/shortcode when the page leaves the owner
+     out. Anything else is not a post page, and a page that drops the owner
+     must not hand back "reel" as a handle. */
+  let owner: string | null = null;
+  if (path.length === 3 && POST_KINDS.has(path[1]) && path[2] === shortcode) {
+    owner = HANDLE.test(path[0]) ? path[0] : null;
+  } else if (!(path.length === 2 && POST_KINDS.has(path[0]) && path[1] === shortcode)) {
+    return null;
+  }
+
+  const description = og(html, "description") ?? "";
+  const counts = description.match(/^([\d,.]+[KkMm]?) likes?, ([\d,.]+[KkMm]?) comments? - /);
+  const likes = counts ? exactCount(counts[1]) : undefined;
+  const comments = counts ? exactCount(counts[2]) : undefined;
+  const caption = description.match(/ on [A-Z][a-z]+ \d{1,2}, \d{4}: ([\s\S]*)$/)?.[1]?.replace(/^"|"$/g, "").trim() || null;
+
+  return {
+    owner,
+    thumbnailUrl: cdnUrl(og(html, "image")),
+    caption,
+    /* A zero like count is how a creator who hid their likes reads, so only a
+       positive one is a measurement -- the embed's rule (instagramEmbed.ts). */
+    ...(typeof likes === "number" && likes > 0 ? { likesCount: likes } : {}),
+    ...(typeof likes === "number" && likes > 0 && typeof comments === "number" ? { commentsCount: comments } : {}),
+  };
 }
 
-/**
- * Fetches the post's public page and returns its owner's handle, without the
- * "@". Never throws: a page that will not load, or names nobody, is null.
- */
-export async function readInstagramPostPageOwner(postUrl: string, timeoutMs = TIMEOUT_MS): Promise<string | null> {
-  const shortcode = shortcodeFromUrl(postUrl);
-  if (!shortcode) return null;
+async function get(url: string, timeoutMs: number, redirect: RequestRedirect): Promise<Response | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(`https://www.instagram.com/p/${shortcode}/`, {
-      headers: { "user-agent": USER_AGENT, accept: "text/html,application/xhtml+xml" },
+    return await fetch(url, {
+      headers: {
+        "user-agent": USER_AGENT,
+        /* English, so the counts in og:description parse. */
+        "accept-language": "en-US,en;q=0.9",
+        accept: "text/html,application/xhtml+xml",
+      },
       signal: controller.signal,
-      redirect: "follow",
+      redirect,
     });
-    if (!res.ok) return null;
-    return parseInstagramPostPageOwner(await res.text(), shortcode);
   } catch {
     return null;
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function fetchPage(shortcode: string, timeoutMs: number): Promise<string | null> {
+  const res = await get(`https://www.instagram.com/p/${shortcode}/`, timeoutMs, "follow");
+  if (!res?.ok) return null;
+  try {
+    return await res.text();
+  } catch {
+    return null;
+  }
+}
+
+function mediaCover(media: Response | null): string | null {
+  if (!media || media.status < 300 || media.status >= 400) return null;
+  return cdnUrl(media.headers.get("location"));
+}
+
+/**
+ * Reads the post's public page and its public thumbnail address; never
+ * throws. The address gives the clean cover for a public post, and tells "not
+ * public" apart from a page that simply came back short.
+ */
+export async function readInstagramPostPage(postUrl: string, timeoutMs = TIMEOUT_MS): Promise<InstagramPostPage> {
+  const shortcode = shortcodeFromUrl(postUrl);
+  if (!shortcode) return { kind: "unreadable", thumbnailUrl: null };
+
+  const html = await fetchPage(shortcode, timeoutMs);
+  if (html === null) return { kind: "unreadable", thumbnailUrl: null };
+  const reading = parseInstagramPostPage(html, shortcode);
+  const media = await get(`https://www.instagram.com/p/${shortcode}/media/?size=l`, timeoutMs, "manual");
+  if (reading) return { kind: "public", ...reading, thumbnailUrl: mediaCover(media) ?? reading.thumbnailUrl };
+
+  if (media?.status === 404) return { kind: "not-public" };
+  return { kind: "unreadable", thumbnailUrl: mediaCover(media) };
+}
+
+/** The owner's handle, without the "@", or null when the page names nobody. */
+export async function readInstagramPostPageOwner(postUrl: string, timeoutMs = TIMEOUT_MS): Promise<string | null> {
+  const shortcode = shortcodeFromUrl(postUrl);
+  if (!shortcode) return null;
+  const html = await fetchPage(shortcode, timeoutMs);
+  return html === null ? null : (parseInstagramPostPage(html, shortcode)?.owner ?? null);
 }

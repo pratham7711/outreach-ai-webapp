@@ -1,8 +1,10 @@
 import {
   HIDDEN_FETCH_REASON,
+  NOT_PUBLIC_REASON,
   NO_PUBLIC_NUMBERS_REASON,
   REMOVED_FETCH_REASON,
   isPostRemoved,
+  isPostNotPublic,
   postNotice,
   removedNote,
   removedPostLabel,
@@ -125,5 +127,31 @@ describe("a post its creator hid", () => {
     const post = { fetchState: "UNAVAILABLE", platformMetrics: note(HIDDEN_FETCH_REASON) };
     expect(postNotice(post)?.label).toBe("Post hidden — the creator made it private");
     expect(postNotice(post)?.note?.at).toBe("2026-09-01T00:00:00.000Z");
+  });
+});
+
+/* Two public routes agree the post is not public from where we ask: deleted,
+   private or region-limited. Only the first is final, so it is never filed as
+   removed -- that verdict dead-letters the post for good. */
+describe("a post Instagram shows to no one", () => {
+  const post = { fetchState: null, platformMetrics: note(NOT_PUBLIC_REASON) };
+
+  it("is not called removed", () => {
+    expect(isPostRemoved(post)).toBe(false);
+  });
+
+  it("names both causes in its own pill and claims neither", () => {
+    expect(postNotice(post)?.label).toBe("Not public — deleted, private or region-limited");
+    expect(postNotice(post)?.note?.reason).toBe(NOT_PUBLIC_REASON);
+  });
+
+  it("is not public, as removed and hidden posts are -- and nothing we merely failed to read is", () => {
+    expect(isPostNotPublic(post)).toBe(true);
+    expect(isPostNotPublic({ fetchState: "UNAVAILABLE" })).toBe(true);
+    expect(isPostNotPublic({ platformMetrics: note(HIDDEN_FETCH_REASON) })).toBe(true);
+    for (const reason of ["backing-off", "reader-timeout", "platform-refused", NO_PUBLIC_NUMBERS_REASON, "author-unknown"]) {
+      expect(isPostNotPublic({ platformMetrics: note(reason) })).toBe(false);
+    }
+    expect(isPostNotPublic(null)).toBe(false);
   });
 });
