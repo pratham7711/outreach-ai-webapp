@@ -8483,6 +8483,29 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 .spr-board-handle { font-size: 12px; color: var(--spr-ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .spr-board-cell { font-size: 13px; color: var(--spr-ink-muted); font-variant-numeric: tabular-nums; }
 .spr-board-cell-strong { font-size: 13px; font-weight: 600; color: var(--spr-ink); font-variant-numeric: tabular-nums; }
+
+/* Views by Platform, as text under the pie: swatch, platform, views, posts.
+   One grid for the whole list, each row a subgrid of it, so the figures line
+   up down the card while every row can still carry its own rule. */
+.spr-split {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto auto;
+  column-gap: 10px;
+}
+.spr-split-row {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  align-items: center;
+  padding: 9px 0;
+}
+.spr-split-row + .spr-split-row { border-top: 1px solid var(--spr-hairline); }
+.spr-split-swatch { width: 12px; height: 12px; border-radius: 3px; }
+.spr-split-name { font-size: 14px; font-weight: 600; color: var(--spr-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spr-split-figure { font-size: 13px; color: var(--spr-ink-muted); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
 .spr-avatar {
   width: 28px;
   height: 28px;

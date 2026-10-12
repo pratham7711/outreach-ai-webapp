@@ -8,11 +8,10 @@ import { BarChart3, Music2, Radio, CircleDot } from "lucide-react";
 import { ChartFrame } from "@/components/ds";
 import type { SharedReportData } from "@/lib/reports/campaignPerformance";
 import { DEFAULT_SHARE_VISIBILITY, type ShareVisibility } from "@/lib/reports/shareVisibility";
-import { formatFull, formatCompact } from "@/lib/format";
+import { formatFull, formatCompact, platformLabel } from "@/lib/format";
 import { creatorNameParts, creatorNameText } from "@/lib/creators/creatorName";
 import { ACTIVATION_STATUS_LABEL, activationStatusBadgeStyle } from "@/lib/activationQueues";
-import { platformColor } from "@/app/(dashboard)/analytics/shared";
-import { chartGreysFor, chartStrokeFor } from "@/lib/reports/shareChartPalette";
+import { chartGreysFor, chartStrokeFor, pieColorsFor } from "@/lib/reports/shareChartPalette";
 import { POWERED_BY } from "@/lib/brand";
 import { AudioCard } from "@/components/campaigns/AudioCard";
 import { shareImgSrc } from "@/lib/postMedia";
@@ -29,9 +28,9 @@ import { viewsCoverageNote } from "@/lib/metricDisplay";
  *
  * The colours are greyscale because the reference's chart is -- the palette and
  * the measurement behind it live in lib/reports/shareChartPalette. The pie
- * beside this chart keeps its platform colours: the reference report has no
- * platform breakdown at all, so there is nothing there to diverge from, and hue
- * is the only thing encoding which slice is which.
+ * beside this chart keeps its platform colours (pieColorsFor): the reference
+ * report has no platform breakdown at all, so there is nothing there to diverge
+ * from, and hue is the only thing encoding which slice is which.
  */
 function seriesFor(platforms: string[]): { key: string; color: string }[] {
   const greys = chartGreysFor(platforms.length);
@@ -53,9 +52,17 @@ function formatCurrency(n: number, currency = "USD"): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 2 }).format(n);
 }
 
-function formatDate(iso: string): string {
-  const d = new Date(iso + "T00:00:00Z");
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+/* "Oct 6" while the series sits inside one year. One that crosses a year
+   carries it, or the same axis printed "Jan 1" twice a year apart. */
+function dateFormatsFor(series: { date: string }[]) {
+  const multiYear = new Set(series.map((row) => row.date.slice(0, 4))).size > 1;
+  const at = (iso: string, opts: Intl.DateTimeFormatOptions) =>
+    new Date(iso + "T00:00:00Z").toLocaleDateString("en-US", { ...opts, timeZone: "UTC" });
+  return {
+    tick: (iso: string) =>
+      multiYear ? `${at(iso, { month: "short", day: "numeric" })} '${iso.slice(2, 4)}` : at(iso, { month: "short", day: "numeric" }),
+    label: (iso: string) => at(iso, multiYear ? { month: "short", day: "numeric", year: "numeric" } : { month: "short", day: "numeric" }),
+  };
 }
 
 function StatTile({ value, label, note }: { value: string; label: string; note?: string | null }) {
@@ -133,12 +140,19 @@ export default function SharedPerformanceReport({
      nothing renders when no creator on the report has one. Server-side redaction
      has already nulled these when the link hides them. */
   const anyStatus = leaderboard.some((r) => r.status !== null);
-  const rowCols = ["minmax(120px, 1fr)", "56px", "104px", anyEngagementMeasured ? "64px" : null]
+  /* The head and every row are separate grids, so the Views track has to be
+     fixed rather than sized to content -- but a fixed 68px let a creator with
+     1,822,665,537 views run into the Eng. column on a phone. It grows to the
+     longest figure on the board at 8px a character, which the cells' 13px
+     digits fit. Not ch: the head is 11px, so ch would size its grid narrower
+     than the rows' and the headings would drift off their columns. */
+  const viewsPx = 8 * Math.max(0, ...leaderboard.map((r) => (r.views === null ? 1 : formatNumber(r.views).length)));
+  const rowCols = ["minmax(120px, 1fr)", "56px", `${Math.max(104, viewsPx)}px`, anyEngagementMeasured ? "64px" : null]
     .filter(Boolean)
     .join(" ");
   // A phone's card is ~284px wide, so the desktop tracks forced a sideways
   // scroll inside the card. These fit it, and the name takes whatever is left.
-  const rowColsPhone = ["minmax(0, 1fr)", "44px", "68px", anyEngagementMeasured ? "44px" : null]
+  const rowColsPhone = ["minmax(0, 1fr)", "44px", `${Math.max(68, viewsPx)}px`, anyEngagementMeasured ? "44px" : null]
     .filter(Boolean)
     .join(" ");
   const boardCols = { "--spr-board-cols": rowCols, "--spr-board-cols-phone": rowColsPhone } as React.CSSProperties;
@@ -147,6 +161,9 @@ export default function SharedPerformanceReport({
   const viewsNote = viewsCoverageNote(kpis.viewsKnownPosts, kpis.posts);
   const cover = coverBroken ? null : shareImgSrc(token, data.audio?.coverUrl ?? null, 302);
   const hasSplit = platformSplit.some((p) => p.views > 0);
+  const slices = platformSplit.filter((p) => p.views > 0);
+  const sliceColors = pieColorsFor(slices.map((p) => p.platform));
+  const dates = dateFormatsFor(timeSeries);
   const showBoard = visibility.showCreators && leaderboard.length > 0;
 
   return (
@@ -223,6 +240,10 @@ export default function SharedPerformanceReport({
                     post has measured has no tile at all -- printing "Total Eng. 0"
                     to a brand would claim a measurement nobody ever took. */}
                 <div className="spr-tiles">
+                  {/* The count was only in the Posts section at the foot of the
+                      page, three screens down on a phone, so a client reading
+                      the summary saw views with no idea how many posts made them. */}
+                  <StatTile value={formatExact(kpis.posts)} label="Total Posts" />
                   <StatTile value={formatCompact(kpis.views)} label="Total Views" note={viewsNote} />
                   {kpis.engagementRate !== null && (
                     <StatTile value={`${(kpis.engagementRate * 100).toFixed(2)}%`} label="Eng. Rate" />
@@ -239,10 +260,10 @@ export default function SharedPerformanceReport({
                      grid line at any y. */
                   <ChartFrame height={250}>
                     <AreaChart data={timeSeries} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
-                      <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 12, fill: "var(--spr-chart-axis)" }} />
+                      <XAxis dataKey="date" tickFormatter={dates.tick} minTickGap={14} tick={{ fontSize: 12, fill: "var(--spr-chart-axis)" }} />
                       <YAxis tickFormatter={(v) => formatCompact(Number(v))} tick={{ fontSize: 12, fill: "var(--spr-chart-axis)" }} width={64} />
                       <Tooltip
-                        labelFormatter={(l) => formatDate(String(l))}
+                        labelFormatter={(l) => dates.label(String(l))}
                         formatter={(v: unknown) => formatNumber(Number(v ?? 0))}
                         contentStyle={{ background: "var(--spr-card)", border: "1px solid var(--spr-hairline)", borderRadius: 12, fontSize: 13, color: "var(--spr-ink)" }}
                       />
@@ -253,6 +274,13 @@ export default function SharedPerformanceReport({
                           key={s.key}
                           type="monotone"
                           dataKey={s.key}
+                          name={platformLabel(s.key)}
+                          /* Solid, as the reference draws it. The app's light and
+                             dark themes dash series 2-5 so greys can be told apart,
+                             and that rule reached this chart as a dotted line along
+                             the top of the stack; it stands down for any series
+                             that sets its own dash. */
+                          strokeDasharray="0"
                           stackId="views"
                           /* Every band but the topmost carries the lighter
                              separator the reference draws at its top edge; the
@@ -287,11 +315,11 @@ export default function SharedPerformanceReport({
                 {hasSplit && (
                   <section className="spr-card spr-stack">
                     <h2 className="spr-section">Views by Platform</h2>
-                    <ChartFrame height={260}>
+                    <ChartFrame height={220}>
                       <PieChart>
                         <Pie
                           isAnimationActive={false}
-                          data={platformSplit.filter((p) => p.views > 0)}
+                          data={slices}
                           cx="50%"
                           cy="50%"
                           innerRadius={55}
@@ -301,22 +329,45 @@ export default function SharedPerformanceReport({
                           paddingAngle={2}
                           label={false}
                           stroke="var(--spr-card)"
-                          strokeWidth={platformSplit.filter((p) => p.views > 0).length > 1 ? 2 : 0}
+                          strokeWidth={slices.length > 1 ? 2 : 0}
                         >
-                          {platformSplit.filter((p) => p.views > 0).map((entry) => (
-                            <Cell key={entry.platform} fill={platformColor(entry.platform)} />
+                          {slices.map((entry, i) => (
+                            <Cell key={entry.platform} fill={sliceColors[i]} />
                           ))}
                         </Pie>
-                        <Legend verticalAlign="bottom" height={24} wrapperStyle={{ fontSize: 12 }} formatter={(value: unknown) => <span style={{ color: "var(--spr-label)" }}>{String(value)}</span>} />
                         <Tooltip
-                          formatter={(v: unknown, _n: unknown, item: { payload?: { posts?: number; platform?: string } }) => [
-                            `${formatNumber(Number(v ?? 0))} views · ${item?.payload?.posts ?? 0} posts`,
-                            item?.payload?.platform ?? "",
-                          ]}
+                          formatter={(v: unknown, _n: unknown, item: { payload?: { posts?: number; platform?: string } }) => {
+                            const posts = item?.payload?.posts ?? 0;
+                            return [
+                              `${formatNumber(Number(v ?? 0))} views · ${posts} post${posts === 1 ? "" : "s"}`,
+                              platformLabel(item?.payload?.platform),
+                            ];
+                          }}
                           contentStyle={{ background: "var(--spr-card)", border: "1px solid var(--spr-hairline)", borderRadius: 12, fontSize: 13, color: "var(--spr-ink)" }}
+                          /* Recharts inks each row in its slice's fill, which is
+                             a pale brand colour or a grey; the swatch beside it in
+                             the legend below already says which slice it is. */
+                          itemStyle={{ color: "var(--spr-ink)" }}
                         />
                       </PieChart>
                     </ChartFrame>
+                    {/* The figures in plain text rather than only in a hover
+                        tooltip, which a phone never shows until the slice is
+                        tapped. Every platform with a post is listed, including
+                        one whose views are not known yet and so has no slice. */}
+                    <ul className="spr-split">
+                      {platformSplit.map((p) => {
+                        const i = slices.indexOf(p);
+                        return (
+                          <li key={p.platform} className="spr-split-row">
+                            <span className="spr-split-swatch" style={{ background: i >= 0 ? sliceColors[i] : "var(--spr-hairline)" }} aria-hidden="true" />
+                            <span className="spr-split-name">{platformLabel(p.platform)}</span>
+                            <span className="spr-split-figure">{p.views > 0 ? `${formatNumber(p.views)} views` : "Views not known yet"}</span>
+                            <span className="spr-split-figure">{p.posts} post{p.posts === 1 ? "" : "s"}</span>
+                          </li>
+                        );
+                      })}
+                    </ul>
                   </section>
                 )}
 

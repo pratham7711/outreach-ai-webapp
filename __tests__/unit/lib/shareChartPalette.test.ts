@@ -6,7 +6,7 @@
  * brand colour here changes what a brand sees on a document the agency sends
  * them, so it should have to delete a test to do it.
  */
-import { CHART_GREYS, CHART_SEPARATOR, chartGreysFor, chartStrokeFor } from "@/lib/reports/shareChartPalette";
+import { CHART_GREYS, CHART_SEPARATOR, chartGreysFor, chartStrokeFor, pieColorsFor } from "@/lib/reports/shareChartPalette";
 
 it("holds the greys sampled off the reference chart", () => {
   // #000000 over #1C1C1C with a #535353 separator is what the pixel scan found.
@@ -58,4 +58,34 @@ it("separates the internal bands but not the top of the stack", () => {
 
 it("strokes a lone band with its own fill", () => {
   expect(chartStrokeFor(0, 1)).toBe("#000000");
+});
+
+/* The pie is the one chart on the report that keeps hue. Its fills used to be
+   the app's theme tokens, which are greyscale in both themes a client can land
+   in, and #F5F5F5 for TikTok in Dark -- a slice that vanished into the white
+   card on any phone set to dark mode. */
+describe("pieColorsFor", () => {
+  it("gives each platform its brand colour as fixed hex, not a theme token", () => {
+    expect(pieColorsFor(["TIKTOK", "INSTAGRAM", "YOUTUBE"])).toEqual(["#010101", "#E4405F", "#FF0000"]);
+    for (const c of pieColorsFor(["TIKTOK", "INSTAGRAM", "YOUTUBE", "FACEBOOK"])) expect(c).toMatch(/^#[0-9A-F]{6}$/);
+  });
+
+  it("swaps a colour that would vanish into the white card for a grey", () => {
+    const [snap] = pieColorsFor(["SNAPCHAT"]);
+    expect(snap).not.toBe("#FFFC00");
+    expect(snap).toBe("#6E6E6E");
+  });
+
+  it("never gives two slices the same colour", () => {
+    // TikTok and X are both black in the registry.
+    const [tiktok, x] = pieColorsFor(["TIKTOK", "TWITTER"]);
+    expect(tiktok).toBe("#010101");
+    expect(x).not.toBe("#000000");
+    expect(x).not.toBe(tiktok);
+  });
+
+  it("returns one colour per slice, in slice order", () => {
+    expect(pieColorsFor([])).toEqual([]);
+    expect(pieColorsFor(["YOUTUBE", "TIKTOK"])).toEqual(["#FF0000", "#010101"]);
+  });
 });
