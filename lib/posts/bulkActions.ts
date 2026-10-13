@@ -16,6 +16,7 @@
  * reading -- or the operator presses Refresh Data and gets it now.
  */
 import { clampTtlDays, postTrackingExpiry } from "@/lib/sync/postTracking";
+import { DEAD_LETTER_CLEARED } from "@/lib/sync/deadLetter";
 import type { PostStatus } from "@/lib/generated/prisma/client";
 
 /** The cap on one call. The same 50 the paste box uses, for the same reason:
@@ -49,6 +50,8 @@ export type BulkUpdateData = {
   trackingStartedAt?: Date | null;
   trackingTtlDays?: number | null;
   trackingExpiresAt?: Date | null;
+  syncFailCount?: number;
+  syncDisabledAt?: Date | null;
 };
 
 export function bulkUpdateData(input: BulkActionInput): BulkUpdateData {
@@ -77,6 +80,10 @@ export function bulkUpdateData(input: BulkActionInput): BulkUpdateData {
         trackingStartedAt: now,
         trackingTtlDays: ttl,
         trackingExpiresAt: postTrackingExpiry(now, ttl),
+        /* Lifts a dead letter, as the single-post route does: otherwise the
+           selection reads "tracked" while the sweep never selects it. See
+           lib/sync/deadLetter. */
+        ...DEAD_LETTER_CLEARED,
       };
     }
 

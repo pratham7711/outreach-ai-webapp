@@ -14,6 +14,7 @@ import {
   trackingView,
 } from "@/lib/sync/postTracking";
 import { parsePostTracking } from "@/lib/trackers/granularity";
+import { DEAD_LETTER_CLEARED } from "@/lib/sync/deadLetter";
 import { z } from "zod";
 
 /**
@@ -77,6 +78,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
                A tracker turned back on is a new instruction, and inheriting a
                stale expiry would let it end before its first read. */
             trackingExpiresAt: postTrackingExpiry(now, ttl),
+            /* And it lifts a dead letter. syncDisabledAt keeps the post out
+               of the sweep's query whatever these columns say, so without
+               this the badge read "tracked" while nothing ever read it. A
+               post that really is gone dead-letters again on its own. See
+               lib/sync/deadLetter. */
+            ...DEAD_LETTER_CLEARED,
           }
         : {
             /* Stopped, not never-started: the expiry records when tracking

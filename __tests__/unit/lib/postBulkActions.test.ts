@@ -73,6 +73,15 @@ describe("bulkUpdateData", () => {
     );
   });
 
+  it("lifts a dead letter when tracking, as the single-post route does", () => {
+    /* syncDisabledAt keeps a post out of the sweep whatever the tracker columns
+       say, so a bulk track that left it set would show "tracked" on posts
+       nothing ever reads. */
+    const data = bulkUpdateData({ ...base, action: "track" });
+    expect(data.syncDisabledAt).toBeNull();
+    expect(data.syncFailCount).toBe(0);
+  });
+
   it("ends the tracker when untracking, and records when it was stopped", () => {
     /* The expiry is the stop marker: without it a post in its first month, or
        in a running campaign, is read automatically whatever the user chose. */
