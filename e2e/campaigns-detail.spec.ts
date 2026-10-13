@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { waitForMain, expectTextOnPage, navigateAndWait } from './helpers';
+import { waitForMain, expectTextOnPage, navigateAndWait, selectFromDropdown } from './helpers';
 
 test.describe('Campaign Detail', () => {
   test.beforeEach(async ({ page }) => {
@@ -47,5 +47,38 @@ test.describe('Campaign Detail', () => {
     // The title counts the dialog's rows, so it says both links arrived.
     await expect(page.getByRole('dialog', { name: 'Add 2 Posts' })).toBeVisible({ timeout: 10000 });
     await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click();
+  });
+
+  test('posts open most-viewed first, unread ones last', async ({ page }) => {
+    await navigateAndWait(page, '/campaigns/camp-1?section=posts');
+    await expect(page.getByRole('combobox', { name: 'Sort posts by' })).toHaveText(/views/i, { timeout: 15000 });
+    await expect(page.getByRole('combobox', { name: 'Sort direction' })).toHaveText(/highest/i);
+    const tiles = page.locator('.cc-posttile');
+    await expect(tiles.first()).toBeVisible({ timeout: 15000 });
+    // A tile with no "N views" is one nobody has read: null, and it comes last
+    // whichever way the list is ordered.
+    const readViews = async () =>
+      (await tiles.allInnerTexts()).map((t) => {
+        const m = t.match(/([\d,]+)\s+views/i);
+        return m ? Number(m[1].replace(/,/g, '')) : null;
+      });
+    const unknownLast = (views: (number | null)[]) => {
+      const firstUnknown = views.indexOf(null);
+      return firstUnknown === -1 || views.slice(firstUnknown).every((v) => v === null);
+    };
+
+    const highest = await readViews();
+    expect(highest.length).toBeGreaterThan(1);
+    expect(highest.some((v) => v !== null && v > 0)).toBe(true);
+    const knownHighest = highest.filter((v): v is number => v !== null);
+    expect(knownHighest).toEqual([...knownHighest].sort((a, b) => b - a));
+    expect(unknownLast(highest)).toBe(true);
+
+    await selectFromDropdown(page, 'Sort direction', 'Lowest');
+    await expect(page.getByRole('combobox', { name: 'Sort direction' })).toHaveText(/lowest/i);
+    const lowest = await readViews();
+    const knownLowest = lowest.filter((v): v is number => v !== null);
+    expect(knownLowest).toEqual([...knownLowest].sort((a, b) => a - b));
+    expect(unknownLast(lowest)).toBe(true);
   });
 });

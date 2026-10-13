@@ -17,6 +17,7 @@ import { SHOW_MONEY } from "@/lib/moneyUi";
 import { useCampaignNavPublish } from "@/components/providers/CampaignNavProvider";
 import { CampaignAudioSetup } from "@/components/campaigns/CampaignAudioSetup";
 import { CAMPAIGN_HEADER_ACTIONS_ID } from "@/components/campaigns/CampaignHeaderActions";
+import { CampaignShareButton } from "@/components/campaigns/CampaignShareButton";
 import InvitesSection from "./InvitesSection";
 import {
   Eye, Heart, MessageCircle, Share2, TrendingUp, Users,
@@ -800,10 +801,9 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
             )}
           </div>
         </div>
-        {/* The section's own actions land here, through CampaignHeaderActions.
-            Empty on sections that have none, which is why it carries no
-            conditional: a 0-width flex item with `margin-left: auto` still
-            pushes nothing and paints nothing. `data-region="page-actions"` is
+        {/* The section's own actions land here, through CampaignHeaderActions,
+            after Share Campaign, which every section carries.
+            `data-region="page-actions"` is
             what the parity harness looks for -- page.primary-action resolves
             through `[data-region="page-actions"] [data-cc-slot="primary"]`, the
             same selector every other page satisfies through PageHeader. */}
@@ -811,7 +811,15 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           className="cc-page-actions"
           data-region="page-actions"
           id={CAMPAIGN_HEADER_ACTIONS_ID}
-        />
+        >
+          {/* Share is the page's own child, so every section has it and it
+              comes first: it is in the host when the page commits, before any
+              section's portal mounts and appends after it, and it is never
+              unmounted while the campaign is open, so it never moves to the
+              end. That also means the row is no longer :empty on Overview,
+              which is what puts Share on a phone's Overview at all. */}
+          <CampaignShareButton campaignId={id} campaignTitle={campaign.title} />
+        </div>
         {/* Close the campaign. MEASURED 2026-09-14 at desktop-1600 on the
             reference: a 16x16 grey glyph at 1548..1563.5 x 56.5..72, i.e. a
             28x28 hit area whose right edge is the header card's inner edge at

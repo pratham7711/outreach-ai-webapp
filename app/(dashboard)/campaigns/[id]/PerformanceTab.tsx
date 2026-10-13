@@ -6,10 +6,9 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   PieChart, Pie, Cell, Legend,
 } from "recharts";
-import { Eye, Heart, Percent, DollarSign, Target, TrendingUp, Share2, AlertTriangle, BarChart3, PieChart as PieChartIcon, Trophy, Download } from "lucide-react";
+import { Eye, Heart, Percent, DollarSign, Target, TrendingUp, AlertTriangle, BarChart3, PieChart as PieChartIcon, Trophy, Download } from "lucide-react";
 import { formatFull, formatCompact } from "@/lib/format";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
-import { ShareModal } from "@/app/(dashboard)/campaigns/ShareModal";
 import { AudioCard } from "@/components/campaigns/AudioCard";
 import type { CampaignAudio, CampaignPerformance } from "@/lib/reports/campaignPerformance";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
@@ -173,7 +172,6 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
   const [data, setData] = useState<PerformanceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [showShare, setShowShare] = useState(false);
   const [showExport, setShowExport] = useState(false);
 
   const load = useCallback(async () => {
@@ -211,19 +209,13 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
           campaign, not an act on the report, so it lives in Settings beside the
           rest of what the campaign is -- and is asked for when the campaign is
           created. This tab only renders the card once one exists. */}
+      {/* No Share button here: Share Campaign is in the campaign header on
+          every section, this one included (components/campaigns/
+          CampaignShareButton). A second one on this tab was the same dialog
+          twice on one screen. */}
       <Button variant="secondary" iconLeft={<Download size={15} />} onClick={() => setShowExport(true)}>
         Export
       </Button>
-      <button
-        onClick={() => setShowShare(true)}
-        style={{
-          display: "inline-flex", alignItems: "center", gap: 8,
-          background: "var(--cc-card)", color: "var(--cc-primary)", border: "1.5px solid var(--cc-primary)",
-          borderRadius: 8, padding: "8px 16px", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", cursor: "pointer",
-        }}
-      >
-        <Share2 size={15} /> Share report
-      </button>
     </div>
   );
 
@@ -238,7 +230,6 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
             description="Once creators publish content for this campaign, performance metrics will appear here."
           />
         </Card>
-        {showShare && <ShareModal campaignId={campaignId} onClose={() => setShowShare(false)} />}
         {showExport && <ExportModal campaignId={campaignId} onClose={() => setShowExport(false)} />}
       </>
     );
@@ -444,7 +435,6 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
         </Card>
       </div>
 
-      {showShare && <ShareModal campaignId={campaignId} onClose={() => setShowShare(false)} />}
       {showExport && <ExportModal campaignId={campaignId} onClose={() => setShowExport(false)} />}
     </div>
   );

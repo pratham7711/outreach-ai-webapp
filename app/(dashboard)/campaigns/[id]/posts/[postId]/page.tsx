@@ -31,6 +31,7 @@ import { loadCharts } from "@/components/charts/lazyCharts";
 import { readCadenceLabel, DEFAULT_POST_TRACKING } from "@/lib/trackers/granularity";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import { useCampaignNav } from "@/components/providers/CampaignNavProvider";
+import { CampaignShareButton } from "@/components/campaigns/CampaignShareButton";
 
 const PerformanceOverTimeArea = dynamic(() => loadCharts().then((m) => m.PerformanceOverTimeArea), {
   ssr: false,
@@ -571,7 +572,7 @@ export default function PostDetailPage() {
               </div>
             )
           )}
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="cc-post-headtext">
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4, flexWrap: "wrap" }}>
               <h1 className="cc-page-title" data-mb="0" data-wrap="anywhere">
                 {post.caption?.slice(0, 80) ?? "Untitled Post"}
@@ -604,7 +605,10 @@ export default function PostDetailPage() {
               <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "4px 0 0" }}>{syncNote}</p>
             )}
           </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <div className="cc-post-actions">
+            {/* The campaign's, not the post's: the share link is the campaign
+                report. First, as in the campaign header on every section. */}
+            <CampaignShareButton campaignId={params.id} campaignTitle={post.campaignTitle} />
             <Button variant="secondary" onClick={handleFlag} loading={flagging} disabled={flagged}>
               <span style={{ display: "flex", alignItems: "center", gap: 4, color: flagged ? "var(--cc-danger-fg)" : undefined }}>
                 <Flag size={14} /> {flagged ? "Flagged" : "Flag Suspicious"}

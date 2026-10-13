@@ -35,6 +35,7 @@ export const ACTIONS = [
   "new-plan",
   "new-report",
   "self-serve-campaign",
+  "share-campaign",
   "track-all-creators",
   "track-campaign-creators",
   "track-creator",

@@ -9472,6 +9472,59 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   }
 }
 
+/* creatorcore gives every header action one fixed box (--cc-action-min-w),
+   and "Share Campaign" in its 18px Lexend Deca needs 188px of a 180px box at
+   1440: the label kept its width and the glyph was squeezed to 8px (MEASURED
+   2026-10-13). This one action sizes to its label; the box stays its floor. */
+:root.creatorcore .cc-shell-root[data-shell="campaign"] .cc-page-titlebar > .cc-page-actions > [data-action="share-campaign"] {
+  width: auto;
+}
+
+/* A post's own page: its actions, beside the title. A class rather than the
+   inline style it replaces, so the phone grid below can re-lay it. */
+.cc-post-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* The caption, creator and sync lines beside the thumbnail. A 0 basis let the
+   four actions keep their row and squeeze this column to 117px at 1024 -- the
+   title broke over three lines (MEASURED 2026-10-13, light). At 320px or more
+   it holds its line and the actions wrap under it instead; on a phone they
+   take their own row anyway, so the basis stays 0 there. */
+.cc-post-headtext {
+  flex: 1 1 0%;
+  min-width: 0;
+}
+@media (min-width: 768px) {
+  .cc-post-headtext {
+    flex-basis: 320px;
+  }
+}
+
+/* Tablet widths, light and dark. With Share Campaign leading the actions the
+   row ran out of room for the close button first: at 900 it wrapped ALONE to
+   the next line, under the title at the left edge, and at 768 and 1024 it went
+   down with the actions (MEASURED 2026-10-13, demo campaign, Posts). Which of
+   the two a campaign gets depends on its title's length, so neither can be
+   ruled out by sizing. Title and close share the first line, the actions take
+   the second, right-aligned -- the phone shape at these themes' desktop sizes.
+   creatorcore stacks its status under the title and kept one line (or wrapped
+   actions and close together) at all three widths, so it is left alone. */
+@media (min-width: 768px) and (max-width: 1279px) {
+  :root:not(.creatorcore) .cc-shell-root[data-shell="campaign"] .cc-page-titleblock {
+    flex: 1 1 0%;
+  }
+  :root:not(.creatorcore) .cc-shell-root[data-shell="campaign"] .cc-page-titlebar > .cc-page-actions {
+    order: 1;
+    flex: 1 0 100%;
+    margin-left: 0;
+    justify-content: flex-end;
+  }
+}
+
 /* ---- phone header actions and KPI strip (creatorcore) ----------------------
    MEASURED 2026-09-26 on the reference campaign Posts tab at 390: the two
    header actions leave the title row and sit on a row of their own, two
@@ -9573,6 +9626,55 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   :root:not(.creatorcore) .cc-kpi-strip:not(.cc-kpi-quiet) {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* Share Campaign leads every section's actions (components/campaigns/
+     CampaignShareButton), so Posts carries three. At three equal columns each
+     was 113px and both "Share Campaign" and "Refresh Data" were cut (MEASURED
+     2026-10-13 at 390, all three themes). With two section actions beside it,
+     Share's column is a square the row's height and the other two split the
+     rest as they did before Share was there; the button drops its label at
+     that width (the container query below) and keeps its name through
+     aria-label. The :has() is on the row itself, never above what it styles
+     -- see __tests__/unit/styles/broadHasSelectors.test.ts. */
+  :root .cc-shell-root[data-shell="campaign"] .cc-page-titlebar > .cc-page-actions:has(> :nth-child(3)) {
+    grid-template-columns: 44px;
+  }
+  :root.creatorcore .cc-shell-root[data-shell="campaign"] .cc-page-titlebar > .cc-page-actions:has(> :nth-child(3)) {
+    grid-template-columns: 40px;
+  }
+  /* A grid item here, so its width comes from the column and inline-size
+     containment cannot collapse it -- which is why this is phone-only: on
+     desktop the button sizes to its label. No inline padding, so a 40-44px
+     square centres the glyph rather than overflowing it; with the label shown
+     the content is centred the same way. */
+  :root .cc-shell-root[data-shell="campaign"] .cc-page-titlebar > .cc-page-actions > [data-action="share-campaign"] {
+    container: cc-share / inline-size;
+    padding-inline: 0;
+  }
+  @container cc-share (max-width: 60px) {
+    .cc-share-label {
+      display: none;
+    }
+  }
+
+  /* A post's own page: Share Campaign, Flag Suspicious, Sync Now, View Post.
+     The flex row wrapped them right-aligned, two to a line, starting at x=49
+     -- ragged against the 16px gutter. Two equal columns, full width. */
+  .cc-post-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    flex: 1 1 100%;
+  }
+  .cc-post-actions > a {
+    display: block;
+  }
+  /* No inline padding: the column sets the width and the content is centred,
+     and creatorcore's 16px a side left "Share Campaign" 131px for 142px of
+     label, gap and glyph -- the glyph was squeezed to 4px (MEASURED at 375). */
+  .cc-post-actions .ui-btn {
+    width: 100%;
+    padding-inline: 0;
   }
 }
 

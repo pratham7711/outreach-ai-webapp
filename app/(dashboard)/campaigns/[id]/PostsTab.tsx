@@ -10,7 +10,7 @@ import { CreatorSelect } from "@/components/CreatorSelect";
 import { stripAt, formatDateAbs, formatFull } from "@/lib/format";
 import type { ComplianceFlag } from "@/lib/compliance/postCompliance";
 import PostMedia from "@/components/PostMedia";
-import { unwrittenMetricValue, fieldMetricValue, engagementRateValue, summarizePostMetrics, sharesUnknownReason } from "@/lib/metricDisplay";
+import { unwrittenMetricValue, fieldMetricValue, engagementRateValue, summarizePostMetrics, sharesUnknownReason, type MetricField } from "@/lib/metricDisplay";
 import { postAgeContext, postMeasuredAt, postStatus } from "@/lib/posts/postStatus";
 import { viewsAsOf } from "@/lib/posts/fieldFreshness";
 import PostStatusChip from "@/components/posts/PostStatusChip";
@@ -498,7 +498,10 @@ export default function PostsTab({
   const [creatorSearch, setCreatorSearch] = useState("");
   const [postedFrom, setPostedFrom] = useState("");
   const [postedTo, setPostedTo] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("posted");
+  /* Most-viewed first by default, in every campaign: the post a team opens
+     the tab to look at is the one that is working, and the client report
+     already lists them in this order (lib/reports/campaignPerformance). */
+  const [sortKey, setSortKey] = useState<SortKey>("views");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
 
@@ -1290,18 +1293,23 @@ export default function PostsTab({
       return true;
     });
 
-    const valueOf = (p: PostData): number => {
+    /* Unknown is not 0: null is a count nobody has read, and it sinks below
+       every measured one in either direction -- "Lowest" must not open on the
+       posts we know nothing about. */
+    const metric = (p: PostData, value: number, field: MetricField) =>
+      fieldMetricValue(value, p.lastSyncedAt, p.platformMetrics, field);
+    const valueOf = (p: PostData): number | null => {
       switch (sortKey) {
         case "posted": return new Date(p.postedAt).getTime() || 0;
-        case "views": return p.viewsCount;
-        case "likes": return p.likesCount;
-        case "comments": return p.commentsCount;
-        case "shares": return p.sharesCount;
-        case "saves": return p.savesCount;
+        case "views": return metric(p, p.viewsCount, "views");
+        case "likes": return metric(p, p.likesCount, "likes");
+        case "comments": return metric(p, p.commentsCount, "comments");
+        case "shares": return metric(p, p.sharesCount, "shares");
+        case "saves": return metric(p, p.savesCount, "saves");
         case "downloads": return p.downloadsCount;
         case "engRate":
-          return fieldMetricValue(p.likesCount, p.lastSyncedAt, p.platformMetrics, "likes") === null ? -1 : engRatePct(p) ?? -1;
-        case "delta": return deltaViews(p) ?? Number.NEGATIVE_INFINITY;
+          return metric(p, p.likesCount, "likes") === null ? null : engRatePct(p) ?? null;
+        case "delta": return deltaViews(p) ?? null;
         default: return 0;
       }
     };
@@ -1311,6 +1319,7 @@ export default function PostsTab({
        on every keystroke in the search box. */
     const keyed = rows.map((p) => [valueOf(p), p] as const);
     keyed.sort((a, b) => {
+      if (a[0] === null || b[0] === null) return a[0] === null ? (b[0] === null ? 0 : 1) : -1;
       const diff = a[0] - b[0];
       return sortDir === "asc" ? diff : -diff;
     });
@@ -1511,7 +1520,7 @@ export default function PostsTab({
      Sorting by a column that is no longer offered would leave the control
      showing one thing and the list ordered by another. */
   useEffect(() => {
-    if (!sortFields.some((f) => f.key === sortKey)) setSortKey("posted");
+    if (!sortFields.some((f) => f.key === sortKey)) setSortKey("views");
   }, [sortFields, sortKey]);
 
   const toggleSort = (key: SortKey) => {

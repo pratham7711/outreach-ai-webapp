@@ -166,14 +166,36 @@ test.describe('Gate 2 Dashboard — Analytics page', () => {
 });
 
 test.describe('Gate 2 Dashboard — Share Report', () => {
-  test('Share button on Performance tab opens modal and creates link', async ({ page }) => {
-    // Share Report lives in the Performance header, and a campaign now opens
-    // on Posts -- so Performance is asked for by name, as at lines 6/35/47.
+  test('Share Campaign is on every campaign page and opens the share dialog', async ({ page }) => {
+    // One Share Campaign in the campaign header on every section, first in the
+    // cluster -- not only on Performance, where it used to be the only one.
+    const headerShare = page.locator('[data-region="page-actions"] [data-action="share-campaign"]');
+    for (const section of ['overview', 'creators', 'posts', 'performance', 'analytics', 'edit']) {
+      await page.goto(`/campaigns/camp-1?section=${section}`);
+      await expect(headerShare, `header Share on ${section}`).toHaveCount(1, { timeout: 30000 });
+      await expect(headerShare, `header Share on ${section}`).toBeVisible();
+      await expect(headerShare, `header Share on ${section}`).toHaveText(/share campaign/i);
+      await expect(
+        page.locator('[data-region="page-actions"] > *').first(),
+        `Share leads the header actions on ${section}`,
+      ).toHaveAttribute('data-action', 'share-campaign');
+    }
+
+    // A post's own page carries it too, and it is the campaign's link.
+    const postsRes = await page.request.get('/api/campaigns/camp-1/posts');
+    expect(postsRes.ok()).toBe(true);
+    const postId: string | undefined = (await postsRes.json())?.posts?.[0]?.id;
+    expect(postId, 'camp-1 has a seeded post').toBeTruthy();
+    await page.goto(`/campaigns/camp-1/posts/${postId}`);
+    await expect(page.locator('[data-action="share-campaign"]')).toHaveCount(1, { timeout: 30000 });
+
+    // Performance: the header button is the only Share; the tab's own is gone.
     await page.goto('/campaigns/camp-1?section=performance');
     await page.waitForLoadState('networkidle');
     await page.getByText('Views').first().waitFor({ state: 'visible', timeout: 30000 });
+    await expect(page.getByRole('button', { name: /^share/i })).toHaveCount(1);
 
-    const shareBtn = page.getByRole('button', { name: /share report/i }).first();
+    const shareBtn = page.getByRole('button', { name: /share campaign/i });
     await expect(shareBtn).toBeVisible({ timeout: 15000 });
     await shareBtn.click();
 
