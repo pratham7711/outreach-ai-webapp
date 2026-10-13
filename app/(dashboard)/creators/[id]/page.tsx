@@ -73,6 +73,8 @@ type SocialAccount = {
   statsSyncedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Typed in by the agency rather than connected by the creator (decided server-side). */
+  addedByHand?: boolean;
 };
 
 type TikTokVideo = {
@@ -743,7 +745,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
   const [socialAccounts, setSocialAccounts] = useState<SocialAccount[]>([]);
   const [socialLoading, setSocialLoading] = useState(false);
   const [showAddSocial, setShowAddSocial] = useState(false);
-  const [addSocialForm, setAddSocialForm] = useState({ platform: "INSTAGRAM", handle: "", followersCount: "", avgViews: "" });
+  const [addSocialForm, setAddSocialForm] = useState({ platform: "INSTAGRAM", handle: "" });
   const [addingSocial, setAddingSocial] = useState(false);
   const [removingSocial, setRemovingSocial] = useState<string | null>(null);
 
@@ -793,13 +795,11 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
         body: JSON.stringify({
           platform: addSocialForm.platform,
           handle: addSocialForm.handle.trim(),
-          followersCount: addSocialForm.followersCount ? Number(addSocialForm.followersCount) : 0,
-          avgViews: addSocialForm.avgViews ? Number(addSocialForm.avgViews) : 0,
         }),
       });
       if (res.ok) {
         setShowAddSocial(false);
-        setAddSocialForm({ platform: "INSTAGRAM", handle: "", followersCount: "", avgViews: "" });
+        setAddSocialForm({ platform: "INSTAGRAM", handle: "" });
         fetchSocialAccounts();
       } else {
         const payload = await res.json().catch(() => ({}));
@@ -1206,7 +1206,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
         {activeTab === "social" && (
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <span style={{ fontWeight: 700, fontSize: "var(--cc-t-16)", color: "var(--cc-text)" }}>Connected Accounts</span>
+              <span style={{ fontWeight: 700, fontSize: "var(--cc-t-16)", color: "var(--cc-text)" }}>Social Accounts</span>
               <button
                 onClick={() => setShowAddSocial(true)}
                 style={{
@@ -1242,22 +1242,11 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                       placeholder="@username"
                     />
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                    <Input
-                      label="Followers"
-                      type="number"
-                      value={addSocialForm.followersCount}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAddSocialForm(prev => ({ ...prev, followersCount: e.target.value }))}
-                      placeholder="0"
-                    />
-                    <Input
-                      label="Avg Views"
-                      type="number"
-                      value={addSocialForm.avgViews}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAddSocialForm(prev => ({ ...prev, avgViews: e.target.value }))}
-                      placeholder="0"
-                    />
-                  </div>
+                  {/* No Followers / Avg Views inputs: an account's figures come
+                      from the platform, never typed in (Pratham, 2026-10-13). */}
+                  <p style={{ margin: 0, fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
+                    Followers and views are read from the platform, not typed in.
+                  </p>
                   <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
                     <button
                       onClick={() => setShowAddSocial(false)}
@@ -1332,8 +1321,10 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                     <div style={{ marginBottom: 6 }}>
                       <AgeLabel at={acct.statsSyncedAt ?? null} field="account" prefix="Read" source="Connected account" never="never read by us" />
                     </div>
+                    {/* "Connected" only for a creator's own connection; a handle the
+                        agency typed in was added, nobody connected anything. */}
                     <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-subtle)" }}>
-                      Connected {formatDateAbs(acct.createdAt)}
+                      {acct.addedByHand ? "Added" : "Connected"} {formatDateAbs(acct.createdAt)}
                     </div>
                   </Card>
                 ))}

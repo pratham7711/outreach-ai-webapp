@@ -4,6 +4,8 @@ import { db } from "@/lib/db";
 import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
 import { encrypt } from "@/lib/crypto/encrypt";
 import { REVOKE_REASONS, revokeGrantsForConnections } from "@/lib/creators/grants";
+import { ACCOUNT_ORIGINS } from "@/lib/platforms/accountOrigin";
+import { BACKFILL_SKIPS, classifyForBackfill } from "@/lib/creators/grantBackfill";
 
 // ─── GET — list social accounts (secrets excluded) ───────────────────────────
 
@@ -36,11 +38,25 @@ export async function GET(
       statsSyncedAt: true,
       createdAt: true,
       updatedAt: true,
+      // Read only to tell a typed-in row from a connection; never returned.
+      origin: true,
+      platformUserId: true,
+      accessToken: true,
     },
     orderBy: { createdAt: "asc" },
   });
 
-  return NextResponse.json(accounts);
+  /* A row an agency typed in is "Added <date>", not "Connected": nobody
+     consented to anything and nothing is read through it. Rows from before
+     origin was recorded are told apart the way the grant backfill tells them
+     apart (lib/creators/grantBackfill), so the label and the grant decision
+     cannot disagree. The token is opened there, compared and dropped. */
+  return NextResponse.json(
+    accounts.map(({ accessToken, origin, platformUserId, ...a }) => {
+      const kind = classifyForBackfill({ ...a, accessToken, origin, platformUserId, creatorId: id, orgId });
+      return { ...a, addedByHand: kind === BACKFILL_SKIPS.MANUAL || kind === BACKFILL_SKIPS.NO_IDENTITY };
+    }),
+  );
 }
 
 // ─── POST — add a social account ─────────────────────────────────────────────
@@ -50,8 +66,8 @@ const PostSchema = z.object({
   handle: z.string().min(1).max(100),
   accessToken: z.string().min(1).default("manual-entry"),
   refreshToken: z.string().optional().nullable(),
-  followersCount: z.number().int().min(0).optional(),
-  avgViews: z.number().int().min(0).optional(),
+  // No followersCount / avgViews: an account's figures come from the platform,
+  // never from the person adding it. z.object strips them if they are sent.
 });
 
 export async function POST(
@@ -84,8 +100,9 @@ export async function POST(
         creatorId: id,
         platform: parsed.data.platform,
         handle: parsed.data.handle,
-        followersCount: parsed.data.followersCount,
-        avgViews: parsed.data.avgViews,
+        // The provenance the column was added for: without it a typed-in row
+        // was only recognisable by decrypting its token.
+        ...(parsed.data.accessToken === "manual-entry" && { origin: ACCOUNT_ORIGINS.MANUAL }),
         accessToken: encrypt(parsed.data.accessToken, orgId),
         refreshToken: parsed.data.refreshToken
           ? encrypt(parsed.data.refreshToken, orgId)

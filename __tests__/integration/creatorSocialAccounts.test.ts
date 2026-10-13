@@ -112,6 +112,29 @@ describe("GET /api/creators/[id]/social-accounts", () => {
     expect(data[0]).not.toHaveProperty("accessToken");
     expect(data[0]).not.toHaveProperty("refreshToken");
   });
+
+  it("marks a typed-in account addedByHand, a connection not, and returns no token or origin", async () => {
+    const { encrypt } = jest.requireActual("@/lib/crypto/encrypt");
+    const base = { tokenExpiry: null, createdAt: new Date(), updatedAt: new Date(), followersCount: 0, avgViews: 0 };
+    mockDb.creatorSocialAccount.findMany.mockResolvedValue([
+      { ...base, id: "m", platform: "TIKTOK", handle: "a", origin: "manual", platformUserId: null, accessToken: encrypt("manual-entry", "org-1") },
+      { ...base, id: "o", platform: "TIKTOK", handle: "b", origin: "oauth", platformUserId: "pu-1", accessToken: encrypt("real", "org-1") },
+      // From before origin was recorded: told apart by its placeholder token.
+      { ...base, id: "l", platform: "INSTAGRAM", handle: "c", origin: null, platformUserId: null, accessToken: encrypt("manual-entry", "org-1") },
+    ]);
+    const res = await GET(makeRequest("http://localhost/api/creators/cr-1/social-accounts"), makeParams("cr-1"));
+    const data = await res.json();
+    expect(data.map((a: { id: string; addedByHand: boolean }) => [a.id, a.addedByHand])).toEqual([
+      ["m", true],
+      ["o", false],
+      ["l", true],
+    ]);
+    for (const row of data) {
+      expect(row).not.toHaveProperty("accessToken");
+      expect(row).not.toHaveProperty("origin");
+      expect(row).not.toHaveProperty("platformUserId");
+    }
+  });
 });
 
 // ─── POST ────────────────────────────────────────────────────────────────────
@@ -179,6 +202,11 @@ describe("POST /api/creators/[id]/social-accounts", () => {
     expect(data.platform).toBe("YOUTUBE");
     expect(data).not.toHaveProperty("accessToken");
     expect(data).not.toHaveProperty("refreshToken");
+    // Typed figures are dropped, and a hand-entered row says so in origin.
+    const written = mockDb.creatorSocialAccount.create.mock.calls[0][0].data;
+    expect(written).not.toHaveProperty("followersCount");
+    expect(written).not.toHaveProperty("avgViews");
+    expect(written.origin).toBe("manual");
   });
 
   it("returns 409 on duplicate platform", async () => {
