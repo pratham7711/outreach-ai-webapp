@@ -111,7 +111,10 @@ export default defineConfig({
         channel: 'chrome',
         storageState: 'e2e/fixtures/.auth.json',
       },
-      dependencies: ['setup'],
+      // portal-setup too: responsive-d.spec.ts opens a creator context from
+      // .portal-auth.json. Undeclared, it only worked while some portal spec
+      // happened to share the run; a CI shard without one failed on the file.
+      dependencies: ['setup', 'portal-setup'],
       testIgnore: [/auth\.spec\.ts/, /portal-.*\.spec\.ts/],
     },
     // Unauthenticated tests: fresh browser, no session
