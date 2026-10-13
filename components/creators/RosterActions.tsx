@@ -172,7 +172,10 @@ function SaveAsListDialog({
               <Button variant="secondary" onClick={onClose}>
                 Close
               </Button>
-              <Link href={`/lists/${done.listId}`} className="ui-btn ui-btn-primary" data-cc-slot="primary">
+              {/* A link dressed as the library's Button, so it needs the size
+                  class the Button would have added itself: without ui-btn-md
+                  it had no padding and "Open list" touched both edges. */}
+              <Link href={`/lists/${done.listId}`} className="ui-btn ui-btn-primary ui-btn-md" data-cc-slot="primary">
                 Open list
               </Link>
             </>
