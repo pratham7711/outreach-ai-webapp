@@ -72,6 +72,24 @@ describe("requirePermission", () => {
     mockAuth.mockResolvedValue(auth(null, "api_key"));
     expect((await requirePermission(undefined, "campaigns:delete")).ok).toBe(true);
   });
+
+  it("an API key is refused where the route opts out of keys (key and member management)", async () => {
+    mockAuth.mockResolvedValue(auth(null, "api_key"));
+    const keys = await requirePermission(undefined, "settings:manage", { allowApiKey: false });
+    expect(keys.ok).toBe(false);
+    if (!keys.ok) expect(keys.response.status).toBe(403);
+    const members = await requirePermission(undefined, "users:manage", { allowApiKey: false });
+    expect(members.ok).toBe(false);
+    // Everything else is unchanged: the same permission without the opt-out still passes.
+    expect((await requirePermission(undefined, "settings:manage")).ok).toBe(true);
+  });
+
+  it("the API-key opt-out does not touch a person's session", async () => {
+    mockAuth.mockResolvedValue(auth("OWNER"));
+    expect((await requirePermission(undefined, "settings:manage", { allowApiKey: false })).ok).toBe(true);
+    mockAuth.mockResolvedValue(auth("VIEWER"));
+    expect((await requirePermission(undefined, "users:manage", { allowApiKey: false })).ok).toBe(false);
+  });
 });
 
 /**

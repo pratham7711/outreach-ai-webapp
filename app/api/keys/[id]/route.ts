@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { permissionDenial } from "@/lib/authz";
 import { createAuditActor, logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 
@@ -12,6 +13,12 @@ export async function DELETE(
   try {
     const session = await auth();
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    /* The same gate as minting and listing keys (GET/POST /api/keys). Any
+       session could revoke any of the org's keys -- a VIEWER could cut the
+       org's integrations off. Session-only, so an API key cannot revoke keys
+       either. */
+    const denied = permissionDenial(session.user, "settings:manage");
+    if (denied) return denied;
     const orgId = (session.user as any).orgId;
 
     const { id } = await params;
