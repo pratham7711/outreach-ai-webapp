@@ -301,9 +301,7 @@ export function gateSoundReading(
     { kind: "sound", labels: [stats.title, stats.artist], counts: { uses: stats.usesCount } },
     { counts: { uses: sound.snapshots[0]?.usesCount } },
   );
-  if (!verdict.ok) {
-    logVerdict({ writer, kind: "sound", platform: sound.platform ?? undefined, rowId: sound.id }, verdict);
-  }
+  logVerdict({ writer, kind: "sound", platform: sound.platform ?? undefined, rowId: sound.id }, verdict);
   return verdict;
 }
 

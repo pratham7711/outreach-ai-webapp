@@ -272,7 +272,9 @@ export type GateLogContext = {
 };
 
 /**
- * Log a verdict that refused something, as one structured warn line.
+ * Log every verdict: a refusal as one structured warn line, an acceptance at
+ * debug. Every writer calls it for every reading, so with LOG_LEVEL=debug each
+ * reading that landed is traceable to the gate that passed it.
  *
  * `msg` is fixed ("reading rejected" / "reading field dropped") and every
  * refusal carries `gate: "acquisition.validate"`, so one log query finds every

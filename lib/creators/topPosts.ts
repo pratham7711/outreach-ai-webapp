@@ -99,12 +99,10 @@ export async function recordTopPosts(
     }
 
     const gated = gateTopPosts(creator, reading.posts);
-    if (!gated.verdict.ok) {
-      logVerdict(
-        { writer: "top-posts", kind: "top-post", platform: "TIKTOK", rowId: creator.id, orgId: creator.orgId },
-        gated.verdict,
-      );
-    }
+    logVerdict(
+      { writer: "top-posts", kind: "top-post", platform: "TIKTOK", rowId: creator.id, orgId: creator.orgId },
+      gated.verdict,
+    );
     if (gated.kept.length === 0) {
       refused += 1;
       continue;

@@ -256,7 +256,7 @@ export async function persistAccountIdentity(
       counts: { followers: existing?.followersCount, posts: existing?.mediaCount, likes: existing?.totalLikes },
     },
   );
-  if (!verdict.ok) logVerdict({ writer: "account-sync", kind: "account", platform, rowId: accountId }, verdict);
+  logVerdict({ writer: "account-sync", kind: "account", platform, rowId: accountId }, verdict);
   if (verdict.rejected) return false;
   const data: Record<string, unknown> = identityWriteData(identity, platform, existing?.followersCount);
   if (verdict.dropFields.includes("posts")) delete data.mediaCount;

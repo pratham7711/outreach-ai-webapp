@@ -229,9 +229,7 @@ export function measuredForNewPost(
     { kind: "post", platform: metrics.platform, counts: postGateCounts(metrics) },
     { platform: rowPlatform },
   );
-  if (!verdict.ok) {
-    logVerdict({ writer: ctx.writer, kind: "post", platform: rowPlatform ?? metrics.platform, orgId: ctx.orgId }, verdict);
-  }
+  logVerdict({ writer: ctx.writer, kind: "post", platform: rowPlatform ?? metrics.platform, orgId: ctx.orgId }, verdict);
   if (verdict.rejected || !hasMetricCounts(metrics)) return null;
   return metrics;
 }
@@ -288,12 +286,10 @@ async function authorIsCreator(
       ...(author && creator.handle ? { boundAccountIds: [key(creator.handle)] } : {}),
     },
   );
-  if (!verdict.ok) {
-    logVerdict(
-      { writer: `post-sync:${syncSource}:author-followers`, kind: "creator", platform, rowId: post.creatorId },
-      verdict,
-    );
-  }
+  logVerdict(
+    { writer: `post-sync:${syncSource}:author-followers`, kind: "creator", platform, rowId: post.creatorId },
+    verdict,
+  );
   return !verdict.rejected;
 }
 
@@ -412,9 +408,7 @@ export async function applyPostMetrics(
      "counts-inconsistent": uncharged, retried next run, and worded on the
      post as "its last consistent numbers are kept" -- which is what happens. */
   const gated = gatePostReading(post, metrics);
-  if (!gated.verdict.ok) {
-    logVerdict({ writer: `post-sync:${syncSource}`, kind: "post", platform: post.platform, rowId: post.id }, gated.verdict);
-  }
+  logVerdict({ writer: `post-sync:${syncSource}`, kind: "post", platform: post.platform, rowId: post.id }, gated.verdict);
   if (gated.verdict.rejected) return recordUnread(post, metrics, "counts-inconsistent", syncSource);
   /* A dropped counter's last good value stays on the post, and it was
      measured -- by the read that wrote it -- so it stays listed as measured,

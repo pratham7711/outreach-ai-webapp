@@ -984,19 +984,17 @@ export async function snapshotCreators(
         counts: { followers: anchor ?? creator.followersCount, avgViews: creator.averageViews },
       },
     );
-    if (!verdict.ok) {
-      logVerdict(
-        {
-          writer: plan ? "tracker:v2" : "tracker:legacy",
-          kind: "creator",
-          platform: creator.platform,
-          rowId: creator.id,
-          orgId: creator.orgId,
-          ...(via ? { via } : {}),
-        },
-        verdict,
-      );
-    }
+    logVerdict(
+      {
+        writer: plan ? "tracker:v2" : "tracker:legacy",
+        kind: "creator",
+        platform: creator.platform,
+        rowId: creator.id,
+        orgId: creator.orgId,
+        ...(via ? { via } : {}),
+      },
+      verdict,
+    );
     if (verdict.rejected) {
       skipped++;
       await quarantineTrackerReading({

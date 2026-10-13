@@ -192,12 +192,10 @@ export async function refreshRosterProfiles({
         },
       },
     );
-    if (!verdict.ok) {
-      logVerdict(
-        { writer: "profile-refresh", kind: "creator", platform: link.platform, rowId: link.id, orgId: link.orgId },
-        verdict,
-      );
-    }
+    logVerdict(
+      { writer: "profile-refresh", kind: "creator", platform: link.platform, rowId: link.id, orgId: link.orgId },
+      verdict,
+    );
     if (verdict.rejected) {
       counts.rejected++;
       await db.creatorProfileLink.update({
