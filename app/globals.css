@@ -1753,7 +1753,9 @@
      text on their own tints they scored 1.95:1 and 1.93:1. --chart-3/--chart-4
      above keep the vivid Apple-system hues for graphs. */
   --status-good: #1F7735;
-  --status-warning: #995900;
+  /* #995900 measured 4.43:1 as the Stale and Unverified chips' ink on their
+     own 16% tint. #8F5300 is 4.88 there and the same amber. */
+  --status-warning: #8F5300;
   --status-serious: #FF6B35;
   --status-critical: #FF3B30;
 
@@ -1778,7 +1780,11 @@
      theirs, and rgba(255,255,255,0.5) is an enumerated entry in that spec's
      allowlist. */
   --cc-camp-rail-bg: var(--cc-primary);
-  --cc-camp-rail-fg: rgba(255, 255, 255, 0.5);
+  /* Raised for WCAG AA on 2026-10-13: the theme keeps their layout and hues,
+     but its text now has to clear 4.5:1. Their 0.5 composites to 2.82:1 on
+     the rail blue; 0.8 is 5.07:1 and still reads as the resting state against
+     the hover's full white. */
+  --cc-camp-rail-fg: rgba(255, 255, 255, 0.8);
   --cc-camp-rail-hover-bg: rgba(255, 255, 255, 0.12);
   --cc-camp-rail-hover-fg: #FFFFFF;
   --cc-camp-rail-active-bg: var(--card);
@@ -1803,12 +1809,19 @@
      0.36, and so is the Financials card label and the Documents empty line.
      It is deliberately NOT --cc-text-subtle, which sits at 0.85 because it also
      paints sidebar group labels and empty-state copy and had to clear AA. */
-  --cc-text-faint: rgba(31, 60, 239, 0.36);
+  /* Raised for WCAG AA on 2026-10-13 (see --cc-camp-rail-fg). Their 0.36 was
+     1.89:1 on white and painted every sidebar group label, KPI label and list
+     caption in the theme; the 0.85 of --cc-text-subtle is 5.34:1 on white and
+     4.52:1 on the lavender tab strip, the palest ground it lands on. */
+  --cc-text-faint: var(--cc-text-subtle);
   /* Their muted grey is blue-cast, not neutral: 'Role' on Team, the section
      caption on Notifications and the Slack line on Integrations all measure
      rgb(152, 162, 179), and their row descriptions rgb(158, 170, 182) -- within
      8 of it. Ours was #484848 on all of them. */
-  --cc-text-muted: #98A2B3;
+  /* Raised for WCAG AA on 2026-10-13 (see --cc-camp-rail-fg). #98A2B3 was
+     2.58:1 on white (189 findings in the contrast sweep). #5B6476 keeps the
+     blue cast and is 5.95:1 on white, 4.85:1 on the tab strip. */
+  --cc-text-muted: #5B6476;
   --cc-hover-bg: #EBEEFE;
   --cc-row-hover: rgba(31, 60, 239, 0.04);
 
@@ -2118,7 +2131,8 @@
   --cc-cal-weekday-pad: 6px 0;
   /* Their weekday heads are a shade darker than the rest of their muted grey
      -- rgb(138, 141, 158) against rgb(152, 162, 179), MEASURED on all seven. */
-  --cc-cal-weekday-fg: #8A8D9E;
+  /* Their #8A8D9E was 3.29:1; raised for AA with the muted grey above. */
+  --cc-cal-weekday-fg: #5C6072;
   --cc-cal-daynum-fs: 1.25rem;
   --cc-cal-daynum-fw: 600;
   --cc-cal-daynum-fw-today: 600;
@@ -2909,8 +2923,12 @@
   --cc-page-caption-mb: 5px;
   --cc-page-caption-fg: var(--cc-text-faint);
   /* Their strip uses the palette raw -- Pending rgb(231,173,0), Complete
-     rgb(86,186,87), Canceled rgb(255,0,0) all measured undarkened. */
-  --cc-status-ink-strength: 100%;
+     rgb(86,186,87), Canceled rgb(255,0,0) all measured undarkened -- and on
+     the lavender strip those read at 1.65, 2.00 and 3.26:1. Half-way toward
+     --cc-text keeps each hue and puts Pending, the palest, at 5.55:1. The selected
+     pill is filled with the same darkened ink, so it carries a white label
+     (see the creatorcore .cc-tab[aria-selected] rule). */
+  --cc-status-ink-strength: 50%;
   --cc-payout-banner-display: flex;
   --cc-act-dash-display: flex;
   --cc-queue-head-fs: 0.875rem;
@@ -2938,7 +2956,8 @@
   --cc-listpage-tiles-order: 2;
   --cc-payout-head-display: block;
   --cc-paypage-search-h: 40px;
-  --cc-status-neutral-ink: #8E8E8E;
+  /* Their All tab grey, #8E8E8E, was 2.66:1 on the strip; #616161 is 5.05. */
+  --cc-status-neutral-ink: #616161;
   --cc-stage-label-fs: var(--cc-t-14);
   --cc-stage-label-fg: var(--cc-primary);
   --cc-taxonomy-empty-fg: var(--cc-text);
@@ -2948,7 +2967,8 @@
      .ui-card-body inside the padded card, which is where our 49 came from. */
   --cc-activity-pad: 18px;
   --cc-activity-body-pad: 0px;
-  --cc-activity-tab-off: rgba(0, 0, 0, 0.5);
+  /* Their 0.5 black was 3.98:1 on the Overview's activity tabs; 0.6 is 5.74. */
+  --cc-activity-tab-off: rgba(0, 0, 0, 0.6);
   /* 1px border + 19 = the 20px inset their Post Performance panel MEASURED at
      243 against a card edge of 223, which also puts the first KPI label on
      their 258. */
@@ -3129,7 +3149,10 @@
   --cc-titleblock-gap: 10px;
   --cc-camp-status-fs: 0.875rem;
   --cc-camp-status-fw: 400;
-  --cc-camp-status-fg: #ACB9F6;
+  /* Their #ACB9F6 was 1.90:1 -- the pale lavender "In Progress" and "Budget
+     Based" badges under a campaign title. The primary is 4.63:1 on the
+     badge's own accent tint. */
+  --cc-camp-status-fg: var(--cc-primary);
   /* The primary paints LAST here, unlike the dashboard.
      MEASURED at desktop-1600: their campaign header cluster reads
      [Share Campaign x=896, Refresh Data x=1117, Add Posts x=1332, close x=1544],
@@ -7082,9 +7105,23 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 .cc-sidebar-head {
   padding: var(--cc-rail-head-pad);
 }
+/* Wraps at word boundaries, up to three lines, rather than one line and an
+   ellipsis. MEASURED 2026-10-13 in creatorcore: "Made Boring Campaigns" is
+   184px at 15/800, and the campaign rail gives it 146 at 1440 and 80 at 1024,
+   so the workspace's own name read "Made Boring Ca…" on every campaign page.
+   At 80 each word needs its own line; "Campaigns" alone is 72. Two lines still
+   cut it to "Made / Boring…" there, so the clamp is three, a backstop for a
+   longer org name rather than the normal case. */
 .cc-rail-brand {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: var(--cc-rail-brand-fs);
   font-weight: var(--cc-rail-brand-fw);
+  line-height: 1.2;
   color: var(--cc-text);
   letter-spacing: var(--cc-rail-brand-tk);
 }
@@ -8999,10 +9036,14 @@ html:has(.lp-page) { scroll-behavior: smooth; }
    it picks black, which is a colour key we currently match with white. The
    fallback keeps today's value for a tab whose colour is already a variable,
    and this sits after both rules it corrects so it wins on order. */
-.cc-tabs[data-variant="solid"] .cc-tab[aria-selected="true"],
-:root.creatorcore .cc-tabs .cc-tab[aria-selected="true"] {
+.cc-tabs[data-variant="solid"] .cc-tab[aria-selected="true"] {
   --cc-tab-fg: var(--cc-tab-on-ink, var(--cc-on-primary));
 }
+/* creatorcore is not in that rule any more: its status inks are mixed half-way
+   toward --cc-text (--cc-status-ink-strength), so every filled pill is dark and the
+   white of the theme's own selected rule above reads on all of them. Judged on
+   the raw literal, --cc-tab-on-ink chose black for Pending and Complete, which
+   on the darkened fill computes to about 3:1. */
 
 /* The Posts tab's own filter strip. MEASURED 2026-09-14 on their
    campaign-busy-posts and campaign-busy-drafts: selected is a solid

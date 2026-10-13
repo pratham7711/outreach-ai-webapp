@@ -233,7 +233,7 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
                   />
                 ) : (
                   <span
-                    className="cc-rail-brand truncate"
+                    className="cc-rail-brand"
                     title={brandName ?? BRAND.name}
                   >
                     {brandName ?? BRAND.name}

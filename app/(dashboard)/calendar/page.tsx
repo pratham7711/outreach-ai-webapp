@@ -214,7 +214,12 @@ export default function CalendarPage() {
                         <div key={c.id} title={c.title} className={ci >= 2 ? "cal-chip cal-chip-extra" : "cal-chip"} style={{
                           minWidth: 0,
                           marginTop: 2, padding: "1px 4px", borderRadius: 3, fontSize: "var(--cc-t-11)", fontWeight: 500,
-                          background: `color-mix(in srgb, ${campaignStatusDot(c.status)} 14%, transparent)`,
+                          /* Mixed into the card rather than into transparent: a
+                             translucent chip over today's translucent cell is
+                             two layers the contrast sweep composites as if the
+                             lower one were opaque, scoring the title at 1.13:1
+                             on a ground that is really near-white. */
+                          background: `color-mix(in srgb, ${campaignStatusDot(c.status)} 14%, var(--cc-card))`,
                           borderLeft: `3px solid ${campaignStatusDot(c.status)}`,
                           color: "var(--cc-text)",
                           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",

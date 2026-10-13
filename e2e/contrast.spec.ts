@@ -87,11 +87,21 @@ const OUR_THEMES = ['light', 'dark'];
  * fails, exactly as it would in light or dark.
  *
  * This is an exemption, not a suppression, and the difference is enforced:
- * - it is a closed list of seven values, not a theme-wide skip;
+ * - it is a closed list, not a theme-wide skip;
  * - an entry that stops matching anything is a failure, so the list cannot rot
  *   into a blanket as the pages change;
  * - it covers only the INVISIBLE assertion. Every finding is still measured,
  *   still printed, and still written to .contrast-report.json.
+ *
+ * It is EMPTY as of 2026-10-13. The seven inks it used to hold (their muted
+ * grey #98A2B3, the primary at 0.36 for captions, #ACB9F6 for the campaign
+ * header status, #8E8E8E for the All tab, the raw palette Pending and Complete
+ * tab inks, and white at 0.5 on the campaign rail) were raised to AA in
+ * `:root.creatorcore` itself: the decision was that this theme's text has to
+ * read at 4.5:1 too, and that is a token change, not a list entry. Measured on
+ * the demo data with this file's own probe: 347 findings under 3:1 before,
+ * none after. The list stays so a deliberate exception has somewhere to go,
+ * with its measurement beside it.
  *
  * What is deliberately NOT here: #FEF3C7, the pale amber that the Pending
  * filter tab drew as its own ink at 1.20:1. That is not a colour CreatorCore
@@ -99,44 +109,7 @@ const OUR_THEMES = ['light', 'dark'];
  * foreground was `var(--cc-warning-ink)`, which it cannot score. It was fixed
  * in lib/statusColors.ts rather than listed here, which is the test working.
  */
-const CREATORCORE_INKS: { ink: string; token: string; measured: string }[] = [
-  {
-    ink: 'rgb(152, 162, 179)',
-    token: '--cc-text-muted (globals.css:1579)',
-    measured: "their muted grey is blue-cast: 'Role' on Team, the Notifications caption and the Slack line all measure rgb(152,162,179)",
-  },
-  {
-    ink: 'rgba(31, 60, 239, 0.36)',
-    token: '--cc-text-faint (globals.css:1574)',
-    measured: "the caption under a list page's title -- '200 Creators', '19 Lists' -- is their primary at 0.36 alpha",
-  },
-  {
-    ink: 'rgb(172, 185, 246)',
-    token: '--cc-camp-status-fg (globals.css:2824)',
-    measured: 'their campaign header status sits at x=238 y=73.3, 14px/400 rgb(172,185,246), under the title',
-  },
-  {
-    ink: 'rgb(142, 142, 142)',
-    token: '--cc-status-neutral-ink (globals.css:2633)',
-    measured: 'their campaigns strip draws the All tab a plain grey: rgb(142,142,142) (globals.css:4775)',
-  },
-  {
-    ink: 'rgb(231, 173, 0)',
-    token: 'CAMPAIGN_STATUS_STYLE.PENDING via --cc-status-ink-strength',
-    measured: 'their Pending tab is rgb(231,173,0) -- the palette raw, because they do not push it toward the ground (globals.css:4775)',
-  },
-  {
-    ink: 'rgb(86, 186, 87)',
-    token: 'CAMPAIGN_STATUS_STYLE.COMPLETE via --cc-status-ink-strength',
-    measured: 'their Complete tab is rgb(86,186,87) (globals.css:4775)',
-  },
-  {
-    ink: 'rgba(255, 255, 255, 0.5)',
-    token: '--cc-camp-rail-fg (globals.css:1552)',
-    measured:
-      'every inactive row of their campaign rail is white at 0.5 over rgb(31,60,239) -- 2.82:1 composited. Ours sat at 0.6 purely to clear the 3:1 floor this spec used to apply to every theme; it is their value again now that the floor is scoped to ours',
-  },
-];
+const CREATORCORE_INKS: { ink: string; token: string; measured: string }[] = [];
 
 /**
  * Chrome does not serialise a colour the way it was written: a color-mix() comes
