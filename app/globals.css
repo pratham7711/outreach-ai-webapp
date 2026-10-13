@@ -11126,34 +11126,43 @@ a.cc-platform-chip[data-problem]:hover {
 .cc-tracker-ops-log { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-direction: column; gap: 6px; font-size: var(--cc-t-13); color: var(--cc-text); }
 
 /* ── Feedback button (components/feedback/FeedbackButton) ──────────────────
-   Bottom-right on every client and creator page: above the page and the rail,
-   under scrims, drawers and dialogs, so an open menu or modal covers it. */
-.cc-feedback-fab {
-  position: fixed;
-  right: 16px;
-  bottom: calc(16px + env(safe-area-inset-bottom));
-  z-index: 50;
+   A control in the page's chrome -- the top bar, the creatorcore rail's utility
+   row, the creator app's header -- never a layer over the page. As a fixed pill
+   in the bottom-right corner it sat on whatever a page put there: MEASURED
+   2026-10-13 at 1440x900 it took the click meant for "Next page" and covered
+   the roster's "Track selected"; at 390 the bulk bar's third button and the
+   "Posted to" field. Same height and ground as the top bar's search box, so the
+   bar reads as one row of tools. */
+.cc-feedback-trigger {
+  position: relative;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 8px 14px;
+  flex-shrink: 0;
+  height: var(--cc-topbar-search-h);
+  margin: 0;
+  padding: 0 12px;
   border: 1px solid var(--cc-border);
-  border-radius: var(--cc-r-pill);
+  border-radius: var(--cc-topbar-search-r);
   background: var(--cc-card);
   color: var(--cc-text);
+  font: inherit;
   font-size: var(--cc-t-13);
   font-weight: var(--cc-fw-label);
   line-height: 1.2;
-  box-shadow: var(--cc-popover-shadow);
+  white-space: nowrap;
   cursor: pointer;
 }
-.cc-feedback-fab:hover { border-color: var(--cc-primary); color: var(--cc-primary); }
-/* On a phone the labelled pill sat over the right-hand column of whatever was
-   under it -- a creator's views on the client report. Once the page is
-   scrolled it drops to its icon; back at the top the label returns. */
+.cc-feedback-trigger:hover { border-color: var(--cc-primary); color: var(--cc-primary); }
+.cc-feedback-trigger:disabled,
+.cc-feedback-trigger-icon:disabled { cursor: progress; opacity: 0.8; }
+/* A phone's bar is a hamburger, a breadcrumb, the bell and the avatar; the
+   word goes and the glyph stays, named by its aria-label. The 44px floor for
+   top-bar buttons below 768 is what sizes it. */
 @media (max-width: 767.98px) {
-  .cc-feedback-fab-compact { padding: 10px; gap: 0; }
-  .cc-feedback-fab-compact .cc-feedback-fab-label {
+  .cc-feedback-trigger { padding: 0; width: var(--cc-topbar-search-h); }
+  .cc-feedback-trigger-label {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -11161,14 +11170,6 @@ a.cc-platform-chip[data-problem]:hover {
     clip-path: inset(50%);
     white-space: nowrap;
   }
-}
-.cc-feedback-fab:disabled { cursor: progress; opacity: 0.8; }
-/* The creator portal's phone tab bar is ~57px plus the safe area. */
-@media (max-width: 1023.98px) {
-  .cc-feedback-fab-raised { bottom: calc(72px + env(safe-area-inset-bottom)); }
-}
-@media print {
-  .cc-feedback-fab { display: none; }
 }
 .cc-feedback-panel { display: flex; flex-direction: column; gap: 10px; }
 .cc-feedback-shot { margin: 0; display: flex; flex-direction: column; gap: 6px; }

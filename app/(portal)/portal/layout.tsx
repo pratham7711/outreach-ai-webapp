@@ -35,11 +35,16 @@ function PortalNav() {
   const router = useRouter();
   const pathname = usePathname();
   const [userName, setUserName] = useState<string | null>(null);
+  /* Feedback is offered to a signed-in creator only. This layout renders before
+     anything has checked the session, so a signed-out visitor bounced to the
+     login page would otherwise see it for a moment. */
+  const [signedIn, setSignedIn] = useState(false);
 
   useEffect(() => {
     fetch("/api/portal/me")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
+        if (data) setSignedIn(true);
         if (data?.name) setUserName(data.name);
       })
       .catch(() => {});
@@ -121,6 +126,9 @@ function PortalNav() {
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {/* In the header, not floating: the phone tab bar and the page's own
+              last controls both live along the bottom edge. */}
+          {signedIn && <FeedbackButton surface="portal" />}
           {userName && (
             <span className="rsp-hide-mobile" style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", whiteSpace: "nowrap" }}>
               {userName}
@@ -213,7 +221,6 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       <div style={{ minHeight: "100vh", background: "var(--cc-bg)" }}>
         <ThemedToaster richColors position="top-center" />
         {!isAuthPage && <PortalNav />}
-        {!isAuthPage && <FeedbackButton surface="portal" raiseOnPhone />}
         {children}
         {/* The sign-in pages carry these under their own card. */}
         {!isAuthPage && (
