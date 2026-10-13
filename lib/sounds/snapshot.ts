@@ -3,6 +3,7 @@ import { isCoverUrlStale } from "@/lib/sounds/coverUrl";
 import { readTikTokAudioUsage, isMeasuredRung } from "@/lib/platforms/tiktokAudioUsage";
 import { readInstagramAudioUsage } from "@/lib/platforms/instagramAudioUsage";
 import { createLogger } from "@/lib/observability/logger";
+import { ABANDON_AFTER_DEADLINE_MS, waitUntil } from "@/lib/ops/waitUntil";
 import { holdSoundReading } from "@/lib/trackers/metrics";
 import { readingPrecision, roundedAddsNothing, soundReadingChange, type UsesPrecision } from "@/lib/sounds/precision";
 
@@ -113,24 +114,40 @@ export async function snapshotSounds(options: SnapshotOptions = {}): Promise<Sna
      a server. It is the documented last resort, the fetcher now runs it
      concurrently rather than paying its timeout one sound after another, and
      dropping a fallback is a separate decision from making the reader fast. */
-  const tiktokReadings = dueTikTok.length
-    ? await readTikTokAudioUsage(
-        dueTikTok.map((sound) => sound.tiktokSoundId),
-        { deadlineAt: deadline, allowMusicPage: true },
+  /* Both readers honour deadlineAt for what they start; waitUntil bounds what
+     they had already started, so an await that never settles cannot hold the
+     run past its function's maxDuration (lib/ops/waitUntil). A reader given
+     up on reads as "never asked" below -- unread, not failed -- and says so in
+     an error line. */
+  const giveUpAt = deadline + ABANDON_AFTER_DEADLINE_MS;
+  const tiktokRead = dueTikTok.length
+    ? await waitUntil(
+        readTikTokAudioUsage(
+          dueTikTok.map((sound) => sound.tiktokSoundId),
+          { deadlineAt: deadline, allowMusicPage: true },
+        ),
+        giveUpAt,
       )
-    : new Map();
+    : null;
+  if (tiktokRead && !tiktokRead.settled) log.error("tiktok audio reads abandoned", { sounds: dueTikTok.length });
+  const tiktokReadings = tiktokRead?.settled ? tiktokRead.value : new Map();
 
   /* One plain GET per audio, no ladder and no sandbox -- Instagram's audio page
      serves its Open Graph block to a non-browser client on the first try. The
      reasons it can fail are its own (an id that is no audio page at all still
      answers 200, and original audio publishes no count), which is why they do
      not flow through the TikTok outcome type. */
-  const instagramReadings = dueInstagram.length
-    ? await readInstagramAudioUsage(
-        dueInstagram.map((sound) => sound.tiktokSoundId),
-        { deadlineAt: deadline },
+  const instagramRead = dueInstagram.length
+    ? await waitUntil(
+        readInstagramAudioUsage(
+          dueInstagram.map((sound) => sound.tiktokSoundId),
+          { deadlineAt: deadline },
+        ),
+        giveUpAt,
       )
-    : new Map();
+    : null;
+  if (instagramRead && !instagramRead.settled) log.error("instagram audio reads abandoned", { sounds: dueInstagram.length });
+  const instagramReadings = instagramRead?.settled ? instagramRead.value : new Map();
 
   for (const sound of due) {
     if (sound.platform === "INSTAGRAM") {

@@ -8,12 +8,11 @@ import { z } from "zod";
  * likes.
  */
 
-export const FEEDBACK_SURFACES = ["dashboard", "portal", "share", "list"] as const;
-export type FeedbackSurface = (typeof FEEDBACK_SURFACES)[number];
-
-/** Decoded. A viewport JPEG measured 0.1-0.6 MB; Vercel refuses bodies over ~4.5 MB. */
-export const MAX_SCREENSHOT_BYTES = 3 * 1024 * 1024;
-export const MAX_MESSAGE_CHARS = 4000;
+/* The limits live in a zod-free module so the Feedback button -- which is in
+   every dashboard, portal and share page -- can read them without shipping zod
+   and its locale tables to the browser. Re-exported for the server callers. */
+import { FEEDBACK_SURFACES, MAX_MESSAGE_CHARS, MAX_SCREENSHOT_BYTES, type FeedbackSurface } from "@/lib/feedback/limits";
+export { FEEDBACK_SURFACES, MAX_MESSAGE_CHARS, MAX_SCREENSHOT_BYTES, type FeedbackSurface };
 const MAX_SIGNALS = 20;
 
 export const feedbackBodySchema = z.object({

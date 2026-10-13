@@ -19,6 +19,7 @@ import {
   type PostMetrics,
 } from "@/lib/platforms/fetchPostMetrics";
 import { applyPostMetrics } from "@/lib/sync/syncPost";
+import { ABANDON_AFTER_DEADLINE_MS, waitUntil } from "@/lib/ops/waitUntil";
 import { detectPostCreator } from "@/lib/posts/detectCreator";
 import {
   laneCountFor,
@@ -871,6 +872,7 @@ export async function runPostSweep(request: NextRequest, options: PostSweepOptio
          hold up YouTube rows that are already in memory. The deadline is
          checked before every claim, and whatever a platform had not reached
          is counted as skippedForBudget, as before. */
+      let inFlight = 0;
       const sweep = async (queue: typeof posts, width: number) => {
         let next = 0;
         const worker = async () => {
@@ -880,20 +882,36 @@ export async function runPostSweep(request: NextRequest, options: PostSweepOptio
               next = queue.length;
               return;
             }
-            await readPost(queue[next++]);
+            inFlight++;
+            try {
+              await readPost(queue[next++]);
+            } finally {
+              inFlight--;
+            }
           }
         };
         const workers = Math.min(Math.max(1, width), queue.length);
         await Promise.all(Array.from({ length: workers }, () => worker()));
       };
-      await Promise.all(
-        platforms.map((platform, i) =>
-          sweep(
-            byPlatform[i],
-            platform === "TIKTOK" ? (tiktokSandbox?.size ?? 1) : (READ_CONCURRENCY[platform] ?? 1),
+      /* The deadline stops new reads; this stops waiting on old ones. A read
+         parked on an await that never settles used to hold the run until the
+         platform killed it at maxDuration, and the summary, the campaigns'
+         lastRefreshAt and the outage alert below never happened. See
+         lib/ops/waitUntil. */
+      const swept = await waitUntil(
+        Promise.all(
+          platforms.map((platform, i) =>
+            sweep(
+              byPlatform[i],
+              platform === "TIKTOK" ? (tiktokSandbox?.size ?? 1) : (READ_CONCURRENCY[platform] ?? 1),
+            ),
           ),
         ),
+        deadline + ABANDON_AFTER_DEADLINE_MS,
       );
+      if (!swept.settled) {
+        log.error("post sweep abandoned reads that never returned", { abandoned: inFlight });
+      }
     }
 
     if (dryRun) {

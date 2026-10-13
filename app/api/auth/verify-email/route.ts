@@ -5,6 +5,7 @@ import { createLogger } from "@/lib/observability/logger";
 import { verifyEmailToken } from "@/lib/emailVerification";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
+import { forgetAccount } from "@/lib/accountCheck";
 
 /**
  * Spend a signup verification link.
@@ -51,6 +52,11 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    /* The dashboard's "confirm your email" banner reads the user's row through
+       the once-a-minute memo in lib/accountCheck. Dropped here so the banner
+       goes on the next page view rather than up to a minute later. */
+    forgetAccount(outcome.userId);
 
     /* Only the first time. Clicking twice is a non-event and an audit trail
        that records it as a fresh confirmation would misreport when the address

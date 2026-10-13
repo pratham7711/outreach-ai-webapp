@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { permissionDenial } from "@/lib/authz";
+import { withoutImportCopy } from "@/lib/serialization/importCopy";
 import { z } from "zod";
 import type { PostStatus } from "@/lib/generated/prisma/client";
 import { sessionCampaignScopeDenial } from "@/lib/campaignAccess";
@@ -39,7 +40,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     /* The campaign's title rides along for the rail, which otherwise headed a
        post opened by its own link with the placeholder "Campaign". */
-    return NextResponse.json({ ...post, campaignTitle: campaign.title });
+    /* The importer's `__cc` copy stays server-side (lib/serialization/importCopy). */
+    return NextResponse.json({
+      ...post,
+      platformMetrics: withoutImportCopy(post.platformMetrics),
+      snapshots: post.snapshots.map((s) => ({ ...s, platformMetrics: withoutImportCopy(s.platformMetrics) })),
+      campaignTitle: campaign.title,
+    });
   } catch (error) {
     console.error("Failed to fetch post:", error);
     return NextResponse.json({ error: "Failed to fetch post" }, { status: 500 });
@@ -84,7 +91,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         creator: { select: { id: true, name: true, handle: true, avatarUrl: true } },
       },
     });
-    return NextResponse.json(post);
+    return NextResponse.json({ ...post, platformMetrics: withoutImportCopy(post.platformMetrics) });
   } catch (error) {
     console.error("Failed to update post:", error);
     return NextResponse.json({ error: "Failed to update post" }, { status: 500 });

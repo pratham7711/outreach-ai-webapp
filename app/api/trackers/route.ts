@@ -59,10 +59,16 @@ export async function GET(req: NextRequest) {
     // The org decides how densely its charts are drawn, and how densely they are
     // read. A flat take:60 was ten days at the four-hourly cadence, so the 30d
     // window could never be honoured however much history the table held.
-    const org = await db.organization.findUnique({
-      where: { id: orgId },
-      select: { uiConfig: true },
-    });
+    /* The tracker count below needs nothing from the sounds, so it is read
+       beside the org's setting rather than after the sound list: three round
+       trips in a row became two. */
+    const [org, usage] = await Promise.all([
+      db.organization.findUnique({
+        where: { id: orgId },
+        select: { uiConfig: true },
+      }),
+      trackerUsage(orgId),
+    ]);
     const granularity = parseGranularity(org?.uiConfig ?? null);
     const windowDays = windowHours(period) / 24;
 
@@ -145,8 +151,7 @@ export async function GET(req: NextRequest) {
     /* The counter counts what the gate counts: sounds AND tracked creators,
        against the one max_trackers limit. Reporting sounds alone made "12/25"
        true of half the pool and let the other half push the org past its plan
-       without the screen ever saying so. */
-    const usage = await trackerUsage(orgId);
+       without the screen ever saying so. Read above, with the org. */
     return NextResponse.json({
       sounds: sorted,
       period,

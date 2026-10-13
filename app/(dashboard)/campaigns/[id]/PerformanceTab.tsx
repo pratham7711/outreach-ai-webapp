@@ -1,7 +1,8 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
 import { Card, Badge, EmptyState, Skeleton, Modal } from "@pratham7711/ui";
-import { ChartFrame, MetricTile, Button } from "@/components/ds";
+import { MetricTile, Button } from "@/components/ds";
+import { ChartFrame } from "@/components/ds/ChartFrame";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   PieChart, Pie, Cell, Legend,

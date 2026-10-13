@@ -106,10 +106,11 @@ export function CampaignAudioSetup({ campaignId }: { campaignId: string }) {
 
   /* The performance report already resolves the sound's cover, title, artist
      and usage; reading it here keeps one definition of "this campaign's audio"
-     rather than a second query that could disagree with the card. */
+     rather than a second query that could disagree with the card. `only=audio`
+     asks for that part alone, without the post rows and the usage chart. */
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`/api/campaigns/${campaignId}/performance`);
+      const res = await fetch(`/api/campaigns/${campaignId}/performance?only=audio`);
       if (!res.ok) return;
       const data = await res.json();
       setAudio(

@@ -5,7 +5,7 @@ import {
   PieChart, Pie, Cell, Legend,
 } from "recharts";
 import { BarChart3, Music2, Radio, CircleDot } from "lucide-react";
-import { ChartFrame } from "@/components/ds";
+import { ChartFrame } from "@/components/ds/ChartFrame";
 import type { SharedReportData } from "@/lib/reports/campaignPerformance";
 import { DEFAULT_SHARE_VISIBILITY, type ShareVisibility } from "@/lib/reports/shareVisibility";
 import { formatFull, formatCompact, platformLabel } from "@/lib/format";

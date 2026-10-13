@@ -1,4 +1,4 @@
-import { contrastRatio, isValidHex } from "@/lib/ai/whitelabel/theme";
+import { contrastRatio, isValidHex } from "@/lib/color";
 
 /**
  * CreatorCore's status palette, read off the running app rather than guessed.

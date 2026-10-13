@@ -5,8 +5,10 @@ export type { PaginationProps } from "./Pagination";
 export { MetricHint } from "./MetricHint";
 export { MetricTile } from "./MetricTile";
 export { SectionCard } from "./SectionCard";
-export { ChartFrame, CHART_FRAME_MIN_HEIGHT } from "./ChartFrame";
-export type { ChartFrameProps } from "./ChartFrame";
+/* ChartFrame is deliberately NOT re-exported here: it imports recharts, and a
+   barrel re-export put recharts into every route that imports anything from
+   this folder -- the login page included. Import it from
+   "@/components/ds/ChartFrame" in the chart files that need it. */
 export { PageHeader } from "./PageHeader";
 export type { PageHeaderProps } from "./PageHeader";
 export { LastUpdated } from "./LastUpdated";

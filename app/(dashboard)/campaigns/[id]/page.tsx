@@ -11,7 +11,7 @@ import PostsTab from "./PostsTab";
 import ActivityFeed from "./ActivityFeed";
 import DraftsTab from "./DraftsTab";
 import CreativeBriefCard from "./CreativeBriefCard";
-import RosterTable, { ROSTER_COLUMNS, ROSTER_DEFAULT_COLUMNS } from "./RosterTable";
+import RosterTable, { ROSTER_COLUMNS, ROSTER_DEFAULT_COLUMNS, type RosterRow } from "./RosterTable";
 import { readCampaignSection } from "@/lib/campaignSections";
 import { SHOW_MONEY } from "@/lib/moneyUi";
 import { useCampaignNavPublish } from "@/components/providers/CampaignNavProvider";
@@ -28,11 +28,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateAbs, formatFull, formatFullCurrency, fitFigureSize } from "@/lib/format";
-import { fieldMetricValue, rollupEngagement } from "@/lib/metricDisplay";
-import { asOfCaption, dataAsOf } from "@/lib/dataAge";
-import { postMeasuredAt } from "@/lib/posts/postStatus";
+import { asOfCaption } from "@/lib/dataAge";
 import { CreatorSelect } from "@/components/CreatorSelect";
-import { isUnattributedCreator } from "@/lib/posts/unattributedName";
+import { TOP_CREATOR_BARS, type CampaignPostSummary } from "@/lib/campaigns/detailSummary";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import { loadCharts } from "@/components/charts/lazyCharts";
 
@@ -100,84 +98,10 @@ const STATUS_BADGE: Record<string, "success" | "warning" | "accent" | "neutral">
   CANCELLED: "neutral",
 };
 
-type Post = {
-  id: string;
-  platform: string;
-  postUrl: string;
-  caption: string | null;
-  postedAt: string;
-  viewsCount: number;
-  likesCount: number;
-  commentsCount: number;
-  sharesCount: number;
-  savesCount: number;
-  engagementRate: number;
-  /* Provenance for the counters above. GET /api/campaigns/[id] has always
-     returned it -- the type here simply did not name it, which is how the
-     Overview tile came to average a column of never-measured zeroes. */
-  lastSyncedAt: string | null;
-  creator: {
-    id: string; name: string; handle: string; platform: string;
-    avatarUrl: string | null; followersCount: number; rate: number | null;
-  };
-};
-
-// A campaign's creator roster, merged from both sources: activations (formally
-// assigned) and posts (actually delivered). Imported CreatorCore campaigns have
-// only the latter, so an activations-only list left 506 of 512 campaigns
-// showing "No creators yet" beside dozens of real posts.
-type RosterEntry = {
-  creator: Post["creator"];
-  activationStatus: string | null;
-  deliverableDueDate: string | null;
-  posts: number;
-  /* Null when none of this creator's posts has a view count we read -- a
-     creator whose Instagram posts were never read is not a creator with 0
-     views. viewsKnown counts the posts the sum covers, for the cell's reason. */
-  views: number | null;
-  viewsKnown: number;
-};
-
-function buildRoster(activations: Activation[], posts: Post[]): RosterEntry[] {
-  const byCreator = new Map<string, RosterEntry>();
-  for (const act of activations) {
-    byCreator.set(act.creator.id, {
-      creator: act.creator,
-      activationStatus: act.status,
-      // Carried through so the roster can offer a Due column. This was read off
-      // the activation and then dropped.
-      deliverableDueDate: act.deliverableDueDate,
-      posts: 0,
-      views: null,
-      viewsKnown: 0,
-    });
-  }
-  for (const post of posts) {
-    /* The Unattributed holding row is a filing place, not a creator on the
-       campaign: it was listed here as "Unattributed Instagram posts" and
-       counted in "N creators". Its posts stay in every total. */
-    if (!post.creator || isUnattributedCreator(post.creator)) continue;
-    const entry = byCreator.get(post.creator.id) ?? {
-      creator: post.creator,
-      activationStatus: null,
-      deliverableDueDate: null,
-      posts: 0,
-      views: null,
-      viewsKnown: 0,
-    };
-    entry.posts += 1;
-    const views = fieldMetricValue(post.viewsCount, post.lastSyncedAt, (post as { platformMetrics?: unknown }).platformMetrics, "views");
-    if (views !== null) {
-      entry.views = (entry.views ?? 0) + views;
-      entry.viewsKnown += 1;
-    }
-    byCreator.set(post.creator.id, entry);
-  }
-  // Known views first, largest first; a creator with none read sits last.
-  return [...byCreator.values()].sort(
-    (a, b) => (b.views ?? -1) - (a.views ?? -1) || b.posts - a.posts,
-  );
-}
+/* The roster and the post totals arrive built by GET /api/campaigns/[id]
+   (lib/campaigns/detailSummary), which no longer sends the posts themselves:
+   1.26 MB of the largest campaign's 1.28 MB payload was that array, used only
+   for the figures that are now computed beside it. */
 
 type Activation = {
   id: string;
@@ -188,8 +112,6 @@ type Activation = {
     followersCount: number; avatarUrl: string | null; rate: number | null;
   };
 };
-
-const TOP_CREATOR_BARS = 10;
 
 const CAMPAIGN_TYPE_LABELS: Record<string, string> = {
   BUDGET_BASED: "Budget Based",
@@ -268,7 +190,10 @@ type Campaign = {
   inviteCode?: string | null;
   teamMembers: { id: string; user: { id: string; name: string; avatarUrl: string | null } }[];
   activations: Activation[];
-  posts: Post[];
+  /** Every creator on the campaign, from activations and from posts. */
+  roster: RosterRow[];
+  /** The Overview and Analytics figures, over every post on the campaign. */
+  summary: CampaignPostSummary;
   brief: { content: string } | null;
   /** The rollups the reference computes per campaign, shown on Financials. */
   creatorRateTotals?: number | null;
@@ -294,7 +219,8 @@ function CampaignTagsCard({
 }: {
   campaignId: string;
   selected: { id: string; name: string }[];
-  onSaved: () => void;
+  /** The saved selection, in the order sent -- the order the links are written in. */
+  onSaved: (tags: { id: string; name: string }[]) => void;
 }) {
   const [defs, setDefs] = useState<{ id: string; name: string }[] | null>(null);
   const [busy, setBusy] = useState(false);
@@ -320,7 +246,14 @@ function CampaignTagsCard({
         const payload = await res.json().catch(() => ({}));
         throw new Error(payload.error ?? `Could not save (${res.status})`);
       }
-      onSaved();
+      /* Handed back rather than re-read: a tag change used to re-fetch the whole
+         campaign, roster and post totals included, to learn the names of the
+         tags this card had just chosen from its own list. */
+      const known = new Map([...(defs ?? []), ...selected].map((t) => [t.id, t]));
+      onSaved(ids.flatMap((tagId) => {
+        const tag = known.get(tagId);
+        return tag ? [tag] : [];
+      }));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save");
     } finally {
@@ -554,8 +487,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        const refreshed = await fetch(`/api/campaigns/${id}`).then((r) => (r.ok ? r.json() : null));
-        if (refreshed && !refreshed.error) setCampaign(refreshed);
+        await mergeSaved(res);
         toast.success("Campaign updated");
       } else {
         const err = await res.json().catch(() => null);
@@ -570,6 +502,21 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     const refreshed = await fetch(`/api/campaigns/${id}`).then((r) => (r.ok ? r.json() : null));
     if (refreshed && !refreshed.error) setCampaign(refreshed);
     return refreshed;
+  };
+
+  /* A settings edit changes the campaign's own columns and nothing under it, and
+     PATCH answers with that row (plus its tags, team, counts and client). Merge
+     it rather than re-reading the campaign: the re-read rebuilt the roster and
+     the post totals, which no edit here can move. The posts, drafts and
+     add-creator paths still re-read, because those do move them. */
+  const mergeSaved = async (res: Response) => {
+    const saved = await res.json().catch(() => null);
+    if (saved && !saved.error) setCampaign((prev) => (prev ? { ...prev, ...saved } : prev));
+    else await refreshCampaign();
+  };
+
+  const applyTags = (tags: { id: string; name: string }[]) => {
+    setCampaign((prev) => (prev ? { ...prev, tagLinks: tags.map((tag) => ({ tag })) } : prev));
   };
 
   const buildRatePayload = () => {
@@ -617,7 +564,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        await refreshCampaign();
+        await mergeSaved(res);
         toast.success("Marketplace settings saved");
       } else {
         const err = await res.json().catch(() => null);
@@ -637,7 +584,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         body: JSON.stringify({ regenerateInviteCode: true }),
       });
       if (res.ok) {
-        await refreshCampaign();
+        await mergeSaved(res);
         toast.success("Invite code regenerated");
       } else {
         toast.error("Failed to regenerate invite code");
@@ -676,7 +623,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     return Boolean(d.draftSubmittedAt || d.draftUrl);
   }).length;
 
-  const roster = buildRoster(campaign?.activations ?? [], campaign?.posts ?? []);
+  const roster = campaign?.roster ?? [];
 
   /* What the rail shows beside each section. The rail lives in the dashboard
      layout, above this page, so the counts travel up through the provider
@@ -719,34 +666,25 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     </div>
   );
 
-  const totalViews = campaign.posts.reduce((s, p) => s + p.viewsCount, 0);
-  const viewsKnownPosts = campaign.posts.filter(
-    (p) => fieldMetricValue(p.viewsCount, p.lastSyncedAt, (p as { platformMetrics?: unknown }).platformMetrics, "views") !== null,
-  ).length;
+  const summary = campaign.summary;
+  const totalViews = summary.views;
   /* When the total was read (our read, else the import's refresh -- see
-     postMeasuredAt) and how many posts it covers: the same caption the
-     Performance tab and the Posts strip carry, so the tile keeps the "views
-     known for N of M posts" it had and gains the time. */
-  const viewsNote = asOfCaption(
-    dataAsOf(campaign.posts.map((p) => postMeasuredAt(p as { lastSyncedAt: string | null; lastFreshAt?: string | null }).at)),
-    { known: viewsKnownPosts, total: campaign.posts.length, what: "views" },
-  );
+     postMeasuredAt, applied server-side in lib/campaigns/detailSummary) and how
+     many posts it covers: the same caption the Performance tab and the Posts
+     strip carry, so the tile keeps the "views known for N of M posts" it had
+     and gains the time. */
+  const viewsNote = asOfCaption(summary.viewsAsOf, { known: summary.viewsKnownPosts, total: summary.posts, what: "views" });
   /* A sum over no read post is unknown, not a measured 0. */
-  const totalViewsText = viewsKnownPosts === 0 && campaign.posts.length > 0 ? "\u2014" : formatNumber(totalViews);
-  const totalLikes = campaign.posts.reduce((s, p) => s + p.likesCount, 0);
+  const totalViewsText = summary.viewsKnownPosts === 0 && summary.posts > 0 ? "\u2014" : formatNumber(totalViews);
+  const totalLikes = summary.likes;
   // Likes are summed straight off the column, whose default is 0, so a campaign
   // whose likes were never read showed "Total Likes 0". Shown only when at
   // least one post's likes were actually measured.
-  const likesMeasured = campaign.posts.some(
-    (p) => fieldMetricValue(p.likesCount, p.lastSyncedAt, (p as { platformMetrics?: unknown }).platformMetrics, "likes") !== null,
-  );
-  /* The product's one engagement-rate definition, shared with the Posts tab, the
-     Performance tab and the client report. This used to be an unweighted mean of
-     Post.engagementRate over EVERY post, so the 18,602 imported posts that carry
-     a default 0 (nobody ever fetched their engagement) dragged a real rate
-     towards zero, and the same campaign read one way here and another two tabs
-     across. null means no post on the campaign has been measured at all. */
-  const engagement = rollupEngagement(campaign.posts);
+  const likesMeasured = summary.likesMeasured;
+  /* The product's one engagement-rate definition (rollupEngagement), shared with
+     the Posts tab, the Performance tab and the client report, taken over every
+     post by the server. null means no post on the campaign has been measured. */
+  const engagement = { rate: summary.engagementRate, engagements: summary.engagements };
   const avgEngagement = engagement.rate === null ? null : engagement.rate * 100;
   /* The Overview tiles share one figure size, set by the longest of them. */
   const overviewFit = Math.max(
@@ -756,50 +694,20 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     campaign.budget == null ? 0 : formatFullCurrency(campaign.budget, campaign.currency).length,
   );
 
-  // Platform breakdown for analytics
-  const platformStats = campaign.posts.reduce((acc, p) => {
-    if (!acc[p.platform]) acc[p.platform] = { views: 0, likes: 0, posts: 0 };
-    acc[p.platform].views += p.viewsCount;
-    acc[p.platform].likes += p.likesCount;
-    acc[p.platform].posts += 1;
-    return acc;
-  }, {} as Record<string, { views: number; likes: number; posts: number }>);
-
-  const platformPieData = Object.entries(platformStats)
-    .filter(([, stats]) => stats.views > 0)
-    .map(([platform, stats]) => ({
-      name: platform, value: stats.views, fill: platformColor(platform),
-    }));
-
-  /* Per-creator breakdown for analytics. Keyed by creator, not by name -- two
-     creators called the same drew as one bar -- and each counter summed only
-     over the posts that measured it, so a creator whose likes (or, on Instagram
-     photos, views) were never read gets no bar rather than a bar at 0. */
-  const creatorStats = campaign.posts.reduce((acc, p) => {
-    if (isUnattributedCreator(p.creator)) return acc;
-    const key = p.creator?.id ?? "unknown";
-    if (!acc[key]) acc[key] = { name: p.creator?.name ?? "Unknown", views: null, likes: null, posts: 0 };
-    const metrics = (p as { platformMetrics?: unknown }).platformMetrics;
-    const views = fieldMetricValue(p.viewsCount, p.lastSyncedAt, metrics, "views");
-    const likes = fieldMetricValue(p.likesCount, p.lastSyncedAt, metrics, "likes");
-    if (views !== null) acc[key].views = (acc[key].views ?? 0) + views;
-    if (likes !== null) acc[key].likes = (acc[key].likes ?? 0) + likes;
-    acc[key].posts += 1;
-    return acc;
-  }, {} as Record<string, { name: string; views: number | null; likes: number | null; posts: number }>);
-
-  /* The leaders only. Every creator used to get a bar pair, in post order: a
-     120-creator campaign drew 240 bars into a 240px card, so no label could be
-     read, and recharts measured every one of those 120 tick labels in the DOM
-     -- a single 290ms task at 4x CPU, which put this tab over the 200ms
-     Total Blocking Time budget on its own. */
-  const creatorCount = Object.keys(creatorStats).length;
-  const creatorBarData = Object.values(creatorStats)
-    .sort((a, b) => (b.views ?? -1) - (a.views ?? -1) || (b.likes ?? -1) - (a.likes ?? -1))
-    .slice(0, TOP_CREATOR_BARS)
+  const platformPieData = summary.platforms
+    .filter((stats) => stats.views > 0)
     .map((stats) => ({
-      name: stats.name.split(" ")[0], views: stats.views, likes: stats.likes,
+      name: stats.platform, value: stats.views, fill: platformColor(stats.platform),
     }));
+
+  /* The leaders only, already chosen and ordered by the server: drawing every
+     creator's bar pair measured all their tick labels in the DOM -- a single
+     290ms task at 4x CPU, which put this tab over the 200ms Total Blocking Time
+     budget on its own. */
+  const creatorCount = summary.creatorCount;
+  const creatorBarData = summary.topCreators.map((stats) => ({
+    name: stats.name.split(" ")[0], views: stats.views, likes: stats.likes,
+  }));
 
   return (
     <div className="cc-page-content rsp-page">
@@ -935,7 +843,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
             <CampaignTagsCard
               campaignId={campaign.id}
               selected={(campaign.tagLinks ?? []).map((l) => l.tag)}
-              onSaved={refreshCampaign}
+              onSaved={applyTags}
             />
 
             {/* Brief */}
@@ -1020,7 +928,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 <MarketplaceAnalytics campaignId={id} currency={campaign.currency ?? "USD"} />
               </div>
             )}
-            {(campaign.posts.length === 0 ? (
+            {(summary.posts === 0 ? (
             <EmptyState icon={<TrendingUp size={32} color="var(--cc-text-subtle)" />} title="No analytics yet" description="Analytics will be available once posts are synced." />
           ) : (
             <div className="rsp-grid-2">
@@ -1066,7 +974,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                   )}
                   <div className="cc-kpi-chip cc-kpi-chip-extra">
                     <span className="cc-kpi-chip-label">Posts</span>
-                    <span className="cc-kpi-chip-value">{campaign.posts.length}</span>
+                    <span className="cc-kpi-chip-value">{summary.posts}</span>
                   </div>
                 </div>
               </Card>

@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { permissionDenial } from "@/lib/authz";
-import { syncPost } from "@/lib/sync/syncPost";
+import { SYNC_POST_INCLUDE, syncPost } from "@/lib/sync/syncPost";
+import { withoutImportCopy } from "@/lib/serialization/importCopy";
 import { openTikTokPostFetcherForOne } from "@/lib/platforms/tiktokEgress";
 import { sessionCampaignScopeDenial } from "@/lib/campaignAccess";
 
@@ -64,8 +65,15 @@ export async function POST(
     // straight back. metricsFound rides alongside so the caller can say "the
     // platform gave us nothing" instead of showing an unchanged card and
     // leaving the person to guess whether the click did anything.
+    //
+    // Read here, with its creator and snapshots, because syncPost no longer
+    // loads them on every write (see SYNC_POST_INCLUDE); this is the one
+    // caller that renders them. The importer's `__cc` copy stays server-side.
+    const saved =
+      (await db.post.findUnique({ where: { id: post.id }, include: SYNC_POST_INCLUDE })) ?? outcome.post;
     return NextResponse.json({
-      ...outcome.post,
+      ...saved,
+      platformMetrics: withoutImportCopy(saved.platformMetrics),
       metricsFound: outcome.status === "measured",
       /* The reason, not just the negative. "metricsFound: false" is what let a
          TikTok post fail this route for four weeks while the Refresh button

@@ -2,21 +2,20 @@
 
 import { memo, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Search, Target, Sun, Zap, CheckCircle2, XCircle, Wallet, Users, FileText, LayoutList, Folder, Share2, ArrowUpDown, Trash2 } from "lucide-react";
+import { Plus, Search, Target, Sun, Zap, CheckCircle2, XCircle, Wallet, Users, FileText, LayoutList, Folder, Share2, ArrowUpDown, Trash2, Loader2 } from "lucide-react";
 import { NavLink } from "@/components/layout/NavLink";
 import { Card, Badge, Input, EmptyState, Avatar } from "@pratham7711/ui";
 import { PageHeader, StatusTabs, Pagination, FilterDrawer, FilterButton, Dropdown, useConfirm, Button } from "@/components/ds";
 import type { FilterDef, FilterValues } from "@/components/ds";
 import CampaignWizard from "@/components/modals/CampaignWizard";
 import { timeAgo, formatFullCurrency } from "@/lib/format";
-import { useListQuery } from "@/lib/useListQuery";
+import { pendingListProps, useListQuery } from "@/lib/useListQuery";
 import { CAMPAIGNS_PAGE_SIZE } from "@/lib/listPageSize";
 import { imgSrc } from "@/lib/postMedia";
 import FoldersPanel, { type FolderOption } from "./FoldersPanel";
 import { ShareModal } from "./ShareModal";
-import { UNFILED, isDefaultCampaignSort, type CampaignSort, type CampaignSortKey } from "@/lib/listParams";
+import { CAMPAIGN_STATUS_ALL, UNFILED, isDefaultCampaignSort, type CampaignSort, type CampaignSortKey } from "@/lib/listParams";
 import { CAMPAIGN_STATUS_STYLE, campaignStatusLabel } from "@/lib/statusColors";
-import { CAMPAIGN_STATUS_ALL } from "@/lib/listFilters";
 import { rememberCampaignList } from "@/lib/campaigns/listReturn";
 import { action } from "@/lib/ui/actions";
 
@@ -660,7 +659,7 @@ export default function CampaignsClient({
   // Active, so All has to say so in the URL or it would be one click away from
   // the sidebar and unreachable on the way back.
   const defaultSort = isDefaultCampaignSort(sort);
-  const { push, pending } = useListQuery({
+  const { push, pending, shown } = useListQuery({
     q,
     status,
     page: page === 1 ? undefined : page,
@@ -683,6 +682,18 @@ export default function CampaignsClient({
      the whole point of sorting — would be behind six pages. */
   const changeSort = (next: CampaignSort) =>
     push({ sort: next.key, dir: next.dir, page: null });
+
+  /* The tabs, sort and pager draw from `shown` -- the query with the click
+     already applied (see useListQuery) -- so a choice shows the moment it is
+     made, not when the server answers. A value cleared to null falls back to
+     the server's, which is what they showed before. */
+  const shownStatus = typeof shown.status === "string" ? shown.status : status;
+  const shownSort: CampaignSort =
+    typeof shown.sort === "string"
+      ? { key: shown.sort as CampaignSortKey, dir: shown.dir === "asc" ? "asc" : "desc" }
+      : sort;
+  const shownPage = shown.page === null ? 1 : Number(shown.page ?? page);
+  const searching = pending && (shown.q ?? "") !== q;
 
   const selectedFolder = folderId && folderId !== UNFILED ? folders.find((f) => f.id === folderId) : undefined;
   const folderLabel = folderId === UNFILED ? "Unfiled" : selectedFolder?.name;
@@ -804,12 +815,12 @@ export default function CampaignsClient({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search Campaigns"
-            iconLeft={<Search size={16} />}
+            iconLeft={searching ? <Loader2 size={16} className="motion-safe:animate-spin" aria-hidden="true" /> : <Search size={16} />}
           />
         </div>
       </div>
       <div className="cc-list-sortrow">
-        <SortControl sort={sort} onChange={changeSort} />
+        <SortControl sort={shownSort} onChange={changeSort} />
         <FilterButton count={filterCount} onClick={() => setShowFilters(true)} />
       </div>
       </div>
@@ -854,13 +865,14 @@ export default function CampaignsClient({
           badgeVariant: STATUS_BADGE_VARIANT[tab.key] ?? "neutral",
           icon: <Icon size={14} aria-hidden="true" />,
         }))}
-        active={status}
+        active={shownStatus}
         onChange={(key) => push({ status: key, page: null })}
       />
       </div>
       )}
 
       {/* Campaign List */}
+      <div {...pendingListProps(pending)}>
       {filtered.length === 0 ? (
         <Card variant="solid" noPadding>
           <div style={{ padding: "48px 24px" }}>
@@ -912,11 +924,12 @@ export default function CampaignsClient({
           ))}
         </div>
       )}
+      </div>
 
       {filteredTotal > CAMPAIGNS_PAGE_SIZE && (
         <Pagination
           style={{ marginTop: 24 }}
-          page={page}
+          page={shownPage}
           totalPages={totalPages}
           total={filteredTotal}
           pageSize={CAMPAIGNS_PAGE_SIZE}

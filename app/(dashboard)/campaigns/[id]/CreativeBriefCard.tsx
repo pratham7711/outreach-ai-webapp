@@ -1,9 +1,29 @@
 "use client";
 
 import React, { useState } from "react";
+import dynamic from "next/dynamic";
 import { toast } from "sonner";
 import { Card } from "@pratham7711/ui";
-import RichTextEditor from "@/components/RichTextEditor";
+
+/* Tiptap and prosemirror are ~152 KB gzipped, and a static import put them in
+   the first load of every campaign section, though only Overview shows a brief.
+   Loaded on demand instead. The placeholder is the box the editor itself draws
+   before it mounts (RichTextEditor's `!editor` branch), at the same height, so
+   nothing moves when the chunk arrives. Two wrappers over one import: the
+   loading slot cannot see props, and the read-only view starts shorter. */
+const loadEditor = () => import("@/components/RichTextEditor");
+function EditorBox({ minHeight }: { minHeight: number }) {
+  return (
+    <div
+      style={{
+        border: "1px solid var(--cc-border)", borderRadius: 10,
+        minHeight: minHeight + 37, background: "var(--cc-card)",
+      }}
+    />
+  );
+}
+const RichTextEditor = dynamic(loadEditor, { ssr: false, loading: () => <EditorBox minHeight={140} /> });
+const RichTextViewer = dynamic(loadEditor, { ssr: false, loading: () => <EditorBox minHeight={0} /> });
 
 /**
  * The campaign's creative brief, on the Overview where the reference puts it.
@@ -114,7 +134,7 @@ export default function CreativeBriefCard({
           placeholder="What are creators making, and what does good look like?"
         />
       ) : saved ? (
-        <RichTextEditor value={saved} editable={false} minHeight={0} />
+        <RichTextViewer value={saved} editable={false} minHeight={0} />
       ) : (
         <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)" }}>
           No brief yet.

@@ -121,6 +121,24 @@ describe("orgDataStamp", () => {
     }
     expect(bound.filter((v: unknown) => v === "org-a")).toHaveLength(5);
   });
+
+  /* updatedAt moves on writes no figure depends on -- a failed read's note, a
+     sweep's lastRefreshAt, a tracker's attempt stamp -- and every one of them
+     emptied the org's cache. The stamp reads the columns the reads use. */
+  it("keys on the columns the reads use, not on updatedAt", async () => {
+    queryRaw.mockResolvedValue(stampRow("0:"));
+    await orgDataStamp("org-a", { activations: true, viewsSnapshots: true });
+    const sql = (queryRaw.mock.calls[0][0] as string[]).join("?");
+    expect(sql).not.toContain("updatedAt");
+    for (const column of [
+      '"viewsCount"', '"likesCount"', '"commentsCount"', '"sharesCount"', '"savesCount"',
+      '"lastSyncedAt"', '"postedAt"', '"creatorId"', '"campaignId"', '"postUrl"',
+      "title", "status", '"createdAt"', '"deletedAt"', "handle", '"avatarUrl"', '"followersCount"',
+      "day", '"postsCount"',
+    ]) {
+      expect(sql).toContain(column);
+    }
+  });
 });
 
 describe("utcHourKey", () => {

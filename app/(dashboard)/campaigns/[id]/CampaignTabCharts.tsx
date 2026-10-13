@@ -4,7 +4,7 @@ import { formatCompact } from "@/lib/format";
 import {
   PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from "recharts";
-import { ChartFrame } from "@/components/ds";
+import { ChartFrame } from "@/components/ds/ChartFrame";
 
 type PieDatum = { name?: string; value: number; fill?: string };
 /** Null where none of the creator's posts measured that counter: no bar, not a 0. */

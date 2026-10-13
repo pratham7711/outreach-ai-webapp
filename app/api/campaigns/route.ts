@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { db } from "@/lib/db";
+import { withoutImportCopy } from "@/lib/serialization/importCopy";
 import { findForeignRef } from "@/lib/tenantRefs";
 import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
 import { requirePermission } from "@/lib/authz";
@@ -94,7 +95,9 @@ export async function GET(request: NextRequest) {
     ]);
 
     return NextResponse.json({
-      campaigns,
+      /* typeConfig passes through for its real keys (a view-based campaign's
+         rates); the importer's `__cc` copy was 78% of this response. */
+      campaigns: campaigns.map((c) => ({ ...c, typeConfig: withoutImportCopy(c.typeConfig) })),
       pagination: {
         page,
         limit,

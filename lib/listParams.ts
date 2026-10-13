@@ -119,3 +119,17 @@ export function readCreatorSort(
   }
   return { key: key as CreatorSortKey, dir: dir === "asc" ? "asc" : "desc" };
 }
+
+/**
+ * The All tab's value in the URL: an explicit "do not narrow by status".
+ *
+ * Once a bare /campaigns means Active, an absent parameter can no longer mean
+ * "every status" -- All needs a value of its own or it is unreachable from the
+ * sidebar. It is not a Campaign.status and never reaches a query: it is
+ * stripped by readCampaignFilters in lib/listFilters, leaving exactly the empty filter an absent parameter already
+ * produced. So /api/campaigns is unchanged for every existing caller, and
+ * ?status=ALL now parses there instead of failing the enum -- which took the
+ * whole safeParse down and silently dropped the client, tag and team filters
+ * alongside it.
+ */
+export const CAMPAIGN_STATUS_ALL = "ALL";

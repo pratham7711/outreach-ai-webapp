@@ -40,6 +40,7 @@ jest.mock("@/lib/billing/subscription", () => ({
 
 import "@/lib/auth";
 import { db } from "@/lib/db";
+import { forgetAccount } from "@/lib/accountCheck";
 import bcrypt from "bcryptjs";
 
 const mockDb = db as any;
@@ -64,6 +65,8 @@ const dbUser = (over: Record<string, unknown> = {}) => ({
 
 beforeEach(() => {
   jest.clearAllMocks();
+  // The re-read is memoised per user for a minute; every test starts cold.
+  forgetAccount();
   mockCompare.mockResolvedValue(true);
   mockDb.user.update.mockResolvedValue({});
 });
@@ -179,6 +182,46 @@ describe("the jwt callback", () => {
     });
     expect(mockDb.user.findUnique).not.toHaveBeenCalled();
     expect(token).toMatchObject({ role: "ADMIN" });
+  });
+
+  /* auth() from a server component cannot persist the refreshed token, so the
+     stamp in it never moves; the answer is remembered per instance instead,
+     for no longer than the same minute. */
+  it("answers a second stale token from memory within the minute", async () => {
+    mockDb.user.findUnique.mockResolvedValue({
+      role: "VIEWER", isActive: true, campaignScope: "ALL", orgId: "org-1",
+    });
+    const stale = { id: "u-1", orgId: "org-1", role: "ADMIN", checkedAt: 0 };
+    await jwt()({ token: { ...stale }, user: undefined });
+    const second = await jwt()({ token: { ...stale }, user: undefined });
+    expect(mockDb.user.findUnique).toHaveBeenCalledTimes(1);
+    expect(second).toMatchObject({ role: "VIEWER" });
+  });
+
+  it("re-reads once the remembered answer is a minute old, and sees a deactivation", async () => {
+    const realNow = Date.now;
+    try {
+      let now = 1_000_000_000_000;
+      Date.now = () => now;
+      mockDb.user.findUnique.mockResolvedValueOnce({
+        role: "ADMIN", isActive: true, campaignScope: "ALL", orgId: "org-1",
+      });
+      const stale = { id: "u-1", orgId: "org-1", role: "ADMIN", checkedAt: 0 };
+      expect(await jwt()({ token: { ...stale }, user: undefined })).toMatchObject({ role: "ADMIN" });
+
+      mockDb.user.findUnique.mockResolvedValueOnce({
+        role: "ADMIN", isActive: false, campaignScope: "ALL", orgId: "org-1",
+      });
+      now += 59_000;
+      expect(await jwt()({ token: { ...stale }, user: undefined })).toMatchObject({ role: "ADMIN" });
+      expect(mockDb.user.findUnique).toHaveBeenCalledTimes(1);
+
+      now += 2_000;
+      expect(await jwt()({ token: { ...stale }, user: undefined })).toBeNull();
+      expect(mockDb.user.findUnique).toHaveBeenCalledTimes(2);
+    } finally {
+      Date.now = realNow;
+    }
   });
 
   /* Signing the whole workspace out over a dropped connection is worse than a

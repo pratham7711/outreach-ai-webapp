@@ -22,6 +22,8 @@ jest.mock('@/lib/db', () => {
     tikTokSound: { findFirst: jest.fn(), create: jest.fn() },
     song: { findFirst: jest.fn(), create: jest.fn() },
     campaignStatusDef: { findMany: jest.fn(), findFirst: jest.fn() },
+    // GET /api/campaigns/[id] reads the roster's and totals' posts beside the campaign.
+    post: { findMany: jest.fn() },
   };
   db.$transaction = jest.fn((fn: any) => fn(db));
   return { db };
@@ -248,9 +250,11 @@ describe('GET /api/campaigns/[id] — campaignType', () => {
       campaignType: 'PRIVATE_INVITE',
       typeConfig: { inviteCode: 'ABC123' },
       deletedAt: null,
+      activations: [],
       _count: { activations: 0, posts: 0 },
     };
     mockDb.campaign.findFirst.mockResolvedValue(campaign);
+    mockDb.post.findMany.mockResolvedValue([]);
 
     const req = makeRequest('http://localhost/api/campaigns/camp-1');
     const res = await GETById(req, makeParams('camp-1'));

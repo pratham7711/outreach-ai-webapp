@@ -14,6 +14,8 @@ import { Prisma } from "@/lib/generated/prisma/client";
 import { STATUS_DEF_SELECT, defaultStatusDefFor } from "@/lib/campaigns/statusDefaults";
 import { primeSongAudio } from "@/lib/sounds/snapshot";
 import { ensureSongForAudio, identifyAudioLink } from "@/lib/campaigns/audioLink";
+import { ROSTER_CREATOR_SELECT, buildRoster, summarizeCampaignPosts } from "@/lib/campaigns/detailSummary";
+import { withoutImportCopy } from "@/lib/serialization/importCopy";
 
 const CAMPAIGN_TYPES = ["BUDGET_BASED", "VIEW_BASED", "OPEN_COMMUNITY", "PRIVATE_INVITE"] as const;
 
@@ -110,7 +112,30 @@ export async function GET(
 
     const { id } = await params;
 
-    const campaign = await db.campaign.findFirst({
+    /* The posts themselves are no longer sent. Every section that showed a
+       figure derived from them gets that figure from here, built by the same
+       code the page used to run on the whole array (lib/campaigns/
+       detailSummary); the Posts tab reads /posts, and always did. Only the
+       columns those figures read are loaded, in the same wave as the campaign:
+       they are org-filtered through the relation, and dropped unread when the
+       campaign is out of the caller's scope. */
+    const postsRead = db.post.findMany({
+      where: { campaignId: id, campaign: { orgId, deletedAt: null } },
+      select: {
+        platform: true,
+        viewsCount: true,
+        likesCount: true,
+        commentsCount: true,
+        sharesCount: true,
+        savesCount: true,
+        lastSyncedAt: true,
+        lastFreshAt: true,
+        platformMetrics: true,
+        creator: { select: ROSTER_CREATOR_SELECT },
+      },
+    });
+
+    const campaignRead = db.campaign.findFirst({
       /* Scope is applied on the way in: a campaign the user is not on must 404
          here, not merely be absent from their list. */
       where: { id, orgId, deletedAt: null, ...campaignScopeWhereFor(result) },
@@ -123,26 +148,23 @@ export async function GET(
             },
           },
         },
+        /* An explicit creator select, never `creator: true`. The whole row went
+           to every seat that could open the campaign, contactEmail and
+           paymentInfo included; the page renders the roster fields and nothing
+           else. */
         activations: {
-          include: { creator: true },
-        },
-        posts: {
-          include: {
-            // Enough of the creator to build the campaign's creator roster from
-            // posts. CreatorCore activations could not be imported (that type
-            // 404s on their Data API), so posts are the only record of who
-            // actually delivered on an imported campaign.
-            creator: {
-              select: {
-                id: true,
-                name: true,
-                handle: true,
-                platform: true,
-                avatarUrl: true,
-                followersCount: true,
-                rate: true,
-              },
-            },
+          select: {
+            id: true,
+            creatorId: true,
+            status: true,
+            statusDefId: true,
+            deliverableDueDate: true,
+            postedUrl: true,
+            draftUrl: true,
+            draftSubmittedAt: true,
+            createdAt: true,
+            updatedAt: true,
+            creator: { select: ROSTER_CREATOR_SELECT },
           },
         },
         brief: true,
@@ -157,11 +179,18 @@ export async function GET(
       },
     });
 
+    const [campaign, posts] = await Promise.all([campaignRead, postsRead]);
     if (!campaign) {
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
 
-    return NextResponse.json(campaign);
+    return NextResponse.json({
+      ...campaign,
+      // The importer's `__cc` copy stays server-side (lib/serialization/importCopy).
+      typeConfig: withoutImportCopy(campaign.typeConfig),
+      roster: buildRoster(campaign.activations, posts),
+      summary: summarizeCampaignPosts(posts),
+    });
   } catch (error) {
     console.error("Failed to fetch campaign:", error);
     return NextResponse.json(
@@ -326,6 +355,9 @@ export async function PATCH(
         _count: {
           select: { activations: true, posts: true },
         },
+        // The page merges this response in place of re-reading the campaign,
+        // so it carries the client's name the edit form shows.
+        client: { select: { id: true, name: true } },
       },
     });
 
@@ -377,7 +409,7 @@ export async function PATCH(
       },
     });
 
-    return NextResponse.json(campaign);
+    return NextResponse.json({ ...campaign, typeConfig: withoutImportCopy(campaign.typeConfig) });
   } catch (error) {
     console.error("Failed to update campaign:", error);
     return NextResponse.json(

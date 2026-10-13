@@ -20,7 +20,7 @@ afterAll(() => {
 jest.mock("@/lib/db", () => ({
   db: {
     campaign: { findFirst: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
-    post: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn() },
+    post: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn(), findUnique: jest.fn() },
     organization: { findUnique: jest.fn(), findMany: jest.fn() },
     postMetricSnapshot: { create: jest.fn() },
     $transaction: jest.fn(),

@@ -15,7 +15,7 @@ import { POST as REFRESH_ALL } from '@/app/api/campaigns/[id]/refresh/route';
 jest.mock('@/lib/db', () => ({
   db: {
     campaign: { findFirst: jest.fn() },
-    post: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn() },
+    post: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn(), findUnique: jest.fn() },
     creator: { update: jest.fn(), updateMany: jest.fn() },
     postMetricSnapshot: { create: jest.fn() },
     campaignRefreshRun: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },

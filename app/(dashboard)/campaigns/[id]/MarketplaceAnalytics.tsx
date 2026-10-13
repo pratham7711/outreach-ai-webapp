@@ -5,7 +5,7 @@ import { AlertTriangle, Users } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
 } from "recharts";
-import { ChartFrame } from "@/components/ds";
+import { ChartFrame } from "@/components/ds/ChartFrame";
 import { formatFull } from "@/lib/format";
 import { SHOW_MONEY } from "@/lib/moneyUi";
 

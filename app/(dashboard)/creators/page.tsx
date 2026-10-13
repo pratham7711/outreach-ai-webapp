@@ -56,7 +56,12 @@ export default async function CreatorsPage({
     ),
   );
 
-  const [creators, total, [allCount, ...perTab], orgTags, anyRate] = await Promise.all([
+  /* The page's rows are wanted twice: on their own, and for the ids every
+     per-row read below needs. Promise.resolve turns the lazy Prisma query into
+     one ordinary promise, so it runs once. The per-row reads start the moment
+     the rows arrive rather than after the slowest of the counts beside them,
+     and the reads that need no ids start with everything else. */
+  const pageRows = Promise.resolve(
     db.creator.findMany({
       where,
       include: {
@@ -67,6 +72,56 @@ export default async function CreatorsPage({
       take: CREATORS_PAGE_SIZE,
       skip: (page - 1) * CREATORS_PAGE_SIZE,
     }),
+  );
+  const detailWhere = { orgId, creator: { deletedAt: null } };
+  const rosterWide = Promise.all([
+    roster ? db.creatorDetail.groupBy({ by: ["audienceCountry"], where: detailWhere, _count: true }) : [],
+    roster ? db.creatorDetail.groupBy({ by: ["country"], where: detailWhere, _count: true }) : [],
+    // Across the whole roster, not this page: it is what tells someone there is anything to fix.
+    roster ? db.creator.count({ where: { orgId, deletedAt: null, profileLinks: { some: HANDLE_GONE_WHERE } } }) : 0,
+    roster
+      ? db.creator.count({ where: { orgId, deletedAt: null, profileLinks: { some: HANDLE_UNREADABLE_WHERE, none: HANDLE_GONE_WHERE } } })
+      : 0,
+  ] as const);
+  const perRow = pageRows.then((rows) => {
+    // Both measured from the posts: the stored averageViews column is always 0,
+    // and counting activations alone reads 0 campaigns for the imported roster.
+    const ids = rows.map((c) => c.id);
+    return Promise.all([
+      deriveAverageViewsMeasured(ids),
+      deriveCampaignCounts(ids),
+      roster
+        ? db.creatorProfileLink.findMany({
+            where: { orgId, creatorId: { in: ids } },
+            orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+            select: {
+              creatorId: true,
+              platform: true,
+              handle: true,
+              url: true,
+              followersCount: true,
+              averageViews: true,
+              isPrimary: true,
+              refreshedAt: true,
+              refreshError: true,
+            },
+          })
+        : [],
+      roster
+        ? db.creatorDetail.findMany({ where: { orgId, creatorId: { in: ids } }, select: { creatorId: true, audienceCountry: true, country: true } })
+        : [],
+      storedAvatarVersions(ids, orgId),
+      // Dates each row's figures (plan A6); an empty map, never an error, when it cannot.
+      latestTrackerReadings(orgId, ids),
+    ] as const);
+  });
+
+  const [
+    creators, total, [allCount, ...perTab], orgTags, anyRate,
+    [derivedAvgViews, campaignCounts, links, details, avatarVersions, readings],
+    [audienceGroups, countryGroups, handleGone, handleUnreadable],
+  ] = await Promise.all([
+    pageRows,
     db.creator.count({ where }),
     tabCounts,
     // Every definition from Settings → General, not only the ones in use: a tag
@@ -74,6 +129,8 @@ export default async function CreatorsPage({
     db.creatorTagDef.findMany({ where: { orgId }, orderBy: { name: "asc" }, select: { name: true } }),
     // Rates are only ever typed in by hand; most rosters have none.
     db.creator.findFirst({ where: { orgId, deletedAt: null, rate: { gt: 0 } }, select: { id: true } }),
+    perRow,
+    rosterWide,
   ]);
 
   // A page past the end -- the last rows deleted, or an old link -- lands on the
@@ -96,44 +153,6 @@ export default async function CreatorsPage({
     platformCounts[p] = perTab[i];
   });
 
-  // Both measured from the posts: the stored averageViews column is always 0,
-  // and counting activations alone reads 0 campaigns for the imported roster.
-  const ids = creators.map((c) => c.id);
-  const detailWhere = { orgId, creator: { deletedAt: null } };
-  const [derivedAvgViews, campaignCounts, links, details, audienceGroups, countryGroups, avatarVersions, handleGone, handleUnreadable, readings] = await Promise.all([
-    deriveAverageViewsMeasured(ids),
-    deriveCampaignCounts(ids),
-    roster
-      ? db.creatorProfileLink.findMany({
-          where: { orgId, creatorId: { in: ids } },
-          orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
-          select: {
-            creatorId: true,
-            platform: true,
-            handle: true,
-            url: true,
-            followersCount: true,
-            averageViews: true,
-            isPrimary: true,
-            refreshedAt: true,
-            refreshError: true,
-          },
-        })
-      : [],
-    roster
-      ? db.creatorDetail.findMany({ where: { orgId, creatorId: { in: ids } }, select: { creatorId: true, audienceCountry: true, country: true } })
-      : [],
-    roster ? db.creatorDetail.groupBy({ by: ["audienceCountry"], where: detailWhere, _count: true }) : [],
-    roster ? db.creatorDetail.groupBy({ by: ["country"], where: detailWhere, _count: true }) : [],
-    storedAvatarVersions(ids, orgId),
-    // Across the whole roster, not this page: it is what tells someone there is anything to fix.
-    roster ? db.creator.count({ where: { orgId, deletedAt: null, profileLinks: { some: HANDLE_GONE_WHERE } } }) : 0,
-    roster
-      ? db.creator.count({ where: { orgId, deletedAt: null, profileLinks: { some: HANDLE_UNREADABLE_WHERE, none: HANDLE_GONE_WHERE } } })
-      : 0,
-    // Dates each row's figures (plan A6); an empty map, never an error, when it cannot.
-    latestTrackerReadings(orgId, ids),
-  ]);
   const linksBy = new Map<string, typeof links>();
   for (const l of links) linksBy.set(l.creatorId, [...(linksBy.get(l.creatorId) ?? []), l]);
   const detailBy = new Map(details.map((d) => [d.creatorId, d]));
