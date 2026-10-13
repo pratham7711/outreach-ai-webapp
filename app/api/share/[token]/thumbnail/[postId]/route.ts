@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { imageDimension, resizeImage } from "@/lib/media/proxyImage";
 import { readStoredThumbnail } from "@/lib/posts/thumbnailStore";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { serveThumbnail } from "@/lib/posts/thumbnailResponse";
 import { parseShareVisibility } from "@/lib/reports/shareVisibility";
 
@@ -66,6 +67,7 @@ export async function GET(
   const stored = await readStoredThumbnail(postId, link.orgId, {
     campaignId: link.campaignId,
     campaign: { orgId: link.orgId },
+    ...NOT_REMOVED,
     ...(link.platforms.length ? { platform: { in: link.platforms } } : {}),
   });
   return serveThumbnail(stored, width, height, resizeImage);

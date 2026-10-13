@@ -15,13 +15,14 @@
  */
 import { NextRequest } from "next/server";
 
-type PostRow = { id: string; campaignId: string; orgId: string; platform: string; team: string[] };
+type PostRow = { id: string; campaignId: string; orgId: string; platform: string; team: string[]; removedAt?: Date };
 type ThumbRow = { postId: string; orgId: string; data: Uint8Array | null; fetchedAt: Date | null };
 
 const POSTS: PostRow[] = [
   { id: "a-ig", campaignId: "camp-a", orgId: "org-1", platform: "INSTAGRAM", team: ["u-assigned"] },
   { id: "a-tt", campaignId: "camp-a", orgId: "org-1", platform: "TIKTOK", team: ["u-assigned"] },
   { id: "b-ig", campaignId: "camp-b", orgId: "org-1", platform: "INSTAGRAM", team: [] },
+  { id: "a-removed", campaignId: "camp-a", orgId: "org-1", platform: "INSTAGRAM", team: [], removedAt: new Date(2000) },
   { id: "x-ig", campaignId: "camp-x", orgId: "org-2", platform: "INSTAGRAM", team: [] },
 ];
 const THUMBS: ThumbRow[] = [
@@ -51,6 +52,8 @@ function matchesPost(post: PostRow, where: Record<string, any>): boolean {
       if (!v.in.includes(post.platform)) return false;
     } else if (k === "campaign") {
       if (!matchesCampaign(post, v)) return false;
+    } else if (k === "removedAt" && v === null) {
+      if (post.removedAt) return false;
     } else throw new Error(`unmodelled post filter ${k}`);
   }
   return true;
@@ -125,6 +128,10 @@ describe("GET /api/share/[token]/thumbnail/[postId]", () => {
     expect((await share("tok-a", "b-ig")).status).toBe(404);
     expect((await share("tok-b", "a-ig")).status).toBe(404);
     expect((await share("tok-b", "b-ig")).status).toBe(200);
+  });
+
+  it("gives a post removed from the campaign a 404, though its copy is held", async () => {
+    expect((await share("tok-a", "a-removed")).status).toBe(404);
   });
 
   it("never reaches another org's picture, whatever the id", async () => {
