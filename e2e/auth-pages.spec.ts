@@ -67,18 +67,16 @@ test.describe('Reset password', () => {
      showing the form at all. What fails is no error, or a validator's raw
      message.
 
-     The truncated token is fixme, not skipped quietly: MEASURED 2026-10-13, a
-     token under 32 characters fails the API's zod schema and the page shows
-     its message verbatim -- "Too small: expected string to have >=32
-     characters" -- to a person who clicked a link cut short by their mail
-     client. Remove the fixme once app/api/auth/reset-password answers a
-     malformed token in the same words as an unknown one. */
-  for (const [label, token, knownBroken] of [
-    ['an unknown token', unknownToken(), false],
-    ['a truncated token', 'abc123', true],
+     The truncated token is the case a mail client produces by cutting a link
+     short. Until 2026-10-13 it failed the API's zod schema and the page showed
+     "Too small: expected string to have >=32 characters" verbatim;
+     app/api/auth/reset-password now answers it in the same words as an
+     unknown token. */
+  for (const [label, token] of [
+    ['an unknown token', unknownToken()],
+    ['a truncated token', 'abc123'],
   ] as const) {
     test(`with ${label} it shows a plain-language error`, async ({ page }) => {
-      test.fixme(knownBroken, 'reset-password shows the raw zod message for a token under 32 characters');
       const errors = collectPageErrors(page);
       await page.goto(`/reset-password?token=${token}`);
 
