@@ -184,18 +184,31 @@ describe("postingTimeReportFromBuckets", () => {
     expect(r.best).toEqual([]);
   });
 
-  it("reads a null median as unknown-but-zero rather than dropping the slot", () => {
-    // percentile_cont returns null for a group whose views are all null. The
-    // slot still happened, so it must keep its count and stay uncoloured.
+  it("reads a null median as unknown, never 0, and keeps the slot", () => {
+    // percentile_cont returns null for a group with no known views. The slot
+    // still happened, so it keeps its count -- but it has no median, and the
+    // Timing tab must not print "0 median" for it or recommend it.
     const r = postingTimeReportFromBuckets(
-      [{ day: 1, hour: 9, count: 4, medianViews: null } as never],
+      [{ day: 1, hour: 9, count: 4, medianViews: null, viewsKnown: 0 }],
       { timeZone: "UTC", minSample: 1 },
     );
     expect(r.buckets.find((b) => b.day === 1 && b.hour === 9)).toMatchObject({
       count: 4,
-      medianViews: 0,
+      medianViews: null,
     });
+    expect(r.best).toEqual([]);
     expect(r.scaleMax).toBe(0);
+  });
+
+  it("medians only the posts with a view count, and samples on those", () => {
+    // Two photos (no view count) and one video in one slot: the median is the
+    // video's, and one known view is below a floor of 2.
+    const r = postingTimeReport(
+      [post("2026-08-13T19:00:00.000Z", 0), post("2026-08-13T19:10:00.000Z", 0), post("2026-08-13T19:20:00.000Z", 700)],
+      { timeZone: "UTC", minSample: 2 },
+    );
+    expect(r.buckets.find((b) => b.day === 4 && b.hour === 19)).toMatchObject({ count: 3, medianViews: 700, viewsKnown: 1 });
+    expect(r.best).toEqual([]);
   });
 
   it("never recommends a slot below the sample floor", () => {

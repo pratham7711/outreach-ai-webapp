@@ -19,6 +19,7 @@ import {
   platformColor,
 } from "./shared";
 import { loadCharts } from "@/components/charts/lazyCharts";
+import { asOfCaption } from "@/lib/dataAge";
 
 const MonthlyTrendArea = dynamic(() => loadCharts().then((m) => m.MonthlyTrendArea), {
   ssr: false,
@@ -38,6 +39,10 @@ type KPIs = {
   totalPosts: number;
   /** How many posts the engagement rate could be measured from. */
   engagementSample: number;
+  /** Posts with a view count; absent from a response cached before it existed. */
+  viewsKnownPosts?: number | null;
+  /** The newest reading behind the views total, ISO. */
+  asOf?: string | null;
 };
 
 type CampaignOption = { id: string; title: string; status: string };
@@ -153,6 +158,18 @@ export default function AnalyticsPage() {
         k.engagementSample > 0 ? `${k.avgEngagementRate.toFixed(1)}%`.length : 0,
       )
     : 0;
+  /* Total Views over posts none of which has a view count is unknown, not 0:
+     seven Instagram photos read "TOTAL VIEWS 0 · 7 posts". The caption says
+     when the total was read and, when partial, how many posts it covers. */
+  const viewsUnknown = k ? k.viewsKnownPosts === 0 && k.totalPosts > 0 : false;
+  const viewsCaption = k
+    ? k.viewsKnownPosts === undefined
+      ? `${formatNumber(k.totalPosts)} posts`
+      : (() => {
+          const caption = asOfCaption(k.asOf ?? null, { known: k.viewsKnownPosts, total: k.totalPosts, what: "views" });
+          return (k.viewsKnownPosts ?? 0) >= k.totalPosts ? [`${formatNumber(k.totalPosts)} posts`, caption].filter(Boolean).join(" · ") : caption;
+        })()
+    : null;
   // "All" plus the platforms there is something to show for. X, LinkedIn,
   // Snapchat and Pinterest have no reader, so their pills could only filter to
   // an empty page.
@@ -224,8 +241,8 @@ export default function AnalyticsPage() {
                 <MetricTile
                   fitTo={tileFit}
                   metric="totalViews"
-                  value={formatNumber(k.totalViews)}
-                  footer={`${formatNumber(k.totalPosts)} posts`}
+                  value={viewsUnknown ? "\u2014" : formatNumber(k.totalViews)}
+                  footer={viewsCaption}
                 />
                 <MetricTile fitTo={tileFit} metric="totalLikes" value={formatNumber(k.totalLikes)} />
                 <MetricTile fitTo={tileFit} metric="totalComments" value={formatNumber(k.totalComments)} />

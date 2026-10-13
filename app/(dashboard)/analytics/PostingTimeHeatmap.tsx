@@ -18,9 +18,9 @@ const HOUR_TICKS = [0, 3, 6, 9, 12, 15, 18, 21];
 
 /** Empty and thin cells must not read as "nothing happens here" the way a pale
  *  tint of the live scale would — they get their own flat treatment. */
-function cellBackground(count: number, medianViews: number, scaleMax: number, minSample: number) {
+function cellBackground(count: number, medianViews: number | null, scaleMax: number, minSample: number) {
   if (count === 0) return "var(--cc-bg)";
-  if (count < minSample || scaleMax <= 0) return "var(--cc-border)";
+  if (medianViews === null || count < minSample || scaleMax <= 0) return "var(--cc-border)";
   const t = Math.min(1, medianViews / scaleMax);
   return `color-mix(in srgb, var(--cc-primary) ${Math.round(12 + t * 88)}%, transparent)`;
 }
@@ -108,8 +108,8 @@ export function PostingTimeHeatmap({
             // Ranking one-post slots against each other would dress noise up as a
             // recommendation, so we say what is missing instead.
             <p className="mb-5 text-[13px] text-muted-foreground">
-              No hour has {report.minSample} posts yet, so there is nothing solid enough to
-              recommend. The grid below shows where the {report.totalPosts} post
+              No hour has {report.minSample} posts with a view count yet, so there is nothing
+              solid enough to recommend. The grid below shows where the {report.totalPosts} post
               {report.totalPosts === 1 ? "" : "s"} landed.
             </p>
           )}
@@ -131,7 +131,12 @@ export function PostingTimeHeatmap({
                         title={
                           b.count === 0
                             ? `${formatSlot(b)} — no posts`
-                            : `${formatSlot(b)} — ${formatNumber(b.medianViews)} median views from ${b.count} post${b.count === 1 ? "" : "s"}${b.count < report.minSample ? " (too few to recommend)" : ""}`
+                            : b.medianViews === null
+                              /* Posts landed here, but none has a view count
+                                 (Instagram photos publish none) -- so the slot
+                                 has no median rather than a median of 0. */
+                              ? `${formatSlot(b)} — ${b.count} post${b.count === 1 ? "" : "s"}, no view count read`
+                              : `${formatSlot(b)} — ${formatNumber(b.medianViews)} median views from ${b.viewsKnown ?? b.count} post${(b.viewsKnown ?? b.count) === 1 ? "" : "s"}${b.viewsKnown !== undefined && b.viewsKnown < b.count ? ` of ${b.count}` : ""}${(b.viewsKnown ?? b.count) < report.minSample ? " (too few to recommend)" : ""}`
                         }
                         style={{
                           flex: 1,

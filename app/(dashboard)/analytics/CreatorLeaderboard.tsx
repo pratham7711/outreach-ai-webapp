@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Card, EmptyState } from "@pratham7711/ui";
 import { User } from "lucide-react";
 import { formatNumber, formatPercent } from "./shared";
-import { stripAt } from "@/lib/format";
+import { stripAt, UNKNOWN } from "@/lib/format";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
 export type LeaderboardCreator = {
@@ -15,12 +15,14 @@ export type LeaderboardCreator = {
   avatarUrl: string | null;
   followersCount: number;
   campaigns: number;
-  views: number;
+  /** Null when none of their posts in range has a view count. */
+  views: number | null;
   likes: number;
   posts: number;
   earnings: number;
-  engagements: number;
-  engagementRate: number;
+  /** Null when none of their posts had views and likes read. */
+  engagements: number | null;
+  engagementRate: number | null;
 };
 
 export default function CreatorLeaderboard({ creators }: { creators: LeaderboardCreator[] }) {
@@ -80,8 +82,21 @@ export default function CreatorLeaderboard({ creators }: { creators: Leaderboard
                 </div>
               </div>
               <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", textAlign: "right" }}>{creator.campaigns}</span>
-              <span style={{ fontSize: "var(--cc-t-13)", fontWeight: 700, color: "var(--cc-text)", textAlign: "right" }}>{formatNumber(creator.views)}</span>
-              <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", textAlign: "right" }}>{formatPercent(creator.engagementRate)}</span>
+              {/* "—" with the reason, never 0: these creators' posts carry no
+                  view count we read (Instagram photos publish none), and the
+                  route ranks them last. */}
+              <span
+                title={creator.views === null ? `No view count read for any of their ${creator.posts} post${creator.posts === 1 ? "" : "s"} in this range` : undefined}
+                style={{ fontSize: "var(--cc-t-13)", fontWeight: 700, color: creator.views === null ? "var(--cc-text-muted)" : "var(--cc-text)", textAlign: "right" }}
+              >
+                {creator.views === null ? UNKNOWN : formatNumber(creator.views)}
+              </span>
+              <span
+                title={creator.engagementRate === null ? "No post of theirs in this range had both views and likes read" : undefined}
+                style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: creator.engagementRate === null ? "var(--cc-text-muted)" : "var(--cc-text)", textAlign: "right" }}
+              >
+                {creator.engagementRate === null ? UNKNOWN : formatPercent(creator.engagementRate)}
+              </span>
             </Link>
           ))}
           </div>
