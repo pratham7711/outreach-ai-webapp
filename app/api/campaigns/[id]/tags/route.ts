@@ -5,6 +5,7 @@ import { requirePermission } from "@/lib/authz";
 import { getAuditActor } from "@/lib/authenticate";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
+import { campaignScopeDenial } from "@/lib/campaignAccess";
 
 /**
  * Which of the org's campaign tags are on a campaign -- the reference's "Select
@@ -27,6 +28,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const result = gate.auth;
   const { orgId } = result;
   const { id } = await params;
+  const outOfScope = await campaignScopeDenial(result, id);
+  if (outOfScope) return outOfScope;
 
   const campaign = await db.campaign.findFirst({
     where: { id, orgId, deletedAt: null },

@@ -5,6 +5,7 @@ import { requirePermission } from "@/lib/authz";
 import { getAuditActor } from "@/lib/authenticate";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
+import { campaignScopeDenial } from "@/lib/campaignAccess";
 
 /**
  * A campaign's creative brief -- the rich-text block the reference puts on a
@@ -36,6 +37,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const result = gate.auth;
   const { orgId } = result;
   const { id } = await params;
+  const outOfScope = await campaignScopeDenial(result, id);
+  if (outOfScope) return outOfScope;
 
   const campaign = await db.campaign.findFirst({
     where: { id, orgId, deletedAt: null },

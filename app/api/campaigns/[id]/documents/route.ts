@@ -5,6 +5,7 @@ import { requirePermission } from "@/lib/authz";
 import { getAuditActor } from "@/lib/authenticate";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
+import { campaignScopeDenial } from "@/lib/campaignAccess";
 
 /**
  * Documents attached to a campaign -- the reference's Documents tab.
@@ -79,6 +80,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!gate.ok) return gate.response;
   const { orgId } = gate.auth;
   const { id } = await params;
+  const outOfScope = await campaignScopeDenial(gate.auth, id);
+  if (outOfScope) return outOfScope;
 
   const campaign = await reach(orgId, id);
   if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
@@ -100,6 +103,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const result = gate.auth;
   const { orgId, userId } = result;
   const { id } = await params;
+  const outOfScope = await campaignScopeDenial(result, id);
+  if (outOfScope) return outOfScope;
 
   // A document records who added it, and that column is a real foreign key --
   // an API key is not a user, so it has nobody to record.

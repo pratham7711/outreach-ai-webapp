@@ -4,6 +4,7 @@ import { requirePermission } from "@/lib/authz";
 import { getAuditActor } from "@/lib/authenticate";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
+import { campaignScopeDenial } from "@/lib/campaignAccess";
 
 /** Detaching a document from a campaign. */
 
@@ -31,6 +32,8 @@ export async function DELETE(
   const result = gate.auth;
   const { orgId } = result;
   const { id, documentId } = await params;
+  const outOfScope = await campaignScopeDenial(result, id);
+  if (outOfScope) return outOfScope;
 
   const existing = await reach(orgId, id, documentId);
   if (!existing) return NextResponse.json({ error: "Document not found" }, { status: 404 });

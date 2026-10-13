@@ -9,6 +9,7 @@ import {
 } from "@/lib/trackers/granularity";
 import { isLiveCampaign, trackingView } from "@/lib/sync/postTracking";
 import { readableSnapshots } from "@/lib/metricDisplay";
+import { campaignScopeDenial } from "@/lib/campaignAccess";
 
 type RouteParams = { params: Promise<{ id: string; postId: string }> };
 
@@ -18,6 +19,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     if (!gate.ok) return gate.response;
     const { orgId } = gate.auth;
     const { id: campaignId, postId } = await params;
+    const outOfScope = await campaignScopeDenial(gate.auth, campaignId);
+    if (outOfScope) return outOfScope;
 
     const campaign = await db.campaign.findFirst({ where: { id: campaignId, orgId, deletedAt: null } });
     if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });

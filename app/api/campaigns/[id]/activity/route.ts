@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { notifyAuditEvent } from "@/lib/notifications";
 import { auth } from "@/lib/auth";
 import { buildActivityFeed, FEED_ACTIONS } from "@/lib/campaignActivity";
+import { permissionDenial } from "@/lib/authz";
+import { sessionCampaignScopeDenial } from "@/lib/campaignAccess";
 
 /**
  * GET /api/campaigns/[id]/activity
@@ -27,6 +29,9 @@ export async function GET(
   if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: campaignId } = await params;
+
+  const outOfScope = await sessionCampaignScopeDenial(session.user, campaignId);
+  if (outOfScope) return outOfScope;
 
   try {
     const campaign = await db.campaign.findFirst({
@@ -91,6 +96,11 @@ export async function POST(
   if (!orgId || !userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: campaignId } = await params;
+
+  const denied =
+    permissionDenial(session.user, "campaigns:edit_own") ??
+    (await sessionCampaignScopeDenial(session.user, campaignId));
+  if (denied) return denied;
 
   try {
     const campaign = await db.campaign.findFirst({
@@ -171,6 +181,10 @@ export async function DELETE(
   if (!orgId || !userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: campaignId } = await params;
+  const denied =
+    permissionDenial(session.user, "campaigns:edit_own") ??
+    (await sessionCampaignScopeDenial(session.user, campaignId));
+  if (denied) return denied;
   const commentId = request.nextUrl.searchParams.get("commentId");
   if (!commentId) return NextResponse.json({ error: "commentId is required" }, { status: 400 });
 

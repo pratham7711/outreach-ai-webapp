@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
 import { computeMarketplaceAnalytics } from "@/lib/marketplace/analytics";
+import { campaignScopeWhereFor } from "@/lib/campaignScope";
 
 export async function GET(
   req: NextRequest,
@@ -14,7 +15,7 @@ export async function GET(
     const { id } = await params;
 
     const campaign = await db.campaign.findFirst({
-      where: { id, orgId, deletedAt: null },
+      where: { id, orgId, deletedAt: null, ...campaignScopeWhereFor(result) },
       select: {
         id: true,
         marketplaceVisibility: true,

@@ -5,6 +5,8 @@ import { createAuditActor, logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { z } from "zod";
 import type { NegotiationStatus } from "@/lib/generated/prisma/client";
+import { permissionDenial } from "@/lib/authz";
+import { sessionCampaignScopeDenial } from "@/lib/campaignAccess";
 
 const updateOfferSchema = z.object({
   action: z.enum(["ACCEPTED", "REJECTED", "COUNTERED"]),
@@ -22,6 +24,10 @@ export async function PATCH(
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const orgId = (session.user as any).orgId;
     const { id: campaignId, offerId } = await params;
+    const denied =
+      permissionDenial(session.user, "campaigns:edit_own") ??
+      (await sessionCampaignScopeDenial(session.user, campaignId));
+    if (denied) return denied;
 
     const campaign = await db.campaign.findFirst({ where: { id: campaignId, orgId, deletedAt: null } });
     if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
@@ -43,14 +49,21 @@ export async function PATCH(
       return NextResponse.json({ error: "counterRate is required when countering" }, { status: 400 });
     }
 
-    const updated = await db.negotiationOffer.update({
-      where: { id: offerId },
+    /* Conditional on the status this request read, so two decisions racing on
+       one offer cannot both land: the second finds the status moved and gets a
+       409 instead of overwriting an ACCEPTED with a REJECTED (or the reverse). */
+    const swapped = await db.negotiationOffer.updateMany({
+      where: { id: offerId, orgId, status: existing.status },
       data: {
         status: parsed.data.action as NegotiationStatus,
         counterRate: parsed.data.action === "COUNTERED" ? parsed.data.counterRate : existing.counterRate,
         notes: parsed.data.notes !== undefined ? parsed.data.notes : existing.notes,
       },
     });
+    if (swapped.count === 0) {
+      return NextResponse.json({ error: "This offer changed while you were deciding. Reload it and try again." }, { status: 409 });
+    }
+    const updated = await db.negotiationOffer.findUniqueOrThrow({ where: { id: offerId } });
 
     await logAudit({
       orgId,

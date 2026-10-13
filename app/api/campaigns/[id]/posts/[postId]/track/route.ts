@@ -15,6 +15,7 @@ import {
 } from "@/lib/sync/postTracking";
 import { parsePostTracking } from "@/lib/trackers/granularity";
 import { z } from "zod";
+import { campaignScopeDenial } from "@/lib/campaignAccess";
 
 /**
  * Turning post tracking on always sets an expiry.
@@ -40,6 +41,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (!gate.ok) return gate.response;
     const { orgId } = gate.auth;
     const { id: campaignId, postId } = await params;
+    const outOfScope = await campaignScopeDenial(gate.auth, campaignId);
+    if (outOfScope) return outOfScope;
 
     const campaign = await db.campaign.findFirst({ where: { id: campaignId, orgId, deletedAt: null } });
     if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });

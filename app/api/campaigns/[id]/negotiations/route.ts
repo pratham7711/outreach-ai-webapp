@@ -5,6 +5,8 @@ import { createAuditActor, logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { z } from "zod";
 import { totalsByCurrency } from "@/lib/money";
+import { permissionDenial } from "@/lib/authz";
+import { sessionCampaignScopeDenial } from "@/lib/campaignAccess";
 
 const createOfferSchema = z.object({
   creatorId: z.string().min(1),
@@ -23,6 +25,8 @@ export async function GET(
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const orgId = (session.user as any).orgId;
     const { id: campaignId } = await params;
+    const outOfScope = await sessionCampaignScopeDenial(session.user, campaignId);
+    if (outOfScope) return outOfScope;
 
     const campaign = await db.campaign.findFirst({ where: { id: campaignId, orgId, deletedAt: null } });
     if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
@@ -98,6 +102,10 @@ export async function POST(
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const orgId = (session.user as any).orgId;
     const { id: campaignId } = await params;
+    const denied =
+      permissionDenial(session.user, "campaigns:edit_own") ??
+      (await sessionCampaignScopeDenial(session.user, campaignId));
+    if (denied) return denied;
 
     const campaign = await db.campaign.findFirst({ where: { id: campaignId, orgId, deletedAt: null } });
     if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
@@ -107,6 +115,15 @@ export async function POST(
     if (!parsed.success) {
       return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
     }
+
+    /* The creator comes from the body, so it is checked against this org: a
+       creator id from another workspace would otherwise be written onto this
+       org's row and surface on its screens. */
+    const creatorInOrg = await db.creator.findFirst({
+      where: { id: parsed.data.creatorId, orgId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!creatorInOrg) return NextResponse.json({ error: "Creator not found" }, { status: 404 });
 
     const offer = await db.negotiationOffer.create({
       data: {

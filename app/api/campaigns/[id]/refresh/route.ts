@@ -4,6 +4,8 @@ import { db } from "@/lib/db";
 import { createLogger } from "@/lib/observability/logger";
 import { getRefreshCooldown, refreshCampaign } from "@/lib/sync/refreshCampaign";
 import { bearerMatches } from "@/lib/http/bearer";
+import { permissionDenial } from "@/lib/authz";
+import { sessionCampaignScopeDenial } from "@/lib/campaignAccess";
 
 /**
  * POST /api/campaigns/[id]/refresh — refresh everything the campaign reports on.
@@ -30,6 +32,8 @@ export async function GET(
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const orgId = (session.user as any).orgId;
   const { id: campaignId } = await params;
+  const outOfScope = await sessionCampaignScopeDenial(session.user, campaignId);
+  if (outOfScope) return outOfScope;
 
   const state = await getRefreshCooldown(orgId, campaignId);
   if (!state) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
@@ -124,6 +128,13 @@ export async function POST(
     } else {
       const session = await auth();
       if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      /* A refresh writes readings and spends the org's platform quota, the same
+         as syncing one post (posts/[postId]/sync), so it needs the same
+         permission. The continuation branch above is the server itself. */
+      const denied =
+        permissionDenial(session.user, "campaigns:edit_own") ??
+        (await sessionCampaignScopeDenial(session.user, campaignId));
+      if (denied) return denied;
       orgId = (session.user as any).orgId;
       userId = (session.user as any).id as string | undefined;
     }

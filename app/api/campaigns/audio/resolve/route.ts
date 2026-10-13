@@ -3,6 +3,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { identifyAudioLink } from "@/lib/campaigns/audioLink";
 import { readOneTikTokAudioUsage } from "@/lib/platforms/tiktokAudioUsage";
+import { permissionDenial } from "@/lib/authz";
 
 /**
  * What a pasted sound link points at, without attaching it to anything.
@@ -22,6 +23,11 @@ const bodySchema = z.object({ url: z.string().trim().min(1).max(2048) });
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  /* Only the campaign wizard and the campaign's audio setup call this, i.e.
+     someone creating or editing a campaign -- never a read-only seat. It also
+     spends a TikTok read per press. */
+  const denied = permissionDenial(session.user, "campaigns:create");
+  if (denied) return denied;
 
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {

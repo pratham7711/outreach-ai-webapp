@@ -7,6 +7,8 @@ import { z } from "zod";
 import type { ProposalStatus } from "@/lib/generated/prisma/client";
 import { findCreatorInOrgForHandle } from "@/lib/portal/creatorLookup";
 import { stripAt } from "@/lib/format";
+import { permissionDenial } from "@/lib/authz";
+import { sessionCampaignScopeDenial } from "@/lib/campaignAccess";
 
 const updateProposalSchema = z.object({
   action: z.enum(["ACCEPTED", "REJECTED"]),
@@ -22,6 +24,10 @@ export async function PATCH(
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const orgId = (session.user as any).orgId;
     const { id: campaignId, proposalId } = await params;
+    const denied =
+      permissionDenial(session.user, "campaigns:edit_own") ??
+      (await sessionCampaignScopeDenial(session.user, campaignId));
+    if (denied) return denied;
 
     const campaign = await db.campaign.findFirst({ where: { id: campaignId, orgId, deletedAt: null } });
     if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });

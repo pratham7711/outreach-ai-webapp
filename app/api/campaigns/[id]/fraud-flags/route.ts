@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { sessionCampaignScopeDenial } from "@/lib/campaignAccess";
 
 // GET /api/campaigns/[id]/fraud-flags
 export async function GET(
@@ -14,6 +15,8 @@ export async function GET(
     }
     const orgId = (session.user as any).orgId;
     const { id: campaignId } = await params;
+    const outOfScope = await sessionCampaignScopeDenial(session.user, campaignId);
+    if (outOfScope) return outOfScope;
 
     // Verify campaign belongs to org
     const campaign = await db.campaign.findFirst({
