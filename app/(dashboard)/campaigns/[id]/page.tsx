@@ -18,6 +18,7 @@ import { useCampaignNavPublish } from "@/components/providers/CampaignNavProvide
 import { CampaignAudioSetup } from "@/components/campaigns/CampaignAudioSetup";
 import { CAMPAIGN_HEADER_ACTIONS_ID } from "@/components/campaigns/CampaignHeaderActions";
 import { CampaignShareButton } from "@/components/campaigns/CampaignShareButton";
+import { NotFoundState } from "@/components/errors/NotFoundState";
 import InvitesSection from "./InvitesSection";
 import {
   Eye, Heart, MessageCircle, Share2, TrendingUp, Users,
@@ -665,9 +666,11 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
      layout, above this page, so the counts travel up through the provider
      rather than the sidebar fetching this campaign a second time. */
   const publishCampaignNav = useCampaignNavPublish();
+  const campaignMissing = !loading && !loadError && !campaign;
   useEffect(() => {
     publishCampaignNav({
       title: campaign?.title ?? null,
+      missing: campaignMissing,
       counts: {
         drafts: pendingDrafts || undefined,
         draftsEver: draftsEver || undefined,
@@ -675,7 +678,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         creators: roster.length || undefined,
       },
     });
-  }, [campaign?.title, campaign?._count.posts, pendingDrafts, draftsEver, roster.length, publishCampaignNav]);
+  }, [campaign?.title, campaign?._count.posts, pendingDrafts, draftsEver, roster.length, campaignMissing, publishCampaignNav]);
 
   if (loading) return <LoadingSkeleton />;
   if (loadError) return (
@@ -690,7 +693,12 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   );
   if (!campaign) return (
     <div className="cc-page-content">
-      <EmptyState icon={<ClipboardList size={32} color="var(--cc-text-subtle)" />} title="Campaign not found" description="This campaign may have been deleted." />
+      <NotFoundState
+        icon={<ClipboardList size={32} />}
+        title="Campaign not found"
+        description="This campaign doesn't exist, was deleted, or belongs to another workspace."
+        primary={{ href: "/campaigns", label: "Back to campaigns" }}
+      />
     </div>
   );
 
