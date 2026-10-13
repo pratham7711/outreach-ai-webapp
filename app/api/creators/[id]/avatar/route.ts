@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { imageDimension, resizeImage } from "@/lib/media/proxyImage";
 import { isProxyableHost } from "@/lib/postMedia";
 import { isFetchableAvatarUrl, readStoredAvatar, storeAvatarFromUrl } from "@/lib/creators/avatarStore";
-import { serveAvatar } from "@/lib/creators/avatarResponse";
+import { avatarMissMode, serveAvatar } from "@/lib/creators/avatarResponse";
 
 export const runtime = "nodejs";
 
@@ -42,5 +42,5 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }
   }
 
-  return serveAvatar(stored, width, resizeImage);
+  return serveAvatar(stored, width, resizeImage, avatarMissMode(req.nextUrl.searchParams));
 }
