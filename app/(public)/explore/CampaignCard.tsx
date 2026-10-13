@@ -10,6 +10,11 @@ import {
 import { SHOW_MONEY } from "@/lib/moneyUi";
 
 /** Public marketplace campaign card (server component, links to landing page). */
+/* A server component, rendered per request, so "now" is the request's time. */
+function deadlineHasPassed(deadline: string | Date | null | undefined): boolean {
+  return !!deadline && new Date(deadline).getTime() < Date.now();
+}
+
 export default function CampaignCard({ campaign }: { campaign: MarketplaceCardDTO }) {
   const deadline = formatDeadline(campaign.submissionDeadline);
   const typeLabel = CAMPAIGN_TYPE_LABEL[campaign.campaignType] ?? campaign.campaignType;
@@ -22,8 +27,7 @@ export default function CampaignCard({ campaign }: { campaign: MarketplaceCardDT
      the money while SHOW_MONEY is off (lib/moneyUi.ts). */
   const showClaimed =
     open && SHOW_MONEY && campaign.budgetClaimedPct != null && campaign.budgetClaimedPct >= 60;
-  const deadlinePassed =
-    !!campaign.submissionDeadline && new Date(campaign.submissionDeadline).getTime() < Date.now();
+  const deadlinePassed = deadlineHasPassed(campaign.submissionDeadline);
 
   return (
     <Link

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 /**
  * Where "Close campaign" and the rail's "All campaigns" go back to.
@@ -36,9 +36,11 @@ export function campaignListHref(): string {
   return "/campaigns";
 }
 
-/** "/campaigns" on the server and the first paint, then the remembered list. */
+/* Nothing to subscribe to: the value is only written by the list page, which
+   is never on screen at the same time as the links that read it. */
+const noSubscription = () => () => {};
+
+/** "/campaigns" on the server and while hydrating, then the remembered list. */
 export function useCampaignListHref(): string {
-  const [href, setHref] = useState("/campaigns");
-  useEffect(() => setHref(campaignListHref()), []);
-  return href;
+  return useSyncExternalStore(noSubscription, campaignListHref, () => "/campaigns");
 }

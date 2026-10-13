@@ -57,7 +57,6 @@ export function safeCallbackPath(
   if (!raw.startsWith("/")) return null;
   if (raw.startsWith("//")) return null;
   if (raw.includes("\\")) return null;
-  // eslint-disable-next-line no-control-regex
   if (/[\u0000-\u001f\u007f]/.test(raw)) return null;
 
   let url: URL;

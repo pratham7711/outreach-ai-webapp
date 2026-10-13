@@ -78,6 +78,11 @@ export async function generateMetadata({
 
 /* ── Page ────────────────────────────────────────────────────────────────── */
 
+/* A server component, rendered per request, so "now" is the request's time. */
+function deadlineHasPassed(deadline: string | Date | null | undefined): boolean {
+  return !!deadline && new Date(deadline).getTime() < Date.now();
+}
+
 export default async function CampaignLandingPage({
   params,
 }: {
@@ -107,8 +112,7 @@ export default async function CampaignLandingPage({
      this page cannot invite a creator into a campaign the portal then refuses.
      See isMarketplaceCampaignOpen. */
   const open = campaign.open;
-  const deadlinePassed =
-    !!campaign.submissionDeadline && new Date(campaign.submissionDeadline).getTime() < Date.now();
+  const deadlinePassed = deadlineHasPassed(campaign.submissionDeadline);
   const showDaysLeft = open && daysLeft != null && daysLeft <= 7;
   /* Money is hidden while SHOW_MONEY is off (lib/moneyUi.ts): the pool, the
      rates and what each creator earned. Hidden, never cleared -- the figures
