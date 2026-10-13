@@ -448,7 +448,7 @@ async function computeCampaignPerformanceUncached(
         .join(", ")})`
     : "";
 
-  const [posts, snapshotDays, activations] = await Promise.all([
+  const [posts, snapshotDays, activations, audio] = await Promise.all([
     db.post.findMany({
     where: postWhere,
     select: {
@@ -529,6 +529,11 @@ async function computeCampaignPerformanceUncached(
       select: { creatorId: true, status: true },
       orderBy: { updatedAt: "asc" },
     }),
+
+    /* In this wave, not after it. The audio card needs nothing the reads above
+       return, and awaiting it at the end added its own two round trips to every
+       uncached report. */
+    loadCampaignAudio(campaign.id, campaign.orgId),
   ]);
 
   const statusByCreator = new Map(activations.map((a) => [a.creatorId, a.status]));
@@ -751,7 +756,7 @@ async function computeCampaignPerformanceUncached(
     platformSplit,
     leaderboard,
     posts: postRows,
-    audio: await loadCampaignAudio(campaign.id, campaign.orgId),
+    audio,
   };
 }
 
@@ -783,7 +788,18 @@ export function knownViews(
   return total;
 }
 
-async function loadCampaignAudio(campaignId: string, orgId: string): Promise<CampaignAudio | null> {
+/**
+ * `series: false` is the light read for a caller that shows only the sound's
+ * name, cover and latest uses (Settings' audio panel): the two newest readings
+ * instead of a year of them, and no org read for the chart granularity.
+ * `usageSeries` comes back empty; every other field is computed the same way.
+ */
+export async function loadCampaignAudio(
+  campaignId: string,
+  orgId: string,
+  opts: { series?: boolean } = {},
+): Promise<CampaignAudio | null> {
+  const withSeries = opts.series !== false;
   const campaign = await db.campaign.findUnique({
     where: { id: campaignId },
     select: {
@@ -805,7 +821,8 @@ async function loadCampaignAudio(campaignId: string, orgId: string): Promise<Cam
      same buckets the trackers page draws this sound in. The flat take:60 this
      replaced was ten days at that cadence, and five of its points could be one
      refresh pressed five times. */
-  const READINGS = 2_200;
+  // Two is what videosAddedSinceLast needs when there is no chart to draw.
+  const READINGS = withSeries ? 2_200 : 2;
   const [rows, org] = await Promise.all([
     db.soundTrackerSnapshot.findMany({
       where: { soundId: sound.id },
@@ -813,11 +830,11 @@ async function loadCampaignAudio(campaignId: string, orgId: string): Promise<Cam
       orderBy: { recordedAt: "desc" },
       take: READINGS,
     }),
-    db.organization.findUnique({ where: { id: orgId }, select: { uiConfig: true } }),
+    withSeries ? db.organization.findUnique({ where: { id: orgId }, select: { uiConfig: true } }) : null,
   ]);
   const latest = rows[0] ?? null;
   const chartAt = effectiveChartGranularity(parseGranularity(org?.uiConfig ?? null));
-  const series = soundSeries(rows.slice().reverse(), { bucketHours: CHART_BUCKET_HOURS[chartAt] });
+  const series = withSeries ? soundSeries(rows.slice().reverse(), { bucketHours: CHART_BUCKET_HOURS[chartAt] }) : [];
   const platform = sound.platform === "INSTAGRAM" ? "INSTAGRAM" : "TIKTOK";
 
   return {
