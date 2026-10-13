@@ -20,9 +20,10 @@
  *  - the MCP server (list_payouts, get_org_kpis' payout figures), the AI
  *    briefing and natural-language query routes, and the AI tool registry's
  *    request_payout;
- *  - the payment-detail fields on PATCH /api/creators/[id] and
- *    PATCH /api/portal/me, which are refused while off, and omitted from
- *    what those routes and /api/portal/dashboard send back;
+ *  - payment details: PATCH /api/creators/[id] refuses paymentInfo and
+ *    PATCH /api/portal/me refuses the bank fields while off, and those routes
+ *    and /api/portal/dashboard stop sending paymentInfo, the bank fields and
+ *    lifetimeEarnings back;
  *  - notification settings, the public creator page's Lifetime Earnings tile
  *    and the API Keys page's description of what MCP can read.
  *

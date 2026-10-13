@@ -2,6 +2,34 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
 import { z } from "zod";
+import { PAYOUTS_ENABLED } from "@/lib/payouts/switch";
+
+/* What the creator app is sent about its own creator. Earnings and the bank
+   account name only while payouts are on (lib/payouts/switch.ts): off, the
+   creator app has no screen that shows them, and they stay stored. */
+const profileSelect = () => ({
+  id: true,
+  email: true,
+  name: true,
+  handle: true,
+  avatarUrl: true,
+  bio: true,
+  platform: true,
+  followersCount: true,
+  averageViews: true,
+  rate: true,
+  boostRate: true,
+  ...(PAYOUTS_ENABLED ? { lifetimeEarnings: true, bankAccountName: true } : {}),
+  cpm: true,
+  averageRating: true,
+  reviewCount: true,
+  niches: true,
+  createdAt: true,
+} as const);
+
+/* The payment details a payout would be sent to. Refused while payouts are
+   off rather than quietly dropped, so a client that still sends them is told. */
+const BANK_FIELDS = ["bankAccountName", "bankAccountNumber", "bankIFSC", "bankSwift", "bankRoutingNumber"] as const;
 
 // GET /api/portal/me — Get current creator user profile
 export async function GET() {
@@ -11,26 +39,7 @@ export async function GET() {
 
     const user = await db.creatorUser.findUnique({
       where: { id: session.creatorUserId },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        handle: true,
-        avatarUrl: true,
-        bio: true,
-        platform: true,
-        followersCount: true,
-        averageViews: true,
-        rate: true,
-        boostRate: true,
-        lifetimeEarnings: true,
-        cpm: true,
-        averageRating: true,
-        reviewCount: true,
-        niches: true,
-        bankAccountName: true,
-        createdAt: true,
-      },
+      select: profileSelect(),
     });
 
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -68,6 +77,12 @@ export async function PATCH(req: NextRequest) {
     }
 
     const data = parsed.data;
+    if (!PAYOUTS_ENABLED && BANK_FIELDS.some((f) => data[f] !== undefined)) {
+      return NextResponse.json(
+        { error: "Payment details can't be saved while payouts are switched off." },
+        { status: 400 },
+      );
+    }
 
     /* Uniqueness against CreatorUser only, for the same reason registration
        does it that way (see app/api/portal/auth/register/route.ts). Renaming
@@ -86,26 +101,7 @@ export async function PATCH(req: NextRequest) {
     const user = await db.creatorUser.update({
       where: { id: session.creatorUserId },
       data,
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        handle: true,
-        avatarUrl: true,
-        bio: true,
-        platform: true,
-        followersCount: true,
-        averageViews: true,
-        rate: true,
-        boostRate: true,
-        lifetimeEarnings: true,
-        cpm: true,
-        averageRating: true,
-        reviewCount: true,
-        niches: true,
-        bankAccountName: true,
-        createdAt: true,
-      },
+      select: profileSelect(),
     });
 
     return NextResponse.json(user);

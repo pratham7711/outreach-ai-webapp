@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
+import { PAYOUTS_ENABLED } from "@/lib/payouts/switch";
 
 // GET /api/portal/dashboard — Creator dashboard summary
 export async function GET() {
@@ -25,8 +26,9 @@ export async function GET() {
           avatarUrl: true,
           bio: true,
           rate: true,
-          bankAccountNumber: true,
-          lifetimeEarnings: true,
+          /* Only while payouts are on (lib/payouts/switch.ts); the stored
+             values are untouched either way. */
+          ...(PAYOUTS_ENABLED ? { bankAccountNumber: true, lifetimeEarnings: true } : {}),
           averageRating: true,
           reviewCount: true,
           cpm: true,
@@ -51,7 +53,7 @@ export async function GET() {
         totalProposals,
         pendingProposals,
         acceptedProposals,
-        lifetimeEarnings: user?.lifetimeEarnings ?? 0,
+        ...(PAYOUTS_ENABLED && { lifetimeEarnings: user?.lifetimeEarnings ?? 0 }),
       },
       recentProposals,
     });
