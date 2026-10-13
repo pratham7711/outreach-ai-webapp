@@ -19,6 +19,7 @@ import { SOUND_URL_ERRORS, parseSoundUrl } from "@/lib/trackers/soundUrl";
 import { changeSpanLabel, isTrackerWindow, spanMatchesWindow } from "@/lib/trackers/metrics";
 import type { ChartGranularity } from "@/lib/trackers/granularity";
 import { action } from "@/lib/ui/actions";
+import { asOfCaption, dataAsOf } from "@/lib/dataAge";
 
 interface SoundSnapshot {
   usesCount: number;
@@ -334,25 +335,31 @@ export default function TrackersPage() {
     [confirm, deleteMutation, ambiguousLabels]
   );
 
-  const stats = useMemo(
-    () => ({
+  const stats = useMemo(() => {
+    /* A sound with no reading yet has no use count -- it added 0 to the total,
+       which then read as a measured figure. Only read sounds are summed, the
+       tile says how many of them that is, and when the newest was read. */
+    const read = allSounds.filter((s) => s.latestSnapshot !== null);
+    /* Only rows whose readings span the period: the tile's label names the
+       period, and a row measured over a different stretch already says so
+       on its own line. A period no row spans is unknown, not "0 new uses". */
+    const spanning = allSounds.filter(
+      (s) => s.change && isTrackerWindow(period) && spanMatchesWindow(s.change.spanHours, period) && s.addedInPeriod !== null,
+    );
+    const readAt = (s: TrackedSound) => s.latestSnapshot?.recordedAt ?? null;
+    return {
       totalTrackers: allSounds.length,
-      totalUses: allSounds.reduce((sum, s) => sum + (s.latestSnapshot?.usesCount ?? 0), 0),
+      totalUses: read.length === 0 ? null : read.reduce((sum, s) => sum + (s.latestSnapshot?.usesCount ?? 0), 0),
+      usesNote: asOfCaption(dataAsOf(read.map(readAt)), { known: read.length, total: allSounds.length, noun: "sound" }),
       trendingCount: allSounds.filter((s) => s.status === "viral" || s.status === "trending").length,
-      /* Only rows whose readings span the period: the tile's label names the
-         period, and a row measured over a different stretch already says so
-         on its own line. */
-      newToday: allSounds.reduce(
-        (sum, s) =>
-          s.change && isTrackerWindow(period) && spanMatchesWindow(s.change.spanHours, period)
-            ? sum + (s.addedInPeriod ?? 0)
-            : sum,
-        0,
-      ),
-    }),
-    [allSounds, period]
-  );
-  const { totalTrackers, totalUses, trendingCount, newToday } = stats;
+      newToday: spanning.length === 0 ? null : spanning.reduce((sum, s) => sum + (s.addedInPeriod ?? 0), 0),
+      newNote:
+        spanning.length === 0
+          ? `No sound has readings spanning ${periodLabel(period)} yet`
+          : asOfCaption(dataAsOf(spanning.map(readAt)), { known: spanning.length, total: allSounds.length, noun: "sound" }),
+    };
+  }, [allSounds, period]);
+  const { totalTrackers, totalUses, usesNote, trendingCount, newToday, newNote } = stats;
 
   return (
     <div className="rsp-page">
@@ -483,7 +490,11 @@ export default function TrackersPage() {
       ) : (
         <div className="cc-tiles-balanced" style={{ marginBottom: 32 }}>
           <MetricTile metric="trackersActive" value={String(totalTrackers)} />
-          <MetricTile metric="trackerUses" value={formatCount(totalUses)} />
+          <MetricTile
+            metric="trackerUses"
+            value={totalUses === null ? "—" : formatCount(totalUses)}
+            footer={totalUses === null ? "No sound has been read yet" : usesNote}
+          />
           <MetricTile metric="trackersTrending" value={String(trendingCount)} />
           {/* The label has to carry the period, because the number changes when
               the buttons below are clicked. "New today" was wrong on three of
@@ -491,7 +502,8 @@ export default function TrackersPage() {
           <MetricTile
             metric="trackersNewUses"
             label={`New uses / ${periodLabel(period)}`}
-            value={formatFull(newToday)}
+            value={newToday === null ? "—" : formatFull(newToday)}
+            footer={newNote}
           />
         </div>
       )}
