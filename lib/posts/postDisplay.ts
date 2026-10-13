@@ -1,4 +1,4 @@
-import { computeEngagementRate } from "@/lib/metrics";
+import { postEngagementPercent, type EngagementRatePost } from "@/lib/metricDisplay";
 import { timeAgo } from "@/lib/format";
 
 /**
@@ -21,23 +21,14 @@ export function formatSince(iso: string | null): string {
   return iso ? timeAgo(iso) : "Never";
 }
 
-type EngagementCounts = {
-  viewsCount: number;
-  likesCount: number;
-  commentsCount: number;
-  sharesCount: number;
-  savesCount: number;
-};
-
-export function engRatePct(post: EngagementCounts): number | null {
-  const r = computeEngagementRate({
-    views: post.viewsCount,
-    likes: post.likesCount,
-    comments: post.commentsCount,
-    shares: post.sharesCount,
-    saves: post.savesCount,
-  });
-  return r === null ? null : r * 100;
+/**
+ * A post's engagement rate in percent: postEngagementPercent, the product's one
+ * per-post rate. It was computeEngagementRate over the raw counters, which rated
+ * a post whose views or likes nobody read -- so the Posts tab sorted by one rate
+ * while its card and list printed another.
+ */
+export function engRatePct(post: EngagementRatePost): number | null {
+  return postEngagementPercent(post);
 }
 
 /**

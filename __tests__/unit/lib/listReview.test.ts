@@ -70,7 +70,9 @@ beforeEach(() => {
     detail("item-b", { sortOrder: 0, rate: 1200, notes: "agency only", decision: "REJECTED", decisionNote: "Too pricey" }),
     detail("item-a", { sortOrder: 1, decision: "APPROVED" }),
   ]);
-  mdb.post.groupBy.mockResolvedValue([{ creatorId: "a", _sum: { viewsCount: 1000, likesCount: 40, commentsCount: 5, sharesCount: 5 } }]);
+  /* _count as well as _sum: deriveEngagementRates now rates through
+     rollupEngagementFromTotals, which needs the number of rated posts. */
+  mdb.post.groupBy.mockResolvedValue([{ creatorId: "a", _count: { _all: 1 }, _sum: { viewsCount: 1000, likesCount: 40, commentsCount: 5, sharesCount: 5 } }]);
 });
 
 describe("applyShareReview", () => {

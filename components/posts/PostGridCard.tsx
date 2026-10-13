@@ -4,7 +4,7 @@ import { memo, type ReactNode } from "react";
 import { Badge } from "@pratham7711/ui";
 import { Eye, Heart, MessageCircle, TrendingUp, Share2, Bookmark, Check } from "lucide-react";
 import { formatDateAbs, formatFull } from "@/lib/format";
-import { fieldMetricValue, engagementRateValue, unwrittenMetricValue, sharesUnknownReason } from "@/lib/metricDisplay";
+import { fieldMetricValue, unwrittenMetricValue, sharesUnknownReason } from "@/lib/metricDisplay";
 import { postAgeContext, postMeasuredAt, postStatus } from "@/lib/posts/postStatus";
 import { viewsAsOf } from "@/lib/posts/fieldFreshness";
 import PostStatusChip from "@/components/posts/PostStatusChip";
@@ -104,19 +104,14 @@ function PostGridCardImpl({
   const viewsNote = cardViews === null ? null : viewsAsOf(post);
   const cardLikes = fieldMetricValue(post.likesCount, post.lastSyncedAt, post.platformMetrics, "likes");
   const cardComments = fieldMetricValue(post.commentsCount, post.lastSyncedAt, post.platformMetrics, "comments");
-  const cardShares = fieldMetricValue(post.sharesCount, post.lastSyncedAt, post.platformMetrics, "shares");
+  const cardShares = fieldMetricValue(post.sharesCount, post.lastSyncedAt, post.platformMetrics, "shares", post.platform);
   /* The list view's gate, so the two views agree: no reader stores saves for
      posts we do not own, and the 0 an unfetched row holds printed "0 saves". */
   const cardSaves = unwrittenMetricValue(post.savesCount);
-  const cardEngRate =
-    cardLikes === null
-      ? null
-      : engagementRateValue(
-          post.likesCount,
-          post.commentsCount,
-          post.viewsCount,
-          post.lastSyncedAt
-        ) ?? engRatePct(post);
+  /* The product's one per-post rate, as the list, the post page, the share
+     link and the exports print it. This card used to show (likes + comments)
+     / views to one place -- 8.6% beside the post page's 9.91%. */
+  const cardEngRate = engRatePct(post);
   return (
     /* onContextMenu rather than a visible trigger: the corner used to hold two
        icons on every tile, and the actions they opened are worth less than the
@@ -246,7 +241,7 @@ function PostGridCardImpl({
                   unknown: true,
                 },
             cardSaves !== null && { key: "saves", icon: <Bookmark size={13} aria-hidden="true" />, text: `${formatNumber(cardSaves)} saves` },
-            cardEngRate !== null && { key: "eng", icon: <TrendingUp size={13} aria-hidden="true" />, text: `${cardEngRate.toFixed(1)}% eng. rate` },
+            cardEngRate !== null && { key: "eng", icon: <TrendingUp size={13} aria-hidden="true" />, text: `${cardEngRate.toFixed(2)}% eng. rate` },
           ].filter(Boolean) as { key: string; icon: ReactNode; text: string; note?: string; title?: string; unknown?: boolean }[];
           // Nothing measured at all: say so once. Four zeroes claim
           // this post was watched by nobody, which we never checked.
