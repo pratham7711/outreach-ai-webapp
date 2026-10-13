@@ -39,7 +39,9 @@ import {
   type SaveVerdict,
   type UnansweredKind,
 } from "@/lib/posts/bulkAdd";
-import { MAX_BULK_ACTION_POSTS, type BulkAction } from "@/lib/posts/bulkActions";
+import { MAX_BULK_ACTION_POSTS, removeConfirmText, removePostsSummary, type BulkAction } from "@/lib/posts/bulkActions";
+import { useConfirm } from "@/components/ds/ConfirmDialog";
+import { Trash2 } from "lucide-react";
 import PostActionMenu, { type PostMenuItem } from "@/components/posts/PostActionMenu";
 import { PlatformGlyph } from "@/components/ui/PlatformGlyph";
 import { platformFromHost, detectPlatformFromUrl, platformLabel } from "@/lib/platforms/registry";
@@ -1004,6 +1006,43 @@ export default function PostsTab({
     }
   };
 
+  /* Remove from campaign, for one post or the selection: a mis-pasted link
+     used to stay in the post count for good, because nothing could take a
+     post out (walkthrough F2). Confirmed first, naming how many, since it
+     cannot be undone -- the server deletes the posts and their readings in one
+     transaction (DELETE /api/campaigns/[id]/posts). The page above is told
+     too, so the header count and the totals move with the list. */
+  const confirm = useConfirm();
+  const removePosts = async (ids: string[]) => {
+    if (ids.length === 0) return;
+    if (!(await confirm({ ...removeConfirmText(ids.length), tone: "danger" }))) return;
+    setBulkBusy(true);
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}/posts`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postIds: ids }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(body.error ?? "Could not remove those posts.");
+        return;
+      }
+      toast.success(removePostsSummary(typeof body.removed === "number" ? body.removed : ids.length));
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        for (const id of ids) next.delete(id);
+        return next;
+      });
+      fetchPosts();
+      onRefreshed?.();
+    } catch {
+      toast.error("Could not remove those posts.");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   // One request, server-side: refreshes every post on the campaign and the
   // campaign's tracked sound in the same run. It used to fan out one fetch per
   // post from here and discard every response, so a campaign whose platform was
@@ -1632,6 +1671,15 @@ export default function PostsTab({
                 external: true,
               },
             ]),
+        { kind: "sep" as const },
+        {
+          kind: "action" as const,
+          label: menuOnSelection ? `Remove ${selectedOnPage.length} posts from campaign…` : "Remove from campaign…",
+          icon: <Trash2 size={14} />,
+          danger: true,
+          disabled: bulkBusy,
+          onSelect: () => removePosts(menuOnSelection ? selectedOnPage : [menuPost.id]),
+        },
       ];
 
   return (
@@ -1982,6 +2030,9 @@ export default function PostsTab({
                 single-post path already uses rather than acting immediately. */}
             <Button variant="secondary" onClick={() => setShowRejectModal(BULK_REJECT)} loading={bulkBusy}>
               Reject
+            </Button>
+            <Button variant="secondary" onClick={() => removePosts(selectedOnPage)} loading={bulkBusy} style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--cc-danger)" }}>
+              <Trash2 size={14} aria-hidden="true" />Remove
             </Button>
           </div>
         </div>

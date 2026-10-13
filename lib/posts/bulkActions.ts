@@ -134,12 +134,13 @@ export function removablePostIds(raw: unknown): string[] | null {
   return ids;
 }
 
-/** The confirmation, naming how many posts go and what happens to their numbers. */
-export function removeConfirmText(count: number): { title: string; message: string; confirmLabel: string } {
+/** The confirmation, naming how many posts go and what happens to their
+ *  numbers. Shaped as ConfirmOptions (components/ds/ConfirmDialog). */
+export function removeConfirmText(count: number): { title: string; description: string; confirmLabel: string } {
   const posts = `${count} post${count === 1 ? "" : "s"}`;
   return {
     title: `Remove ${posts} from this campaign?`,
-    message:
+    description:
       count === 1
         ? "The post, its readings and its views come out of this campaign's totals. This can't be undone; add the link again to bring it back."
         : `These ${posts}, their readings and their views come out of this campaign's totals. This can't be undone; add the links again to bring them back.`,

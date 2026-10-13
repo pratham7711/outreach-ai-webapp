@@ -138,7 +138,7 @@ describe("remove helpers", () => {
   it("names the count in the confirmation and the summary", () => {
     expect(removeConfirmText(1)).toMatchObject({ title: "Remove 1 post from this campaign?", confirmLabel: "Remove 1 post" });
     expect(removeConfirmText(3).title).toBe("Remove 3 posts from this campaign?");
-    expect(removeConfirmText(3).message).toMatch(/can't be undone/);
+    expect(removeConfirmText(3).description).toMatch(/can't be undone/);
     expect(removePostsSummary(2)).toBe("Removed 2 posts from this campaign.");
   });
 });
