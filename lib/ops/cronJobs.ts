@@ -8,7 +8,8 @@
  * does not know about is a job nobody notices stopping.
  *
  * Minutes already taken, for whoever adds the next one (plan §14 rule 1 keeps
- * releases away from them): :00 every 6 h and daily at 04:00 / 05:00, :10 and
+ * releases away from them): :00 every 6 h and daily at 04:00 / 05:00, 04:20 and
+ * 05:20 daily (the second only finishes what the first ran out of time for), :10 and
  * :12 and :13 hourly, :15 every 6 h, :30 every 2 h and at 00:30, :40 hourly.
  * The Instagram post pass sits at :13, inside the window :10 and :12 have already
  * woken Neon for. The canary
@@ -21,6 +22,7 @@ export const CRON_JOBS = [
   { job: "sync-instagram-posts", path: "/api/cron/sync-instagram-posts", schedule: "13 * * * *", label: "Instagram post sync (hourly, paced)" },
   { job: "auto-approve-submissions", path: "/api/cron/auto-approve-submissions", schedule: "0 */6 * * *", label: "Auto-approve submissions" },
   { job: "snapshot-sounds", path: "/api/cron/snapshot-sounds", schedule: "0 4 * * *", label: "Sound snapshots" },
+  { job: "snapshot-song-streams", path: "/api/cron/snapshot-song-streams", schedule: "20 4,5 * * *", label: "Spotify streams (daily)" },
   { job: "sync-trackers", path: "/api/cron/sync-trackers", schedule: "15 */6 * * *", label: "Sound trackers" },
   { job: "sync-creator-trackers", path: "/api/cron/sync-creator-trackers", schedule: "30 */2 * * *", label: "Creator trackers (legacy sweep)" },
   { job: "read-creator-trackers", path: "/api/cron/read-creator-trackers", schedule: "40 * * * *", label: "Creator trackers (reader v2)" },

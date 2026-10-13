@@ -55,6 +55,10 @@
     {
       "path": "/api/cron/ops-meters",
       "schedule": "14 3 * * 1"
+    },
+    {
+      "path": "/api/cron/snapshot-song-streams",
+      "schedule": "20 4,5 * * *"
     }
   ]
 }
