@@ -224,3 +224,20 @@ describe("two orgs tracking the same sound", () => {
     );
   });
 });
+
+describe("the validation gate (plan A3)", () => {
+  it("refuses a reading the worker parsed off a challenge page, and counts it skipped", async () => {
+    const res = await POST(
+      post({ readings: [{ tiktokSoundId: TRACKED.tiktokSoundId, usesCount: 46, title: "Just a moment...", artist: null }] }),
+    );
+    expect(await res.json()).toMatchObject({ recorded: 0, skipped: 1 });
+    expect(mockDb.soundTrackerSnapshot.create).not.toHaveBeenCalled();
+  });
+
+  it("records a real song whose title merely sounds like one", async () => {
+    const res = await POST(
+      post({ readings: [{ tiktokSoundId: TRACKED.tiktokSoundId, usesCount: 46, title: "Just a moment (feat. Lil Baby)" }] }),
+    );
+    expect(await res.json()).toMatchObject({ recorded: 1, skipped: 0 });
+  });
+});
