@@ -28,6 +28,9 @@ export const NOTIFICATION_LOOKBACK_DAYS = 30;
 /** Newest N shown in the dropdown. The bell is a glance, not the audit log. */
 export const NOTIFICATION_FEED_LIMIT = 8;
 
+/** The most rows one page of the feed may ask for. */
+export const NOTIFICATION_PAGE_MAX = 50;
+
 export const NOTIFIABLE_ACTIONS: string[] = NOTIFICATION_EVENTS.map((e) => e.key);
 
 export type NotificationItem = {
@@ -85,4 +88,46 @@ export function describeNotification(
 export function formatUnreadBadge(count: number): string {
   if (count <= 0) return "";
   return count > 9 ? "9+" : String(count);
+}
+
+/**
+ * Identical notifications in a row, folded into one line.
+ *
+ * Five saves of the same campaign in a minute wrote five "Campaign Updated —
+ * LEAK IT (BTS)" rows, and the bell spent five of its eight lines on them.
+ * Consecutive rows with the same action on the same entity become one group,
+ * shown as "Campaign Updated — LEAK IT (BTS) ×5" at the newest one's time.
+ * Only consecutive: the same update either side of something else is two
+ * separate moments and stays two lines, so the order still reads as a timeline.
+ */
+export type NotificationGroup = {
+  /** The newest row in the run; its time is the line's time. */
+  item: NotificationItem;
+  /** Every row in the run, newest first. */
+  items: NotificationItem[];
+};
+
+const sameEvent = (a: NotificationItem, b: NotificationItem) =>
+  a.action === b.action &&
+  a.entityType === b.entityType &&
+  a.entityId === b.entityId &&
+  (a.entityLabel ?? null) === (b.entityLabel ?? null);
+
+export function collapseNotifications(items: readonly NotificationItem[]): NotificationGroup[] {
+  const groups: NotificationGroup[] = [];
+  for (const item of items) {
+    const last = groups[groups.length - 1];
+    if (last && sameEvent(last.item, item)) last.items.push(item);
+    else groups.push({ item, items: [item] });
+  }
+  return groups;
+}
+
+/**
+ * Whether a row is newer than the last "Mark all as read" on this device. No
+ * marker means the bell has never been cleared here, so everything is unread.
+ */
+export function isUnread(item: Pick<NotificationItem, "createdAt">, lastSeen: string | null): boolean {
+  if (!lastSeen) return true;
+  return new Date(item.createdAt).getTime() > new Date(lastSeen).getTime();
 }

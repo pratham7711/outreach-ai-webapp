@@ -85,3 +85,49 @@ describe("GET /api/notifications honours the reader's own preferences", () => {
     }
   });
 });
+
+describe("GET /api/notifications pages through the window", () => {
+  const rows = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      id: `a${i}`,
+      action: "campaign.update",
+      entityType: "campaign",
+      entityId: "c1",
+      entityLabel: "LEAK IT (BTS)",
+      createdAt: new Date(Date.UTC(2026, 9, 10, 0, 0, 60 - i)),
+    }));
+  const at = (q: string) => new NextRequest(`http://localhost/api/notifications${q}`);
+
+  it("keeps the old page size when no limit is asked for", async () => {
+    mockDb.auditLog.findMany.mockResolvedValue(rows(9));
+    const body = await (await GET(at(""))).json();
+    expect(mockDb.auditLog.findMany.mock.calls[0][0].take).toBe(9);
+    expect(body.items).toHaveLength(8);
+    expect(body.hasMore).toBe(true);
+  });
+
+  it("caps a requested page and says when there is nothing more", async () => {
+    mockDb.auditLog.findMany.mockResolvedValue(rows(3));
+    const body = await (await GET(at("?limit=5000"))).json();
+    expect(mockDb.auditLog.findMany.mock.calls[0][0].take).toBe(51);
+    expect(body.hasMore).toBe(false);
+  });
+
+  it("reads an older page from the cursor, still inside the window and the org, without recounting", async () => {
+    mockDb.auditLog.findMany.mockResolvedValue(rows(2));
+    const before = "2026-10-10T00:00:30.000Z";
+    const body = await (await GET(at(`?limit=20&before=${encodeURIComponent(before)}`))).json();
+    const where = mockDb.auditLog.findMany.mock.calls[0][0].where;
+    expect(where.orgId).toBe("org-1");
+    expect(where.createdAt.lte.toISOString()).toBe(before);
+    expect(where.createdAt.gte).toBeInstanceOf(Date);
+    expect(mockDb.auditLog.count).not.toHaveBeenCalled();
+    expect(body.unreadCount).toBeUndefined();
+  });
+
+  it("ignores a cursor that is not a date", async () => {
+    await GET(at("?before=nonsense"));
+    expect(mockDb.auditLog.findMany.mock.calls[0][0].where.createdAt.lte).toBeUndefined();
+    expect(mockDb.auditLog.count).toHaveBeenCalled();
+  });
+});
