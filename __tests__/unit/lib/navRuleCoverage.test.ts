@@ -40,9 +40,6 @@ describe("every sidebar item has a nav rule", () => {
     "/financial-reports",
     "/reports",
     "/media-kits",
-    "/settings/profile",
-    "/settings/notifications",
-    "/settings/integrations",
     // Parked October 2026 (see NewSidebar.tsx); their URLs redirect.
     "/activations",
     "/deadlines",

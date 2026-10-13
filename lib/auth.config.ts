@@ -1,4 +1,5 @@
 import type { NextAuthConfig } from "next-auth";
+import { CALLBACK_PARAM, safeCallbackPath, signInPathFor } from "@/lib/callbackPath";
 
 /** `path` is `root` itself or something beneath it -- a segment match, so
  *  "/invite" covers "/invite/abc" and never "/invites". */
@@ -86,11 +87,20 @@ export const authConfig = {
         isVerifyEmailPage
       )
         return true;
+      /* The interrupted path rides along as callbackUrl, so signing in lands
+         on the campaign somebody was sent rather than the campaign list. Only
+         ever a path on this site: see lib/callbackPath. */
       if (!isLoggedIn && !isAuthPage) {
-        return Response.redirect(new URL("/login", nextUrl));
+        return Response.redirect(new URL(signInPathFor("/login", `${nextUrl.pathname}${nextUrl.search}`), nextUrl));
       }
       if (isLoggedIn && isAuthPage) {
-        return Response.redirect(new URL("/dashboard", nextUrl));
+        /* Somebody already signed in who opens a /login link that carries a
+           destination -- a second tab, or a link copied while signed out --
+           goes there rather than to /dashboard. */
+        const back = underSegment(nextUrl.pathname, "/login")
+          ? safeCallbackPath(nextUrl.searchParams.get(CALLBACK_PARAM))
+          : null;
+        return Response.redirect(new URL(back ?? "/dashboard", nextUrl));
       }
       return true;
     },

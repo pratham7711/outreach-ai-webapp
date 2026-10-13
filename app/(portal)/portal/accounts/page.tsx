@@ -27,6 +27,7 @@ import {
   relativeDay,
   type Tone,
 } from "@/components/portal/app/ui";
+import { portalSignInHere } from "@/lib/callbackPath";
 
 type Connection = {
   id: string;
@@ -335,7 +336,7 @@ export default function MyAccountsPage() {
         fetch("/api/portal/accounts/public"),
       ]);
       if (connRes.status === 401) {
-        router.push("/portal/login");
+        router.push(portalSignInHere());
         return;
       }
       if (!connRes.ok) throw new Error("connections");

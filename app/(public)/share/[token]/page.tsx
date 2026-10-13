@@ -7,6 +7,7 @@ import { parseShareVisibility } from "@/lib/reports/shareVisibility";
 import { CAMPAIGN_ARTWORK_INCLUDE, campaignArtwork } from "@/lib/campaignArtwork";
 import SharedPerformanceReport from "./SharedPerformanceReport";
 import { FeedbackButton } from "@/components/feedback/FeedbackButton";
+import { BRAND } from "@/lib/brand";
 
 const SHARE_KIND = "campaign-performance";
 
@@ -37,27 +38,34 @@ const loadShareLink = cache((token: string) =>
   })
 );
 
+/* The report's own frame -- its black page and top bar -- around the
+   card, so a dead link still reads as the report a brand was sent rather than a
+   bare white box on black. The name in the bar is ours, not an agency's: a
+   revoked or mistyped token says nothing about whose report it was, and
+   guessing would put one tenant's name on another's link. */
 function RevokedState() {
   return (
-    <div
-      className="spr-root"
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 24,
-      }}
-    >
-      <div className="spr-card" style={{ padding: "48px 32px", maxWidth: 420, textAlign: "center" }}>
-        <div style={{ marginBottom: 16 }}><Link2 size={40} color="var(--spr-label)" /></div>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--spr-ink)", margin: "0 0 8px" }}>
-          Link unavailable
-        </h1>
-        <p style={{ fontSize: 14, color: "var(--spr-label)", margin: 0, lineHeight: 1.6 }}>
-          This report link is no longer active. It may have been revoked or the address is
-          incorrect.
-        </p>
-      </div>
+    <div className="spr-root" style={{ display: "flex", flexDirection: "column" }}>
+      <header className="spr-topbar">
+        <div className="spr-wrap spr-topbar-in">
+          <span className="spr-brand">{BRAND.name}</span>
+        </div>
+      </header>
+      <main
+        className="spr-wrap"
+        style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 0" }}
+      >
+        <div className="spr-card" style={{ padding: "48px 32px", maxWidth: 440, textAlign: "center" }}>
+          <div style={{ marginBottom: 16 }}><Link2 size={40} color="var(--spr-label)" aria-hidden="true" /></div>
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--spr-ink)", margin: "0 0 8px" }}>
+            Link unavailable
+          </h1>
+          <p style={{ fontSize: 14, color: "var(--spr-ink-muted)", margin: 0, lineHeight: 1.6 }}>
+            This report link is no longer active. It may have been revoked, or the address may be
+            incomplete. Ask whoever sent it to share a new link.
+          </p>
+        </div>
+      </main>
     </div>
   );
 }

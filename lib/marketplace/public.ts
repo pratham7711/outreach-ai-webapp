@@ -60,6 +60,35 @@ export function parsePlatformRates(raw: unknown): PlatformRate[] {
 export type SortKey = "newest" | "rate" | "budget";
 
 /**
+ * Whether a creator could still join and post: the campaign is running and its
+ * submission deadline, if it has one, has not passed.
+ *
+ * The same two conditions the portal's own campaign route applies
+ * (isPortalCampaignActionable in ./portalVisibility, plus deadlinePassed in
+ * app/api/portal/campaigns/[slug]). /explore did not ask either, so a campaign
+ * whose deadline was eleven days gone still said "Submit by" with a sticky
+ * "Join campaign" bar, while the portal behind that button said it was not
+ * taking posts. Spelled out here rather than imported because
+ * ./portalVisibility already imports this module; a unit test pins the two
+ * to the same status.
+ *
+ * Only this boolean leaves the server -- the status itself stays internal,
+ * per the whitelist rule at the top of this file.
+ */
+export const MARKETPLACE_OPEN_STATUS = "IN_PROGRESS";
+
+export function isMarketplaceCampaignOpen(
+  status: string | null | undefined,
+  submissionDeadline: Date | string | null | undefined,
+  now: number = Date.now(),
+): boolean {
+  if (status !== MARKETPLACE_OPEN_STATUS) return false;
+  if (!submissionDeadline) return true;
+  const t = new Date(submissionDeadline).getTime();
+  return Number.isNaN(t) || t >= now;
+}
+
+/**
  * STRICT public whitelist for a marketplace campaign row. This is the ONLY
  * Prisma select used for the list endpoint — no orgId, client names, notes,
  * budgets in currency, or other financial internals ever selected here.
@@ -74,6 +103,8 @@ export const MARKETPLACE_LIST_SELECT = {
   marketplaceBudgetCapMinor: true,
   submissionDeadline: true,
   createdAt: true,
+  // Read only to derive `open`; never sent. See isMarketplaceCampaignOpen.
+  status: true,
   org: { select: { name: true, brandName: true, logoUrl: true } },
   _count: { select: { activations: true } },
 } as const;
@@ -99,6 +130,8 @@ export const MARKETPLACE_DETAIL_SELECT = {
   autoApproveHours: true,
   minPayoutMinor: true,
   marketplaceVisibility: true,
+  // Read only to derive `open`; never sent. See isMarketplaceCampaignOpen.
+  status: true,
   org: { select: { name: true, brandName: true, logoUrl: true, primaryColor: true } },
   _count: { select: { activations: true } },
 } as const;
@@ -113,6 +146,7 @@ export type MarketplaceListRow = {
   marketplaceBudgetCapMinor: number | null;
   submissionDeadline: Date | null;
   createdAt: Date;
+  status: string;
   org: { name: string; brandName: string | null; logoUrl: string | null };
   _count: { activations: number };
 };
@@ -132,6 +166,8 @@ export type MarketplaceCardDTO = {
   creatorCount: number;
   daysLeft: number | null;
   budgetClaimedPct: number | null;
+  /** Still joinable: running and before its deadline. See isMarketplaceCampaignOpen. */
+  open: boolean;
 };
 
 /** Whole days from now until an ISO deadline; null if past or absent. */
@@ -164,6 +200,7 @@ export function toCardDTO(row: MarketplaceListRow): MarketplaceCardDTO {
     creatorCount: row._count.activations,
     daysLeft: daysUntil(row.submissionDeadline ? row.submissionDeadline.toISOString() : null),
     budgetClaimedPct: null,
+    open: isMarketplaceCampaignOpen(row.status, row.submissionDeadline),
   };
 }
 
@@ -244,6 +281,11 @@ export async function fetchMarketplaceList(
       return bm - am;
     });
   }
+  /* Campaigns a creator can still join come first, whatever the sort; a closed
+     one stays listed (its page explains it is closed) but never ahead of an
+     open one. Array.prototype.sort is stable, so each group keeps the order
+     chosen above. */
+  cards.sort((a, b) => Number(b.open) - Number(a.open));
 
   const total = cards.length;
   const start = (page - 1) * pageSize;
@@ -311,6 +353,8 @@ export type MarketplaceDetailResult = {
     minPayoutMajor: number | null;
     submissionDeadline: string | null;
     creatorCount: number;
+    /** Still joinable: running and before its deadline. See isMarketplaceCampaignOpen. */
+    open: boolean;
   };
   budget: {
     earnedMinor: number;
@@ -422,6 +466,10 @@ export const fetchMarketplaceDetail = cache(async function fetchMarketplaceDetai
         ? row.submissionDeadline.toISOString()
         : null,
       creatorCount: row._count.activations,
+      open: isMarketplaceCampaignOpen(
+        (row as unknown as { status: string }).status,
+        row.submissionDeadline,
+      ),
     },
     budget: {
       earnedMinor,

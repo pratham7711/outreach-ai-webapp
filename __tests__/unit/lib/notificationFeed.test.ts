@@ -1,4 +1,6 @@
 import {
+  collapseNotifications,
+  isUnread,
   NOTIFIABLE_ACTIONS,
   NOTIFICATION_FEED_LIMIT,
   NOTIFICATION_LOOKBACK_DAYS,
@@ -96,5 +98,54 @@ describe("notification feed", () => {
       expect(formatUnreadBadge(10)).toBe("9+");
       expect(formatUnreadBadge(4210)).toBe("9+");
     });
+  });
+});
+
+describe("collapseNotifications", () => {
+  const row = (id: string, action: string, entityId: string | null, label: string | null, createdAt: string) => ({
+    id,
+    action,
+    entityType: "campaign",
+    entityId,
+    entityLabel: label,
+    createdAt,
+  });
+
+  it("folds a run of the same event on the same entity into one line", () => {
+    const groups = collapseNotifications([
+      row("1", "campaign.create", "c2", "WALK", "2026-10-13T13:23:05Z"),
+      row("2", "campaign.update", "c1", "LEAK IT (BTS)", "2026-10-10T01:25:10Z"),
+      row("3", "campaign.update", "c1", "LEAK IT (BTS)", "2026-10-10T01:24:55Z"),
+      row("4", "campaign.update", "c1", "LEAK IT (BTS)", "2026-10-10T01:24:51Z"),
+      row("5", "campaign.create", "c3", "E2E", "2026-10-10T01:24:11Z"),
+      row("6", "campaign.update", "c1", "LEAK IT (BTS)", "2026-10-10T01:08:54Z"),
+    ]);
+    expect(groups.map((g) => [g.item.id, g.items.length])).toEqual([
+      ["1", 1],
+      ["2", 3],
+      ["5", 1],
+      // The same update after something else is a separate moment.
+      ["6", 1],
+    ]);
+  });
+
+  it("keeps different entities apart even under the same action", () => {
+    const groups = collapseNotifications([
+      row("1", "campaign.update", "c1", "A", "2026-10-10T01:00:00Z"),
+      row("2", "campaign.update", "c2", "B", "2026-10-10T00:59:00Z"),
+    ]);
+    expect(groups).toHaveLength(2);
+  });
+});
+
+describe("isUnread", () => {
+  it("counts everything unread on a device that never marked the bell read", () => {
+    expect(isUnread({ createdAt: "2020-01-01T00:00:00Z" }, null)).toBe(true);
+  });
+
+  it("is unread only when newer than the last Mark all as read", () => {
+    const seen = "2026-10-10T00:00:00.000Z";
+    expect(isUnread({ createdAt: "2026-10-10T00:00:01Z" }, seen)).toBe(true);
+    expect(isUnread({ createdAt: "2026-10-09T23:59:59Z" }, seen)).toBe(false);
   });
 });

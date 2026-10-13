@@ -194,6 +194,24 @@ export default async function ConnectLinkPage({
           </div>
         )}
 
+        {/* Nothing to connect: every platform is either awaiting approval or
+            has no sign-in configured on this deployment. Without this the page
+            asked the creator to connect and offered no way to, and said
+            nothing about why. The wording follows the portal's My accounts
+            card for the same state (connectNote in lib/capabilities). Never
+            rendered while any platform is offered, so a deployment with
+            providers configured looks exactly as it did. */}
+        {offered.length === 0 && (
+          <div role="status" style={card}>
+            <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Connecting is unavailable right now</h2>
+            <p style={{ ...muted, marginTop: 8 }}>
+              Account sign-in isn&rsquo;t available on this link at the moment, so there is nothing to
+              connect yet. Your posts are still tracked from their links: send your post URLs to {agency}{" "}
+              instead, or open this link again later.
+            </p>
+          </div>
+        )}
+
         {offered.map((platform) => {
           const isConnected = connected.has(platform);
           const label = CONNECT_READS[platform].label;

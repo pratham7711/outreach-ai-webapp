@@ -83,4 +83,22 @@ describe("MenuButton", () => {
     fireEvent.mouseDown(document.body);
     expect(screen.queryByRole("menu")).toBeNull();
   });
+
+  /* The bell's "Mark all as read" and "Show more" change the menu itself, so
+     they leave it open to show the result. */
+  it("stays open after an item that asks to", () => {
+    const markAll = jest.fn();
+    render(
+      <MenuButton
+        label="Notifications"
+        trigger={<span>bell</span>}
+        items={[{ label: "Mark all as read", keepOpen: true, onClick: markAll }, { label: "Campaign Updated", strong: true, trailing: <span>, unread</span> }]}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Notifications" }), { detail: 1 });
+    fireEvent.click(screen.getByRole("menuitem", { name: "Mark all as read" }));
+    expect(markAll).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /Campaign Updated.*unread/ })).toBeInTheDocument();
+  });
 });

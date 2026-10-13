@@ -15,8 +15,9 @@ import { imgSrc } from "@/lib/postMedia";
 import FoldersPanel, { type FolderOption } from "./FoldersPanel";
 import { ShareModal } from "./ShareModal";
 import { UNFILED, isDefaultCampaignSort, type CampaignSort, type CampaignSortKey } from "@/lib/listParams";
-import { CAMPAIGN_STATUS_STYLE } from "@/lib/statusColors";
+import { CAMPAIGN_STATUS_STYLE, campaignStatusLabel } from "@/lib/statusColors";
 import { CAMPAIGN_STATUS_ALL } from "@/lib/listFilters";
+import { rememberCampaignList } from "@/lib/campaigns/listReturn";
 import { action } from "@/lib/ui/actions";
 
 type Campaign = {
@@ -54,6 +55,14 @@ const STATUS_TABS = [
   { key: "COMPLETE",    label: "Complete",  ...CAMPAIGN_STATUS_STYLE.COMPLETE,    Icon: CheckCircle2 },
   { key: "CANCELLED",   label: "Canceled",  ...CAMPAIGN_STATUS_STYLE.CANCELLED,   Icon: XCircle },
 ];
+
+/** What an empty status tab is for, when nothing else is narrowing the list. */
+const EMPTY_TAB_HINT: Record<string, string> = {
+  PENDING: "Campaigns waiting to start will show up here.",
+  IN_PROGRESS: "Campaigns that are running will show up here.",
+  COMPLETE: "Campaigns you finish will show up here.",
+  CANCELLED: "Campaigns you cancel or pause will show up here.",
+};
 
 /* DRAFT is deliberately absent: it has no tab of its own and no org status def
    points at it, so a campaign left there was unreachable and unnamed. Campaigns
@@ -268,6 +277,14 @@ function StatusSelect({
     ? statusDefs.map((d) => ({ value: d.id, label: d.name }))
     : STATUS_OPTIONS.map((o) => ({ value: o.value, label: o.label }));
 
+  /* A campaign created before the org named its statuses (or whose named status
+     was since deleted) has a bucket and no matching def, and read "Set status"
+     -- on a campaign the status tabs count as Active. Until a named status is
+     picked it shows the bucket's own name, coloured as a status. */
+  const named = options.some((o) => o.value === value);
+  const hasStatus = named || Boolean(status);
+  const placeholder = !named && status ? campaignStatusLabel(status) : "Set status";
+
   return (
     <span style={{ display: "inline-flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
       <Dropdown
@@ -278,12 +295,12 @@ function StatusSelect({
         /* Outlined until a status is chosen, so colour means "has a status".
            Primary on an empty row was a solid slab in every theme -- under Dark,
            white blocks down the list beside the dark selects. */
-        variant={value ? "primary" : "outlined"}
+        variant={hasStatus ? "primary" : "outlined"}
         /* "Set status" is the action, not a hint: in the muted ink it measured
            2.58:1 on white under CreatorCore. */
-        triggerStyle={value ? undefined : { color: "var(--cc-text)" }}
+        triggerStyle={hasStatus ? undefined : { color: "var(--cc-text)" }}
         minWidth={150}
-        placeholder="Set status"
+        placeholder={placeholder}
         options={options}
       />
       {error && (
@@ -653,6 +670,14 @@ export default function CampaignsClient({
     ...filterValues,
   });
 
+  /* The URL this list is showing, for the campaign page's Close and All
+     campaigns links (lib/campaigns/listReturn). Read after the props change,
+     which is after the router has moved the address bar. */
+  const listKey = `${q}|${status}|${page}|${folderId ?? ""}|${sort.key}|${sort.dir}|${JSON.stringify(filterValues)}`;
+  useEffect(() => {
+    rememberCampaignList(`${window.location.pathname}${window.location.search}`);
+  }, [listKey]);
+
   /* Back to page 1 on every re-sort. Staying on page 7 of a freshly reordered
      list shows a slice of rows nobody asked for, and the top of the new order —
      the whole point of sorting — would be behind six pages. */
@@ -711,6 +736,11 @@ export default function CampaignsClient({
   const anyFilter =
     statusCounts.ALL > 0 &&
     (Boolean(q) || status !== CAMPAIGN_STATUS_ALL || filterCount > 0 || Boolean(folderId));
+  /* Only the status tab narrows: nothing was typed or filtered, so "No
+     campaigns match those filters" and a Clear filters button answered a
+     question nobody asked. Say the tab is empty instead. */
+  const onlyTabNarrows =
+    statusCounts.ALL > 0 && !q && filterCount === 0 && !folderId && status !== CAMPAIGN_STATUS_ALL;
   const clearEverything = () => {
     setSearch("");
     const cleared: Record<string, null> = { q: null, status: null, page: null, folderId: null, sort: null, dir: null };
@@ -834,6 +864,18 @@ export default function CampaignsClient({
       {filtered.length === 0 ? (
         <Card variant="solid" noPadding>
           <div style={{ padding: "48px 24px" }}>
+            {onlyTabNarrows ? (
+              <EmptyState
+                icon={<Target size={32} color="var(--cc-text-subtle)" />}
+                title={`No ${(STATUS_TABS.find((t) => t.key === status)?.label ?? "").toLowerCase()} campaigns`}
+                description={EMPTY_TAB_HINT[status] ?? "Campaigns with this status will show up here."}
+                action={
+                  <Button variant="secondary" onClick={() => push({ status: CAMPAIGN_STATUS_ALL, page: null })}>
+                    View all campaigns
+                  </Button>
+                }
+              />
+            ) : (
             <EmptyState
               icon={<Target size={32} color="var(--cc-text-subtle)" />}
               title={anyFilter ? "No campaigns match those filters" : "No campaigns yet"}
@@ -854,6 +896,7 @@ export default function CampaignsClient({
                 )
               }
             />
+            )}
           </div>
         </Card>
       ) : (

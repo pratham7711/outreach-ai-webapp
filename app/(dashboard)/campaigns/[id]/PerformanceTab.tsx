@@ -15,6 +15,8 @@ import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import CreatorName from "@/components/creators/CreatorName";
 import { viewsCoverageNote } from "@/lib/metricDisplay";
 import { asOfCaption } from "@/lib/dataAge";
+import { chartDateAxis, sortByDate } from "@/lib/reports/chartDates";
+import { platformSeriesColor } from "@/lib/reports/platformSeriesColor";
 
 /* Taken from the report seam rather than restated here. It was restated, and the
    two drifted the moment the seam grew the per-counter totals. */
@@ -58,17 +60,14 @@ type PerformanceData = {
  * platformColor falls back to a generic series token for a platform with no
  * colour of its own, so nothing has to be added here when one appears.
  */
-function seriesFor(platforms: string[]): { key: string; color: string }[] {
-  return platforms.map((key, i) => ({ key, color: platformColor(key, i) }));
+function seriesFor(platforms: string[]): { key: string; color: string; solid: boolean }[] {
+  /* Each platform in its own colour rather than the theme's grey ramp, which
+     made three series near-identical in light. See platformSeriesColor. */
+  return platforms.map((key, i) => ({ key, ...platformSeriesColor(key, platformColor(key, i)) }));
 }
 
 function formatNumber(num: number): string {
   return formatFull(num);
-}
-
-function formatDate(iso: string): string {
-  const d = new Date(iso + "T00:00:00Z");
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 }
 
 function LoadingState() {
@@ -203,6 +202,10 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
   const activeSeries = seriesFor(seriesPlatforms).filter((s) =>
     timeSeries.some((row) => Number(row[s.key] ?? 0) > 0)
   );
+  /* Calendar order, a year on the ticks once the series crosses one, and at
+     most seven ticks -- see lib/reports/chartDates. */
+  const chartSeries = sortByDate(timeSeries);
+  const dateAxis = chartDateAxis(chartSeries);
 
   const headerActions = (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -318,7 +321,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
         </span>
         {timeSeries.length >= 3 ? (
           <ChartFrame height={320}>
-            <AreaChart data={timeSeries} margin={{ top: 8, right: 24, left: -8, bottom: 0 }}>
+            <AreaChart data={chartSeries} margin={{ top: 8, right: 24, left: -8, bottom: 0 }}>
               <defs>
                 {activeSeries.map((s) => (
                   <linearGradient key={s.key} id={`perfGrad-${s.key}`} x1="0" y1="0" x2="0" y2="1">
@@ -328,10 +331,10 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
                 ))}
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--cc-border)" />
-              <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} />
+              <XAxis dataKey="date" ticks={dateAxis.ticks} interval="preserveStartEnd" minTickGap={14} tickFormatter={dateAxis.tick} tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} />
               <YAxis tickFormatter={(v) => formatCompact(Number(v))} tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} width={72} />
               <Tooltip
-                labelFormatter={(l) => formatDate(String(l))}
+                labelFormatter={(l) => dateAxis.label(String(l))}
                 formatter={(v: any) => formatNumber(Number(v ?? 0))}
                 contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, fontSize: "var(--cc-t-13)"}}
               />
@@ -343,6 +346,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
                   type="monotone"
                   dataKey={s.key}
                   stackId="views"
+                  strokeDasharray={s.solid ? "0" : undefined}
                   stroke={s.color}
                   fill={`url(#perfGrad-${s.key})`}
                   strokeWidth={2}
@@ -380,7 +384,10 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
                   strokeWidth={pieData.length > 1 ? 2 : 0}
                 >
                   {pieData.map((entry) => (
-                    <Cell key={entry.platform} fill={platformColor(entry.platform)} />
+                    <Cell
+                      key={entry.platform}
+                      fill={platformSeriesColor(entry.platform, platformColor(entry.platform)).color}
+                    />
                   ))}
                 </Pie>
                 <Legend verticalAlign="bottom" height={24} wrapperStyle={{ fontSize: "var(--cc-t-12)"}} formatter={(value: any) => <span style={{ color: "var(--cc-text-muted)" }}>{value}</span>} />

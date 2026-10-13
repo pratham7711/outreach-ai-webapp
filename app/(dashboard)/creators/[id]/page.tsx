@@ -8,6 +8,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, Badge, EmptyState, Skeleton, Modal, Input, Tooltip } from "@pratham7711/ui";
+import { NotFoundState } from "@/components/errors/NotFoundState";
 import { Dropdown, MetricTile } from "@/components/ds";
 import { formatDateAbs, platformLabel, formatFull, formatFullCurrency } from "@/lib/format";
 import { toast } from "sonner";
@@ -856,7 +857,12 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
   if (loading) return <LoadingSkeleton />;
   if (!creator) return (
     <div className="rsp-page">
-      <EmptyState icon={<User size={32} color="var(--cc-text-subtle)" />} title="Creator not found" description="This creator doesn't exist or has been removed." />
+      <NotFoundState
+        icon={<User size={32} />}
+        title="Creator not found"
+        description="This creator doesn't exist or has been removed from your roster."
+        primary={{ href: "/creators", label: "Back to creators" }}
+      />
     </div>
   );
 

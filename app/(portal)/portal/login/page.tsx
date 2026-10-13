@@ -8,6 +8,7 @@ import { Input } from "@pratham7711/ui";
 import { Button } from "@/components/ds";
 import { Eye, EyeOff } from "lucide-react";
 import { errandQuery, landingAfterAuth, readAuthErrand } from "@/lib/portal/afterAuth";
+import { CALLBACK_PARAM, safeCallbackPath } from "@/lib/callbackPath";
 
 function LoginInner() {
   const router = useRouter();
@@ -34,7 +35,10 @@ function LoginInner() {
       });
       const data = await res.json();
       if (res.ok) {
-        router.push(await landingAfterAuth(errand, "/portal/dashboard"));
+        /* An errand (invite, join, connect) still decides first; otherwise
+           back to the portal page that found the creator signed out. */
+        const back = safeCallbackPath(searchParams.get(CALLBACK_PARAM), { within: "/portal" });
+        router.push(await landingAfterAuth(errand, back ?? "/portal/dashboard"));
       } else {
         setError(data.error ?? "Something went wrong");
         setLoading(false);
@@ -74,7 +78,7 @@ function LoginInner() {
         </h1>
         <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 24, textAlign: "center" }}>
           {errand.invitation
-            ? "Log in to accept your invitation"
+            ? "Sign in to accept your invitation"
             : errand.join
               ? "Sign in to join this campaign"
               : errand.connect
@@ -109,7 +113,7 @@ function LoginInner() {
             </button>
           </div>
           <Button variant="primary" loading={loading} style={{ width: "100%", marginTop: 8 }}>
-            Sign In
+            Sign in
           </Button>
         </form>
 

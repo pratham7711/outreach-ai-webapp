@@ -139,3 +139,28 @@ describe("DashboardClient — widget gating via dashboardWidgets", () => {
     expect(screen.queryByText("Views by platform")).not.toBeInTheDocument();
   });
 });
+
+describe("DashboardClient — changing the range", () => {
+  it("blanks the tiles until the new range's figures arrive", async () => {
+    stubRollup(measuredFinancials);
+    const { container } = render(<DashboardClient {...baseProps} dashboardWidgets={["kpi_grid"]} />);
+    expect(await screen.findByText("Total views")).toBeInTheDocument();
+    const grid = () => container.querySelector("[aria-busy]") as HTMLElement;
+    await screen.findByText("4");
+    expect(grid().getAttribute("aria-busy")).toBe("false");
+
+    let answer: (v: unknown) => void = () => {};
+    global.fetch = jest.fn().mockReturnValue(
+      new Promise((resolve) => { answer = resolve; }),
+    ) as unknown as typeof fetch;
+    fireEvent.click(screen.getByRole("button", { name: "7D" }));
+
+    // The 6M figures must not stand under the 7-day heading while it loads.
+    expect(grid().getAttribute("aria-busy")).toBe("true");
+    expect(screen.queryByText("4")).not.toBeInTheDocument();
+
+    answer({ ok: true, json: async () => ({ ...measuredFinancials, platformBreakdown: [{ platform: "TIKTOK", views: 10, postsCount: 2 }] }) });
+    expect(await screen.findByText("2")).toBeInTheDocument();
+    expect(grid().getAttribute("aria-busy")).toBe("false");
+  });
+});

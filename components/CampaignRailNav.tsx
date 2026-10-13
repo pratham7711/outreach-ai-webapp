@@ -5,6 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { CAMPAIGN_SECTIONS, readCampaignSection, type CampaignSection } from "@/lib/campaignSections";
 import { useCampaignNav } from "@/components/providers/CampaignNavProvider";
+import { useCampaignListHref } from "@/lib/campaigns/listReturn";
 
 /**
  * The left rail while a campaign is open: its sections, in place of the global
@@ -27,14 +28,20 @@ export default function CampaignRailNav({ campaignId }: { campaignId: string }) 
   const active: CampaignSection = /^\/campaigns\/[^/]+\/posts\//.test(pathname ?? "")
     ? "posts"
     : readCampaignSection(searchParams);
-  const { title, counts } = useCampaignNav();
+  const { title, counts, missing } = useCampaignNav();
+  const listHref = useCampaignListHref();
+
+  const back = (
+    <NavLink href={listHref} className="cc-nav-item sidebar-link">
+      <ArrowLeft size={17} style={{ flexShrink: 0 }} aria-hidden="true" />
+      <span style={{ whiteSpace: "nowrap", overflow: "hidden" }}>All campaigns</span>
+    </NavLink>
+  );
+  if (missing) return back;
 
   return (
     <>
-      <NavLink href="/campaigns" className="cc-nav-item sidebar-link">
-        <ArrowLeft size={17} style={{ flexShrink: 0 }} aria-hidden="true" />
-        <span style={{ whiteSpace: "nowrap", overflow: "hidden" }}>All campaigns</span>
-      </NavLink>
+      {back}
 
       <div style={{ height: 1, background: "var(--cc-border)", margin: "8px 8px" }} />
 

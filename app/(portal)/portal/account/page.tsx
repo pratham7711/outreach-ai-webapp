@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ds";
 import { BRAND } from "@/lib/brand";
 import { Card, LoadFailed, Screen, SectionTitle, SkeletonBlock } from "@/components/portal/app/ui";
+import { portalSignInHere } from "@/lib/callbackPath";
 
 /* 16px text so a phone does not zoom into the field on focus, and 44px tall so
    it is an honest touch target. */
@@ -229,7 +230,7 @@ export default function AccountPage() {
     try {
       const res = await fetch("/api/portal/me");
       if (res.status === 401) {
-        router.push("/portal/login");
+        router.push(portalSignInHere());
         return;
       }
       if (!res.ok) throw new Error("me");

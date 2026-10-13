@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { Plus, Trash2, Users, ClipboardList, Share2, Copy, DollarSign, Archive } from "lucide-react";
 import Link from "next/link";
 import { Card, Badge, EmptyState, Skeleton, Input } from "@pratham7711/ui";
+import { NotFoundState } from "@/components/errors/NotFoundState";
 import { toast } from "sonner";
 import { stripAt, formatDateAbs, formatFull } from "@/lib/format";
 import { useConfirm, Button, PageHeader } from "@/components/ds";
@@ -142,7 +143,12 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
 
   if (!list) return (
     <div className="rsp-page">
-      <EmptyState icon={<ClipboardList size={32} color="var(--cc-text-subtle)" />} title="List not found" />
+      <NotFoundState
+        icon={<ClipboardList size={32} />}
+        title="List not found"
+        description="This list doesn't exist or has been deleted."
+        primary={{ href: "/lists", label: "Back to lists" }}
+      />
     </div>
   );
 

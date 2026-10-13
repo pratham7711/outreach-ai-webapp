@@ -189,6 +189,39 @@ describe("applyPostMetrics — lastSyncedAt means measured", () => {
   });
 });
 
+describe("applyPostMetrics — a measured read lifts a dead letter", () => {
+  /* syncDisabledAt takes a post out of the sweep's query, and before this
+     nothing but a one-shot admin route ever cleared it -- so a post read fine on
+     demand still never came back to the hourly sweep. */
+  it("clears syncDisabledAt and the fail streak when counts arrive", async () => {
+    const outcome = await applyPostMetrics(post, metrics({ likesCount: 4100, commentsCount: 87 }));
+
+    expect(outcome.status).toBe("measured");
+    const data = postWriteData();
+    expect(data.syncDisabledAt).toBeNull();
+    expect(data.syncFailCount).toBe(0);
+  });
+
+  it("leaves both alone when the read carried no counts", async () => {
+    // Clearing them on an empty read is how the old cron kept dead posts from
+    // ever dead-lettering at all.
+    await applyPostMetrics(post, metrics({ fetchReason: "post-deleted" }));
+    const data = postWriteData();
+    expect(data).not.toHaveProperty("syncDisabledAt");
+    expect(data).not.toHaveProperty("syncFailCount");
+  });
+
+  it("leaves both alone when a reading is refused as inconsistent", async () => {
+    await applyPostMetrics(
+      { ...post, viewsCount: 53_700 },
+      metrics({ viewsCount: 0, likesCount: 0, commentsCount: 0 }),
+    );
+    const data = postWriteData();
+    expect(data).not.toHaveProperty("syncDisabledAt");
+    expect(data).not.toHaveProperty("syncFailCount");
+  });
+});
+
 describe("applyPostMetrics — writes only what the platform reported", () => {
   it("stores an Instagram photo's likes and comments without inventing views", async () => {
     await applyPostMetrics(post, metrics({ likesCount: 4100, commentsCount: 87 }));

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 
 /**
  * A button that opens a menu of actions: the account menu and the bell.
@@ -22,6 +22,15 @@ export type MenuButtonItem = {
   icon?: ReactNode;
   danger?: boolean;
   onClick?: () => void;
+  /* The three below exist for the bell, and default to how every other menu
+     already behaves. */
+  /** Leave the menu open after this item runs: an action that changes the
+   *  menu itself (Mark all as read, Show more) should show its result. */
+  keepOpen?: boolean;
+  /** Bold label, for a line that has not been read. */
+  strong?: boolean;
+  /** Drawn after the label, e.g. an unread dot. */
+  trailing?: ReactNode;
 };
 
 export function MenuButton({
@@ -30,6 +39,7 @@ export function MenuButton({
   label,
   align = "left",
   onOpen,
+  menuStyle,
 }: {
   trigger: ReactNode;
   items: MenuButtonItem[];
@@ -37,6 +47,8 @@ export function MenuButton({
   label: string;
   align?: "left" | "right";
   onOpen?: () => void;
+  /** Extra style for the open menu, e.g. a max height for a long list. */
+  menuStyle?: CSSProperties;
 }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
@@ -122,7 +134,14 @@ export function MenuButton({
         {trigger}
       </button>
       {open && (
-        <div ref={menu} id={menuId} className={`ui-dropdown-menu ui-dropdown-${align}`} role="menu" aria-label={label}>
+        <div
+          ref={menu}
+          id={menuId}
+          className={`ui-dropdown-menu ui-dropdown-${align}`}
+          role="menu"
+          aria-label={label}
+          style={menuStyle}
+        >
           {items.map((item, i) => (
             <button
               key={`${i}-${item.label}`}
@@ -132,7 +151,7 @@ export function MenuButton({
               className={item.danger ? "ui-dropdown-item ui-dropdown-item-danger" : "ui-dropdown-item"}
               onClick={() => {
                 item.onClick?.();
-                close(true);
+                if (!item.keepOpen) close(true);
               }}
             >
               {item.icon && (
@@ -140,7 +159,8 @@ export function MenuButton({
                   {item.icon}
                 </span>
               )}
-              {item.label}
+              {item.strong ? <span style={{ fontWeight: "var(--cc-fw-strong)" }}>{item.label}</span> : item.label}
+              {item.trailing}
             </button>
           ))}
         </div>

@@ -60,7 +60,7 @@ export default async function InvitePage({ params }: { params: Promise<{ code: s
       <p style={{ ...bodyText, whiteSpace: "normal" }}>
         This invitation has been accepted.{" "}
         <Link href={loginHref} style={{ color: "var(--cc-primary)", fontWeight: 600 }}>
-          Log in to open the campaign
+          Sign in to open the campaign
         </Link>
         .
       </p>

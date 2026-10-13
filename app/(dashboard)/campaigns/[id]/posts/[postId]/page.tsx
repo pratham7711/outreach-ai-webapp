@@ -592,7 +592,8 @@ export default function PostDetailPage() {
               </p>
             ) : measured.at ? (
               <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)", margin: "4px 0 0" }}>
-                Not read by us yet. The figures below are the CreatorCore import&apos;s, as of {formatDateTimeAbs(measured.at)}.
+                Not read by us yet. The figures below are the CreatorCore import&apos;s, as of {formatDateTimeAbs(measured.at)}.{" "}
+                <AgeLabel at={measured.at} field="post" ctx={postAgeContext({ postedAt: post.postedAt, trackingEnabled: timeseries?.trackingEnabled, trackingExpiresAt: timeseries?.trackingExpiresAt }, status)} source={measured.source} />
               </p>
             ) : [post.viewsCount, post.likesCount, post.commentsCount, post.sharesCount, post.savesCount].some((n) => (n ?? 0) > 0) ? (
               /* Figures on file that no read of ours produced and no import
@@ -680,8 +681,10 @@ export default function PostDetailPage() {
                   <span title={metricReason(value)}>
                     <FigureValue text={metricText(value, formatNumber)} />
                   </span>
-                  {/* The latest read's age, except on a views figure that read
-                      did not return: that one says when it was read. */}
+                  {/* Only a views figure that the latest read did not return
+                      says when it was read. Every other figure is from the read
+                      the header already dates, and repeating its "Stale · 10d
+                      ago" under each tile said the same thing four times. */}
                   {field === "views" && viewsNote ? (
                     <span
                       title={viewsNote.title}
@@ -689,16 +692,7 @@ export default function PostDetailPage() {
                     >
                       {viewsNote.sentence}
                     </span>
-                  ) : (
-                    <AgeLabel
-                      at={measured.at}
-                      field="post"
-                      ctx={postAgeContext({ postedAt: post.postedAt, trackingEnabled: timeseries?.trackingEnabled, trackingExpiresAt: timeseries?.trackingExpiresAt }, status)}
-                      source={measured.source}
-                      never={null}
-                      style={{ marginTop: 4 }}
-                    />
-                  )}
+                  ) : null}
                 </>
               );
             })()}
@@ -827,7 +821,7 @@ export default function PostDetailPage() {
             </p>
             {trackingEnabled && timeseries?.trackingExpiresAt && (timeseries.trackingSource ?? "tracker") === "tracker" && (
               <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)", margin: "4px 0 0" }}>
-                Stops on {new Date(timeseries.trackingExpiresAt).toLocaleDateString()} and seals
+                Stops on {formatDateAbs(timeseries.trackingExpiresAt)} and seals
                 its final numbers. Tracked posts are unlimited because each one expires.
               </p>
             )}
@@ -986,7 +980,10 @@ export default function PostDetailPage() {
             </div>
           ))}
         </Card>
-      ) : (
+      ) : trackingEnabled ? null : (
+        /* While tracking is on, the Tracking card above already says snapshots
+           are being collected; a second card saying "No metric snapshots yet"
+           under it was the same empty state twice. */
         <Card variant="outlined" style={{ padding: 32, textAlign: "center" }}>
           <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", margin: 0 }}>No metric snapshots yet. Sync this post to start tracking history.</p>
         </Card>

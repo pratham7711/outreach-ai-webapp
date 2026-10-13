@@ -16,13 +16,16 @@ import type { CampaignSectionCounts } from "@/lib/campaignSections";
  * regardless -- a section list that waited for counts would flash an empty rail
  * on every campaign open.
  */
-type Publish = (value: { title: string | null; counts: CampaignSectionCounts }) => void;
-
-type CampaignNavContextType = {
+type Published = {
   title: string | null;
   counts: CampaignSectionCounts;
-  publish: Publish;
+  /* The campaign does not exist (or is not this org's). The rail then offers
+     only the way back, not seven sections of a campaign that is not there. */
+  missing?: boolean;
 };
+type Publish = (value: Published) => void;
+
+type CampaignNavContextType = Published & { publish: Publish };
 
 const CampaignNavContext = createContext<CampaignNavContextType>({
   title: null,
@@ -44,7 +47,7 @@ export function useCampaignNavPublish() {
 }
 
 export function CampaignNavProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<{ title: string | null; counts: CampaignSectionCounts }>({
+  const [state, setState] = useState<Published>({
     title: null,
     counts: {},
   });
@@ -52,9 +55,10 @@ export function CampaignNavProvider({ children }: { children: ReactNode }) {
   /* Compared before storing. The campaign page recomputes its counts on every
      render, so publishing unconditionally put the provider and the page in a
      set-state loop the first time this was wired up. */
-  const publish = useCallback((next: { title: string | null; counts: CampaignSectionCounts }) => {
+  const publish = useCallback((next: Published) => {
     setState((prev) =>
       prev.title === next.title &&
+      Boolean(prev.missing) === Boolean(next.missing) &&
       prev.counts.drafts === next.counts.drafts &&
       prev.counts.draftsEver === next.counts.draftsEver &&
       prev.counts.posts === next.counts.posts &&
@@ -65,7 +69,7 @@ export function CampaignNavProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ title: state.title, counts: state.counts, publish }),
+    () => ({ title: state.title, counts: state.counts, missing: state.missing, publish }),
     [state, publish]
   );
 

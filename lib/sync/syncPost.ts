@@ -15,6 +15,7 @@ import { protectedCreatorFollowers } from "@/lib/creators/followerWriter";
 import { UNATTRIBUTED_CREATOR_WHERE } from "@/lib/posts/unattributedCreator";
 import { detectPostCreator } from "@/lib/posts/detectCreator";
 import { countsContradict, engagementExceedsViews } from "@/lib/metrics/coherence";
+import { DEAD_LETTER_CLEARED } from "@/lib/sync/deadLetter";
 
 /**
  * Refresh one post's metrics from its platform.
@@ -399,6 +400,10 @@ export async function applyPostMetrics(
            creators had taken the campaign down. */
         fetchState: "LIVE" as const,
         lastSyncedAt: now,
+        /* The platform answered for this post, so a dead letter saying it never
+           will is wrong. Without this a post read fine on demand stayed out of
+           the sweep for good. See lib/sync/deadLetter. */
+        ...DEAD_LETTER_CLEARED,
         ...counts,
         ...(engagementRate !== undefined ? { engagementRate } : {}),
         /* Merged, not replaced: this bag also holds the importer's raw record. */

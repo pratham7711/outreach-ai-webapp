@@ -10,15 +10,24 @@ import {
 import { SHOW_MONEY } from "@/lib/moneyUi";
 
 /** Public marketplace campaign card (server component, links to landing page). */
+/* A server component, rendered per request, so "now" is the request's time. */
+function deadlineHasPassed(deadline: string | Date | null | undefined): boolean {
+  return !!deadline && new Date(deadline).getTime() < Date.now();
+}
+
 export default function CampaignCard({ campaign }: { campaign: MarketplaceCardDTO }) {
   const deadline = formatDeadline(campaign.submissionDeadline);
   const typeLabel = CAMPAIGN_TYPE_LABEL[campaign.campaignType] ?? campaign.campaignType;
   const topRates = campaign.rates.slice(0, 3);
-  const showDaysLeft = campaign.daysLeft != null && campaign.daysLeft <= 7;
+  /* A closed campaign (stopped, or past its deadline) is still listed after the
+     open ones, but says so instead of counting down or claiming a pool. */
+  const open = campaign.open;
+  const showDaysLeft = open && campaign.daysLeft != null && campaign.daysLeft <= 7;
   /* "% claimed" is a share of the reward pool, so it hides with the rest of
      the money while SHOW_MONEY is off (lib/moneyUi.ts). */
   const showClaimed =
-    SHOW_MONEY && campaign.budgetClaimedPct != null && campaign.budgetClaimedPct >= 60;
+    open && SHOW_MONEY && campaign.budgetClaimedPct != null && campaign.budgetClaimedPct >= 60;
+  const deadlinePassed = deadlineHasPassed(campaign.submissionDeadline);
 
   return (
     <Link
@@ -100,8 +109,22 @@ export default function CampaignCard({ campaign }: { campaign: MarketplaceCardDT
         </h3>
 
         {/* Urgency chips */}
-        {(showDaysLeft || showClaimed) && (
+        {(!open || showDaysLeft || showClaimed) && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {!open && (
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: "var(--cc-neutral-fg)",
+                  background: "var(--cc-neutral-bg)",
+                  borderRadius: 6,
+                  padding: "3px 8px",
+                }}
+              >
+                Closed
+              </span>
+            )}
             {showDaysLeft && (
               <span
                 style={{
@@ -213,7 +236,7 @@ export default function CampaignCard({ campaign }: { campaign: MarketplaceCardDT
                 padding: "3px 8px",
               }}
             >
-              Ends {deadline}
+              {deadlinePassed ? "Ended" : "Ends"} {deadline}
             </span>
           )}
           <span style={{ fontSize: 12, color: "var(--cc-text-muted)", marginLeft: "auto" }}>

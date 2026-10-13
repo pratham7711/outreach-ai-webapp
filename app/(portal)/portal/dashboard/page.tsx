@@ -17,6 +17,7 @@ import {
   relativeDay,
 } from "@/components/portal/app/ui";
 import { CampaignRow } from "@/components/portal/app/CampaignRow";
+import { portalSignInHere } from "@/lib/callbackPath";
 
 type HomeData = {
   name: string;
@@ -102,7 +103,7 @@ export default function CreatorHomePage() {
     try {
       const res = await fetch("/api/portal/home");
       if (res.status === 401) {
-        router.push("/portal/login");
+        router.push(portalSignInHere());
         return;
       }
       if (!res.ok) throw new Error("home");

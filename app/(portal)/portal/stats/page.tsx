@@ -18,6 +18,7 @@ import {
   formatDay,
   platformLabel,
 } from "@/components/portal/app/ui";
+import { portalSignInHere } from "@/lib/callbackPath";
 
 type TrendPoint = { day: string; followers: number };
 type Trend = { platform: string; handle: string; source: "public_profile"; points: TrendPoint[] };
@@ -364,7 +365,7 @@ export default function MyStatsPage() {
     try {
       const [insRes, statsRes] = await Promise.all([fetch("/api/portal/insights"), fetch("/api/portal/stats")]);
       if (insRes.status === 401 || statsRes.status === 401) {
-        router.push("/portal/login");
+        router.push(portalSignInHere());
         return;
       }
       if (!insRes.ok || !statsRes.ok) throw new Error("stats");
