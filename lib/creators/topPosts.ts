@@ -1,6 +1,8 @@
 import { db } from "@/lib/db";
 import type { Prisma } from "@/lib/generated/prisma";
 import { rankTopPosts, type TopPost } from "@/lib/platforms/creatorProfile";
+import { detectPlatform } from "@/lib/platforms/postUrl";
+import { logVerdict, validateReading, type GateVerdict } from "@/lib/acquisition/validate";
 
 /**
  * Recording a creator's top posts — the one copy of this arithmetic.
@@ -18,7 +20,55 @@ export type TopPostsReading = {
   posts: TopPost[];
 };
 
-export type RecordResult = { recorded: number; unknown: number; empty: number };
+export type RecordResult = {
+  recorded: number;
+  unknown: number;
+  empty: number;
+  /** Lists the validation gate refused (plan A3): the stored posts were kept. */
+  refused: number;
+};
+
+const handleKey = (h: string) => h.trim().replace(/^@/, "").toLowerCase();
+
+/**
+ * The shared validation gate (plan A3, lib/acquisition/validate), item by item.
+ *
+ * An item with more likes or comments than views is the neighbouring-video
+ * parse the post sync refuses too, and an item whose link is another
+ * platform's is not this grid's; both are left out and the rest of the list
+ * stands. An item whose link names another account means the reader was
+ * handed someone else's grid -- a renamed handle now owned by a stranger, or a
+ * redirect -- so none of the list is this creator's and all of it is refused.
+ * Exported for tests.
+ */
+export function gateTopPosts(
+  creator: { id: string; handle?: string | null },
+  posts: TopPost[],
+): { kept: TopPost[]; verdict: GateVerdict } {
+  const bound = creator.handle ? [handleKey(creator.handle)] : null;
+  const rejections: GateVerdict["rejections"] = [];
+  const kept: TopPost[] = [];
+  for (const post of posts) {
+    const link = post.url ? detectPlatform(post.url) : null;
+    const v = validateReading(
+      {
+        kind: "top-post",
+        ...(link ? { platform: link.platform } : {}),
+        ...(link?.handle ? { accountId: handleKey(link.handle) } : {}),
+        counts: { views: post.views, likes: post.likes, comments: post.comments },
+      },
+      { platform: "TIKTOK", boundAccountIds: bound },
+    );
+    if (v.ok) kept.push(post);
+    else rejections.push(...v.rejections.map((r) => ({ ...r, detail: `post ${post.postId}: ${r.detail}` })));
+  }
+  const foreign = rejections.some((r) => r.rule === "account-mismatch");
+  const rejected = foreign || kept.length === 0;
+  return {
+    kept: rejected ? [] : kept,
+    verdict: { ok: rejections.length === 0, rejected: rejections.length > 0 && rejected, dropFields: [], rejections },
+  };
+}
 
 export async function recordTopPosts(
   readings: TopPostsReading[],
@@ -27,6 +77,7 @@ export async function recordTopPosts(
   let recorded = 0;
   let unknown = 0;
   let empty = 0;
+  let refused = 0;
 
   for (const reading of readings) {
     /* An empty list is "not measured", never "no posts" — a creator whose grid
@@ -40,14 +91,26 @@ export async function recordTopPosts(
        predate an untrack or a delete by most of a day. */
     const creator = await db.creator.findFirst({
       where: { id: reading.creatorId, platform: "TIKTOK", deletedAt: null },
-      select: { id: true },
+      select: { id: true, handle: true, orgId: true },
     });
     if (!creator) {
       unknown += 1;
       continue;
     }
 
-    const topPosts = rankTopPosts(reading.posts);
+    const gated = gateTopPosts(creator, reading.posts);
+    if (!gated.verdict.ok) {
+      logVerdict(
+        { writer: "top-posts", kind: "top-post", platform: "TIKTOK", rowId: creator.id, orgId: creator.orgId },
+        gated.verdict,
+      );
+    }
+    if (gated.kept.length === 0) {
+      refused += 1;
+      continue;
+    }
+
+    const topPosts = rankTopPosts(gated.kept);
 
     if (!dryRun) {
       await db.creator.update({
@@ -65,7 +128,7 @@ export async function recordTopPosts(
     recorded += 1;
   }
 
-  return { recorded, unknown, empty };
+  return { recorded, unknown, empty, refused };
 }
 
 /** How recently a grid must have been read for losing it to count as an outage

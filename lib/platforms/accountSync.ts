@@ -8,6 +8,7 @@ import { fetchYouTubeChannel } from "./youtube";
 import { fetchFacebookPage } from "./facebookPage";
 import { fetchThreadsProfile } from "./threads";
 import { followerLadder, keepPrecise } from "./precision";
+import { logVerdict, validateReading } from "@/lib/acquisition/validate";
 
 /**
  * One shape for "who this connected account is", and one place that writes it.
@@ -222,20 +223,46 @@ export function identityWriteData(
   };
 }
 
-/** Refreshes the stored identity and stats for an account already connected. */
+/**
+ * Refreshes the stored identity and stats for an account already connected.
+ *
+ * Returns whether anything was written. Not when the shared validation gate
+ * (plan A3, lib/acquisition/validate) refuses the reading: a follower count
+ * that fell to 0 from a real figure, a reading for another platform than the
+ * row's, or one for a different account than the row is bound to. The
+ * connected figure feeds the creator's follower count through the tracker
+ * (connectedReading), so a bad one here would travel. A media or like count
+ * that fell to 0 is left out of the write on its own; the rest lands.
+ */
 export async function persistAccountIdentity(
   accountId: string,
   identity: AccountIdentity,
   platform: PlatformEnumValue,
-): Promise<void> {
+): Promise<boolean> {
   const existing = await db.creatorSocialAccount.findUnique({
     where: { id: accountId },
-    select: { followersCount: true },
+    select: { followersCount: true, platform: true, platformUserId: true, mediaCount: true, totalLikes: true },
   });
-  await db.creatorSocialAccount.update({
-    where: { id: accountId },
-    data: identityWriteData(identity, platform, existing?.followersCount),
-  });
+  const verdict = validateReading(
+    {
+      kind: "account",
+      platform,
+      ...(identity.platformUserId ? { accountId: identity.platformUserId } : {}),
+      counts: { followers: identity.followersCount, posts: identity.mediaCount, likes: identity.totalLikes },
+    },
+    {
+      platform: existing?.platform,
+      boundAccountIds: existing?.platformUserId ? [existing.platformUserId] : null,
+      counts: { followers: existing?.followersCount, posts: existing?.mediaCount, likes: existing?.totalLikes },
+    },
+  );
+  if (!verdict.ok) logVerdict({ writer: "account-sync", kind: "account", platform, rowId: accountId }, verdict);
+  if (verdict.rejected) return false;
+  const data: Record<string, unknown> = identityWriteData(identity, platform, existing?.followersCount);
+  if (verdict.dropFields.includes("posts")) delete data.mediaCount;
+  if (verdict.dropFields.includes("likes")) delete data.totalLikes;
+  await db.creatorSocialAccount.update({ where: { id: accountId }, data });
+  return true;
 }
 
 /**
@@ -273,7 +300,9 @@ export async function refreshAccountIdentity(
       log.warn("Token now resolves to a different account; row left as it was", { accountId });
       return null;
     }
-    await persistAccountIdentity(accountId, identity, platformEnum);
+    /* A reading the gate refused is not a refresh: the caller counts it as a
+       failed identity read, and the row keeps its last good figures. */
+    if (!(await persistAccountIdentity(accountId, identity, platformEnum))) return null;
     return identity;
   } catch (err) {
     log.warn("Identity refresh failed", {

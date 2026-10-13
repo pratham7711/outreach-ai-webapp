@@ -43,7 +43,7 @@ describe("recordTopPosts", () => {
     const posts = Array.from({ length: 12 }, (_, i) => post(String(i), i * 10));
     const result = await recordTopPosts([{ creatorId: "c1", posts }]);
 
-    expect(result).toEqual({ recorded: 1, unknown: 0, empty: 0 });
+    expect(result).toEqual({ recorded: 1, unknown: 0, empty: 0, refused: 0 });
     const data = mockUpdate.mock.calls[0][0].data;
     expect(data.topPosts).toHaveLength(TOP_POSTS_LIMIT);
     expect(data.topPosts[0].postId).toBe("11");
@@ -52,7 +52,7 @@ describe("recordTopPosts", () => {
 
   it("never writes for an empty read — stored posts survive a failed grid", async () => {
     const result = await recordTopPosts([{ creatorId: "c1", posts: [] }]);
-    expect(result).toEqual({ recorded: 0, unknown: 0, empty: 1 });
+    expect(result).toEqual({ recorded: 0, unknown: 0, empty: 1, refused: 0 });
     expect(mockUpdate).not.toHaveBeenCalled();
     /* And it does not even look the creator up: an empty read is decided
        before touching the row. */
@@ -62,7 +62,7 @@ describe("recordTopPosts", () => {
   it("counts a creator that vanished since the work list as unknown", async () => {
     mockFindFirst.mockResolvedValue(null);
     const result = await recordTopPosts([{ creatorId: "gone", posts: [post("1", 5)] }]);
-    expect(result).toEqual({ recorded: 0, unknown: 1, empty: 0 });
+    expect(result).toEqual({ recorded: 0, unknown: 1, empty: 0, refused: 0 });
     expect(mockUpdate).not.toHaveBeenCalled();
   });
 
@@ -79,7 +79,7 @@ describe("recordTopPosts", () => {
     const result = await recordTopPosts([{ creatorId: "c1", posts: [post("1", 5)] }], {
       dryRun: true,
     });
-    expect(result).toEqual({ recorded: 1, unknown: 0, empty: 0 });
+    expect(result).toEqual({ recorded: 1, unknown: 0, empty: 0, refused: 0 });
     expect(mockUpdate).not.toHaveBeenCalled();
   });
 
@@ -92,7 +92,7 @@ describe("recordTopPosts", () => {
       { creatorId: "gone", posts: [post("2", 5)] },
       { creatorId: "c3", posts: [] },
     ]);
-    expect(result).toEqual({ recorded: 1, unknown: 1, empty: 1 });
+    expect(result).toEqual({ recorded: 1, unknown: 1, empty: 1, refused: 0 });
   });
 });
 
@@ -134,5 +134,55 @@ describe("a campaign-scoped list must not suppress the platform reader", () => {
     ]);
     const rows = await tikTokCreatorsNeedingTopPosts();
     expect(rows.map((r) => r.readRecently)).toEqual([true, false, false]);
+  });
+});
+
+/**
+ * The shared validation gate (plan A3), item by item. Rules are tested in
+ * __tests__/unit/lib/acquisition/validate.test.ts.
+ */
+describe("recordTopPosts — the validation gate", () => {
+  const item = (postId: string, views: number | null, likes: number | null, handle = "leakit.official") => ({
+    postId,
+    url: `https://www.tiktok.com/@${handle}/video/${postId}`,
+    caption: null,
+    coverUrl: null,
+    views,
+    likes,
+    comments: 3,
+    postedAt: null,
+  });
+
+  beforeEach(() => {
+    mockFindFirst.mockResolvedValue({ id: "c1", handle: "LeakIt.Official", orgId: "org-1" });
+    jest.spyOn(process.stdout, "write").mockImplementation(() => true);
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  it("leaves out an item with more likes than views and keeps the rest", async () => {
+    const result = await recordTopPosts([
+      { creatorId: "c1", posts: [item("1", 313, 1_088), item("2", 9_000, 400), item("3", 12, 0)] },
+    ]);
+    expect(result).toEqual({ recorded: 1, unknown: 0, empty: 0, refused: 0 });
+    expect(mockUpdate.mock.calls[0][0].data.topPosts.map((p: { postId: string }) => p.postId)).toEqual(["2", "3"]);
+  });
+
+  it("refuses the whole list when an item belongs to another account", async () => {
+    const result = await recordTopPosts([
+      { creatorId: "c1", posts: [item("1", 9_000, 400), item("2", 8_000, 300, "someone.else")] },
+    ]);
+    expect(result).toEqual({ recorded: 0, unknown: 0, empty: 0, refused: 1 });
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("refuses a list in which no item survives, and keeps the stored posts", async () => {
+    const result = await recordTopPosts([{ creatorId: "c1", posts: [item("1", 313, 1_088)] }]);
+    expect(result.refused).toBe(1);
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("keeps a photo post that has likes but no view count", async () => {
+    const result = await recordTopPosts([{ creatorId: "c1", posts: [item("1", null, 500)] }]);
+    expect(result.recorded).toBe(1);
   });
 });
