@@ -14,7 +14,10 @@ import {
   addRunSummaryText,
   combineVerdicts,
   groupIndices,
+  platformLanes,
   postIsLink,
+  runInLanes,
+  ADD_PLATFORM_LANES,
   settleVerdict,
   summariseAddRun,
   unansweredRowMessage,
@@ -193,15 +196,81 @@ describe("the end summary", () => {
 });
 
 describe("addProgressText", () => {
-  it("says where the batch is and which group", () => {
-    expect(addProgressText({ current: 14, total: 37, group: 2, groups: 4, checking: false })).toBe(
-      "Adding 14 of 37… · group 2 of 4",
-    );
+  it("counts what has finished, since several links are in flight at once", () => {
+    expect(addProgressText({ done: 14, total: 37, checking: false })).toBe("Adding 37 posts… 14 done");
   });
 
-  it("drops the group for a single group and says when it is checking", () => {
-    expect(addProgressText({ current: 3, total: 5, group: 1, groups: 1, checking: true })).toBe(
-      "Adding 3 of 5… · no answer yet, checking whether it was saved",
+  it("says when it is checking, and reads naturally for one link", () => {
+    expect(addProgressText({ done: 2, total: 5, checking: true })).toBe(
+      "Adding 5 posts… 2 done · no answer yet, checking whether it was saved",
     );
+    expect(addProgressText({ done: 0, total: 1, checking: false })).toBe("Adding 1 post…");
+  });
+});
+
+/* Walkthrough 2026-10-13 A1#4: three links on three platforms took 22.7s on
+   the demo DB because each waited for the one before it. The pacer and rate
+   limits the one-at-a-time rule protects are per platform. */
+describe("platformLanes", () => {
+  it("splits by platform and keeps each lane in submit order", () => {
+    const items = ["tt1", "ig1", "tt2", "yt1", "ig2", "x"];
+    const platform = (s: string) => (s === "x" ? null : s.slice(0, 2));
+    expect(platformLanes(items, platform)).toEqual([["tt1", "tt2"], ["ig1", "ig2"], ["yt1"], ["x"]]);
+  });
+});
+
+describe("runInLanes", () => {
+  const instantSleep = jest.fn(async () => {});
+
+  it("runs different lanes at the same time and one lane one at a time", async () => {
+    let inFlight = 0;
+    let peak = 0;
+    const perLane = new Map<string, number>();
+    let lanePeak = 0;
+    const log: string[] = [];
+    await runInLanes(
+      [["tt1", "tt2", "tt3"], ["ig1", "ig2"], ["yt1"]],
+      async (item) => {
+        const lane = item.slice(0, 2);
+        inFlight += 1;
+        perLane.set(lane, (perLane.get(lane) ?? 0) + 1);
+        peak = Math.max(peak, inFlight);
+        lanePeak = Math.max(lanePeak, perLane.get(lane)!);
+        await new Promise((r) => setTimeout(r, 5));
+        log.push(item);
+        inFlight -= 1;
+        perLane.set(lane, perLane.get(lane)! - 1);
+      },
+      { sleep: instantSleep },
+    );
+    expect(peak).toBe(3);
+    expect(lanePeak).toBe(1);
+    expect(log.filter((x) => x.startsWith("tt"))).toEqual(["tt1", "tt2", "tt3"]);
+    expect(log).toHaveLength(6);
+  });
+
+  it("never runs more lanes than the limit", async () => {
+    let inFlight = 0;
+    let peak = 0;
+    await runInLanes(
+      [["a"], ["b"], ["c"], ["d"], ["e"]],
+      async () => {
+        inFlight += 1;
+        peak = Math.max(peak, inFlight);
+        await new Promise((r) => setTimeout(r, 5));
+        inFlight -= 1;
+      },
+      { sleep: instantSleep, limit: 2 },
+    );
+    expect(ADD_PLATFORM_LANES).toBe(3);
+    expect(peak).toBe(2);
+  });
+
+  it("keeps the group pause inside a lane", async () => {
+    const sleep = jest.fn(async () => {});
+    const lane = Array.from({ length: 25 }, (_, i) => i);
+    await runInLanes([lane], async () => {}, { sleep, groupSize: 10, groupPauseMs: 2_000 });
+    expect(sleep).toHaveBeenCalledTimes(2);
+    expect(sleep).toHaveBeenCalledWith(2_000);
   });
 });
