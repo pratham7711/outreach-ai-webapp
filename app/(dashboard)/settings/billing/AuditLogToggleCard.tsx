@@ -142,6 +142,8 @@ export default function AuditLogToggleCard({ initialEnabled, planName, canManage
               onChange={handleToggle}
               size="md"
               disabled={isBusy || !canManage}
+              label="Record audit events"
+              className="cc-toggle-named"
             />
             <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", textAlign: "right" }}>
               {enabled ? "Audit events are being recorded" : "Audit events are currently paused"}

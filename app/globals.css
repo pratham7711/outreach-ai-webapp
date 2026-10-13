@@ -3706,6 +3706,16 @@ h1, h2, h3, h4, h5, h6 {
   outline-offset: 2px;
 }
 
+/* The ring appears at once rather than fading in. The library's .ui-btn
+   declares `transition: all`, which animates the outline in from the button's
+   own text colour: MEASURED 2026-10-13 on /login, a keyboard-focused "Sign in"
+   first paints its ring rgb(245,245,245) on white (1.09:1) and only reaches
+   rgb(10,10,10) (19.8:1) after the 220ms transition. Naming what may animate
+   leaves the outline out of it. */
+.ui-btn {
+  transition-property: background-color, border-color, color, box-shadow, filter, transform, opacity;
+}
+
 /* ── Animations ── */
 @keyframes cc-fade-in {
   from { opacity: 0; }
@@ -7801,6 +7811,24 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   scrollbar-color: var(--cc-border) transparent;
 }
 
+
+/* A Toggle whose row already shows its title: the library's <label htmlFor>
+   still names the switch for a screen reader, but is not painted twice. The
+   wrapper is the containing block, so the hidden label cannot escape a
+   scrolling card the way AgeLabel's did. */
+.cc-toggle-named {
+  position: relative;
+}
+.cc-toggle-named > .ui-toggle-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 
 /* Skip-to-content helper */
 .sr-only {

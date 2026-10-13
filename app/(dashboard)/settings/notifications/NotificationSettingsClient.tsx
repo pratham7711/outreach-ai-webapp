@@ -95,10 +95,16 @@ export function NotificationSettingsClient() {
                   <div className="cc-pref-row-title">{def.label}</div>
                   <div className="cc-pref-row-desc">{def.description}</div>
                 </div>
+                {/* label names the switch itself (the library ties it to the
+                    button with htmlFor); the row's title above already shows
+                    it, so the label is visually hidden. Without it all twelve
+                    switches announced as an unnamed "switch". */}
                 <Toggle
                   checked={data.prefs[def.key] ?? def.defaultOn}
                   onChange={(next: boolean) => flip(def.key, next)}
                   size="md"
+                  label={def.label}
+                  className="cc-toggle-named"
                 />
               </div>
             ))}
