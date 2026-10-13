@@ -39,7 +39,7 @@ function makeParams(id: string) {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockAuth.mockResolvedValue({ user: { id: "user-1", orgId: "org-1" } });
+  mockAuth.mockResolvedValue({ user: { id: "user-1", orgId: "org-1", role: "OWNER" } });
 });
 
 describe("POST /api/lists/[id]/creators", () => {

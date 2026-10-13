@@ -22,6 +22,7 @@ import {
   parseSearch,
   readAnchorReadings,
 } from "@/lib/trackers/creatorPage";
+import { requirePermission } from "@/lib/authz";
 
 /**
  * The Creators half of the Trackers page (?sub=creator in the reference).
@@ -318,8 +319,11 @@ const trackSchema = z.object({ creatorId: z.string().min(1) });
 
 export async function POST(req: NextRequest) {
   try {
-    const result = await authenticateRequest(req);
-    if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    /* Creator tracking is a roster write: creators:create, as tracking in bulk
+       (trackers/creators/bulk) already requires. */
+    const gate = await requirePermission(req, "creators:create");
+    if (!gate.ok) return gate.response;
+    const result = gate.auth;
     const { orgId } = result;
 
     const parsed = trackSchema.safeParse(await req.json().catch(() => null));

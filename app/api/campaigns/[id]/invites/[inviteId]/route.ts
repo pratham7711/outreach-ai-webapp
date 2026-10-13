@@ -5,6 +5,8 @@ import { createAuditActor, logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { z } from "zod";
 import type { InviteStatus } from "@/lib/generated/prisma/client";
+import { permissionDenial } from "@/lib/authz";
+import { sessionCampaignScopeDenial } from "@/lib/campaignAccess";
 
 const updateInviteSchema = z.object({
   action: z.enum(["RESEND", "CANCEL"]),
@@ -20,6 +22,10 @@ export async function PATCH(
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const orgId = (session.user as any).orgId;
     const { id: campaignId, inviteId } = await params;
+    const denied =
+      permissionDenial(session.user, "campaigns:edit_own") ??
+      (await sessionCampaignScopeDenial(session.user, campaignId));
+    if (denied) return denied;
 
     const campaign = await db.campaign.findFirst({ where: { id: campaignId, orgId, deletedAt: null } });
     if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });

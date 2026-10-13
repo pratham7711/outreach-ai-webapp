@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
+import { requirePermission } from "@/lib/authz";
+import { campaignScopeWhereFor } from "@/lib/campaignScope";
 
 export async function GET(req: NextRequest) {
   const result = await authenticateRequest(req);
@@ -16,12 +18,15 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const result = await authenticateRequest(req);
-  if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  /* Attaching a creator to a campaign: the same gate as editing the activation
+     (activations/[id]) and the campaign's own row scope below. */
+  const gate = await requirePermission(req, "campaigns:edit_own");
+  if (!gate.ok) return gate.response;
+  const result = gate.auth;
   const { orgId } = result;
   const { campaignId, creatorId, deliverableDueDate } = await req.json();
   if (!campaignId || !creatorId) return NextResponse.json({ error: "Missing fields" }, { status: 400 });
-  const campaign = await db.campaign.findFirst({ where: { id: campaignId, orgId, deletedAt: null } });
+  const campaign = await db.campaign.findFirst({ where: { id: campaignId, orgId, deletedAt: null, ...campaignScopeWhereFor(result) } });
   if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
   const creator = await db.creator.findFirst({ where: { id: creatorId, orgId, deletedAt: null } });
   if (!creator) return NextResponse.json({ error: "Creator not found" }, { status: 404 });

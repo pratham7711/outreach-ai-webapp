@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { TIKTOK_DIRECT_UA, TIKTOK_REHYDRATION_RE } from "@/lib/platforms/fetchPostMetrics";
+import { bearerMatches } from "@/lib/http/bearer";
 
 export const dynamic = "force-dynamic";
 
@@ -62,7 +63,7 @@ async function egress(): Promise<string | null> {
 
 export async function GET(request: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret || request.headers.get("authorization") !== `Bearer ${cronSecret}`) {
+  if (!bearerMatches(request.headers.get("authorization"), cronSecret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

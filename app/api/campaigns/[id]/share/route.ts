@@ -9,6 +9,7 @@ import {
   sanitizeShareVisibility,
   type ShareVisibility,
 } from "@/lib/reports/shareVisibility";
+import { requirePermission } from "@/lib/authz";
 
 const SHARE_KIND = "campaign-performance";
 
@@ -99,8 +100,12 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const result = await authenticateRequest(req);
-  if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  /* A share link publishes the campaign to anyone holding the URL, so minting,
+     retargeting and revoking one is a write: VIEWER (and read-only act-as)
+     could do all three while every other campaign write refused them. */
+  const gate = await requirePermission(req, "campaigns:edit_own");
+  if (!gate.ok) return gate.response;
+  const result = gate.auth;
   const { orgId, userId } = result;
   const { id } = await params;
 
@@ -152,8 +157,9 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const result = await authenticateRequest(req);
-  if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const gate = await requirePermission(req, "campaigns:edit_own");
+  if (!gate.ok) return gate.response;
+  const result = gate.auth;
   const { orgId } = result;
   const { id } = await params;
 
@@ -178,8 +184,9 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const result = await authenticateRequest(req);
-  if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const gate = await requirePermission(req, "campaigns:edit_own");
+  if (!gate.ok) return gate.response;
+  const result = gate.auth;
   const { orgId } = result;
   const { id } = await params;
 

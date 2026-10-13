@@ -11,13 +11,17 @@
  * recomputes standingRate and pays the new number. Acceptance is now recorded
  * by finalRate — written nowhere else on the creator's side — and any further
  * respond on an offer that has one is refused.
+ *
+ * Ownership: the offer's roster row must be one this portal login has PROVEN it
+ * owns (lib/portal/creatorLink.ts). A handle match alone used to be enough, so
+ * anyone who registered a roster handle could accept another org's offer.
  */
 import { NextRequest } from "next/server";
 import { POST } from "@/app/api/portal/offers/[id]/respond/route";
 
 jest.mock("@/lib/db", () => ({
   db: {
-    negotiationOffer: { findFirst: jest.fn(), update: jest.fn() },
+    negotiationOffer: { findFirst: jest.fn(), update: jest.fn(), updateMany: jest.fn(), findUniqueOrThrow: jest.fn() },
     creator: { findFirst: jest.fn(), findMany: jest.fn() },
     creatorSocialAccount: { findMany: jest.fn() },
   },
@@ -77,16 +81,18 @@ beforeEach(() => {
   });
   mockDb.negotiationOffer.findFirst.mockResolvedValue(offer());
   mockDb.negotiationOffer.update.mockImplementation(async ({ data }: any) => ({ id: "off-1", ...data }));
+  mockDb.negotiationOffer.updateMany.mockResolvedValue({ count: 1 });
+  mockDb.negotiationOffer.findUniqueOrThrow.mockResolvedValue(offer({ status: "COUNTERED", finalRate: 1000 }));
   mockDb.creator.findFirst.mockResolvedValue({
     id: "cr-1",
     followersCount: 1000,
     averageViews: 500,
     rate: null,
   });
-  /* A bare roster row: no contactEmail, no social account. Offers use the
-     handle bridge only, so this creator can still respond (see the route). */
+  /* The roster row names this portal login (proof 1, identity): the row the
+     creator linked by accepting the agency's invite. */
   mockDb.creator.findMany.mockResolvedValue([
-    { id: "cr-1", orgId: "org-1", contactEmail: null },
+    { id: "cr-1", orgId: "org-1", creatorUserId: "cu-1" },
   ]);
   mockDb.creatorSocialAccount.findMany.mockResolvedValue([]);
 });
@@ -95,9 +101,26 @@ describe("POST /api/portal/offers/[id]/respond — acceptance is terminal", () =
   it("records an acceptance as finalRate at the standing rate", async () => {
     const res = await respond({ action: "accept" });
     expect(res.status).toBe(200);
-    expect(mockDb.negotiationOffer.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ finalRate: 1000 }) })
+    expect(mockDb.negotiationOffer.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: "off-1", status: "PENDING", finalRate: null }),
+        data: expect.objectContaining({ finalRate: 1000 }),
+      })
     );
+  });
+
+  it("409s an accept that lost the race to another response", async () => {
+    mockDb.negotiationOffer.updateMany.mockResolvedValue({ count: 0 });
+    const res = await respond({ action: "accept" });
+    expect(res.status).toBe(409);
+    expect(mockDb.negotiationOffer.findUniqueOrThrow).not.toHaveBeenCalled();
+  });
+
+  it("409s a second counter racing the first for the single AI round", async () => {
+    mockDb.negotiationOffer.updateMany.mockResolvedValue({ count: 0 });
+    const res = await respond({ action: "counter", counterRate: 1200 });
+    expect(res.status).toBe(409);
+    expect(mockDb.negotiationOffer.update).not.toHaveBeenCalled();
   });
 
   it("409s a second accept instead of rewriting finalRate", async () => {
@@ -107,7 +130,7 @@ describe("POST /api/portal/offers/[id]/respond — acceptance is terminal", () =
     const res = await respond({ action: "accept" });
     expect(res.status).toBe(409);
     expect((await res.json()).error).toMatch(/already accepted/i);
-    expect(mockDb.negotiationOffer.update).not.toHaveBeenCalled();
+    expect(mockDb.negotiationOffer.updateMany).not.toHaveBeenCalled();
   });
 
   it("409s a counter filed after an acceptance", async () => {
@@ -116,6 +139,7 @@ describe("POST /api/portal/offers/[id]/respond — acceptance is terminal", () =
     );
     const res = await respond({ action: "counter", counterRate: 5000 });
     expect(res.status).toBe(409);
+    expect(mockDb.negotiationOffer.updateMany).not.toHaveBeenCalled();
     expect(mockDb.negotiationOffer.update).not.toHaveBeenCalled();
   });
 
@@ -123,6 +147,7 @@ describe("POST /api/portal/offers/[id]/respond — acceptance is terminal", () =
     mockDb.negotiationOffer.findFirst.mockResolvedValue(offer({ status }));
     expect((await respond({ action: "accept" })).status).toBe(409);
     expect((await respond({ action: "counter", counterRate: 2000 })).status).toBe(409);
+    expect(mockDb.negotiationOffer.updateMany).not.toHaveBeenCalled();
     expect(mockDb.negotiationOffer.update).not.toHaveBeenCalled();
   });
 
@@ -141,15 +166,40 @@ describe("POST /api/portal/offers/[id]/respond — acceptance is terminal", () =
   });
 });
 
-describe("POST /api/portal/offers/[id]/respond — handle bridge", () => {
-  it("lets a roster creator respond before any email or OAuth proof exists", async () => {
-    // Roster row with a different contactEmail and no social account: handle match only.
-    mockDb.creator.findMany.mockResolvedValue([
-      { id: "cr-1", orgId: "org-1", contactEmail: "the-real-creator@example.com" },
-    ]);
+describe("POST /api/portal/offers/[id]/respond — ownership must be proven", () => {
+  it("404s a portal login that only shares the roster handle, and writes nothing", async () => {
+    // Same handle, not linked to this login, no connected account: a handle match only.
+    mockDb.creator.findMany.mockResolvedValue([{ id: "cr-1", orgId: "org-1", creatorUserId: null }]);
+    mockDb.creatorSocialAccount.findMany.mockResolvedValue([]);
     const res = await respond({ action: "accept" });
-    expect(res.status).toBe(200);
-    expect(mockDb.negotiationOffer.update).toHaveBeenCalled();
-    expect(mockDb.creatorSocialAccount.findMany).not.toHaveBeenCalled();
+    expect(res.status).toBe(404);
+    expect(mockDb.negotiationOffer.updateMany).not.toHaveBeenCalled();
+    expect(mockDb.negotiationOffer.update).not.toHaveBeenCalled();
+  });
+
+  it("404s a row linked to a DIFFERENT portal login", async () => {
+    mockDb.creator.findMany.mockResolvedValue([{ id: "cr-1", orgId: "org-1", creatorUserId: "cu-other" }]);
+    mockDb.creatorSocialAccount.findMany.mockResolvedValue([]);
+    expect((await respond({ action: "accept" })).status).toBe(404);
+  });
+
+  it("does not take a matching contact email as proof", async () => {
+    mockSession.mockResolvedValue({
+      creatorUserId: "cu-1",
+      handle: "blessingjolie",
+      name: "Blessing",
+      email: "the-real-creator@example.com",
+    });
+    mockDb.creator.findMany.mockResolvedValue([
+      { id: "cr-1", orgId: "org-1", creatorUserId: null, contactEmail: "the-real-creator@example.com" },
+    ]);
+    mockDb.creatorSocialAccount.findMany.mockResolvedValue([]);
+    expect((await respond({ action: "accept" })).status).toBe(404);
+  });
+
+  it("accepts the OAuth proof: a connected account whose platform handle is this portal handle", async () => {
+    mockDb.creator.findMany.mockResolvedValue([{ id: "cr-1", orgId: "org-1", creatorUserId: null }]);
+    mockDb.creatorSocialAccount.findMany.mockResolvedValue([{ creatorId: "cr-1", handle: "@BlessingJolie" }]);
+    expect((await respond({ action: "accept" })).status).toBe(200);
   });
 });

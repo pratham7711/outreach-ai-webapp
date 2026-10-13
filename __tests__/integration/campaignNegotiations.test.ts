@@ -8,8 +8,8 @@ import { PATCH } from '@/app/api/campaigns/[id]/negotiations/[offerId]/route';
 jest.mock('@/lib/db', () => ({
   db: {
     campaign: { findFirst: jest.fn() },
-    negotiationOffer: { findMany: jest.fn(), create: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
-    creator: { findMany: jest.fn() },
+    negotiationOffer: { findMany: jest.fn(), create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), updateMany: jest.fn(), findUniqueOrThrow: jest.fn() },
+    creator: { findMany: jest.fn(), findFirst: jest.fn() },
   },
 }));
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
@@ -21,7 +21,7 @@ import { auth } from '@/lib/auth';
 
 const mockAuth = auth as jest.Mock;
 const mockDb = db as any;
-const session = { user: { id: 'user-1', orgId: 'org-1' } };
+const session = { user: { id: 'user-1', orgId: 'org-1', role: 'OWNER' } };
 const mockCampaign = { id: 'camp-1', orgId: 'org-1', deletedAt: null };
 
 function makeRequest(url: string, options?: ConstructorParameters<typeof NextRequest>[1]) { return new NextRequest(url, options); }
@@ -129,6 +129,7 @@ describe('GET /api/campaigns/[id]/negotiations', () => {
 describe('POST /api/campaigns/[id]/negotiations', () => {
   it('creates offer', async () => {
     const offer = { id: 'neg-new', offeredRate: 500, status: 'PENDING' };
+    mockDb.creator.findFirst.mockResolvedValue({ id: 'c1' });
     mockDb.negotiationOffer.create.mockResolvedValue(offer);
 
     const res = await POST(makeRequest('http://localhost/api/campaigns/camp-1/negotiations', {
@@ -137,13 +138,39 @@ describe('POST /api/campaigns/[id]/negotiations', () => {
       headers: { 'Content-Type': 'application/json' },
     }), makeParams('camp-1'));
     expect(res.status).toBe(201);
+    expect(mockDb.creator.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ id: 'c1', orgId: 'org-1' }) })
+    );
+  });
+
+  it('will not write an offer for another org\'s creator', async () => {
+    mockDb.creator.findFirst.mockResolvedValue(null);
+    const res = await POST(makeRequest('http://localhost/api/campaigns/camp-1/negotiations', {
+      method: 'POST',
+      body: JSON.stringify({ creatorId: 'c-other-org', offeredRate: 500 }),
+      headers: { 'Content-Type': 'application/json' },
+    }), makeParams('camp-1'));
+    expect(res.status).toBe(404);
+    expect(mockDb.negotiationOffer.create).not.toHaveBeenCalled();
+  });
+
+  it('refuses a VIEWER', async () => {
+    mockAuth.mockResolvedValue({ user: { id: 'user-2', orgId: 'org-1', role: 'VIEWER' } });
+    const res = await POST(makeRequest('http://localhost/api/campaigns/camp-1/negotiations', {
+      method: 'POST',
+      body: JSON.stringify({ creatorId: 'c1', offeredRate: 500 }),
+      headers: { 'Content-Type': 'application/json' },
+    }), makeParams('camp-1'));
+    expect(res.status).toBe(403);
+    expect(mockDb.negotiationOffer.create).not.toHaveBeenCalled();
   });
 });
 
 describe('PATCH /api/campaigns/[id]/negotiations/[offerId]', () => {
   it('counters an offer', async () => {
     mockDb.negotiationOffer.findFirst.mockResolvedValue({ id: 'neg-1', campaignId: 'camp-1', orgId: 'org-1', status: 'PENDING', counterRate: null, notes: null });
-    mockDb.negotiationOffer.update.mockResolvedValue({ id: 'neg-1', status: 'COUNTERED', counterRate: 750 });
+    mockDb.negotiationOffer.updateMany.mockResolvedValue({ count: 1 });
+    mockDb.negotiationOffer.findUniqueOrThrow.mockResolvedValue({ id: 'neg-1', status: 'COUNTERED', counterRate: 750 });
 
     const res = await PATCH(makeRequest('http://localhost/api/campaigns/camp-1/negotiations/neg-1', {
       method: 'PATCH',
@@ -153,6 +180,21 @@ describe('PATCH /api/campaigns/[id]/negotiations/[offerId]', () => {
     const body = await res.json();
     expect(res.status).toBe(200);
     expect(body.status).toBe('COUNTERED');
+  });
+
+  it('409s a decision that lost the race to another one', async () => {
+    mockDb.negotiationOffer.findFirst.mockResolvedValue({ id: 'neg-1', campaignId: 'camp-1', orgId: 'org-1', status: 'PENDING', counterRate: null, notes: null });
+    mockDb.negotiationOffer.updateMany.mockResolvedValue({ count: 0 });
+
+    const res = await PATCH(makeRequest('http://localhost/api/campaigns/camp-1/negotiations/neg-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ action: 'COUNTERED', counterRate: 750 }),
+      headers: { 'Content-Type': 'application/json' },
+    }), makeOfferParams('camp-1', 'neg-1'));
+    expect(res.status).toBe(409);
+    expect(mockDb.negotiationOffer.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'neg-1', orgId: 'org-1', status: 'PENDING' } })
+    );
   });
 
   it('returns 400 when countering without counterRate', async () => {

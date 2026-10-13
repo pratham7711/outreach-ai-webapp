@@ -9,7 +9,7 @@ import { getRequestIp } from "@/lib/request";
 // GET /api/keys — List all API keys for the org (never return hash)
 export async function GET(request: NextRequest) {
   try {
-    const gate = await requirePermission(request, "settings:manage");
+    const gate = await requirePermission(request, "settings:manage", { allowApiKey: false });
     if (!gate.ok) return gate.response;
     const { orgId } = gate.auth;
 
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
 // POST /api/keys — Create a new API key
 export async function POST(request: NextRequest) {
   try {
-    const gate = await requirePermission(request, "settings:manage");
+    const gate = await requirePermission(request, "settings:manage", { allowApiKey: false });
     if (!gate.ok) return gate.response;
     const result = gate.auth;
     const { orgId } = result;

@@ -22,7 +22,7 @@ import { auth } from '@/lib/auth';
 
 const mockAuth = auth as jest.Mock;
 const mockDb = db as any;
-const session = { user: { id: 'user-1', orgId: 'org-1' } };
+const session = { user: { id: 'user-1', orgId: 'org-1', role: 'OWNER' } };
 const mockCampaign = { id: 'camp-1', orgId: 'org-1', deletedAt: null };
 
 function makeRequest(url: string, options?: ConstructorParameters<typeof NextRequest>[1]) { return new NextRequest(url, options); }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
+import { requirePermission } from "@/lib/authz";
 
 // ---------- GET /api/trackers/[id] ----------
 export async function GET(
@@ -49,9 +50,12 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const result = await authenticateRequest(req);
-    if (!result)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    /* Songs and sound trackers are what campaigns point at, and campaign creation
+       makes them (ensureSongForAudio), so they take the permission that creates a
+       campaign -- as clients and folders already do. */
+    const gate = await requirePermission(req, "campaigns:create");
+    if (!gate.ok) return gate.response;
+    const result = gate.auth;
     const { orgId } = result;
     const { id } = await params;
 

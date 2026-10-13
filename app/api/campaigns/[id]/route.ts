@@ -193,7 +193,7 @@ export async function PATCH(
       );
     }
 
-    const existing = await db.campaign.findFirst({ where: { id, orgId, deletedAt: null } });
+    const existing = await db.campaign.findFirst({ where: { id, orgId, deletedAt: null, ...campaignScopeWhereFor(result) } });
     if (!existing) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
 
     const canEditAny =
@@ -400,7 +400,7 @@ export async function DELETE(
 
     const { id } = await params;
 
-    const existing = await db.campaign.findFirst({ where: { id, orgId, deletedAt: null } });
+    const existing = await db.campaign.findFirst({ where: { id, orgId, deletedAt: null, ...campaignScopeWhereFor(result) } });
     if (!existing) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
 
     await db.campaign.update({

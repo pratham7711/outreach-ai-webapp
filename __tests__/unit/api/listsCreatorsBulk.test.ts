@@ -31,7 +31,7 @@ const post = (body: unknown) =>
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (auth as jest.Mock).mockResolvedValue({ user: { id: "u1", orgId: "org-1" } });
+  (auth as jest.Mock).mockResolvedValue({ user: { id: "u1", orgId: "org-1", role: "MEMBER" } });
   mdb.creatorList.findFirst.mockResolvedValue({ id: "list-1", orgId: "org-1", name: "Editors" });
 });
 
@@ -61,6 +61,13 @@ describe("POST /api/lists/[id]/creators, in bulk", () => {
     mdb.creatorList.findFirst.mockResolvedValue(null);
     expect((await post({ creatorIds: ["a"] })).status).toBe(404);
     expect(mdb.creatorList.findFirst).toHaveBeenCalledWith({ where: { id: "list-1", orgId: "org-1" } });
+  });
+
+  it("refuses a VIEWER before touching the list", async () => {
+    (auth as jest.Mock).mockResolvedValue({ user: { id: "u1", orgId: "org-1", role: "VIEWER" } });
+    expect((await post({ creatorIds: ["a"] })).status).toBe(403);
+    expect(mdb.creatorList.findFirst).not.toHaveBeenCalled();
+    expect(mdb.creatorListItem.createMany).not.toHaveBeenCalled();
   });
 
   it("rejects an empty or oversized request", async () => {

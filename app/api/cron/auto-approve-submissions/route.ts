@@ -5,6 +5,7 @@ import { computeCampaignAccrual } from "@/lib/marketplace/cap";
 import type { CampaignStatus, Prisma } from "@/lib/generated/prisma/client";
 import { createLogger } from "@/lib/observability/logger";
 import { cronRoute } from "@/lib/ops/cronRoute";
+import { bearerMatches } from "@/lib/http/bearer";
 
 /* Reasons a candidate is not approved. "fraud-flag" and "not-marketplace" are
    no longer produced here -- both are filters on the read now -- but they stay
@@ -112,7 +113,7 @@ async function cronHandler(request: NextRequest) {
 
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+  if (!bearerMatches(authHeader, cronSecret)) {
     log.warn("auth failed", { reason: "bad-or-missing-cron-secret" });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { analyzePostForFraud, fraudFlagKey } from "@/lib/fraud-detection";
 import { readableSnapshots } from "@/lib/metricDisplay";
+import { permissionDenial } from "@/lib/authz";
+import { sessionCampaignScopeDenial } from "@/lib/campaignAccess";
 
 // POST /api/campaigns/[id]/fraud-scan
 export async function POST(
@@ -16,6 +18,10 @@ export async function POST(
     }
     const orgId = (session.user as any).orgId;
     const { id: campaignId } = await params;
+    const denied =
+      permissionDenial(session.user, "campaigns:edit_own") ??
+      (await sessionCampaignScopeDenial(session.user, campaignId));
+    if (denied) return denied;
 
     // Verify campaign belongs to org
     const campaign = await db.campaign.findFirst({

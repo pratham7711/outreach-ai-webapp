@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { timingSafeEqual } from "node:crypto";
+import { bearerMatches } from "@/lib/http/bearer";
 import { db } from "@/lib/db";
 import { QUOTA_DDL, QUOTA_TABLES } from "@/lib/ops/quotaSchemaDdl";
 
@@ -12,18 +12,10 @@ export const dynamic = "force-dynamic";
  * gate as /api/admin/migrate-ops-guards: GET reports, POST applies and
  * reports. New tables only.
  */
-function tokenMatches(presented: string | null, expected: string): boolean {
-  if (!presented) return false;
-  const a = Buffer.from(presented);
-  const b = Buffer.from(`Bearer ${expected}`);
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
-}
-
 function authorize(request: NextRequest) {
   const token = process.env.ADMIN_MIGRATE_TOKEN;
   if (!token) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (!tokenMatches(request.headers.get("authorization"), token)) {
+  if (!bearerMatches(request.headers.get("authorization"), token)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   return null;

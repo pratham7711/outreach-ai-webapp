@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import type { Platform, Prisma } from "@/lib/generated/prisma/client";
+import { bearerMatches } from "@/lib/http/bearer";
 import {
   SWEEP_PLATFORMS,
   candidateTake,
@@ -278,7 +279,7 @@ export async function runPostSweep(request: NextRequest, options: PostSweepOptio
 
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+  if (!bearerMatches(authHeader, cronSecret)) {
     log.warn("auth failed", { reason: "bad-or-missing-cron-secret" });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

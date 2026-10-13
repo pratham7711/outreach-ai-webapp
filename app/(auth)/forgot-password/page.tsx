@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Mail, MailWarning } from "lucide-react";
+import { ArrowLeft, Mail } from "lucide-react";
 import Link from "next/link";
 import { BRAND } from "@/lib/brand";
 import { Input } from "@pratham7711/ui";
@@ -11,9 +11,6 @@ import { Button } from "@/components/ds";
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
-  /* "unavailable" means the server has no email provider, so no link went out.
-     Saying "check your email" in that case is worse than saying nothing. */
-  const [delivery, setDelivery] = useState<"sent" | "unavailable">("sent");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,7 +34,6 @@ export default function ForgotPasswordPage() {
         setError(json?.error ?? "Could not send the reset link");
         return;
       }
-      setDelivery(json?.delivery === "unavailable" ? "unavailable" : "sent");
       setSent(true);
     } catch {
       setError("Could not reach the server");
@@ -97,29 +93,22 @@ export default function ForgotPasswordPage() {
                 display: "flex", alignItems: "center", justifyContent: "center",
                 margin: "0 auto 16px",
               }}>
-                {delivery === "unavailable" ? (
-                  <MailWarning size={24} color="var(--cc-primary)" strokeWidth={2} />
-                ) : (
-                  <Mail size={24} color="var(--cc-primary)" strokeWidth={2} />
-                )}
+                <Mail size={24} color="var(--cc-primary)" strokeWidth={2} />
               </div>
               <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--cc-text)", marginBottom: 8 }}>
-                {delivery === "unavailable" ? "We can't email you yet" : "Check your email"}
+                Check your email
               </h1>
-              {delivery === "unavailable" ? (
-                <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 32 }}>
-                  Your reset link was created, but this workspace has no email
-                  provider set up, so we could not send it. Ask whoever
-                  administers{" "}
-                  <span style={{ color: "var(--cc-text)", fontWeight: 500 }}>{BRAND.name}</span>{" "}
-                  to send you the link, or to finish setting up email.
-                </p>
-              ) : (
-                <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 32 }}>
-                  We sent a reset link to{" "}
-                  <span style={{ color: "var(--cc-text)", fontWeight: 500 }}>{email}</span>
-                </p>
-              )}
+              {/* The server answers the same for every address, registered or
+                  not, and does not say whether it can send mail, so this states
+                  only what is true in every case and who to ask otherwise. */}
+              <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 32 }}>
+                If an account exists for{" "}
+                <span style={{ color: "var(--cc-text)", fontWeight: 500 }}>{email}</span>, a reset
+                link is on its way and works for one hour. Nothing after a few minutes? Check
+                spam, then ask whoever administers{" "}
+                <span style={{ color: "var(--cc-text)", fontWeight: 500 }}>{BRAND.name}</span>{" "}
+                for your workspace.
+              </p>
               <Link
                 href="/login"
                 style={{

@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
        handed back the token, so the mail path was not even needed. rbac.ts had
        always said users:manage was OWNER/ADMIN only; this endpoint just never
        asked. */
-    const gate = await requirePermission(request, "users:manage");
+    const gate = await requirePermission(request, "users:manage", { allowApiKey: false });
     if (!gate.ok) return gate.response;
     const { orgId } = gate.auth;
 

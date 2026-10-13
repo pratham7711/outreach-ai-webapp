@@ -5,6 +5,8 @@ import { createAuditActor, logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { z } from "zod";
 import type { DepositStatus } from "@/lib/generated/prisma/client";
+import { permissionDenial } from "@/lib/authz";
+import { sessionCampaignScopeDenial } from "@/lib/campaignAccess";
 
 const releaseSchema = z.object({
   amount: z.number().positive(),
@@ -20,6 +22,10 @@ export async function POST(
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const orgId = (session.user as any).orgId;
     const { id: campaignId } = await params;
+    const denied =
+      permissionDenial(session.user, "payments:manage") ??
+      (await sessionCampaignScopeDenial(session.user, campaignId));
+    if (denied) return denied;
 
     const campaign = await db.campaign.findFirst({ where: { id: campaignId, orgId, deletedAt: null } });
     if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
@@ -58,10 +64,27 @@ export async function POST(
     const newStatus: DepositStatus =
       newReleasedCents >= totalCents ? "FULLY_RELEASED" : "PARTIALLY_RELEASED";
 
-    const updated = await db.campaignDeposit.update({
-      where: { id: deposit.id },
+    /* Compare-and-swap on what this request read. A plain update by id let two
+       releases that both read "500 left" each pass the check above and each
+       write -- a double release, recorded as one. The write now lands only if
+       the row still holds the status and released amount this request based
+       its arithmetic on; the loser gets a 409 and re-reads. */
+    const swapped = await db.campaignDeposit.updateMany({
+      where: {
+        id: deposit.id,
+        orgId,
+        status: deposit.status,
+        releasedAmount: deposit.releasedAmount,
+      },
       data: { releasedAmount: newReleased, status: newStatus },
     });
+    if (swapped.count === 0) {
+      return NextResponse.json(
+        { error: "This deposit changed while the release was being made. Reload it and try again." },
+        { status: 409 }
+      );
+    }
+    const updated = await db.campaignDeposit.findUniqueOrThrow({ where: { id: deposit.id } });
 
     await logAudit({
       orgId,

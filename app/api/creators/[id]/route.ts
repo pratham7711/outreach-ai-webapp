@@ -11,6 +11,7 @@ import { handleProblem } from "@/lib/creators/handleCheck";
 import { creatorFollowersTime, figureTimeDto, linkFollowersTime } from "@/lib/creators/figureTime";
 import { readThroughOwnAccount } from "@/lib/creators/agencyLookup";
 import { latestTrackerReadings } from "@/lib/creators/latestReadings";
+import { requirePermission } from "@/lib/authz";
 
 const updateCreatorSchema = z.object({
   name: z.string().optional(),
@@ -139,8 +140,11 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const result = await authenticateRequest(req);
-    if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    /* creators:create, the permission every other roster write uses (creators,
+       profile-links, lists, tracking). */
+    const gate = await requirePermission(req, "creators:create");
+    if (!gate.ok) return gate.response;
+    const result = gate.auth;
     const { id } = await params;
     const { orgId } = result;
     const body = await req.json();

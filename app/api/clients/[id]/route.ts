@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
+import { requirePermission } from "@/lib/authz";
 
 const updateClientSchema = z.object({
   name: z.string().min(1).optional(),
@@ -45,8 +46,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const result = await authenticateRequest(req);
-    if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    /* The same permission that creates a client (POST /api/clients). */
+    const gate = await requirePermission(req, "campaigns:create");
+    if (!gate.ok) return gate.response;
+    const result = gate.auth;
     const { orgId } = result;
     const { id } = await params;
 

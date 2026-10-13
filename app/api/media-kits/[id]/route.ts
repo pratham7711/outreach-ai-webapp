@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { MEDIA_KITS_FEATURE } from "@/lib/featureKeys";
 import { getOrgEntitlements, hasOrgFeature } from "@/lib/entitlements";
+import { permissionDenial } from "@/lib/authz";
 
 export async function DELETE(
   _request: NextRequest,
@@ -10,6 +11,11 @@ export async function DELETE(
 ) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  /* media_kits:read is all the permission table gives MEMBER and VIEWER;
+     writing one is media_kits:* (MANAGER, ADMIN, OWNER), the same split the
+     reports routes already enforce with reports:read / reports:*. */
+  const denied = permissionDenial(session.user, "media_kits:manage");
+  if (denied) return denied;
 
   const orgId = (session.user as any).orgId as string;
   const entitlements = await getOrgEntitlements(orgId);
@@ -72,6 +78,8 @@ export async function PATCH(
 ) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const denied = permissionDenial(session.user, "media_kits:manage");
+  if (denied) return denied;
 
   const orgId = (session.user as any).orgId as string;
   const entitlements = await getOrgEntitlements(orgId);

@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { permissionDenial } from "@/lib/authz";
 import { z } from "zod";
 import type { PostStatus } from "@/lib/generated/prisma/client";
+import { sessionCampaignScopeDenial } from "@/lib/campaignAccess";
 
 const updateStatusSchema = z.object({
   status: z.enum(["APPROVED", "REJECTED"]),
@@ -21,6 +22,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     if (denied) return denied;
     const orgId = (session.user as any).orgId;
     const { id: campaignId, postId } = await params;
+    const outOfScope = await sessionCampaignScopeDenial(session.user, campaignId);
+    if (outOfScope) return outOfScope;
 
     const campaign = await db.campaign.findFirst({ where: { id: campaignId, orgId, deletedAt: null } });
     if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
@@ -55,6 +58,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (denied) return denied;
     const orgId = (session.user as any).orgId;
     const { id: campaignId, postId } = await params;
+    const outOfScope = await sessionCampaignScopeDenial(session.user, campaignId);
+    if (outOfScope) return outOfScope;
 
     const campaign = await db.campaign.findFirst({ where: { id: campaignId, orgId, deletedAt: null } });
     if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });

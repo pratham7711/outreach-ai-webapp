@@ -4,6 +4,7 @@
 jest.mock("@/lib/db", () => ({
   db: {
     creator: { findMany: jest.fn() },
+    creatorSocialAccount: { findMany: jest.fn() },
     activation: { findMany: jest.fn() },
     campaignInvite: { findMany: jest.fn() },
   },
@@ -34,6 +35,7 @@ function roster({ identity = [] as string[], byHandle = [] as string[] }) {
 
 const activation = (over: Record<string, unknown> = {}) => ({
   id: "act-1",
+  creatorId: "cr-mine",
   status: "ACCEPTED",
   deliverableDueDate: new Date("2026-10-10T00:00:00Z"),
   feedbackNotes: null,
@@ -54,6 +56,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mdb.activation.findMany.mockResolvedValue([]);
   mdb.campaignInvite.findMany.mockResolvedValue([]);
+  mdb.creatorSocialAccount.findMany.mockResolvedValue([]);
 });
 
 describe("listJoinedCampaigns", () => {
@@ -105,6 +108,24 @@ describe("listJoinedCampaigns", () => {
       feedback: "Shorter intro please",
       next: { kind: "post_due", at: "2026-10-10T00:00:00.000Z" },
     });
+  });
+
+  /* The campaign is public; the agency's note on a declined draft is not. A
+     login that only shares the roster handle sees the campaign without it. */
+  it("withholds draft feedback on a handle-only row until the login proves it owns the row", async () => {
+    roster({ byHandle: ["cr-same-name"] });
+    mdb.activation.findMany.mockResolvedValue([
+      activation({ creatorId: "cr-same-name", status: "DECLINED", feedbackNotes: "Shorter intro please" }),
+    ]);
+    const [unproven] = await listJoinedCampaigns(session, NOW);
+    expect(unproven.campaignId).toBe("camp-1");
+    expect(unproven.feedback).toBeNull();
+
+    mdb.creatorSocialAccount.findMany.mockResolvedValue([
+      { creatorId: "cr-same-name", handle: "@Fake_Creator_One" },
+    ]);
+    const [proven] = await listJoinedCampaigns(session, NOW);
+    expect(proven.feedback).toBe("Shorter intro please");
   });
 
   it("lists a campaign once when two roster rows are both on it", async () => {

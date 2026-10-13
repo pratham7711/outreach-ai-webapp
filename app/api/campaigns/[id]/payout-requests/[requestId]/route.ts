@@ -5,6 +5,8 @@ import { createAuditActor, logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { z } from "zod";
 import type { PayoutRequestStatus } from "@/lib/generated/prisma/client";
+import { permissionDenial } from "@/lib/authz";
+import { sessionCampaignScopeDenial } from "@/lib/campaignAccess";
 
 const updateRequestSchema = z.object({
   action: z.enum(["APPROVED", "REJECTED"]),
@@ -21,6 +23,10 @@ export async function PATCH(
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const orgId = (session.user as any).orgId;
     const { id: campaignId, requestId } = await params;
+    const denied =
+      permissionDenial(session.user, "payments:manage") ??
+      (await sessionCampaignScopeDenial(session.user, campaignId));
+    if (denied) return denied;
 
     const campaign = await db.campaign.findFirst({ where: { id: campaignId, orgId, deletedAt: null } });
     if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
@@ -38,14 +44,22 @@ export async function PATCH(
       return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
     }
 
-    const updated = await db.payoutRequest.update({
-      where: { id: requestId },
+    /* Only a PENDING request can be decided, and the write itself says so. The
+       check above ran on a read; two approvals sent together both passed it and
+       both wrote, so one request could be approved twice (or approved and
+       rejected) with two audit rows. The loser now gets a 409. */
+    const swapped = await db.payoutRequest.updateMany({
+      where: { id: requestId, orgId, status: "PENDING" },
       data: {
         status: parsed.data.action as PayoutRequestStatus,
         rejectionReason: parsed.data.action === "REJECTED" ? (parsed.data.rejectionReason ?? null) : null,
         processedAt: new Date(),
       },
     });
+    if (swapped.count === 0) {
+      return NextResponse.json({ error: "Payout request has already been processed" }, { status: 409 });
+    }
+    const updated = await db.payoutRequest.findUniqueOrThrow({ where: { id: requestId } });
 
     await logAudit({
       orgId,

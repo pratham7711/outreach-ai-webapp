@@ -5,6 +5,7 @@ import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { downsample, effectiveChartGranularity, parseGranularity } from "@/lib/trackers/granularity";
 import { LATEST_TEN_SINCE } from "@/lib/trackers/recentViews";
+import { requirePermission } from "@/lib/authz";
 
 /** Enough history for the panel's 30-Day Change to find a baseline. */
 const HISTORY_DAYS = 31;
@@ -77,8 +78,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
  */
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const result = await authenticateRequest(req);
-    if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    /* Creator tracking is a roster write: creators:create, as tracking in bulk
+       (trackers/creators/bulk) already requires. */
+    const gate = await requirePermission(req, "creators:create");
+    if (!gate.ok) return gate.response;
+    const result = gate.auth;
     const { orgId } = result;
     const { id } = await params;
 

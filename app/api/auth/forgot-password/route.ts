@@ -8,6 +8,7 @@ import { sendEmail, emailConfigured } from "@/lib/email";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { BRAND } from "@/lib/brand";
+import { hashResetToken } from "@/lib/passwordReset";
 
 const RESET_PREFIX = "reset:";
 const TTL_MS = 60 * 60 * 1000;
@@ -40,13 +41,12 @@ export async function POST(request: NextRequest) {
 
   const email = parsed.data.email.toLowerCase();
   const identifier = resetIdentifier(email);
-  /* Told to the client on EVERY response, including for an address that is not
-     registered. It describes the server's configuration, not the account, so it
-     cannot be used to enumerate users -- and without it the page cheerfully
-     says "check your email" for a mail that was never sent, which is how a
-     locked-out user waits forever for nothing. */
-  const delivery: "sent" | "unavailable" = emailConfigured() ? "sent" : "unavailable";
-  const generic = { ok: true as const, delivery };
+  /* The same body for every address, registered or not, and whether or not
+     this deployment can send mail. It used to carry `delivery`, which told an
+     unauthenticated caller how the server was configured; the page now says
+     what is true in every case -- a link is on its way if there is an account
+     -- and who to ask when nothing arrives. */
+  const generic = { ok: true as const };
 
   try {
     const user = await db.user.findUnique({
@@ -58,10 +58,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(generic);
     }
 
+    /* The raw token goes into the link only; the row holds its hash
+       (lib/passwordReset.ts), so the table is not a list of working links. */
     const token = randomBytes(32).toString("hex");
     await db.verificationToken.deleteMany({ where: { identifier } });
     await db.verificationToken.create({
-      data: { identifier, token, expires: new Date(Date.now() + TTL_MS) },
+      data: { identifier, token: hashResetToken(token), expires: new Date(Date.now() + TTL_MS) },
     });
 
     const origin =
@@ -69,13 +71,16 @@ export async function POST(request: NextRequest) {
     const resetUrl = `${origin.replace(/\/+$/, "")}/reset-password?token=${token}`;
     let delivered = false;
 
+    /* The link is never logged. It used to be, as an escape hatch for a
+       deployment with no mail provider and for a failed send -- which put a
+       working credential for the account in every log drain, log search and
+       export, readable by anyone with log access and kept for the retention
+       period. Without a provider the request is recorded (and audited below)
+       and the person asks an admin, as the page tells them. */
     if (!emailConfigured()) {
-      // Keep the old escape hatch: without a provider the link only reaches the
-      // logs, which is the difference between "recoverable" and "locked out".
-      // The response says so too -- see `delivery` above.
       log.warn("forgot_password.email_provider_missing", {
         message: "No transactional email provider is configured; reset link was not emailed.",
-        resetUrl,
+        userId: user.id,
       });
     } else {
       const sent = await sendEmail({
@@ -96,8 +101,7 @@ export async function POST(request: NextRequest) {
         ].join("\n"),
       });
       if (!sent.sent) {
-        // Still log the URL so a failed send is recoverable by hand.
-        log.error("forgot_password.send_failed", { reason: sent.reason, resetUrl });
+        log.error("forgot_password.send_failed", { reason: sent.reason, userId: user.id });
       }
       delivered = sent.sent;
     }

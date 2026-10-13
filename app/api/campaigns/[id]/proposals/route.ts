@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { sessionCampaignScopeDenial } from "@/lib/campaignAccess";
 
 // GET /api/campaigns/[id]/proposals — List proposals for a campaign (org-side)
 export async function GET(
@@ -12,6 +13,8 @@ export async function GET(
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const orgId = (session.user as any).orgId;
     const { id: campaignId } = await params;
+    const outOfScope = await sessionCampaignScopeDenial(session.user, campaignId);
+    if (outOfScope) return outOfScope;
 
     const campaign = await db.campaign.findFirst({ where: { id: campaignId, orgId, deletedAt: null } });
     if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });

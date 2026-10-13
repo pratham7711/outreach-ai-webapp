@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
+import { requirePermission } from "@/lib/authz";
 
 const renameFolderSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -11,8 +12,10 @@ const renameFolderSchema = z.object({
 
 // PATCH /api/folders/[id] — rename
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const result = await authenticateRequest(request);
-  if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  /* The same permission that creates a folder (POST /api/folders). */
+  const gate = await requirePermission(request, "campaigns:create");
+  if (!gate.ok) return gate.response;
+  const result = gate.auth;
   const { orgId } = result;
   const { id } = await params;
 
@@ -58,8 +61,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
  * folder holding 200 campaigns delete 200 campaigns.
  */
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const result = await authenticateRequest(request);
-  if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const gate = await requirePermission(request, "campaigns:create");
+  if (!gate.ok) return gate.response;
+  const result = gate.auth;
   const { orgId } = result;
   const { id } = await params;
 

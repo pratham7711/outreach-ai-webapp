@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { oneCopyPerVideo } from "@/lib/posts/duplicates";
 import { authenticateRequest } from "@/lib/authenticate";
+import { requirePermission } from "@/lib/authz";
 
 const createSchema = z.object({
   title: z.string().trim().min(1).max(200),
@@ -60,8 +61,12 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const result = await authenticateRequest(req);
-  if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  /* Songs and sound trackers are what campaigns point at, and campaign creation
+     makes them (ensureSongForAudio), so they take the permission that creates a
+     campaign -- as clients and folders already do. */
+  const gate = await requirePermission(req, "campaigns:create");
+  if (!gate.ok) return gate.response;
+  const result = gate.auth;
   const { orgId } = result;
 
   const parsed = createSchema.safeParse(await req.json().catch(() => null));

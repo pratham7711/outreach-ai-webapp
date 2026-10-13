@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
+import { requirePermission } from "@/lib/authz";
 
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
   PENDING: ["PROCESSING", "SUCCESS"],
@@ -17,8 +18,12 @@ const PayoutPatchSchema = z.object({
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const result = await authenticateRequest(req);
-  if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  /* The gate POST /api/payouts already uses. A payout's status is what says it
+     was paid; any seat, VIEWER and read-only act-as included, could mark one
+     SUCCESS. */
+  const gate = await requirePermission(req, "payments:manage");
+  if (!gate.ok) return gate.response;
+  const result = gate.auth;
   const { orgId } = result;
   const { id } = await params;
 
@@ -53,7 +58,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     updateData.failureReason = null;
   }
 
-  const updated = await db.payout.update({ where: { id }, data: updateData });
+  /* Compare-and-swap on the status the transition was checked against. Two
+     requests that both read PENDING both passed the table above and both
+     wrote, so a payout could be completed twice with two audit rows, or
+     completed by one and failed by the other. The loser now gets a 409. */
+  const swapped = await db.payout.updateMany({
+    where: { id, orgId, status: payout.status },
+    data: updateData,
+  });
+  if (swapped.count === 0) {
+    return NextResponse.json(
+      { error: "This payout changed while you were updating it. Reload it and try again." },
+      { status: 409 }
+    );
+  }
+  const updated = await db.payout.findUniqueOrThrow({ where: { id } });
 
   await logAudit({
     orgId,

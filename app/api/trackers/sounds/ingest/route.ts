@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { recordSoundSnapshot } from "@/lib/sounds/snapshot";
 import { createLogger } from "@/lib/observability/logger";
+import { bearerMatches } from "@/lib/http/bearer";
 
 /**
  * The audio tracker's way in, for a reader that is not this server.
@@ -62,7 +63,7 @@ const BodySchema = z.object({
 function isAuthorised(request: NextRequest): boolean {
   const expected = process.env.SOUND_INGEST_TOKEN ?? process.env.CRON_SECRET;
   if (!expected) return false;
-  return request.headers.get("authorization") === `Bearer ${expected}`;
+  return bearerMatches(request.headers.get("authorization"), expected);
 }
 
 /**

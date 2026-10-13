@@ -3,13 +3,14 @@ import { snapshotSounds } from "@/lib/sounds/snapshot";
 import { createLogger } from "@/lib/observability/logger";
 import { alertOps, shouldAlertOnBatch } from "@/lib/alerts";
 import { cronRoute } from "@/lib/ops/cronRoute";
+import { bearerMatches } from "@/lib/http/bearer";
 
 async function cronHandler(request: NextRequest) {
   const log = createLogger({ context: { route: "cron/snapshot-sounds" } });
 
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+  if (!bearerMatches(authHeader, cronSecret)) {
     log.warn("auth failed", { reason: "bad-or-missing-cron-secret" });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

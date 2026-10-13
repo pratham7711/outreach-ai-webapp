@@ -3,6 +3,7 @@ import { createLogger } from "@/lib/observability/logger";
 import type { CronJobName } from "./cronJobs";
 import { recordCronFinish, recordCronStart } from "./heartbeat";
 import { cronKillKey, isKilled } from "./killSwitch";
+import { bearerMatches } from "@/lib/http/bearer";
 
 /**
  * The one wrapper every cron route goes through:
@@ -27,7 +28,7 @@ import { cronKillKey, isKilled } from "./killSwitch";
 
 function authorized(request: NextRequest): boolean {
   const secret = process.env.CRON_SECRET;
-  return Boolean(secret) && request.headers.get("authorization") === `Bearer ${secret}`;
+  return bearerMatches(request.headers.get("authorization"), secret);
 }
 
 async function failureText(res: Response): Promise<string> {

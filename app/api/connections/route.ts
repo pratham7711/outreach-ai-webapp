@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
+import { requirePermission } from "@/lib/authz";
 
 /**
  * These are a record, not an integration.
@@ -66,8 +67,12 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await authenticateRequest(req);
-  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  /* Marking a platform connected or not changes what the whole org sees on
+     /connections. Any member who could do it before still can (campaigns:edit_own
+     is the member-level write); VIEWER cannot. */
+  const gate = await requirePermission(req, "campaigns:edit_own");
+  if (!gate.ok) return gate.response;
+  const auth = gate.auth;
   const { orgId } = auth;
 
   const body = await req.json();
@@ -93,8 +98,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const auth = await authenticateRequest(req);
-  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const gate = await requirePermission(req, "campaigns:edit_own");
+  if (!gate.ok) return gate.response;
+  const auth = gate.auth;
   const { orgId } = auth;
 
   const platform = req.nextUrl.searchParams.get("platform");

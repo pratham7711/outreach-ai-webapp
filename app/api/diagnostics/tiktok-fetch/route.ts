@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { detectPlatform, fetchTikTokMetrics } from "@/lib/platforms/fetchPostMetrics";
+import { bearerMatches } from "@/lib/http/bearer";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,7 @@ async function egressIp(): Promise<string | null> {
 export async function GET(request: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = request.headers.get("authorization");
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+  if (!bearerMatches(authHeader, cronSecret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

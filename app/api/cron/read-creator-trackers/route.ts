@@ -5,6 +5,7 @@ import { checkReaderAlerts } from "@/lib/trackers/readerAlerts";
 import { alertOps } from "@/lib/alerts";
 import { createLogger } from "@/lib/observability/logger";
 import { cronRoute } from "@/lib/ops/cronRoute";
+import { bearerMatches } from "@/lib/http/bearer";
 
 /* Reader v2 (plan §07): hourly, beside the legacy sweep rather than instead of
    it (§14 rule 2). It does nothing at all while the switch says legacy, which
@@ -17,7 +18,7 @@ export const dynamic = "force-dynamic";
 async function cronHandler(request: NextRequest) {
   const log = createLogger({ context: { route: "cron/read-creator-trackers" } });
   const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret || request.headers.get("authorization") !== `Bearer ${cronSecret}`) {
+  if (!bearerMatches(request.headers.get("authorization"), cronSecret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -97,7 +97,7 @@ beforeEach(() => {
   process.env.ANTHROPIC_API_KEY = "test-key-not-a-real-secret";
 
   mockAuth.mockResolvedValue({
-    user: { id: "user-1", orgId: ORG_ID, email: "u@org-1.test" },
+    user: { id: "user-1", orgId: ORG_ID, role: "OWNER", email: "u@org-1.test" },
   });
 
   mockDb.campaign.count.mockResolvedValue(0);
@@ -207,7 +207,7 @@ describe("POST /api/mcp entitlement gate", () => {
     const res = await callRequest();
 
     expect(res.status).toBe(200);
-    expect(mockExecuteMcpTool).toHaveBeenCalledWith(ORG_ID, "get_campaign", { id: "c1" });
+    expect(mockExecuteMcpTool).toHaveBeenCalledWith(expect.objectContaining({ orgId: ORG_ID }), "get_campaign", { id: "c1" });
   });
 });
 

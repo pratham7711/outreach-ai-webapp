@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { permissionDenial } from "@/lib/authz";
 import { syncPost } from "@/lib/sync/syncPost";
 import { openTikTokPostFetcherForOne } from "@/lib/platforms/tiktokEgress";
+import { sessionCampaignScopeDenial } from "@/lib/campaignAccess";
 
 // POST /api/campaigns/[id]/posts/[postId]/sync — Trigger manual sync for a post
 export async function POST(
@@ -18,6 +19,8 @@ export async function POST(
     if (denied) return denied;
     const orgId = (session.user as any).orgId;
     const { id: campaignId, postId } = await params;
+    const outOfScope = await sessionCampaignScopeDenial(session.user, campaignId);
+    if (outOfScope) return outOfScope;
 
     const campaign = await db.campaign.findFirst({ where: { id: campaignId, orgId, deletedAt: null } });
     if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });

@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { authenticateRequest } from "@/lib/authenticate";
+import { requirePermission } from "@/lib/authz";
+import { campaignScopeWhereFor } from "@/lib/campaignScope";
 import { getOrgEntitlements, hasOrgFeature } from "@/lib/entitlements";
 import { AI_ASSISTANT_FEATURE } from "@/lib/featureKeys";
 import { draftOutreach, validateOutreachGrounding } from "@/lib/ai/outreach/draftOutreach";
@@ -19,8 +20,11 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const auth = await authenticateRequest(req);
-  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  /* Drafting outreach is the first step of inviting creators, which needs
+     campaigns:edit_own, and it spends the org's AI allowance -- not a read. */
+  const gate = await requirePermission(req, "campaigns:edit_own");
+  if (!gate.ok) return gate.response;
+  const auth = gate.auth;
   const { orgId } = auth;
   const { id } = await params;
 
@@ -42,7 +46,7 @@ export async function POST(
   }
 
   const campaign = await db.campaign.findFirst({
-    where: { id, orgId, deletedAt: null },
+    where: { id, orgId, deletedAt: null, ...campaignScopeWhereFor(auth) },
     select: { id: true, title: true, guidelines: true, requirements: true },
   });
   if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });

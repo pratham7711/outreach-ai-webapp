@@ -10,6 +10,7 @@ import {
   bulkUpdateData,
 } from "@/lib/posts/bulkActions";
 import { z } from "zod";
+import { campaignScopeDenial } from "@/lib/campaignAccess";
 
 /**
  * One action, many posts.
@@ -45,6 +46,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (!gate.ok) return gate.response;
     const { orgId } = gate.auth;
     const { id: campaignId } = await params;
+    const outOfScope = await campaignScopeDenial(gate.auth, campaignId);
+    if (outOfScope) return outOfScope;
 
     const campaign = await db.campaign.findFirst({
       where: { id: campaignId, orgId, deletedAt: null },

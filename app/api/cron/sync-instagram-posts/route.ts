@@ -3,6 +3,7 @@ import { cronRoute } from "@/lib/ops/cronRoute";
 import { POST_SWEEP_STOP_PERCENT } from "@/lib/platforms/instagramDiscoveryTokens";
 import { instagramHourlyBudget, instagramPacedHourly } from "@/lib/sync/instagramPacing";
 import { runPostSweep } from "@/lib/sync/postSweepRun";
+import { bearerMatches } from "@/lib/http/bearer";
 
 /* Instagram's share of the post sweep, a small batch every hour instead of a
    burst every six (lib/sync/instagramPacing). Stops at POST_SWEEP_STOP_PERCENT
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 async function cronHandler(request: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret || request.headers.get("authorization") !== `Bearer ${cronSecret}`) {
+  if (!bearerMatches(request.headers.get("authorization"), cronSecret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   if (!instagramPacedHourly()) return NextResponse.json({ ok: true, skipped: "off" });

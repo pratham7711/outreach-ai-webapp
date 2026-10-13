@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/db";
+import { bearerMatches } from "@/lib/http/bearer";
 import { recordSourceHealth, trackerSourceTablesReady } from "@/lib/trackers/sourceSwitch";
 import { dailyCheckPassed, planBCheckFinding } from "@/lib/trackers/readerAlerts";
 import { alertOps } from "@/lib/alerts";
@@ -21,11 +21,7 @@ export const runtime = "nodejs";
 function authorized(request: NextRequest): boolean | null {
   const token = process.env.TRACKER_PLAN_B_HEALTH_TOKEN;
   if (!token) return null;
-  const presented = request.headers.get("authorization");
-  if (!presented) return false;
-  const a = Buffer.from(presented);
-  const b = Buffer.from(`Bearer ${token}`);
-  return a.length === b.length && timingSafeEqual(a, b);
+  return bearerMatches(request.headers.get("authorization"), token);
 }
 
 const int = (v: unknown) => (Number.isFinite(Number(v)) && Number(v) >= 0 ? Math.round(Number(v)) : 0);

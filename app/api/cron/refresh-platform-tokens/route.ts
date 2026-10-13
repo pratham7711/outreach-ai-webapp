@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { bearerMatches } from "@/lib/http/bearer";
 import {
   REFRESH_WHEN_DAYS_LEFT,
   refreshInstagramBusinessToken,
@@ -58,7 +59,7 @@ async function cronHandler(request: NextRequest) {
 
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = request.headers.get("authorization");
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+  if (!bearerMatches(authHeader, cronSecret)) {
     log.warn("auth failed", { reason: "bad-or-missing-cron-secret" });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

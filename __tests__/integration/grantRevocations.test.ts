@@ -231,7 +231,7 @@ describe("Meta callbacks", () => {
 
 describe("the agency removing a connection", () => {
   it("revokes with reason agency_removed, scoped to its own roster row", async () => {
-    (authenticateRequest as jest.Mock).mockResolvedValue({ orgId: "org-1" });
+    (authenticateRequest as jest.Mock).mockResolvedValue({ orgId: "org-1", actorType: "user", role: "OWNER" });
     mockDb.creator.findFirst.mockResolvedValue({ id: "creator-1" });
     mockDb.creatorSocialAccount.findFirst.mockResolvedValue({ id: "conn-1" });
     const res = await removeSocialAccount(

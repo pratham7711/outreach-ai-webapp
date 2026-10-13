@@ -21,7 +21,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const gate = await requirePermission(request, "users:manage");
+    const gate = await requirePermission(request, "users:manage", { allowApiKey: false });
     if (!gate.ok) return gate.response;
     const { orgId } = gate.auth;
 

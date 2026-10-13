@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
 import { encrypt } from "@/lib/crypto/encrypt";
 import { REVOKE_REASONS, revokeGrantsForConnections } from "@/lib/creators/grants";
+import { requirePermission } from "@/lib/authz";
 
 // ─── GET — list social accounts (secrets excluded) ───────────────────────────
 
@@ -58,9 +59,10 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const result = await authenticateRequest(req);
-  if (!result)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  /* A roster write, gated like the rest of the roster (creators:create). */
+  const gate = await requirePermission(req, "creators:create");
+  if (!gate.ok) return gate.response;
+  const result = gate.auth;
   const { orgId } = result;
   const { id } = await params;
 
@@ -116,9 +118,9 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const result = await authenticateRequest(req);
-  if (!result)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const gate = await requirePermission(req, "creators:create");
+  if (!gate.ok) return gate.response;
+  const result = gate.auth;
   const { orgId } = result;
   const { id } = await params;
 

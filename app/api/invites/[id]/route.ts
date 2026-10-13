@@ -13,7 +13,7 @@ export async function DELETE(
   try {
     /* Cancelling is team management too: without this any member could revoke
        a pending OWNER invite and stall somebody's access. */
-    const gate = await requirePermission(_request, "users:manage");
+    const gate = await requirePermission(_request, "users:manage", { allowApiKey: false });
     if (!gate.ok) return gate.response;
     const { orgId } = gate.auth;
 

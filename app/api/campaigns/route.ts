@@ -11,7 +11,8 @@ import { ensureSongForAudio, identifyAudioLink, type ResolvedAudio } from "@/lib
 import { primeSongAudio } from "@/lib/sounds/snapshot";
 import { CAMPAIGN_STATUSES, CAMPAIGN_TYPES, campaignFilterSchema, campaignWhere } from "@/lib/listFilters";
 import { CAMPAIGN_START_STATUS, STATUS_DEF_SELECT, defaultStatusDefFor } from "@/lib/campaigns/statusDefaults";
-import type { PaymentMode, PaymentRelease, PostApprovalMode } from "@/lib/generated/prisma/client";
+import type { PaymentMode, PaymentRelease, PostApprovalMode, Prisma } from "@/lib/generated/prisma/client";
+import { campaignScopeWhereFor } from "@/lib/campaignScope";
 
 // The list query is the page's filter set plus pagination, so a filter added to
 // the drawer reaches this route without a second schema to keep in step.
@@ -56,7 +57,15 @@ export async function GET(request: NextRequest) {
     const { page, limit, ...filters } = parsedQuery.data;
     const skip = (page - 1) * limit;
 
-    const where = campaignWhere(orgId, filters);
+    /* Row scope, ANDed rather than spread: campaignWhere puts the search box in
+       an OR, and so does the scope, so spreading one over the other silently
+       dropped whichever came first. The list used to skip the scope entirely,
+       so an "assigned only" member saw every campaign in the org through the
+       API while the page hid them. Unscoped callers keep the query they had. */
+    const filterWhere = campaignWhere(orgId, filters);
+    const scope = campaignScopeWhereFor(result);
+    const where: Prisma.CampaignWhereInput =
+      Object.keys(scope).length === 0 ? filterWhere : { AND: [filterWhere, scope] };
 
     const [campaigns, total] = await Promise.all([
       db.campaign.findMany({

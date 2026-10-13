@@ -3,6 +3,7 @@ import { refreshCreatorAvatars } from "@/lib/creators/avatarStore";
 import { openSandboxProfileFetcher } from "@/lib/platforms/tiktokProfileSandbox";
 import { createLogger } from "@/lib/observability/logger";
 import { cronRoute } from "@/lib/ops/cronRoute";
+import { bearerMatches } from "@/lib/http/bearer";
 
 export const maxDuration = 300;
 export const runtime = "nodejs";
@@ -22,7 +23,7 @@ export const dynamic = "force-dynamic";
 async function cronHandler(request: NextRequest) {
   const log = createLogger({ context: { route: "cron/refresh-creator-avatars" } });
   const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret || request.headers.get("authorization") !== `Bearer ${cronSecret}`) {
+  if (!bearerMatches(request.headers.get("authorization"), cronSecret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

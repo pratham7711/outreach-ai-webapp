@@ -76,7 +76,7 @@ const creatorRow = (over: Record<string, unknown> = {}) => ({
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockAuth.mockResolvedValue({ orgId: "org-1", userId: "u1" });
+  mockAuth.mockResolvedValue({ orgId: "org-1", userId: "u1", actorType: "user", role: "OWNER", campaignScope: "ALL" });
   mockDb.creator.findMany.mockResolvedValue([]);
   mockDb.$queryRawUnsafe.mockResolvedValue([]);
   mockDb.organization.findUnique.mockResolvedValue(orgFixture());

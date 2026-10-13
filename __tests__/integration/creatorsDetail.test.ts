@@ -36,7 +36,7 @@ import { resetRosterTablesCache } from '@/lib/creators/rosterTables';
 const mockAuth = auth as jest.Mock;
 const mockDb = db as any;
 
-const authedSession = { user: { id: 'user-1', orgId: 'org-1' } };
+const authedSession = { user: { id: 'user-1', orgId: 'org-1', role: 'OWNER' } };
 
 function makeRequest(url: string, options?: ConstructorParameters<typeof NextRequest>[1]) {
   return new NextRequest(url, options);

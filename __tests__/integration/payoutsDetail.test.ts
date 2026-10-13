@@ -9,6 +9,8 @@ jest.mock('@/lib/db', () => ({
     payout: {
       findFirst: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
+      findUniqueOrThrow: jest.fn(),
     },
   },
 }));
@@ -23,7 +25,7 @@ import { auth } from '@/lib/auth';
 const mockAuth = auth as jest.Mock;
 const mockDb = db as any;
 
-const authedSession = { user: { id: 'user-1', orgId: 'org-1' } };
+const authedSession = { user: { id: 'user-1', orgId: 'org-1', role: 'OWNER' } };
 
 function makeRequest(url: string, options?: ConstructorParameters<typeof NextRequest>[1]) {
   return new NextRequest(url, options);
@@ -68,7 +70,8 @@ describe('PATCH /api/payouts/[id]', () => {
     const existing = { id: 'pay-1', status: 'PENDING', orgId: 'org-1' };
     const updated = { ...existing, status: 'PROCESSING' };
     mockDb.payout.findFirst.mockResolvedValue(existing);
-    mockDb.payout.update.mockResolvedValue(updated);
+    mockDb.payout.updateMany.mockResolvedValue({ count: 1 });
+    mockDb.payout.findUniqueOrThrow.mockResolvedValue(updated);
 
     const req = makeRequest('http://localhost/api/payouts/pay-1', {
       method: 'PATCH',
@@ -116,7 +119,8 @@ describe('PATCH /api/payouts/[id]', () => {
     const existing = { id: 'pay-1', status: 'FAILED', orgId: 'org-1' };
     const updated = { ...existing, status: 'PENDING', completedAt: null, failureReason: null };
     mockDb.payout.findFirst.mockResolvedValue(existing);
-    mockDb.payout.update.mockResolvedValue(updated);
+    mockDb.payout.updateMany.mockResolvedValue({ count: 1 });
+    mockDb.payout.findUniqueOrThrow.mockResolvedValue(updated);
 
     const req = makeRequest('http://localhost/api/payouts/pay-1', {
       method: 'PATCH',
@@ -128,7 +132,7 @@ describe('PATCH /api/payouts/[id]', () => {
 
     expect(res.status).toBe(200);
     expect(body.status).toBe('PENDING');
-    expect(mockDb.payout.update).toHaveBeenCalledWith(
+    expect(mockDb.payout.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           status: 'PENDING',
@@ -158,7 +162,8 @@ describe('PATCH /api/payouts/[id]', () => {
     const existing = { id: 'pay-1', status: 'PROCESSING', orgId: 'org-1' };
     const updated = { ...existing, status: 'SUCCESS', completedAt: new Date() };
     mockDb.payout.findFirst.mockResolvedValue(existing);
-    mockDb.payout.update.mockResolvedValue(updated);
+    mockDb.payout.updateMany.mockResolvedValue({ count: 1 });
+    mockDb.payout.findUniqueOrThrow.mockResolvedValue(updated);
 
     const req = makeRequest('http://localhost/api/payouts/pay-1', {
       method: 'PATCH',
@@ -167,7 +172,7 @@ describe('PATCH /api/payouts/[id]', () => {
     });
     await PATCH(req, makeParams('pay-1'));
 
-    expect(mockDb.payout.update).toHaveBeenCalledWith(
+    expect(mockDb.payout.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           status: 'SUCCESS',
@@ -181,7 +186,8 @@ describe('PATCH /api/payouts/[id]', () => {
     const existing = { id: 'pay-1', status: 'PENDING', orgId: 'org-1' };
     const updated = { ...existing, status: 'SUCCESS', completedAt: new Date() };
     mockDb.payout.findFirst.mockResolvedValue(existing);
-    mockDb.payout.update.mockResolvedValue(updated);
+    mockDb.payout.updateMany.mockResolvedValue({ count: 1 });
+    mockDb.payout.findUniqueOrThrow.mockResolvedValue(updated);
 
     const req = makeRequest('http://localhost/api/payouts/pay-1', {
       method: 'PATCH',
@@ -193,6 +199,39 @@ describe('PATCH /api/payouts/[id]', () => {
 
     expect(res.status).toBe(200);
     expect(body.status).toBe('SUCCESS');
+  });
+
+  /* Two requests that both read PENDING both passed the transition table and
+     both wrote. The write is now conditional on the status that was checked. */
+  it('409s a transition that lost the race to another one', async () => {
+    mockDb.payout.findFirst.mockResolvedValue({ id: 'pay-1', status: 'PENDING', orgId: 'org-1' });
+    mockDb.payout.updateMany.mockResolvedValue({ count: 0 });
+
+    const req = makeRequest('http://localhost/api/payouts/pay-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'SUCCESS' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await PATCH(req, makeParams('pay-1'));
+    expect(res.status).toBe(409);
+    expect(mockDb.payout.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'pay-1', orgId: 'org-1', status: 'PENDING' } })
+    );
+    expect(mockDb.payout.findUniqueOrThrow).not.toHaveBeenCalled();
+  });
+
+  it.each(['VIEWER', 'MEMBER'])('refuses a %s (payments:manage)', async (role) => {
+    mockAuth.mockResolvedValue({ user: { id: 'user-2', orgId: 'org-1', role } });
+    mockDb.payout.findFirst.mockResolvedValue({ id: 'pay-1', status: 'PENDING', orgId: 'org-1' });
+
+    const req = makeRequest('http://localhost/api/payouts/pay-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'SUCCESS' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await PATCH(req, makeParams('pay-1'));
+    expect(res.status).toBe(403);
+    expect(mockDb.payout.updateMany).not.toHaveBeenCalled();
   });
 
   it('returns 400 for invalid status value (Zod validation)', async () => {

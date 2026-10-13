@@ -3,6 +3,7 @@ import { snapshotOrgViews } from "@/lib/analytics/orgViewsSnapshot";
 import { createLogger } from "@/lib/observability/logger";
 import { alertOps } from "@/lib/alerts";
 import { cronRoute } from "@/lib/ops/cronRoute";
+import { bearerMatches } from "@/lib/http/bearer";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -28,7 +29,7 @@ async function cronHandler(request: NextRequest) {
 
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = request.headers.get("authorization");
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+  if (!bearerMatches(authHeader, cronSecret)) {
     log.warn("auth failed", { reason: "bad-or-missing-cron-secret" });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

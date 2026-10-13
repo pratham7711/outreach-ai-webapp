@@ -4,6 +4,8 @@ import { auth } from "@/lib/auth";
 import { createAuditActor, logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { z } from "zod";
+import { permissionDenial } from "@/lib/authz";
+import { sessionCampaignScopeDenial } from "@/lib/campaignAccess";
 
 const createReviewSchema = z.object({
   creatorId: z.string().min(1),
@@ -24,6 +26,8 @@ export async function GET(
     }
     const orgId = (session.user as any).orgId;
     const { id: campaignId } = await params;
+    const outOfScope = await sessionCampaignScopeDenial(session.user, campaignId);
+    if (outOfScope) return outOfScope;
 
     // Verify campaign belongs to org
     const campaign = await db.campaign.findFirst({
@@ -80,6 +84,10 @@ export async function POST(
     }
     const orgId = (session.user as any).orgId;
     const { id: campaignId } = await params;
+    const denied =
+      permissionDenial(session.user, "campaigns:edit_own") ??
+      (await sessionCampaignScopeDenial(session.user, campaignId));
+    if (denied) return denied;
 
     // Verify campaign belongs to org
     const campaign = await db.campaign.findFirst({

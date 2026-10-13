@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/lib/db";
-import { authenticateRequest } from "@/lib/authenticate";
 import { getOrgEntitlements, hasOrgFeature } from "@/lib/entitlements";
 import { AI_ASSISTANT_FEATURE } from "@/lib/featureKeys";
+import { requirePermission } from "@/lib/authz";
 
 type Intent =
   | { type: "list_campaigns"; status?: string; limit?: number }
@@ -35,8 +35,11 @@ Examples:
 // POST /api/ai/nl-query
 // Body: { query: string }
 export async function POST(req: NextRequest) {
-  const auth = await authenticateRequest(req);
-  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  /* A POST because the question travels in the body, but it reads and changes
+     nothing, so every seat may ask it -- VIEWER included. */
+  const gate = await requirePermission(req, "campaigns:read");
+  if (!gate.ok) return gate.response;
+  const auth = gate.auth;
   const { orgId } = auth;
 
   const entitlements = await getOrgEntitlements(orgId);

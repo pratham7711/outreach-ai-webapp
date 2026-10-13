@@ -10,6 +10,7 @@ import {
 } from "@/lib/platforms/facebookPage";
 import { createLogger } from "@/lib/observability/logger";
 import { connectionForRead } from "@/lib/creators/connectionGate";
+import { sessionCampaignScopeDenial } from "@/lib/campaignAccess";
 
 /**
  * Comments on a Facebook post, read live and stored nowhere.
@@ -53,6 +54,8 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     if (denied) return denied;
 
     const { id: campaignId, postId } = await params;
+    const outOfScope = await sessionCampaignScopeDenial(session.user, campaignId);
+    if (outOfScope) return outOfScope;
 
     /* Org scope first, and on the campaign — the same gate every other route
        under this path uses. A post id alone is not authorisation. */

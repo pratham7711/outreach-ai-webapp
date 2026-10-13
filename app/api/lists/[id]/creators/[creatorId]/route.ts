@@ -5,6 +5,7 @@ import { requirePermission } from "@/lib/authz";
 import { parseRateInput } from "@/lib/lists/approval";
 import { listApprovalTablesReady } from "@/lib/lists/approvalTables";
 import { rateCardNotReady } from "@/lib/lists/listReview";
+import { permissionDenial } from "@/lib/authz";
 
 export async function DELETE(
   _req: NextRequest,
@@ -12,6 +13,9 @@ export async function DELETE(
 ) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  /* The same gate as adding to a list and as this route's own PATCH. */
+  const denied = permissionDenial(session.user, "creators:create");
+  if (denied) return denied;
   const orgId = (session.user as any).orgId;
   const { id, creatorId } = await params;
 

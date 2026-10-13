@@ -45,7 +45,7 @@ export async function PATCH(
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
-    const gate = await requirePermission(request, "users:manage");
+    const gate = await requirePermission(request, "users:manage", { allowApiKey: false });
     if (!gate.ok) return gate.response;
     const { orgId } = gate.auth;
     const { userId } = await params;
@@ -131,7 +131,7 @@ export async function DELETE(
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
-    const gate = await requirePermission(request, "users:manage");
+    const gate = await requirePermission(request, "users:manage", { allowApiKey: false });
     if (!gate.ok) return gate.response;
     const { orgId } = gate.auth;
     const { userId } = await params;

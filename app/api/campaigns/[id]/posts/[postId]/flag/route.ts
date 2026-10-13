@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { permissionDenial } from "@/lib/authz";
 import { z } from "zod";
 import type { FraudFlagType, FraudFlagSeverity } from "@/lib/generated/prisma/client";
+import { sessionCampaignScopeDenial } from "@/lib/campaignAccess";
 
 const FLAG_TYPES = ["VIEW_SPIKE", "LOW_ENGAGEMENT", "BOT_PATTERN", "GEOGRAPHIC_ANOMALY"] as const;
 const SEVERITIES = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
@@ -25,6 +26,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const orgId = (session.user as any).orgId;
     const userId = (session.user as any).id;
     const { id: campaignId, postId } = await params;
+    const outOfScope = await sessionCampaignScopeDenial(session.user, campaignId);
+    if (outOfScope) return outOfScope;
 
     const campaign = await db.campaign.findFirst({ where: { id: campaignId, orgId, deletedAt: null } });
     if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });

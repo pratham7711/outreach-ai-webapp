@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { permissionDenial } from "@/lib/authz";
+import { sessionCampaignScopeDenial } from "@/lib/campaignAccess";
 
 // ---------- Types for campaign typeConfig ----------
 interface ViewBasedConfig {
@@ -21,6 +23,8 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const orgId = (session.user as any).orgId;
     const { id: campaignId } = await params;
+    const outOfScope = await sessionCampaignScopeDenial(session.user, campaignId);
+    if (outOfScope) return outOfScope;
 
     // Verify campaign belongs to org
     const campaign = await db.campaign.findFirst({
@@ -88,6 +92,10 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const orgId = (session.user as any).orgId;
     const { id: campaignId } = await params;
+    const denied =
+      permissionDenial(session.user, "payments:manage") ??
+      (await sessionCampaignScopeDenial(session.user, campaignId));
+    if (denied) return denied;
 
     // Verify campaign belongs to org and is VIEW_BASED
     const campaign = await db.campaign.findFirst({

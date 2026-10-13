@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createLogger } from "@/lib/observability/logger";
 import { runMeters } from "@/lib/ops/meters";
 import { cronRoute } from "@/lib/ops/cronRoute";
+import { bearerMatches } from "@/lib/http/bearer";
 
 /* The weekly spend meters (plan §13 M): last week's Neon compute, from Neon's
    consumption API, and last week's Sandbox compute, from our own counter, each
@@ -16,7 +17,7 @@ export const dynamic = "force-dynamic";
 async function cronHandler(request: NextRequest) {
   const log = createLogger({ context: { route: "cron/ops-meters" } });
   const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret || request.headers.get("authorization") !== `Bearer ${cronSecret}`) {
+  if (!bearerMatches(request.headers.get("authorization"), cronSecret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

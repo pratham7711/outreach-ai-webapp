@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticateRequest } from "@/lib/authenticate";
+import { requirePermission } from "@/lib/authz";
 import { getMcpToolDefinitions, executeMcpTool } from "@/lib/mcp/tools";
+import { mcpCallerFor, type McpCaller } from "@/lib/mcp/caller";
 import { getOrgEntitlements, hasOrgFeature } from "@/lib/entitlements";
 import { API_ACCESS_FEATURE } from "@/lib/featureKeys";
 import { rateLimit } from "@/lib/rateLimit";
@@ -47,6 +48,13 @@ export const maxDuration = 300;
    it takes to walk the whole post table. */
 const CALLS_PER_MINUTE = 120;
 
+/* The rate limit counts HTTP requests, and a batch is one request, so an
+   uncapped batch turned 120 calls a minute into 120 x however many messages a
+   client cared to send -- each one a database query, refresh_campaign
+   included. Ten covers any client that batches in earnest; the protocol
+   dropped batches in 2025-06-18 and current clients send one message. */
+const MAX_BATCH = 10;
+
 type Id = number | string | null;
 
 function jsonrpc(id: Id, result: unknown) {
@@ -63,7 +71,7 @@ function negotiateVersion(requested: unknown): string {
     : LATEST_PROTOCOL_VERSION;
 }
 
-async function handleMessage(orgId: string, message: any): Promise<object | null> {
+async function handleMessage(caller: McpCaller, message: any): Promise<object | null> {
   if (!message || typeof message !== "object" || Array.isArray(message)) {
     return jsonrpcError(null, -32600, "Invalid Request");
   }
@@ -98,7 +106,7 @@ async function handleMessage(orgId: string, message: any): Promise<object | null
       const { name, arguments: args } = params ?? {};
       if (!name) return jsonrpcError(id, -32602, "Missing tool name");
       try {
-        return jsonrpc(id, await executeMcpTool(orgId, name, args ?? {}));
+        return jsonrpc(id, await executeMcpTool(caller, name, args ?? {}));
       } catch (err: any) {
         const message = err?.message ?? "Tool execution failed";
         /* An unknown tool never reached a tool, so it is a protocol error. A
@@ -122,10 +130,12 @@ async function handleMessage(orgId: string, message: any): Promise<object | null
 }
 
 export async function POST(req: NextRequest) {
-  const authResult = await authenticateRequest(req);
-  if (!authResult) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  /* Every tool reads campaign data, so the floor is campaigns:read -- which
+     every role holds; what differs by role is applied per tool through the
+     caller (row scope, and the refresh permission). */
+  const gate = await requirePermission(req, "campaigns:read");
+  if (!gate.ok) return gate.response;
+  const authResult = gate.auth;
 
   const entitlements = await getOrgEntitlements(authResult.orgId);
   if (!hasOrgFeature(entitlements, API_ACCESS_FEATURE)) {
@@ -133,6 +143,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { orgId } = authResult;
+  const caller = mcpCallerFor(authResult);
 
   const limit = rateLimit({ key: `mcp:${orgId}`, limit: CALLS_PER_MINUTE, windowMs: 60_000 });
   if (!limit.allowed) {
@@ -171,14 +182,20 @@ export async function POST(req: NextRequest) {
     if (body.length === 0) {
       return NextResponse.json(jsonrpcError(null, -32600, "Invalid Request"), { status: 400 });
     }
-    const replies = (await Promise.all(body.map((msg) => handleMessage(orgId, msg)))).filter(
+    if (body.length > MAX_BATCH) {
+      return NextResponse.json(
+        jsonrpcError(null, -32600, `Batch too large: send at most ${MAX_BATCH} messages per request (got ${body.length}).`),
+        { status: 400, headers: protocolHeader }
+      );
+    }
+    const replies = (await Promise.all(body.map((msg) => handleMessage(caller, msg)))).filter(
       (reply): reply is object => reply !== null
     );
     if (replies.length === 0) return new Response(null, { status: 202, headers: protocolHeader });
     return NextResponse.json(replies, { headers: protocolHeader });
   }
 
-  const reply = await handleMessage(orgId, body);
+  const reply = await handleMessage(caller, body);
   if (reply === null) return new Response(null, { status: 202, headers: protocolHeader });
   return NextResponse.json(reply, { headers: protocolHeader });
 }

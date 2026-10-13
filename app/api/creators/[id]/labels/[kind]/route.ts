@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
+import { requirePermission } from "@/lib/authz";
 
 /**
  * Which of the org's tags and flags are on a creator.
@@ -43,8 +44,10 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; kind: string }> },
 ) {
-  const result = await authenticateRequest(request);
-  if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  /* A roster write, gated like the rest of the roster (creators:create). */
+  const gate = await requirePermission(request, "creators:create");
+  if (!gate.ok) return gate.response;
+  const result = gate.auth;
   const { orgId } = result;
 
   const { id, kind } = await params;
