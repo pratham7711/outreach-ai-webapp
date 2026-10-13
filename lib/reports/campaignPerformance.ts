@@ -13,6 +13,8 @@ import { usesPrecisionOf } from "@/lib/sounds/precision";
 import { CHART_BUCKET_HOURS, effectiveChartGranularity, parseGranularity } from "@/lib/trackers/granularity";
 import type { SharePlatform } from "@/lib/reports/shareVisibility";
 import { postThumbnailUrl } from "@/lib/postMedia";
+import { loadCampaignStreams, type CampaignStreams } from "@/lib/songs/streams";
+import { isMissingSongStreamTable } from "@/lib/songs/streamSnapshotDdl";
 import type { ActivationStatus } from "@/lib/generated/prisma/client";
 
 /**
@@ -142,6 +144,13 @@ export type CampaignPerformance = {
    * used, which is a measurement we have not made.
    */
   audio: CampaignAudio | null;
+  /**
+   * The promoted song's Spotify play count, read once a day by the
+   * snapshot-song-streams cron (lib/songs/streams). Null when the campaign has
+   * no song, or the table is not there yet. On a share link it is null too
+   * until there is a reading: the "why not yet" note is for the team only.
+   */
+  streams: CampaignStreams | null;
 };
 
 export type SharedPostRow = {
@@ -261,6 +270,10 @@ export function redactForShare(
       // badge would. The tile only exists when the link chooses to flag removals.
       livePosts: visibility.markRemovedPosts === true ? data.kpis.livePosts : null,
     },
+    /* Not gated on a visibility flag, like the audio card: a play count names
+       no creator and no money. What a link never carries is the team's note on
+       why there is no figure yet. */
+    streams: data.streams && data.streams.totalPlays !== null ? { ...data.streams, note: null } : null,
     leaderboard: visibility.showCreators
       ? data.leaderboard.map((row) => ({
           ...row,
@@ -369,7 +382,7 @@ async function campaignReportStamp(campaignId: string): Promise<string> {
   /* One wave. These three are independent, and the database is in Singapore --
      running them in series cost two round trips on every view to answer a
      question none of them needed the others for. */
-  const [[row], [act], [audio]] = await Promise.all([
+  const [[row], [act], [audio], [streams]] = await Promise.all([
     /* The removed filter is written out ("removedAt" IS NULL is
        notRemovedSql()) rather than interpolated with Prisma.raw(): Prisma
        inlines a raw fragment only when its Sql class is the client's own, and
@@ -417,6 +430,20 @@ async function campaignReportStamp(campaignId: string): Promise<string> {
         LEFT JOIN "Song" s ON s.id = c."songId"
        WHERE c.id = ${campaignId}
     `,
+    /* The Spotify card hangs off the song as well, and its readings land once
+       a day without touching a Post. Its own query rather than a third column
+       above, because the table may not exist yet: there it is "no readings",
+       and the rest of the stamp must not fail with it. The count is there for
+       a removed reading, which leaves the newest one where it was. */
+    db.$queryRaw<{ streams_at: Date | null; streams_n: number | null }[]>`
+      SELECT MAX(ss."recordedAt") AS streams_at, COUNT(*)::int AS streams_n
+        FROM "SongStreamSnapshot" ss
+        JOIN "Campaign" c ON c."songId" = ss."songId"
+       WHERE c.id = ${campaignId}
+    `.catch((e: unknown) => {
+      if (isMissingSongStreamTable(e)) return [{ streams_at: null, streams_n: null }];
+      throw e;
+    }),
   ]);
 
   if (!row) return "empty";
@@ -432,6 +459,8 @@ async function campaignReportStamp(campaignId: string): Promise<string> {
     row.removed?.getTime() ?? 0,
     audio?.song ?? "nosong",
     audio?.sound_at?.getTime() ?? 0,
+    streams?.streams_at?.getTime() ?? 0,
+    streams?.streams_n ?? 0,
   ].join("-");
 }
 
@@ -474,7 +503,7 @@ async function computeCampaignPerformanceUncached(
         .join(", ")})`
     : "";
 
-  const [posts, snapshotDays, activations, audio] = await Promise.all([
+  const [posts, snapshotDays, activations, audio, streams] = await Promise.all([
     db.post.findMany({
     where: postWhere,
     select: {
@@ -562,6 +591,7 @@ async function computeCampaignPerformanceUncached(
        return, and awaiting it at the end added its own two round trips to every
        uncached report. */
     loadCampaignAudio(campaign.id, campaign.orgId),
+    loadCampaignStreams(campaign.id, campaign.orgId),
   ]);
 
   const statusByCreator = new Map(activations.map((a) => [a.creatorId, a.status]));
@@ -780,6 +810,7 @@ async function computeCampaignPerformanceUncached(
     leaderboard,
     posts: postRows,
     audio,
+    streams,
   };
 }
 

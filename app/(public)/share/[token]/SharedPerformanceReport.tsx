@@ -14,6 +14,7 @@ import { ACTIVATION_STATUS_LABEL, activationStatusBadgeStyle } from "@/lib/activ
 import { platformColorsFor } from "@/lib/reports/shareChartPalette";
 import { POWERED_BY } from "@/lib/brand";
 import { AudioCard } from "@/components/campaigns/AudioCard";
+import { SpotifyStreamsCard } from "@/components/campaigns/SpotifyStreamsCard";
 import { shareImgSrc } from "@/lib/postMedia";
 import { campaignStatusLabel } from "@/lib/statusColors";
 import SharedPostList from "./SharedPostList";
@@ -340,6 +341,14 @@ export default function SharedPerformanceReport({
                 <AudioCard audio={data.audio} shareToken={token} variant="report" />
               ) : null}
             </div>
+
+            {/* A row of its own: the row above pairs two cards from 1440 up,
+                and a third would sit half-width under the views chart. */}
+            {data.streams ? (
+              <div className="spr-row">
+                <SpotifyStreamsCard streams={data.streams} variant="report" />
+              </div>
+            ) : null}
 
             {(hasSplit || showBoard) && (
               <div className="spr-row">

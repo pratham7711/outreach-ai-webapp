@@ -24,11 +24,12 @@ jest.mock("@/lib/db", () => ({
       const sql = strings.join("?");
       postStampSql.push(sql);
       if (sql.includes('"Activation"')) return Promise.resolve([{ activations: null }]);
+      if (sql.includes('"SongStreamSnapshot"')) return streamsAnswer();
       if (sql.includes('"Song"')) return Promise.resolve([audioRow]);
       return Promise.resolve([postRow]);
     }),
     activation: { findMany: jest.fn().mockResolvedValue([]) },
-    campaign: { findUnique: jest.fn().mockResolvedValue(null) },
+    campaign: { findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn().mockResolvedValue(null) },
     soundTrackerSnapshot: { findMany: jest.fn().mockResolvedValue([]) },
   },
 }));
@@ -37,6 +38,7 @@ const keys: string[][] = [];
 let audioRow: { song: string | null; sound_at: Date | null } = { song: null, sound_at: null };
 let postRow: { posts: bigint; synced: Date | null; views: string | null; removed?: Date | null } = { posts: BigInt(0), synced: null, views: null };
 const postStampSql: string[] = [];
+let streamsAnswer: () => Promise<{ streams_at: Date | null; streams_n?: number | null }[]> = () => Promise.resolve([{ streams_at: null }]);
 
 import { computeCampaignPerformance } from "@/lib/reports/campaignPerformance";
 import { notRemovedSql } from "@/lib/posts/removed";
@@ -48,6 +50,7 @@ beforeEach(() => {
   postStampSql.length = 0;
   audioRow = { song: null, sound_at: null };
   postRow = { posts: BigInt(0), synced: null, views: null };
+  streamsAnswer = () => Promise.resolve([{ streams_at: null }]);
 });
 
 /* "Remove from campaign" is a soft remove (lib/posts/removed): the row stays,
@@ -127,4 +130,33 @@ it("keeps the key stable when nothing about the audio moved", async () => {
 
   // Otherwise the hour of caching this key exists to buy is spent on every view.
   expect(keys[0]).toEqual(keys[1]);
+});
+
+/* The Spotify readings land once a day and touch no Post either, so the key
+   has to watch them the way it watches the sound's snapshots. */
+it("moves the key when a new Spotify reading lands", async () => {
+  audioRow = { song: "song-1", sound_at: null };
+  streamsAnswer = () => Promise.resolve([{ streams_at: new Date("2026-10-15T04:20:00Z") }]);
+  await computeCampaignPerformance(campaign);
+  streamsAnswer = () => Promise.resolve([{ streams_at: new Date("2026-10-16T04:20:00Z") }]);
+  await computeCampaignPerformance(campaign);
+
+  expect(keys[0]).not.toEqual(keys[1]);
+});
+
+it("moves the key when a Spotify reading is removed", async () => {
+  audioRow = { song: "song-1", sound_at: null };
+  const newest = new Date("2026-10-16T04:20:00Z");
+  streamsAnswer = () => Promise.resolve([{ streams_at: newest, streams_n: 13 }]);
+  await computeCampaignPerformance(campaign);
+  streamsAnswer = () => Promise.resolve([{ streams_at: newest, streams_n: 1 }]);
+  await computeCampaignPerformance(campaign);
+
+  expect(keys[0]).not.toEqual(keys[1]);
+});
+
+it("still serves the report while the Spotify table does not exist", async () => {
+  streamsAnswer = () => Promise.reject(Object.assign(new Error('relation "SongStreamSnapshot" does not exist'), { code: "P2010" }));
+  await expect(computeCampaignPerformance(campaign)).resolves.toMatchObject({ streams: null });
+  expect(keys).toHaveLength(1);
 });

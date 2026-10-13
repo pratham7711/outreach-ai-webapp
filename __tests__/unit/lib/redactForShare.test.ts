@@ -157,4 +157,28 @@ describe("redactForShare — removed posts", () => {
     expect(out.posts[0].thumbnailUrl).toBeNull();
     expect(out.posts[0].views).toBe(1000);
   });
+  describe("Spotify streams", () => {
+    const streams = {
+      songTitle: "Neon Skyline",
+      track: { id: "0AbCdEfGhIjKlMnOpQrStU", url: "https://open.spotify.com/track/0AbCdEfGhIjKlMnOpQrStU", name: "Neon Skyline", artists: "Ava Reyes" },
+      totalPlays: 1600,
+      latestDay: "2026-10-17",
+      lastDay: 350,
+      sinceFirst: { streams: 600, fromDay: "2026-10-15", days: 2 },
+      daily: [{ day: "2026-10-17", streams: 350 }],
+      note: null,
+    };
+
+    it("carries a reading to the link whatever the creator settings", () => {
+      const withStreams = { ...(data as object), streams } as never;
+      expect(redactForShare(withStreams, { showCreators: false }).streams).toEqual(streams);
+    });
+
+    it("sends nothing before the first reading, and never the team's note", () => {
+      const unread = { ...(data as object), streams: { ...streams, track: null, totalPlays: null, latestDay: null, lastDay: null, sinceFirst: null, daily: [], note: "not read yet" } } as never;
+      expect(redactForShare(unread, OPEN).streams).toBeNull();
+      const withNote = { ...(data as object), streams: { ...streams, note: "internal" } } as never;
+      expect(redactForShare(withNote, OPEN).streams?.note).toBeNull();
+    });
+  });
 });

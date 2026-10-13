@@ -11,7 +11,9 @@ import { Eye, Heart, Percent, DollarSign, Target, TrendingUp, AlertTriangle, Bar
 import { formatFull, formatCompact } from "@/lib/format";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import { AudioCard } from "@/components/campaigns/AudioCard";
+import { SpotifyStreamsCard } from "@/components/campaigns/SpotifyStreamsCard";
 import type { CampaignAudio, CampaignPerformance } from "@/lib/reports/campaignPerformance";
+import type { CampaignStreams } from "@/lib/songs/streams";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import CreatorName from "@/components/creators/CreatorName";
 import { viewsCoverageNote } from "@/lib/metricDisplay";
@@ -50,6 +52,8 @@ type PerformanceData = {
   leaderboard: LeaderboardRow[];
   /** Null when the campaign has no song, or a song with no tracked sound. */
   audio: CampaignAudio | null;
+  /** Null when the campaign has no song; see lib/songs/streams. */
+  streams: CampaignStreams | null;
 };
 
 /**
@@ -315,6 +319,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
       {/* A campaign that promotes no release shows nothing here at all. Give it
           one in Settings and the card appears in this slot. */}
       {data.audio ? <AudioCard audio={data.audio} /> : null}
+      {data.streams ? <SpotifyStreamsCard streams={data.streams} /> : null}
 
       <Card variant="outlined" style={{ padding: 24 }}>
         <span className="cc-panel-title cc-chart-title" style={{ display: "block", marginBottom: 16 }}>
