@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { createLogger } from "@/lib/observability/logger";
 import { getRefreshCooldown, refreshCampaign } from "@/lib/sync/refreshCampaign";
+import { bearerMatches } from "@/lib/http/bearer";
 
 /**
  * POST /api/campaigns/[id]/refresh — refresh everything the campaign reports on.
@@ -105,8 +106,7 @@ export async function POST(
     const secret = process.env.CRON_SECRET;
     const isContinuation =
       Boolean(resumeRunId) &&
-      Boolean(secret) &&
-      request.headers.get("authorization") === `Bearer ${secret}`;
+      bearerMatches(request.headers.get("authorization"), secret);
 
     let orgId: string;
     let userId: string | undefined;

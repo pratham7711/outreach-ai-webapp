@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { bearerMatches } from "@/lib/http/bearer";
 
 /* A browser read costs about ten seconds a sound, measured. The default
    function ceiling would cut the run off after a couple of sounds. */
@@ -46,7 +47,7 @@ async function cronHandler(request: NextRequest) {
 
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = request.headers.get("authorization");
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+  if (!bearerMatches(authHeader, cronSecret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -20,7 +20,7 @@
  *     outbound request and never appears in a Graph error body.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { timingSafeEqual } from "node:crypto";
+import { bearerMatches } from "@/lib/http/bearer";
 import { db } from "@/lib/db";
 import { buildAuthorizeUrl } from "@/lib/oauth/providers";
 
@@ -45,21 +45,12 @@ const REQUIRED_FOR_CREATOR_TOKEN_PATH = [
   "pages_show_list",
 ];
 
-/** Constant-time, and length-safe: timingSafeEqual throws on a length mismatch. */
-function tokenMatches(presented: string | null, expected: string): boolean {
-  if (!presented) return false;
-  const a = Buffer.from(presented);
-  const b = Buffer.from(`Bearer ${expected}`);
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
-}
-
 function authorize(request: NextRequest) {
   const token = process.env.IG_AUDIT_TOKEN;
   if (!token) {
     return { ok: false as const, res: NextResponse.json({ error: "Not found" }, { status: 404 }) };
   }
-  if (!tokenMatches(request.headers.get("authorization"), token)) {
+  if (!bearerMatches(request.headers.get("authorization"), token)) {
     return {
       ok: false as const,
       res: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),

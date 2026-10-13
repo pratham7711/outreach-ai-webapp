@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createLogger } from "@/lib/observability/logger";
 import { runCanary } from "@/lib/ops/canary";
 import { cronRoute } from "@/lib/ops/cronRoute";
+import { bearerMatches } from "@/lib/http/bearer";
 
 /* The hourly canary (plan §13 C): heartbeats against their cadence, switches
    and breakers, and the values the readers wrote. Database reads only -- it
@@ -16,7 +17,7 @@ export const dynamic = "force-dynamic";
 async function cronHandler(request: NextRequest) {
   const log = createLogger({ context: { route: "cron/ops-canary" } });
   const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret || request.headers.get("authorization") !== `Bearer ${cronSecret}`) {
+  if (!bearerMatches(request.headers.get("authorization"), cronSecret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

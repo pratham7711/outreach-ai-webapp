@@ -8,6 +8,7 @@ import { createLogger } from "@/lib/observability/logger";
 import { inReaderV2Scope, resolveTrackerPlan } from "@/lib/trackers/sourceSwitch";
 import { cronRoute } from "@/lib/ops/cronRoute";
 import { openSourceGuard } from "@/lib/ops/sourceBreaker";
+import { bearerMatches } from "@/lib/http/bearer";
 
 /* TikTok reads open a browser, which is the expensive case; Instagram and
    YouTube are ordinary HTTP and take milliseconds. The ceiling is sized for the
@@ -28,7 +29,7 @@ async function cronHandler(request: NextRequest) {
   const log = createLogger({ context: { route: "cron/sync-creator-trackers" } });
 
   const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret || request.headers.get("authorization") !== `Bearer ${cronSecret}`) {
+  if (!bearerMatches(request.headers.get("authorization"), cronSecret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

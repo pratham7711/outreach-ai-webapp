@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { recordTopPosts, tikTokCreatorsNeedingTopPosts } from "@/lib/creators/topPosts";
 import { createLogger } from "@/lib/observability/logger";
+import { bearerMatches } from "@/lib/http/bearer";
 
 /**
  * The creator tracker's way in for TikTok Top Posts, read by a box that is not
@@ -63,7 +64,7 @@ function isAuthorised(request: NextRequest): boolean {
   const expected =
     process.env.CREATOR_INGEST_TOKEN ?? process.env.SOUND_INGEST_TOKEN ?? process.env.CRON_SECRET;
   if (!expected) return false;
-  return request.headers.get("authorization") === `Bearer ${expected}`;
+  return bearerMatches(request.headers.get("authorization"), expected);
 }
 
 /**

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { timingSafeEqual } from "node:crypto";
+import { bearerMatches } from "@/lib/http/bearer";
 import { createLogger } from "@/lib/observability/logger";
 import { readOverdueCrons } from "@/lib/ops/overdueCrons";
 
@@ -16,18 +16,10 @@ export const dynamic = "force-dynamic";
  * minutes overdue, plus when to ask next -- no data, and no error text on
  * failure.
  */
-function tokenMatches(presented: string | null, expected: string): boolean {
-  if (!presented) return false;
-  const a = Buffer.from(presented);
-  const b = Buffer.from(`Bearer ${expected}`);
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
-}
-
 export async function GET(request: NextRequest) {
   const token = process.env.OPS_SCHEDULER_TOKEN;
   if (!token) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (!tokenMatches(request.headers.get("authorization"), token)) {
+  if (!bearerMatches(request.headers.get("authorization"), token)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { timingSafeEqual } from "node:crypto";
+import { bearerMatches } from "@/lib/http/bearer";
 import { db } from "@/lib/db";
 import { CONNECT_TABLES, CREATOR_CONNECT_DDL } from "@/lib/creators/connectSchemaDdl";
 import { backfillMetaGrantors } from "@/lib/platforms/metaGrantor";
@@ -20,18 +20,10 @@ export const dynamic = "force-dynamic";
  * (default 200) and ?after=<id>: each answer carries `nextAfterId`, which is
  * passed back as ?after= until it comes back null.
  */
-function tokenMatches(presented: string | null, expected: string): boolean {
-  if (!presented) return false;
-  const a = Buffer.from(presented);
-  const b = Buffer.from(`Bearer ${expected}`);
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
-}
-
 function authorize(request: NextRequest) {
   const token = process.env.ADMIN_MIGRATE_TOKEN;
   if (!token) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (!tokenMatches(request.headers.get("authorization"), token)) {
+  if (!bearerMatches(request.headers.get("authorization"), token)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   return null;
