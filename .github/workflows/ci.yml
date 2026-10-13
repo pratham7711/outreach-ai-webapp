@@ -175,8 +175,10 @@ jobs:
           exit 1
 
       - name: Run E2E suite (production build)
-        # No --workers override: the config pins workers to 1 because the auth
-        # setup projects race each other, and a CLI flag silently outranks it.
+        # No --workers override: playwright.config.ts runs 4 workers (files in
+        # parallel; tests within a file in order unless the file opts out, as
+        # contrast.spec.ts does; E2E_WORKERS overrides it), and a CLI flag
+        # would silently outrank that.
         run: npx playwright test
 
       - name: Upload Playwright report
