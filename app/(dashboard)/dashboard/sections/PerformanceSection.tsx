@@ -93,8 +93,11 @@ export function PerformanceSection({
                           />
                           <span className="font-semibold text-foreground">{p.platform}</span>
                         </span>
+                        {/* A platform whose posts in range carry no view count
+                            (Instagram photos publish none) sums to 0 -- which
+                            is "not known", not "no views". */}
                         <span className="text-muted-foreground tabular-nums">
-                          {formatNumber(p.views)} views · {p.postsCount} posts
+                          {p.views > 0 ? `${formatNumber(p.views)} views` : "views not known"} · {p.postsCount} posts
                         </span>
                       </li>
                     ))}
@@ -181,7 +184,9 @@ export function PerformanceSection({
                         {formatNumber(post.viewsCount)}
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground tabular-nums">
-                        {post.engagementRate === null ? UNKNOWN : `${post.engagementRate.toFixed(1)}%`}
+                        {/* Two decimals, as the post's rate reads on the Posts
+                            tab, the post page and the exports. */}
+                        {post.engagementRate === null ? UNKNOWN : `${post.engagementRate.toFixed(2)}%`}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -189,7 +194,13 @@ export function PerformanceSection({
               </Table>
             </div>
           ) : (
-            <Empty>No posts yet</Empty>
+            /* The list only ranks posts with a view count, so posts can exist
+               in the range while it is empty. */
+            <Empty>
+              {platforms.some((p) => p.postsCount > 0)
+                ? "No post in this range has a view count yet"
+                : "No posts yet"}
+            </Empty>
           )}
         </SectionCard>
       )}
@@ -249,8 +260,13 @@ export function PerformanceSection({
                       <TableCell className="text-right text-muted-foreground tabular-nums">
                         {c.activationCount}
                       </TableCell>
-                      <TableCell className="text-right text-muted-foreground tabular-nums">
-                        {formatNumber(c.views)}
+                      {/* "—" with the reason, never 0: none of their posts in
+                          range has a view count we read. */}
+                      <TableCell
+                        className="text-right text-muted-foreground tabular-nums"
+                        title={c.views === null ? "No view count read for any of their posts in this range" : undefined}
+                      >
+                        {c.views === null ? UNKNOWN : formatNumber(c.views)}
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground tabular-nums">
                         {c.avgEngagement === null ? UNKNOWN : `${c.avgEngagement}%`}

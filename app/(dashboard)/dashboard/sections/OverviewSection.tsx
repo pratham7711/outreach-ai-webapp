@@ -7,6 +7,7 @@ import { MetricTile, SectionCard } from "@/components/ds";
 import { Skeleton } from "@/components/ui/skeleton";
 import { loadCharts } from "@/components/charts/lazyCharts";
 import { formatNumber, type PerformanceData } from "../types";
+import { asOfCaption } from "@/lib/dataAge";
 
 const ViewsOverTimeArea = dynamic(
   () => loadCharts().then((m) => m.ViewsOverTimeArea),
@@ -33,6 +34,14 @@ export function OverviewSection({
   const totalViews = platforms.reduce((n, p) => n + p.views, 0);
   const totalPosts = platforms.reduce((n, p) => n + p.postsCount, 0);
   const series = financials?.viewsOverTime ?? [];
+  /* A total over posts none of which has a view count is unknown, not 0: on 7D
+     the tile read "TOTAL VIEWS 0" beside "TOTAL POSTS 5" -- five Instagram
+     photos, which publish no view count. The caption says when the total was
+     read and, when partial, how many posts it covers. */
+  const viewsKnown = s?.viewsKnownPosts;
+  const viewsUnknown = viewsKnown === 0 && totalPosts > 0;
+  const viewsCaption =
+    viewsKnown === undefined || !s ? null : asOfCaption(s.asOf ?? null, { known: viewsKnown, total: totalPosts, what: "views" });
 
   /* The server-rendered fallbacks are org-wide totals, while both tiles are
      labelled for the range picked above. Until the ranged numbers land the tile
@@ -53,12 +62,14 @@ export function OverviewSection({
             metric="activeCampaigns"
             value={tileValue(String(s ? s.activeCampaigns : fallbackCampaignCount))}
           />
-          {/* workspaceCreators, not campaignCreators: this is every creator
-              booked anywhere in the workspace, counted once. The campaign
-              definition's help text said "on this campaign", which is a
-              different number on any account running more than one. */}
+          {/* Creators who posted in the selected range, so the tile moves
+              with the range picker like the two beside it. It counted every
+              creator holding an activation and read 6 on every range. The
+              help text is restated here for the same reason as Total Views'. */}
           <MetricTile
             metric="workspaceCreators"
+            what="How many different creators published at least one post in the selected range."
+            how="Counts each creator once, however many posts or campaigns they have in the range chosen above. Posts nobody could attribute to a creator are not counted."
             value={tileValue(String(s ? s.totalCreators : fallbackCreatorCount))}
           />
           {/* Both come from the same platform rollup, so they are either
@@ -80,7 +91,8 @@ export function OverviewSection({
                 metric="totalViews"
                 what="How many times posts published in the selected range have been watched, counting each post's lifetime views."
                 how="Adds up the latest view count of every tracked post published inside the range chosen above. The chart below is not filtered this way — each of its points covers every post the workspace holds, so its numbers are larger."
-                value={formatNumber(totalViews)}
+                value={viewsUnknown ? "\u2014" : formatNumber(totalViews)}
+                footer={viewsCaption}
               />
               <MetricTile
                 metric="totalPosts"
