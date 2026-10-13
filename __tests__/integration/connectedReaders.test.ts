@@ -277,6 +277,6 @@ describe("GET /api/creators/[id]/tiktok-videos", () => {
     const res = await get();
     expect(res.status).toBe(200);
     expect(fetchTikTokVideos).toHaveBeenCalledWith("tt-access-fake");
-    expect(mockDb.creatorSocialAccount.findMany.mock.calls[0][0].orderBy).toEqual({ createdAt: "asc" });
+    expect(mockDb.creatorSocialAccount.findMany.mock.calls[0][0].orderBy).toEqual([{ createdAt: "asc" }, { id: "asc" }]);
   });
 });

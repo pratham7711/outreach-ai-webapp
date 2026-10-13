@@ -31,8 +31,11 @@ export type InsightsPost = {
    *  on media published before the account became a Business/Creator account,
    *  YouTube has no share count — and rendered as an em dash, never as 0. */
   views: number | null;
-  likes: number;
-  comments: number;
+  /** Null when the platform did not return one: an Instagram creator can hide
+   *  like counts, and the Graph API then omits `like_count` rather than
+   *  sending 0. Rendered as an em dash, never as 0. */
+  likes: number | null;
+  comments: number | null;
   /** Null when the platform did not measure it: Instagram reports shares on
    *  reels only, and YouTube has no share count at all. */
   shares: number | null;
@@ -128,13 +131,21 @@ type NormalisedPost = {
   sharesCount: number;
   /** The uncoerced counters every platform module returns alongside the
    *  display ones; `views` absent here means the platform did not measure it. */
-  exact?: { views?: number; reach?: number; shares?: number };
+  exact?: { views?: number; likes?: number; comments?: number; reach?: number; shares?: number };
 };
 
 /** The measured view count, or null when the platform never reported one. */
 function measuredViews(post: NormalisedPost): number | null {
   if (post.exact) return typeof post.exact.views === "number" ? post.exact.views : null;
   return post.viewsCount;
+}
+
+/** The measured like / comment count, or null when the platform omitted it.
+ *  The flat `likesCount` is coerced to 0 for the stored-post writers, so it
+ *  cannot tell a hidden like count from a post nobody liked (plan A9). */
+function measuredCount(post: NormalisedPost, field: "likes" | "comments"): number | null {
+  if (post.exact) return typeof post.exact[field] === "number" ? post.exact[field] : null;
+  return field === "likes" ? post.likesCount : post.commentsCount;
 }
 
 function median(values: number[]): number {
@@ -152,8 +163,8 @@ function toInsightsPost(post: NormalisedPost): InsightsPost {
        line a viewer recognises, not the description under it. */
     caption: post.title || post.description || null,
     views: measuredViews(post),
-    likes: post.likesCount,
-    comments: post.commentsCount,
+    likes: measuredCount(post, "likes"),
+    comments: measuredCount(post, "comments"),
     shares: post.exact
       ? typeof post.exact.shares === "number"
         ? post.exact.shares
@@ -322,7 +333,7 @@ export async function buildPlatformInsights(
   /* Best post by measured views; when none are measured, by likes, so the
      card still leads with the creator's strongest post. */
   const rank = (p: NormalisedPost) =>
-    views.length > 0 ? (measuredViews(p) ?? -1) : p.likesCount;
+    views.length > 0 ? (measuredViews(p) ?? -1) : (measuredCount(p, "likes") ?? -1);
   const best = posts.reduce<NormalisedPost | null>(
     (top, p) => (!top || rank(p) > rank(top) ? p : top),
     null,

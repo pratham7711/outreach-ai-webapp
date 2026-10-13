@@ -16,7 +16,7 @@ jest.mock('@/lib/db', () => ({
   db: {
     campaign: { findFirst: jest.fn() },
     post: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn(), findUnique: jest.fn() },
-    creator: { update: jest.fn(), updateMany: jest.fn() },
+    creator: { update: jest.fn(), updateMany: jest.fn(), findUnique: jest.fn() },
     postMetricSnapshot: { create: jest.fn() },
     campaignRefreshRun: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
     $transaction: jest.fn(),
@@ -77,6 +77,9 @@ beforeEach(() => {
   mockDb.campaign.findFirst.mockResolvedValue({ id: 'camp-1', song: null });
   mockDb.post.findFirst.mockResolvedValue(post);
   mockDb.post.findMany.mockResolvedValue([post]);
+  /* The creator the post is filed under: the author-follower write checks its
+     platform and handle against the post's (lib/sync/syncPost, authorIsCreator). */
+  mockDb.creator.findUnique.mockResolvedValue({ platform: 'TIKTOK', handle: 'x', name: 'X' });
   mockDb.post.update.mockImplementation(({ data }: any) => Promise.resolve({ id: 'post-1', ...data }));
   mockDb.$transaction.mockImplementation((ops: any[]) => Promise.resolve(ops));
   mockSnapshot.mockResolvedValue({ snapshots: 1, failed: 0, skipped: 0 });
@@ -145,6 +148,8 @@ describe('single post sync', () => {
     // Instagram's shape: views and comments, no likes, no shares. The old code
     // filled all four with `?? 0` and stamped the timestamp, so a report showed
     // "0 likes, 0 shares" for a post where the platform said neither.
+    // An Instagram post: a reading for another platform than the row's is refused.
+    mockDb.post.findFirst.mockResolvedValue({ ...post, platform: 'INSTAGRAM', postUrl: 'https://www.instagram.com/p/abc/' });
     mockFetch.mockResolvedValue({
       platform: 'INSTAGRAM',
       platformPostId: 'abc',

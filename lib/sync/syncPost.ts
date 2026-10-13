@@ -1,6 +1,6 @@
 import type { SandboxPostFetcher } from "@/lib/platforms/tiktokPostSandbox";
 import { db } from "@/lib/db";
-import { LAST_FETCH_KEY, MEASURED_FIELDS_KEY, lastFetchNote, nextLastFetchNote, type MetricField } from "@/lib/metricDisplay";
+import { LAST_FETCH_KEY, MEASURED_FIELDS_KEY, lastFetchNote, measuredFields, nextLastFetchNote, type MetricField } from "@/lib/metricDisplay";
 import {
   fetchPostMetrics,
   hasMetricCounts,
@@ -12,11 +12,20 @@ import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
 import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
 import { METRIC_WRITERS_KEY, rankPostCounters, type WriterNotes } from "@/lib/metrics/postWriters";
 import { protectedCreatorFollowers } from "@/lib/creators/followerWriter";
-import { UNATTRIBUTED_CREATOR_WHERE } from "@/lib/posts/unattributedCreator";
+import { UNATTRIBUTED_CREATOR_WHERE, isUnattributedCreator } from "@/lib/posts/unattributedCreator";
 import { detectPostCreator } from "@/lib/posts/detectCreator";
 import { countsContradict, engagementExceedsViews } from "@/lib/metrics/coherence";
 import { DEAD_LETTER_CLEARED } from "@/lib/sync/deadLetter";
 import { capturePostThumbnail } from "@/lib/posts/thumbnailStore";
+import {
+  logVerdict,
+  POST_COUNTER_COLUMNS,
+  postGateCounts,
+  validateReading,
+  withoutDropped,
+  type GateVerdict,
+} from "@/lib/acquisition/validate";
+import { detectPlatform } from "@/lib/platforms/postUrl";
 
 /**
  * Refresh one post's metrics from its platform.
@@ -173,6 +182,118 @@ export function countsFrom(
   return { counts, present, measuredPatch: { [MEASURED_FIELDS_KEY]: present, [METRIC_WRITERS_KEY]: writers } };
 }
 
+/**
+ * The validation gate (lib/acquisition/validate, plan A3) for one post reading.
+ *
+ * Judged against the post's own stored counters -- the last good reading -- so
+ * a page that parsed to 0 views, a reading with more likes than views and a
+ * reading for another platform are refused whole, and a secondary counter that
+ * fell to 0 while the rest of the reading is sound (comments 88 -> 0 beside
+ * rising views) is dropped alone: the post keeps its 88 and the rest lands.
+ * A counter the caller did not load is not judged, the same rule as
+ * withStoredPrecision. The engagement rate a fetcher computed goes with any
+ * dropped counter, as it does when rankPostCounters holds one.
+ */
+export function gatePostReading(
+  post: SyncablePost,
+  metrics: PostMetrics,
+): { verdict: GateVerdict; metrics: PostMetrics } {
+  const verdict = validateReading(
+    { kind: "post", platform: metrics.platform, counts: postGateCounts(metrics) },
+    { platform: post.platform, counts: postGateCounts(post) },
+  );
+  if (verdict.rejected || verdict.dropFields.length === 0) return { verdict, metrics };
+  const kept = withoutDropped(metrics as Record<string, unknown>, verdict, POST_COUNTER_COLUMNS) as PostMetrics;
+  delete kept.engagementRate;
+  return { verdict, metrics: kept };
+}
+
+/**
+ * The first reading of a post that is being created, through the shared
+ * validation gate (plan A3) -- for the three writers that create a post with
+ * counters already on it rather than leaving the first write to
+ * applyPostMetrics: Add post, a creator's portal submission, and the canary.
+ *
+ * There is no stored figure yet, so the rules that can fire are the reading's
+ * own: more likes than views, and a reading for another platform than the one
+ * the link was filed under. Returns the reading to take counters from, or
+ * null to create the post unmeasured -- the same shape a failed fetch leaves,
+ * which the next sync fills in. A refusal is logged; it used to be silent.
+ */
+export function measuredForNewPost(
+  metrics: PostMetrics | null | undefined,
+  rowPlatform: string | null | undefined,
+  ctx: { writer: string; orgId?: string },
+): PostMetrics | null {
+  if (!metrics) return null;
+  const verdict = validateReading(
+    { kind: "post", platform: metrics.platform, counts: postGateCounts(metrics) },
+    { platform: rowPlatform },
+  );
+  logVerdict({ writer: ctx.writer, kind: "post", platform: rowPlatform ?? metrics.platform, orgId: ctx.orgId }, verdict);
+  if (verdict.rejected || !hasMetricCounts(metrics)) return null;
+  return metrics;
+}
+
+/* The platforms whose post URL or reading names the author by the same handle
+   the roster stores. YouTube links carry a channel handle only on some forms and
+   the roster often holds a channel id or display name instead; Facebook's page
+   reference is rarely the roster handle. Checking those would refuse real
+   figures, so for them only the platform is compared. */
+const AUTHOR_HANDLE_PLATFORMS = new Set(["TIKTOK", "INSTAGRAM"]);
+
+/**
+ * Whether the follower count in a post's author block belongs on the creator the
+ * post is filed under (plan A3, platform and account match).
+ *
+ * The author block describes whoever published the post. That is this creator's
+ * account only when the platform agrees and, where the reading or the link names
+ * the author, the handle does too. A TikTok creator with an Instagram post filed
+ * under them, or a repost from a fan page, would otherwise put another account's
+ * audience on the roster -- and nothing downstream could tell. A refusal skips
+ * only the follower write; the post's own counters are unaffected.
+ *
+ * Not checked when nobody named the author (an Instagram /p/ link read through
+ * Graph): the rule is "a different account", and an unnamed author is not one.
+ */
+async function authorIsCreator(
+  post: SyncablePost,
+  metrics: PostMetrics,
+  followers: number,
+  syncSource: string,
+): Promise<boolean> {
+  const creator = await db.creator.findUnique({
+    where: { id: post.creatorId },
+    select: { platform: true, handle: true, name: true },
+  });
+  /* The Unattributed holding row was always excluded by the write's WHERE;
+     saying so here keeps one log line per sync from reporting it as a
+     mismatch. A creator deleted mid-run has nothing to write to. */
+  if (!creator || isUnattributedCreator(creator)) return false;
+  const platform = post.platform.toUpperCase();
+  const author = AUTHOR_HANDLE_PLATFORMS.has(platform)
+    ? (metrics.authorHandle ?? detectPlatform(post.postUrl)?.handle ?? null)
+    : null;
+  const key = (h: string) => h.trim().replace(/^@/, "").toLowerCase();
+  const verdict = validateReading(
+    {
+      kind: "creator",
+      platform,
+      ...(author ? { accountId: key(author) } : {}),
+      counts: { followers },
+    },
+    {
+      platform: creator.platform,
+      ...(author && creator.handle ? { boundAccountIds: [key(creator.handle)] } : {}),
+    },
+  );
+  logVerdict(
+    { writer: `post-sync:${syncSource}:author-followers`, kind: "creator", platform, rowId: post.creatorId },
+    verdict,
+  );
+  return !verdict.rejected;
+}
+
 /* The importer's raw record also lives in this bag, so it is always merged and
    never replaced.
    
@@ -279,12 +400,33 @@ async function writePostMetrics(
   options: { syncSource?: string } = {},
 ): Promise<SyncPostOutcome> {
   const syncSource = options.syncSource ?? "api";
-  if (!hasMetricCounts(metrics)) {
+  /* The gate first, before anything reads a counter (plan A3). A lifetime
+     view count does not fall to zero: on 2026-09-19 a TikTok post read 53,700
+     views at 13:35 and a measured 0 at 14:43, and that 0 stood on the post
+     until a check for it was added here. That check, the more-likes-than-views
+     one hasMetricCounts applies, and the platform match are now the gate's,
+     shared with every other metric writer. Every refusal is filed as
+     "counts-inconsistent": uncharged, retried next run, and worded on the
+     post as "its last consistent numbers are kept" -- which is what happens. */
+  const gated = gatePostReading(post, metrics);
+  logVerdict({ writer: `post-sync:${syncSource}`, kind: "post", platform: post.platform, rowId: post.id }, gated.verdict);
+  if (gated.verdict.rejected) return recordUnread(post, metrics, "counts-inconsistent", syncSource);
+  /* A dropped counter's last good value stays on the post, and it was
+     measured -- by the read that wrote it -- so it stays listed as measured,
+     the way a counter held for its source is (rankPostCounters). */
+  const measuredBefore = measuredFields(post.platformMetrics);
+  const dropped = gated.verdict.dropFields
+    .filter((f) => f in POST_COUNTER_COLUMNS)
+    .map((f) => f as MetricField)
+    .filter((f) => measuredBefore === null || measuredBefore.includes(f));
+  if (!hasMetricCounts(gated.metrics)) {
     /* Named before the fetcher's own reason: a reading refused for
        contradicting itself carried numbers, so whatever the fetcher said about
        an empty answer does not describe it. Filed as "unknown" until
-       2026-10-03, which charged it and switched four live posts off. */
-    return recordUnread(post, metrics, countsContradict(metrics) ? "counts-inconsistent" : metrics.fetchReason ?? "unknown", syncSource);
+       2026-10-03, which charged it and switched four live posts off. A reading
+       whose only counters the gate dropped is the same case. */
+    const refused = countsContradict(metrics) || gated.verdict.dropFields.length > 0;
+    return recordUnread(post, metrics, refused ? "counts-inconsistent" : metrics.fetchReason ?? "unknown", syncSource);
   }
 
   /* Before anything reads a counter: a display-rounded figure never replaces a
@@ -294,16 +436,8 @@ async function writePostMetrics(
      value through the rest of this write -- the post, the snapshot and the
      rate. See rankPostCounters. */
   const now = new Date();
-  const ranked = rankPostCounters(withStoredPrecision(metrics, post), post, post.platformMetrics, now);
+  const ranked = rankPostCounters(withStoredPrecision(gated.metrics, post), post, post.platformMetrics, now);
   const measured = ranked.metrics;
-  /* A lifetime view count does not fall to zero. A reading that says it did
-     is a bad read, not a fact about the post: on 2026-09-19 a TikTok post read
-     53,700 views at 13:35 and a measured 0 at 14:43, and that 0 has stood on
-     the post ever since. The coherence check below catches such a reading only
-     while some other counter is still above zero; an all-zero one passed. */
-  if (measured.viewsCount === 0 && (post.viewsCount ?? 0) > 0) {
-    return recordUnread(post, metrics, "counts-inconsistent", syncSource);
-  }
   const { counts, present } = countsFrom(measured);
 
   /* What the post holds once this write lands, counter by counter: this read's
@@ -314,7 +448,8 @@ async function writePostMetrics(
      as zero views, and every chart built on snapshots -- the client report's
      views over time, the post's velocity, the bot signals -- dropped the post's
      whole audience for that day: 26 such rows on prod by 2026-10-03. */
-  const known = (field: MetricField) => present.includes(field) || ranked.held.includes(field);
+  const kept = [...ranked.held, ...dropped.filter((f) => !ranked.held.includes(f))];
+  const known = (field: MetricField) => present.includes(field) || kept.includes(field);
   const after = (value: number | undefined, stored: number | undefined) => value ?? stored ?? 0;
   const views = after(measured.viewsCount, post.viewsCount);
   const likes = after(measured.likesCount, post.likesCount);
@@ -357,7 +492,8 @@ async function writePostMetrics(
      that matches nothing is the intended outcome here, not a P2025. */
   const followers = measured.authorFollowers;
   const followerStep = roundedStep(followers, followerLadder(post.platform));
-  const writesFollowers = typeof followers === "number" && followers > 0;
+  const writesFollowers =
+    typeof followers === "number" && followers > 0 && (await authorIsCreator(post, metrics, followers, syncSource));
   /* Every source of authorFollowers is a public read, so it also yields to
      the creator's own connection (plan A7): while the column holds a connected
      figure the tracker wrote inside its freshness window, the WHERE matches
@@ -425,7 +561,7 @@ async function writePostMetrics(
           ...(currentBag(post) ?? {}),
           /* A held counter the caller did not load is left out of the write,
              but it was measured -- by the source that is still protecting it. */
-          [MEASURED_FIELDS_KEY]: ranked.held.length > 0 ? [...present, ...ranked.held] : present,
+          [MEASURED_FIELDS_KEY]: kept.length > 0 ? [...present, ...kept] : present,
           /* Cleared, not left behind. A post that reads fine today must not keep
              advertising why it failed last week -- a stale cause is worse than
              none, because it invites someone to go and fix a live post. */

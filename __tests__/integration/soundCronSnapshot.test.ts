@@ -457,3 +457,45 @@ describe("a rounded embed figure", () => {
     expect(mockBrowserRead).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * The shared validation gate (plan A3) and the unmeasured zero. The rules are
+ * tested one by one in __tests__/unit/lib/acquisition/validate.test.ts.
+ */
+describe("readings the cron must not write", () => {
+  it("does not write a browser or music-page 0 as a first reading", async () => {
+    mockDb.tikTokSound.findMany.mockResolvedValue(soundWithHistory());
+    mockBrowserRead.mockResolvedValue({ usesCount: 0, title: null, artist: null, coverImageUrl: null });
+
+    await runCron();
+
+    expect(mockDb.soundTrackerSnapshot.create).not.toHaveBeenCalled();
+  });
+
+  it("still writes the embed's 0 for a sound nothing uses yet", async () => {
+    mockDb.tikTokSound.findMany.mockResolvedValue(soundWithHistory());
+    mockEmbed.mockResolvedValue({ usesCount: 0, title: null, artist: null, coverImageUrl: null });
+
+    await runCron();
+
+    expect(written().usesCount).toBe(0);
+  });
+
+  it("refuses a fall to 0 from a real count, even outside the hold's window", async () => {
+    mockDb.tikTokSound.findMany.mockResolvedValue(soundWithHistory(46));
+    mockEmbed.mockResolvedValue({ usesCount: 0, title: null, artist: null, coverImageUrl: null });
+
+    await runCron();
+
+    expect(mockDb.soundTrackerSnapshot.create).not.toHaveBeenCalled();
+  });
+
+  it("refuses a reading whose title is TikTok's challenge page", async () => {
+    mockDb.tikTokSound.findMany.mockResolvedValue(soundWithHistory(46));
+    mockEmbed.mockResolvedValue({ usesCount: 48, title: "TikTok - Make Your Day", artist: null, coverImageUrl: null });
+
+    await runCron();
+
+    expect(mockDb.soundTrackerSnapshot.create).not.toHaveBeenCalled();
+  });
+});

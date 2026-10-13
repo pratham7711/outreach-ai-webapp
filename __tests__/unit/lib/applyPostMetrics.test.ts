@@ -21,6 +21,7 @@ const mockSnapshotCreate = jest.fn();
 const mockCreatorUpdate = jest.fn();
 const mockCreatorUpdateMany = jest.fn();
 const mockProtectedFollowers = jest.fn();
+const mockCreatorFindUnique = jest.fn();
 
 jest.mock("@/lib/db", () => ({
   db: {
@@ -29,6 +30,7 @@ jest.mock("@/lib/db", () => ({
     creator: {
       update: (...a: any[]) => mockCreatorUpdate(...a),
       updateMany: (...a: any[]) => mockCreatorUpdateMany(...a),
+      findUnique: (...a: unknown[]) => mockCreatorFindUnique(...a),
     },
     $transaction: (...a: any[]) => mockTransaction(...a),
   },
@@ -38,10 +40,10 @@ jest.mock("@/lib/creators/followerWriter", () => ({
   protectedCreatorFollowers: (...a: any[]) => mockProtectedFollowers(...a),
 }));
 
-import { applyPostMetrics, keepPrecise } from "@/lib/sync/syncPost";
+import { applyPostMetrics, keepPrecise, measuredForNewPost } from "@/lib/sync/syncPost";
 import { EXACT, TIKTOK_DISPLAY, YOUTUBE_SUBSCRIBERS } from "@/lib/platforms/precision";
 import type { PostMetrics } from "@/lib/platforms/fetchPostMetrics";
-import { UNATTRIBUTED_CREATOR_WHERE } from "@/lib/posts/unattributedCreator";
+import { UNATTRIBUTED_CREATOR_WHERE, unattributedCreatorName } from "@/lib/posts/unattributedCreator";
 
 // The follower write never lands on the holding row for unattributed posts.
 const NOT_HOLDING = { AND: [{ NOT: UNATTRIBUTED_CREATOR_WHERE }] };
@@ -76,6 +78,9 @@ beforeEach(() => {
   mockCreatorUpdate.mockReset().mockResolvedValue({});
   mockCreatorUpdateMany.mockReset().mockResolvedValue({ count: 1 });
   mockProtectedFollowers.mockReset().mockResolvedValue(null);
+  // The creator the post is filed under, on the post's own platform unless a
+  // test says otherwise -- the follower write checks the two agree.
+  mockCreatorFindUnique.mockReset().mockResolvedValue({ platform: "INSTAGRAM", handle: "leakit.official", name: "LEAK IT" });
   // The real $transaction resolves the array it is handed; the calls inside it
   // have already been made by the time it runs, which is what we assert on.
   mockTransaction.mockReset().mockImplementation(async (ops: unknown[]) => {
@@ -420,7 +425,7 @@ describe("a rounded read never destroys an exact figure", () => {
        likes and printed the comment count in full, in one payload. */
     await applyPostMetrics(
       { ...post, platform: "TIKTOK", viewsCount: 15_512_345, likesCount: 1_911_223 } as any,
-      metrics({ viewsCount: 15_500_000, likesCount: 1_900_000, commentsCount: 5595 }),
+      metrics({ platform: "TIKTOK", viewsCount: 15_500_000, likesCount: 1_900_000, commentsCount: 5595 }),
     );
 
     const data = postWriteData();
@@ -433,14 +438,14 @@ describe("a rounded read never destroys an exact figure", () => {
   it("takes the new figure once the count has grown past the rounding", async () => {
     await applyPostMetrics(
       { ...post, platform: "TIKTOK", viewsCount: 11094 } as any,
-      metrics({ viewsCount: 24500 }),
+      metrics({ platform: "TIKTOK", viewsCount: 24500 }),
     );
 
     expect(postWriteData().viewsCount).toBe(24500);
   });
 
   it("does not apply when the caller did not select the counters", async () => {
-    await applyPostMetrics({ ...post, platform: "TIKTOK" } as any, metrics({ viewsCount: 11100 }));
+    await applyPostMetrics({ ...post, platform: "TIKTOK" } as any, metrics({ platform: "TIKTOK", viewsCount: 11100 }));
     expect(postWriteData().viewsCount).toBe(11100);
   });
 
@@ -505,9 +510,10 @@ describe("a rounded read never destroys an exact figure", () => {
 
   describe("the follower write refuses a lossy overwrite", () => {
     it("scopes a rounded TikTok figure to rows outside its window", async () => {
+      mockCreatorFindUnique.mockResolvedValue({ platform: "TIKTOK", handle: "leakit.official", name: "LEAK IT" });
       await applyPostMetrics(
         { ...post, platform: "TIKTOK" } as any,
-        metrics({ viewsCount: 100, authorFollowers: 1_600_000 }),
+        metrics({ platform: "TIKTOK", viewsCount: 100, authorFollowers: 1_600_000 }),
       );
       const call = mockCreatorUpdateMany.mock.calls[0][0];
       expect(call.where.id).toBe(post.creatorId);
@@ -547,7 +553,7 @@ describe("applyPostMetrics — the source order", () => {
 
   it("keeps a fresh connected view count when a public read arrives", async () => {
     const at = ago(1);
-    await applyPostMetrics(signed({ source: "connected", at }) as any, metrics({ viewsCount: 47_900, likesCount: 500 }));
+    await applyPostMetrics(signed({ source: "connected", at }) as any, metrics({ platform: "TIKTOK", viewsCount: 47_900, likesCount: 500 }));
     const data = postWriteData();
     expect(data.viewsCount).toBe(48_210);
     expect(data.likesCount).toBe(500);
@@ -559,14 +565,14 @@ describe("applyPostMetrics — the source order", () => {
   });
 
   it("replaces a connected view count once it is stale", async () => {
-    await applyPostMetrics(signed({ source: "connected", at: ago(7) }) as any, metrics({ viewsCount: 47_900 }));
+    await applyPostMetrics(signed({ source: "connected", at: ago(7) }) as any, metrics({ platform: "TIKTOK", viewsCount: 47_900 }));
     expect(postWriteData().viewsCount).toBe(47_900);
     expect(postWriteData().platformMetrics.__writers.views.source).toBe("public");
     expect(mockSnapshotCreate.mock.calls[0][0].data.viewsCount).toBe(47_900);
   });
 
   it("never lets a manual figure block a reading", async () => {
-    await applyPostMetrics(signed({ source: "manual", at: ago(0) }) as any, metrics({ viewsCount: 47_900 }));
+    await applyPostMetrics(signed({ source: "manual", at: ago(0) }) as any, metrics({ platform: "TIKTOK", viewsCount: 47_900 }));
     expect(postWriteData().viewsCount).toBe(47_900);
   });
 
@@ -596,5 +602,185 @@ describe("applyPostMetrics — the source order", () => {
     await applyPostMetrics(post, metrics({ viewsCount: 100 }));
     expect(mockProtectedFollowers).not.toHaveBeenCalled();
     expect(mockCreatorUpdateMany).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The one validation gate (plan A3, lib/acquisition/validate) as the post sync
+ * applies it. The rules themselves are tested in
+ * __tests__/unit/lib/acquisition/validate.test.ts; these assert what the post
+ * row ends up holding when one fires, and that it is said out loud.
+ */
+describe("applyPostMetrics — the validation gate", () => {
+  let lines: string[];
+  let spy: jest.SpyInstance;
+  const prevLevel = process.env.LOG_LEVEL;
+  beforeEach(() => {
+    lines = [];
+    process.env.LOG_LEVEL = "info";
+    spy = jest.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+      lines.push(String(chunk));
+      return true;
+    });
+  });
+  afterEach(() => {
+    spy.mockRestore();
+    process.env.LOG_LEVEL = prevLevel;
+  });
+  const gateLines = () =>
+    lines
+      .map((l) => {
+        try {
+          return JSON.parse(l);
+        } catch {
+          return null;
+        }
+      })
+      .filter((l) => l?.context?.gate === "acquisition.validate");
+
+  const stored = {
+    ...post,
+    platform: "TIKTOK",
+    postUrl: "https://www.tiktok.com/@leakit.official/video/7400000000000000001",
+    viewsCount: 53_700,
+    likesCount: 4_100,
+    commentsCount: 88,
+    platformMetrics: { __measured: ["views", "likes", "comments"] },
+  };
+
+  it("logs a refused post reading with the rule and the row", async () => {
+    await applyPostMetrics(stored, metrics({ platform: "TIKTOK", viewsCount: 0, likesCount: 0, commentsCount: 0 }));
+    const [line] = gateLines();
+    expect(line).toMatchObject({
+      level: "warn",
+      msg: "reading rejected",
+      context: { writer: "post-sync:api", kind: "post", platform: "TIKTOK", rowId: "post_1", rules: ["fell-to-zero"] },
+    });
+  });
+
+  it("refuses a reading for another platform and keeps the post's numbers", async () => {
+    const outcome = await applyPostMetrics(
+      stored,
+      metrics({ platform: "INSTAGRAM", viewsCount: 900, likesCount: 40 }),
+    );
+    expect(outcome).toMatchObject({ status: "no-metrics", reason: "counts-inconsistent" });
+    expect(postWriteData().viewsCount).toBeUndefined();
+    expect(mockSnapshotCreate).not.toHaveBeenCalled();
+    expect(gateLines()[0].context.rules).toEqual(["platform-mismatch"]);
+  });
+
+  it("keeps a secondary counter that fell to 0 at its last value and lands the rest", async () => {
+    const outcome = await applyPostMetrics(
+      stored,
+      metrics({ platform: "TIKTOK", viewsCount: 61_200, likesCount: 4_300, commentsCount: 0 }),
+    );
+    expect(outcome.status).toBe("measured");
+    const data = postWriteData();
+    expect(data.viewsCount).toBe(61_200);
+    expect(data.likesCount).toBe(4_300);
+    expect(data).not.toHaveProperty("commentsCount");
+    // Still measured -- by the read that wrote 88 -- so the UI keeps showing it.
+    expect(data.platformMetrics.__measured).toEqual(expect.arrayContaining(["views", "likes", "comments"]));
+    // The history carries the kept figure, not the refused 0.
+    expect(mockSnapshotCreate.mock.calls[0][0].data.commentsCount).toBe(88);
+    // The reader's own rate counted the refused 0, so it is recomputed instead.
+    expect(data.engagementRate).toBeCloseTo(((4_300 + 88) / 61_200) * 100);
+    expect(gateLines()[0]).toMatchObject({ level: "warn", msg: "reading field dropped", context: { fields: ["comments"] } });
+  });
+
+  it("does not list a dropped counter as measured when nothing ever measured it", async () => {
+    await applyPostMetrics(
+      { ...stored, platformMetrics: { __measured: ["views", "likes"] } },
+      metrics({ platform: "TIKTOK", viewsCount: 61_200, likesCount: 4_300, commentsCount: 0 }),
+    );
+    expect(postWriteData().platformMetrics.__measured).not.toContain("comments");
+  });
+
+  it("writes nothing to the log for a reading that passes", async () => {
+    await applyPostMetrics(stored, metrics({ platform: "TIKTOK", viewsCount: 61_200, likesCount: 4_300, commentsCount: 90 }));
+    expect(gateLines()).toEqual([]);
+  });
+
+  describe("the author's follower count", () => {
+    it("lands on the creator when the platform and the handle in the link agree", async () => {
+      mockCreatorFindUnique.mockResolvedValue({ platform: "TIKTOK", handle: "@LeakIt.Official", name: "LEAK IT" });
+      await applyPostMetrics(stored, metrics({ platform: "TIKTOK", viewsCount: 61_200, authorFollowers: 215_293 }));
+      expect(mockCreatorUpdateMany).toHaveBeenCalledTimes(1);
+      expect(gateLines()).toEqual([]);
+    });
+
+    it("is refused when the post was published by another account", async () => {
+      mockCreatorFindUnique.mockResolvedValue({ platform: "TIKTOK", handle: "maria.santos", name: "Maria Santos" });
+      const outcome = await applyPostMetrics(
+        stored,
+        metrics({ platform: "TIKTOK", viewsCount: 61_200, authorFollowers: 9_400_000 }),
+      );
+      // The post's own counters are unaffected.
+      expect(outcome.status).toBe("measured");
+      expect(postWriteData().viewsCount).toBe(61_200);
+      expect(mockCreatorUpdateMany).not.toHaveBeenCalled();
+      expect(gateLines()[0]).toMatchObject({
+        context: { writer: "post-sync:api:author-followers", kind: "creator", rowId: "creator_1", rules: ["account-mismatch"] },
+      });
+    });
+
+    it("prefers the author the reading named over the link", async () => {
+      mockCreatorFindUnique.mockResolvedValue({ platform: "INSTAGRAM", handle: "blessing.jolie", name: "Blessing Jolie" });
+      await applyPostMetrics(
+        { ...post, viewsCount: 100, platformMetrics: {} },
+        metrics({ viewsCount: 120, authorFollowers: 48_000, authorHandle: "a.fan.page" }),
+      );
+      expect(mockCreatorUpdateMany).not.toHaveBeenCalled();
+    });
+
+    it("is refused when the creator is on another platform", async () => {
+      mockCreatorFindUnique.mockResolvedValue({ platform: "TIKTOK", handle: "leakit.official", name: "LEAK IT" });
+      await applyPostMetrics(post, metrics({ viewsCount: 120, authorFollowers: 48_000 }));
+      expect(mockCreatorUpdateMany).not.toHaveBeenCalled();
+      expect(gateLines()[0].context.rules).toEqual(["platform-mismatch"]);
+    });
+
+    it("lands when nobody named the author (an Instagram /p/ link read through Graph)", async () => {
+      await applyPostMetrics(post, metrics({ viewsCount: 120, authorFollowers: 48_000 }));
+      expect(mockCreatorUpdateMany).toHaveBeenCalledTimes(1);
+    });
+
+    it("never reaches the Unattributed holding row, and does not log it as a mismatch", async () => {
+      mockCreatorFindUnique.mockResolvedValue({ platform: "INSTAGRAM", handle: "", name: unattributedCreatorName("INSTAGRAM") });
+      await applyPostMetrics(post, metrics({ viewsCount: 120, authorFollowers: 48_000, authorHandle: "someone" }));
+      expect(mockCreatorUpdateMany).not.toHaveBeenCalled();
+      expect(gateLines()).toEqual([]);
+    });
+  });
+});
+
+/** Add post, a portal submission and the canary create a post from its first
+ *  reading; the same gate decides whether that reading's counters are kept. */
+describe("measuredForNewPost", () => {
+  beforeEach(() => {
+    jest.spyOn(process.stdout, "write").mockImplementation(() => true);
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  it("takes a consistent first reading", () => {
+    const m = metrics({ viewsCount: 1_200, likesCount: 90 });
+    expect(measuredForNewPost(m, "INSTAGRAM", { writer: "add-post" })).toBe(m);
+  });
+
+  it("creates the post unmeasured when the reading has more likes than views", () => {
+    expect(measuredForNewPost(metrics({ viewsCount: 313, likesCount: 1_088 }), "INSTAGRAM", { writer: "add-post" })).toBeNull();
+  });
+
+  it("creates the post unmeasured when the reading is for another platform", () => {
+    expect(measuredForNewPost(metrics({ viewsCount: 1_200 }), "TIKTOK", { writer: "portal-submission" })).toBeNull();
+  });
+
+  it("creates the post unmeasured when nothing countable came back", () => {
+    expect(measuredForNewPost(metrics(), "INSTAGRAM", { writer: "canary" })).toBeNull();
+    expect(measuredForNewPost(null, "INSTAGRAM", { writer: "canary" })).toBeNull();
+  });
+
+  it("takes a brand-new post's genuine zero", () => {
+    expect(measuredForNewPost(metrics({ viewsCount: 0, likesCount: 0 }), "INSTAGRAM", { writer: "add-post" })).not.toBeNull();
   });
 });

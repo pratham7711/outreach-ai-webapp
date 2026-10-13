@@ -179,7 +179,9 @@ describe("POST — recording readings", () => {
 
   it("dryRun reads and reports but writes nothing", async () => {
     const res = await POST(
-      post({ readings: [{ creatorId: "c1", posts: [makePost("1", 5)] }], dryRun: true })
+      /* 50 views over the fixture's 10 likes: a reading with more likes than
+         views is refused by the validation gate before dryRun is consulted. */
+      post({ readings: [{ creatorId: "c1", posts: [makePost("1", 50)] }], dryRun: true })
     );
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ recorded: 1, dryRun: true });

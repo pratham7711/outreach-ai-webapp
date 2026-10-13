@@ -6,6 +6,7 @@ import { createLogger } from "@/lib/observability/logger";
 import { ABANDON_AFTER_DEADLINE_MS, waitUntil } from "@/lib/ops/waitUntil";
 import { holdSoundReading } from "@/lib/trackers/metrics";
 import { readingPrecision, roundedAddsNothing, soundReadingChange, type UsesPrecision } from "@/lib/sounds/precision";
+import { logVerdict, validateReading, type GateVerdict } from "@/lib/acquisition/validate";
 
 export type SnapshotResult = {
   snapshots: number;
@@ -277,18 +278,53 @@ export type RecordSnapshotOptions = {
    * rounded-looking level on either end withholds the change too.
    */
   precision?: UsesPrecision;
+  /** Who is writing, for the gate's log line. Defaults to "sound-snapshot". */
+  writer?: string;
 };
+
+/**
+ * The shared validation gate (plan A3, lib/acquisition/validate) for one sound
+ * reading, logged when it fires. Exported for the hourly tracker cron, which
+ * keeps its own write for TikTok and must refuse the same readings.
+ *
+ * Two rules apply to a sound: a uses count that fell to 0 from a real figure
+ * (a lifetime count of videos does not; a reader that could not see the page
+ * does), and a title or artist that is a WAF challenge or login page's -- the
+ * metadata of a shell, whose count is the shell's too.
+ */
+export function gateSoundReading(
+  sound: { id: string; platform?: string | null; snapshots: { usesCount: number }[] },
+  stats: { usesCount: number; title?: string | null; artist?: string | null },
+  writer: string,
+): GateVerdict {
+  const verdict = validateReading(
+    { kind: "sound", labels: [stats.title, stats.artist], counts: { uses: stats.usesCount } },
+    { counts: { uses: sound.snapshots[0]?.usesCount } },
+  );
+  logVerdict({ writer, kind: "sound", platform: sound.platform ?? undefined, rowId: sound.id }, verdict);
+  return verdict;
+}
 
 /**
  * Returns whether a row was written. It is not when the reading is a rounded
  * figure that agrees with the exact one already stored (roundedAddsNothing):
- * writing it would replace 73,912 with "74K" and chart the difference.
+ * writing it would replace 73,912 with "74K" and chart the difference -- nor
+ * when the validation gate refuses it (gateSoundReading), which says why in
+ * the log.
  */
 export async function recordSoundSnapshot(
-  sound: { id: string; title?: string | null; artist?: string | null; coverImageUrl?: string | null; snapshots: { usesCount: number }[] },
+  sound: {
+    id: string;
+    platform?: string | null;
+    title?: string | null;
+    artist?: string | null;
+    coverImageUrl?: string | null;
+    snapshots: { usesCount: number }[];
+  },
   stats: { usesCount: number; title?: string | null; artist?: string | null; coverImageUrl?: string | null },
   options: RecordSnapshotOptions = {},
 ): Promise<boolean> {
+  if (gateSoundReading(sound, stats, options.writer ?? "sound-snapshot").rejected) return false;
   const precision = readingPrecision(stats.usesCount, options.precision);
   const previous = sound.snapshots[0]?.usesCount;
   if (roundedAddsNothing(previous, stats.usesCount, precision)) return false;

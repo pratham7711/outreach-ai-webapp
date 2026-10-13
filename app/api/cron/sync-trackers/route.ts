@@ -9,10 +9,10 @@ import { db } from "@/lib/db";
 import { createLogger } from "@/lib/observability/logger";
 import { fetchTikTokSoundStats } from "@/lib/platforms/tiktokSound";
 import { openSoundBrowserSession } from "@/lib/platforms/tiktokSoundBrowser";
-import { readTikTokAudioUsage } from "@/lib/platforms/tiktokAudioUsage";
+import { isMeasuredRung, readTikTokAudioUsage, type UsageRung } from "@/lib/platforms/tiktokAudioUsage";
 import { openSandboxProfileFetcher } from "@/lib/platforms/tiktokProfileSandbox";
 import { readInstagramAudioUsage } from "@/lib/platforms/instagramAudioUsage";
-import { recordSoundSnapshot, soundMetadataPatch } from "@/lib/sounds/snapshot";
+import { gateSoundReading, recordSoundSnapshot, soundMetadataPatch } from "@/lib/sounds/snapshot";
 import { holdSoundReading, type TrackerSnapshot } from "@/lib/trackers/metrics";
 import {
   readingPrecision,
@@ -248,7 +248,12 @@ async function cronHandler(request: NextRequest) {
              rounded levels -- belongs beside the other two, not in a fourth.
              recordSoundSnapshot also applies soundMetadataPatch, which is why
              this branch returns before the TikTok tail does it again. */
-          if (!(await recordSoundSnapshot(sound, outcome.reading, { precision: outcome.reading.precision }))) {
+          if (
+            !(await recordSoundSnapshot(sound, outcome.reading, {
+              precision: outcome.reading.precision,
+              writer: "sync-trackers:instagram",
+            }))
+          ) {
             decisions.push({ soundId: sound.id, action: "skip", reason: "rounded-agrees:instagram" });
             skipped++;
             continue;
@@ -329,6 +334,33 @@ async function cronHandler(request: NextRequest) {
       if (!stats) {
         decisions.push({ soundId: sound.id, action: "fail", reason: "no-data" });
         failed++;
+        continue;
+      }
+
+      /* A zero is a measurement only from the embed, which says "this sound
+         exists and nothing uses it" in so many words. The browser and the
+         music page return 0 when they could not read the count, and this
+         route used to write that as a first reading -- or over any reading
+         older than the hold's window -- as "0 uses". The nightly job already
+         drew this line (snapshotSounds, isMeasuredRung). */
+      if (stats.usesCount <= 0 && !isMeasuredRung(rung as UsageRung)) {
+        decisions.push({ soundId: sound.id, action: "skip", reason: `unmeasured-zero:${rung}` });
+        skipped++;
+        continue;
+      }
+
+      /* The shared validation gate (plan A3): a fall to 0 from a real count,
+         and a shell's title. Before the hold, which only looks at a fall
+         inside its own window. */
+      const gate = gateSoundReading(sound, stats, `sync-trackers:${rung}`);
+      if (gate.rejected) {
+        decisions.push({
+          soundId: sound.id,
+          action: "skip",
+          reason: `rejected:${gate.rejections.map((r) => r.rule).join("+")}`,
+          usesCount: stats.usesCount,
+        });
+        skipped++;
         continue;
       }
 

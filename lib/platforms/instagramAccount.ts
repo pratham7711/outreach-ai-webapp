@@ -59,9 +59,11 @@ export type InstagramAccountInfo = {
    * every platform through one type.
    */
   isVerified: boolean;
-  followerCount: number;
-  followingCount: number;
-  mediaCount: number;
+  /** Null when the Graph response omitted the field — an unknown, never a 0
+   *  (plan A9). accountSync then keeps the stored follower count. */
+  followerCount: number | null;
+  followingCount: number | null;
+  mediaCount: number | null;
 };
 
 export type InstagramMediaItem = {
@@ -137,9 +139,9 @@ export async function fetchInstagramAccount(
       bio: typeof ig.biography === "string" && ig.biography ? ig.biography : null,
       profileLink: username ? `https://www.instagram.com/${username}/` : null,
       isVerified: false,
-      followerCount: num(ig.followers_count),
-      followingCount: num(ig.follows_count),
-      mediaCount: num(ig.media_count),
+      followerCount: optNum(ig.followers_count) ?? null,
+      followingCount: optNum(ig.follows_count) ?? null,
+      mediaCount: optNum(ig.media_count) ?? null,
     };
   }
 

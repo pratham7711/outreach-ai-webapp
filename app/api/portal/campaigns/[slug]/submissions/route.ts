@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
-import { detectPlatform, fetchPostMetrics, hasMetricCounts } from "@/lib/platforms/fetchPostMetrics";
-import { countsFrom } from "@/lib/sync/syncPost";
+import { detectPlatform, fetchPostMetrics } from "@/lib/platforms/fetchPostMetrics";
+import { countsFrom, measuredForNewPost } from "@/lib/sync/syncPost";
 import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
 import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
 import { parseRatePerThousand, type PlatformKey } from "@/lib/marketplace/earnings";
@@ -194,10 +194,9 @@ export async function POST(
       metrics = null;
     }
 
-    const measured =
-      metrics && hasMetricCounts(metrics)
-        ? countsFrom(metrics)
-        : { counts: {}, present: [], measuredPatch: {} };
+    /* Through the shared validation gate (plan A3); see measuredForNewPost. */
+    const accepted = measuredForNewPost(metrics, detected.platform, { writer: "portal-submission", orgId: campaign.orgId });
+    const measured = accepted ? countsFrom(accepted) : { counts: {}, present: [], measuredPatch: {} };
 
     const post = await db.post.create({
       data: {
@@ -226,8 +225,11 @@ export async function POST(
            column at 0 with lastSyncedAt null -- the shape lib/metricDisplay
            reads as "not measured yet". */
         ...measured.counts,
-        ...(metrics?.engagementRate !== undefined
-          ? { engagementRate: metrics.engagementRate }
+        /* From the accepted reading only. It used to come from any reading,
+           so a refused one -- more likes than views -- still left its rate on
+           a post that carried none of its counts. */
+        ...(accepted?.engagementRate !== undefined
+          ? { engagementRate: accepted.engagementRate }
           : {}),
         postedAt: metrics?.postedAt ?? new Date(),
         status: "PENDING_REVIEW",

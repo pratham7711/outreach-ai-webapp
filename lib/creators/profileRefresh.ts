@@ -5,7 +5,8 @@ import { embedHtmlVia, readTikTokTopPostsEmbed } from "@/lib/platforms/tiktokTop
 import { TRACKER_SWEEP_STOP_PERCENT } from "@/lib/platforms/instagramDiscoveryTokens";
 import { captureLatestAvatar } from "@/lib/creators/avatarStore";
 import { rosterTablesReady } from "@/lib/creators/rosterTables";
-import { recordPlatformAccountId } from "@/lib/creators/accountIds";
+import { boundAccountIds, recordPlatformAccountId } from "@/lib/creators/accountIds";
+import { describeVerdict, logVerdict, validateReading } from "@/lib/acquisition/validate";
 import { protectedCreatorFollowers } from "@/lib/creators/followerWriter";
 import { createLogger } from "@/lib/observability/logger";
 
@@ -44,6 +45,8 @@ export type ProfileRefreshCounts = {
   skipped: number;
   /** TikTok accounts whose Avg. views came from their embed page this run. */
   embedViews: number;
+  /** Reads the validation gate refused (plan A3): nothing written, the stored figures kept. */
+  rejected: number;
 };
 
 export async function refreshRosterProfiles({
@@ -61,7 +64,7 @@ export async function refreshRosterProfiles({
   nowMs?: number;
 } = {}): Promise<ProfileRefreshCounts> {
   const log = createLogger({ context: { job: "refresh-roster-profiles" } });
-  const counts: ProfileRefreshCounts = { considered: 0, refreshed: 0, failed: 0, avatars: 0, skipped: 0, embedViews: 0 };
+  const counts: ProfileRefreshCounts = { considered: 0, refreshed: 0, failed: 0, avatars: 0, skipped: 0, embedViews: 0, rejected: 0 };
   if (!(await rosterTablesReady())) {
     log.warn("roster tables missing; apply /api/admin/migrate-creator-roster");
     return counts;
@@ -83,7 +86,10 @@ export async function refreshRosterProfiles({
       platform: true,
       handle: true,
       isPrimary: true,
-      creator: { select: { trackedSince: true } },
+      /* The figures already held, read only for the validation gate below. */
+      followersCount: true,
+      averageViews: true,
+      creator: { select: { trackedSince: true, followersCount: true, averageViews: true } },
     },
   });
 
@@ -158,8 +164,49 @@ export async function refreshRosterProfiles({
         embedMisses++;
       }
     }
-    // A mean over no posts is not a measurement; keep what is held.
-    const views = sampledPosts > 0 ? { averageViews: avgViews } : {};
+    /* The shared validation gate (plan A3, lib/acquisition/validate). This is
+       the busiest follower writer in the product -- every roster account,
+       daily -- and it used to take whatever the page said: a login shell's 0
+       over a real figure, or the audience of whoever holds a handle now that
+       the creator renamed. Judged against the link's own figures, or for the
+       primary account the creator's when the link was never read. A refusal
+       is stamped like a failed read (refreshError, so the age on the creator
+       page says "last read failed") and waits a day; the figures stay. */
+    const bound = read.profile.accountId
+      ? await boundAccountIds({ creatorId: link.creatorId, platform: link.platform, handle: link.handle })
+      : null;
+    const held = (own: number | null, creator: number | null) => (own !== null && own > 0 ? own : link.isPrimary ? creator : own);
+    const verdict = validateReading(
+      {
+        kind: "creator",
+        platform: link.platform,
+        ...(read.profile.accountId ? { accountId: read.profile.accountId } : {}),
+        counts: { followers: followersCount, ...(sampledPosts > 0 ? { avgViews } : {}) },
+      },
+      {
+        platform: link.platform,
+        boundAccountIds: bound,
+        counts: {
+          followers: held(link.followersCount, link.creator.followersCount),
+          avgViews: held(link.averageViews, link.creator.averageViews),
+        },
+      },
+    );
+    logVerdict(
+      { writer: "profile-refresh", kind: "creator", platform: link.platform, rowId: link.id, orgId: link.orgId },
+      verdict,
+    );
+    if (verdict.rejected) {
+      counts.rejected++;
+      await db.creatorProfileLink.update({
+        where: { id: link.id },
+        data: { refreshedAt: now, refreshError: `reading-rejected: ${describeVerdict(verdict)}`.slice(0, 500) },
+      });
+      continue;
+    }
+    /* A mean over no posts is not a measurement, and one the gate dropped is
+       not one either; keep what is held. */
+    const views = sampledPosts > 0 && !verdict.dropFields.includes("avgViews") ? { averageViews: avgViews } : {};
     await db.creatorProfileLink.update({
       where: { id: link.id },
       data: { followersCount, ...views, refreshedAt: now, refreshError: null },
@@ -187,7 +234,7 @@ export async function refreshRosterProfiles({
         await db.creator.update({ where, data: { followersCount, ...views } });
       } else {
         await db.creator.updateMany({ where: { ...where, NOT: { followersCount: keep } }, data: { followersCount } });
-        if (sampledPosts > 0) await db.creator.update({ where, data: views });
+        if ("averageViews" in views) await db.creator.update({ where, data: views });
       }
       if (await captureLatestAvatar({ id: link.creatorId, orgId: link.orgId }, avatarUrl, nowMs).catch(() => false)) {
         counts.avatars++;

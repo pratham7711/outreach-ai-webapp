@@ -12,9 +12,11 @@ type Post = {
   caption: string | null;
   /** Null when the platform did not measure it; the counter is then omitted. */
   views: number | null;
-  likes: number;
-  comments: number;
-  shares: number;
+  /** Null when the platform omitted it (a hidden Instagram like count, YouTube
+   *  has no shares); left out of the line rather than shown as 0. */
+  likes: number | null;
+  comments: number | null;
+  shares: number | null;
   postedAt: string;
   shareUrl: string | null;
   coverImageUrl: string | null;
@@ -77,13 +79,13 @@ const STATS: ReadonlyArray<[string, (b: PlatformInsights) => number | null]> = [
   ["Posts published", (b) => b.mediaCount],
 ];
 
-/** "1.2K views · 40 likes · 3 comments · 2 shares", skipping unmeasured views. */
+/** "1.2K views · 40 likes · 3 comments · 2 shares", skipping any unmeasured counter. */
 function counters(p: Post): string {
   const parts = [
     typeof p.views === "number" ? `${compact(p.views)} views` : null,
-    `${compact(p.likes)} likes`,
-    `${compact(p.comments)} comments`,
-    `${compact(p.shares)} shares`,
+    typeof p.likes === "number" ? `${compact(p.likes)} likes` : null,
+    typeof p.comments === "number" ? `${compact(p.comments)} comments` : null,
+    typeof p.shares === "number" ? `${compact(p.shares)} shares` : null,
   ];
   return parts.filter((x): x is string => x !== null).join(" · ");
 }

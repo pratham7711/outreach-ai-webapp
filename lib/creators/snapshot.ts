@@ -25,7 +25,9 @@ import { embedHtmlVia, readTikTokTopPostsEmbed } from "@/lib/platforms/tiktokTop
 import { readTopPostsFromCampaigns } from "./topPostsFromCampaigns";
 import type { TikTokPostsRead } from "@/lib/platforms/tiktokTopPostsBrowser";
 import { rosterTablesReady } from "./rosterTables";
-import { recordPlatformAccountId } from "./accountIds";
+import { boundAccountIds, recordPlatformAccountId } from "./accountIds";
+import { describeVerdict, logVerdict, validateReading } from "@/lib/acquisition/validate";
+import { quarantineTrackerReading } from "@/lib/acquisition/quarantine";
 import { gateFollowerReading } from "@/lib/trackers/readingGate";
 import { recordSnapshotSources, type TrackerPosition } from "@/lib/trackers/sourceSwitch";
 import { classifyCreatorRead, type SourceGuard } from "@/lib/ops/sourceBreaker";
@@ -405,6 +407,8 @@ export async function snapshotCreators(
       platformUserId: true,
       /* Read only to refuse a lossy overwrite below -- see keepPrecise. */
       followersCount: true,
+      /* Read only for the validation gate: an average that fell to 0. */
+      averageViews: true,
       topPostsAt: true,
       topPostsSource: true,
       trackerSnapshots: {
@@ -945,19 +949,60 @@ export async function snapshotCreators(
       }
     }
 
-    /* Both paths, and after the gate so a gate that threw cannot let it by: a
-       count that fell to 0 from something is a page that was not the profile
-       (lib/trackers/readingGate), never a reading. The legacy sweep used to
-       write it -- three TikTok creators on 2026-10-02, found by the canary's
-       first run -- which drew a -100% change and a cliff on the chart and put
-       0 on the roster. The good figure already stored stays. */
-    if (followersCount === 0 && anchor !== null && anchor > 0) {
-      skipped++;
-      log.warn("tracker reading not written", {
-        creatorId: creator.id,
+    /* Both paths, and after the gate so a gate that threw cannot let it by:
+       the shared validation gate (plan A3, lib/acquisition/validate).
+
+       - A count that fell to 0 from something is a page that was not the
+         profile, never a reading. The legacy sweep used to write it -- three
+         TikTok creators on 2026-10-02, found by the canary's first run --
+         which drew a -100% change and a cliff on the chart and put 0 on the
+         roster. Judged against the last real figure, or the creator's own
+         column when no reading was ever kept (the roster refresh fills it).
+       - A read of this handle that answered with a different account than the
+         one the handle is bound to (CreatorPlatformAccountId) is someone
+         else's audience: the creator was renamed or deleted and the name was
+         taken. Only a person can tell that from a creator who started over,
+         so the good figure stays and the log says why it stopped moving.
+       - An average that fell to 0 over real samples is the same parse failure
+         on the videos; the average alone is kept and the followers still land.
+
+       Whole refusals are filed in the tracker quarantine beside the v2 gate's
+       own, so the ops report counts both. */
+    const bound = profile.accountId
+      ? await boundAccountIds({ creatorId: creator.id, platform: creator.platform, handle: creator.handle })
+      : null;
+    const verdict = validateReading(
+      {
+        kind: "creator",
         platform: creator.platform,
-        verdict: "reject",
-        reason: `fell to 0 from ${Math.round(anchor)}`,
+        ...(profile.accountId ? { accountId: profile.accountId } : {}),
+        counts: { followers: followersCount, ...(profile.sampledPosts > 0 ? { avgViews: profile.avgViews } : {}) },
+      },
+      {
+        platform: creator.platform,
+        boundAccountIds: bound,
+        counts: { followers: anchor ?? creator.followersCount, avgViews: creator.averageViews },
+      },
+    );
+    logVerdict(
+      {
+        writer: plan ? "tracker:v2" : "tracker:legacy",
+        kind: "creator",
+        platform: creator.platform,
+        rowId: creator.id,
+        orgId: creator.orgId,
+        ...(via ? { via } : {}),
+      },
+      verdict,
+    );
+    if (verdict.rejected) {
+      skipped++;
+      await quarantineTrackerReading({
+        creator,
+        followersCount,
+        postsCount: profile.postsCount,
+        previousFollowers: anchor ?? creator.followersCount ?? null,
+        reason: describeVerdict(verdict),
         via,
       });
       await db.creator
@@ -965,6 +1010,9 @@ export async function snapshotCreators(
         .catch(() => {});
       return;
     }
+    /* A mean over real samples that the gate kept is written; one it dropped
+       leaves the stored average, as a read with no samples does. */
+    const writesAverage = profile.sampledPosts > 0 && !verdict.dropFields.includes("avgViews");
 
     const deltaFollowers = previous
       ? Math.round(followersCount - previous.followersCount)
@@ -1012,7 +1060,7 @@ export async function snapshotCreators(
           where: { id: creator.id },
           data: {
             followersCount,
-            ...(profile.sampledPosts > 0 ? { averageViews: profile.avgViews } : {}),
+            ...(writesAverage ? { averageViews: profile.avgViews } : {}),
             /* topPosts only moves forward -- an absent list on this read means
                "not measured here", never "the posts are gone". */
             ...(profile.topPosts?.length
@@ -1059,7 +1107,7 @@ export async function snapshotCreators(
               },
               data: {
                 followersCount,
-                ...(profile.sampledPosts > 0 ? { averageViews: profile.avgViews } : {}),
+                ...(writesAverage ? { averageViews: profile.avgViews } : {}),
                 refreshedAt: recordedAt,
                 refreshError: null,
               },

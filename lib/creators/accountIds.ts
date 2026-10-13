@@ -58,6 +58,44 @@ export async function previousAccountUnderHandle(s: {
   }
 }
 
+/**
+ * The account ids a read of this handle is bound to, for the validation gate's
+ * account rule (plan A3, lib/acquisition/validate).
+ *
+ * Every id kept for this creator on this platform -- but only once one of them
+ * was seen under this same handle. So a renamed account (same id, new handle)
+ * passes, a creator's second account on the platform passes, and the one case
+ * refused is the one previousAccountUnderHandle reports: a different account
+ * answering to a handle already bound to another. Null -- no binding, the rule
+ * does not apply -- when nothing was ever seen under this handle, before the
+ * table exists, and on any error, so a lookup that failed never refuses a read.
+ *
+ * Refusing is a change from "reported, not acted on" above, made because a
+ * figure for the wrong account is worse than a stale one: the agency sees the
+ * last good figure, the log says why it stopped moving, and a person decides.
+ * Nothing in the product can record that decision yet; see the round-2 schema
+ * proposal (ReadingQuarantine).
+ */
+export async function boundAccountIds(s: {
+  creatorId: string;
+  platform: string;
+  handle?: string | null;
+}): Promise<string[] | null> {
+  if (!KEPT.has(s.platform)) return null;
+  try {
+    if (!(await accountIdTablesReady())) return null;
+    const rows = await db.creatorPlatformAccountId.findMany({
+      where: { creatorId: s.creatorId, platform: s.platform as never },
+      select: { platformAccountId: true, handle: true },
+    });
+    const handle = bareHandle(s.handle);
+    if (!handle || !rows.some((r) => bareHandle(r.handle) === handle)) return null;
+    return rows.map((r) => r.platformAccountId);
+  } catch {
+    return null;
+  }
+}
+
 export type AccountIdSighting = {
   creatorId: string;
   orgId: string;
