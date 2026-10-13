@@ -19,6 +19,8 @@ import {
   platformColor,
 } from "./shared";
 import { loadCharts } from "@/components/charts/lazyCharts";
+import { noun } from "@/lib/ui/noun";
+import { platformLabel } from "@/lib/format";
 
 const MonthlyTrendArea = dynamic(() => loadCharts().then((m) => m.MonthlyTrendArea), {
   ssr: false,
@@ -225,7 +227,7 @@ export default function AnalyticsPage() {
                   fitTo={tileFit}
                   metric="totalViews"
                   value={formatNumber(k.totalViews)}
-                  footer={`${formatNumber(k.totalPosts)} posts`}
+                  footer={`${formatNumber(k.totalPosts)} ${noun(k.totalPosts, "post")}`}
                 />
                 <MetricTile fitTo={tileFit} metric="totalLikes" value={formatNumber(k.totalLikes)} />
                 <MetricTile fitTo={tileFit} metric="totalComments" value={formatNumber(k.totalComments)} />
@@ -297,10 +299,10 @@ export default function AnalyticsPage() {
                               className="size-2 shrink-0 rounded-full"
                               style={{ background: platformColor(p.platform) }}
                             />
-                            <span className="text-xs text-muted-foreground">{p.platform}</span>
+                            <span className="text-xs text-muted-foreground">{platformLabel(p.platform)}</span>
                           </span>
                           <span className="text-xs font-semibold text-foreground tabular-nums">
-                            {p.posts} posts
+                            {p.posts} {noun(p.posts, "post")}
                           </span>
                         </li>
                       ))}

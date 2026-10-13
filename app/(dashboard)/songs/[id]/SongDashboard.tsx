@@ -8,6 +8,7 @@ import { PostingTimeHeatmap } from "@/app/(dashboard)/analytics/PostingTimeHeatm
 import { platformLabel, formatFull, fitFigureSize } from "@/lib/format";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import AttachCampaigns, { type AttachableCampaign } from "./AttachCampaigns";
+import { noun } from "@/lib/ui/noun";
 
 type Summary = {
   campaignCount: number;
@@ -157,7 +158,7 @@ export default function SongDashboard({
           background: "linear-gradient(135deg, color-mix(in srgb, var(--cc-primary) 8%, transparent) 0%, var(--cc-card) 100%)",
         }}
       >
-        <HeroStat value={formatFull(summary.totalViews)} label="Total views" sub={`across ${summary.postCount} posts`} />
+        <HeroStat value={formatFull(summary.totalViews)} label="Total views" sub={`across ${summary.postCount} ${noun(summary.postCount, "post")}`} />
         <span aria-hidden="true" style={{ width: 1, height: 48, background: "var(--cc-border)" }} />
         <HeroStat
           value={String(summary.campaignCount)}
@@ -238,7 +239,7 @@ export default function SongDashboard({
                   </span>
                 )}
                 <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", fontVariantNumeric: "tabular-nums" }}>
-                  {c.postCount} posts
+                  {c.postCount} {noun(c.postCount, "post")}
                 </span>
                 <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", fontVariantNumeric: "tabular-nums", minWidth: 64, textAlign: "right" }}>
                   {formatFull(c.views)}

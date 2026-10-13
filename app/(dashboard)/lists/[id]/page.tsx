@@ -16,6 +16,7 @@ import DuplicateListDialog from "@/components/lists/DuplicateListDialog";
 import { LIST_STATUS_BADGE, LIST_STATUS_LABELS, type DecisionCounts, type ListStatus } from "@/lib/lists/approval";
 import MetricFigure from "@/components/creators/MetricFigure";
 import { avgViewsValue, followersValue } from "@/lib/creators/metricValue";
+import { noun } from "@/lib/ui/noun";
 
 type CreatorItem = {
   id: string;
@@ -156,7 +157,7 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
         subtitle={list.description || undefined}
         meta={
           <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, marginTop: 8, fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
-            <Users size={14} /> {list._count.items} creators
+            <Users size={14} /> {list._count.items} {noun(list._count.items, "creator")}
             {list.approval && (
               <>
                 <Badge variant={LIST_STATUS_BADGE[list.approval.status]}>{LIST_STATUS_LABELS[list.approval.status]}</Badge>

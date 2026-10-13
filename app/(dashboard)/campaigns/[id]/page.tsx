@@ -31,6 +31,7 @@ import { CreatorSelect } from "@/components/CreatorSelect";
 import { isUnattributedCreator } from "@/lib/posts/unattributedName";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import { loadCharts } from "@/components/charts/lazyCharts";
+import { noun } from "@/lib/ui/noun";
 
 const ChartSkeleton = ({ height }: { height: number }) => (
   <Skeleton width="100%" height={`${height}px`} borderRadius="12px" />
@@ -844,7 +845,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       <div className="cc-page-meta" data-region="page-meta">
         <span className="cc-page-meta-item"><Calendar size={14} />{formatDateAbs(campaign.createdAt)}</span>
         <span>·</span>
-        <span>{roster.length} creators · {campaign._count.posts} posts</span>
+        <span>{roster.length} {noun(roster.length, "creator")} · {campaign._count.posts} {noun(campaign._count.posts, "post")}</span>
       </div>
 
       {/* No longer a tabpanel: the control that opens this is a link in the
@@ -1105,7 +1106,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                       onChange={v => setEditForm(f => ({ ...f, status: v }))}
                       options={["PENDING", "IN_PROGRESS", "COMPLETE", "CANCELLED"].map(s => ({
                         value: s,
-                        label: s.replace(/_/g, " "),
+                        label: STATUS_LABEL[s] ?? s.replace(/_/g, " "),
                       }))}
                     />
                   </div>

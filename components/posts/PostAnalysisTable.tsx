@@ -8,6 +8,7 @@ import { UNKNOWN, formatDateTimeAbs, platformLabel, stripAt, timeAgo, formatFull
 import { metricValue } from "@/lib/metricDisplay";
 import { PLATFORM_FILTER_OPTIONS } from "@/lib/platforms/constants";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
+import { noun } from "@/lib/ui/noun";
 
 export type AnalysisPost = {
   id: string;
@@ -151,7 +152,7 @@ export function PostAnalysisTable({
           />
         )}
         <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", fontVariantNumeric: "tabular-nums" }}>
-          {totals.posts} posts · {formatFull(totals.views)} views
+          {totals.posts} {noun(totals.posts, "post")} · {formatFull(totals.views)} views
         </span>
       </div>
 

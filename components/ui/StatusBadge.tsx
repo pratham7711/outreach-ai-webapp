@@ -1,5 +1,7 @@
 "use client";
 
+import { enumLabel } from "@/lib/ui/enumLabel";
+
 const STATUS_STYLES: Record<string, string> = {
   DRAFT: "bg-muted text-muted-foreground border border-border",
   IN_PROGRESS: "bg-[var(--color-primary)]/10 text-[var(--color-primary)]",
@@ -34,7 +36,7 @@ export function StatusBadge({ status }: { status: string }) {
           <span className="relative inline-flex rounded-full h-2 w-2 bg-current" />
         </span>
       )}
-      {status.replace(/_/g, " ")}
+      {enumLabel(status)}
     </span>
   );
 }

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, Badge, Input, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
 import { DollarSign, CreditCard } from "lucide-react";
 import { formatDateAbs } from "@/lib/format";
+import { enumLabel } from "@/lib/ui/enumLabel";
 import { Dropdown, Button } from "@/components/ds";
 
 type Deposit = {
@@ -119,7 +120,7 @@ export default function DepositsSection({ campaignId }: { campaignId: string }) 
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                 <span style={{ fontSize: "var(--cc-t-24)", fontWeight: 700, color: "var(--cc-text)" }}>{formatCurrency(deposit.amountUsd, deposit.currency)}</span>
-                <Badge variant={STATUS_BADGE[deposit.status] ?? "neutral"}>{deposit.status.replace(/_/g, " ")}</Badge>
+                <Badge variant={STATUS_BADGE[deposit.status] ?? "neutral"}>{enumLabel(deposit.status)}</Badge>
               </div>
               <div style={{ display: "flex", gap: 16, fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
                 <span>Gateway: <strong>{deposit.gateway}</strong></span>

@@ -53,6 +53,7 @@ import { UNKNOWN_CREATOR_LABEL, isUnattributedCreator, unknownCreatorReason } fr
 import { isPostNotPublic, mayBeAgeLimited } from "@/lib/postRemoval";
 import UnknownCreator from "@/components/posts/UnknownCreator";
 import { SHOW_MONEY } from "@/lib/moneyUi";
+import { noun } from "@/lib/ui/noun";
 
 type SnapshotLite = { id: string; viewsCount: number; recordedAt: string };
 
@@ -1615,7 +1616,7 @@ export default function PostsTab({
         {
           kind: "head" as const,
           label: menuOnSelection
-            ? `${selectedOnPage.length} posts selected`
+            ? `${selectedOnPage.length} ${noun(selectedOnPage.length, "post")} selected`
             : isUnattributedCreator(menuPost.creator)
               ? UNKNOWN_CREATOR_LABEL
               : creatorNameText(menuPost.creator.name, menuPost.creator.handle),

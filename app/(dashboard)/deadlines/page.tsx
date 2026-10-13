@@ -4,7 +4,7 @@ import { Card, Badge, Skeleton, EmptyState } from "@pratham7711/ui";
 import { PageHeader, Button } from "@/components/ds";
 import { CalendarClock, AlertTriangle, CheckCircle2, Clock, CalendarOff, Edit2, X, Check } from "lucide-react";
 import { format, isAfter, isBefore, differenceInDays } from "date-fns";
-import { stripAt } from "@/lib/format";
+import { platformLabel, stripAt } from "@/lib/format";
 import { ACTIVATION_STATUS_LABEL, activationStatusBadgeStyle } from "@/lib/activationQueues";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
@@ -363,7 +363,7 @@ export default function DeadlinesPage() {
                       <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}>{a.creator.name}</p>
                       {a.creator.handle && (
                         <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "2px 0 0" }}>
-                          @{stripAt(a.creator.handle)} · {a.creator.platform}
+                          @{stripAt(a.creator.handle)} · {platformLabel(a.creator.platform)}
                         </p>
                       )}
                       </div>
