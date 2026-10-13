@@ -361,13 +361,41 @@ model Song {
   /// and none of them owns it.
   soundId String?
 
-  org       Organization @relation(fields: [orgId], references: [id])
-  campaigns Campaign[]
-  sound     TikTokSound? @relation(fields: [soundId], references: [id])
+  org            Organization         @relation(fields: [orgId], references: [id])
+  campaigns      Campaign[]
+  sound          TikTokSound?         @relation(fields: [soundId], references: [id])
+  streamReadings SongStreamSnapshot[]
 
   @@index([orgId])
   @@index([orgId, deletedAt])
   @@index([soundId])
+}
+
+/// One reading a day of a song's Spotify play count, taken by the
+/// snapshot-song-streams cron (lib/songs/streamSnapshot.ts). Daily streams are
+/// the difference between two consecutive days' counts.
+///
+/// The Spotify track is found by the cron from the song's ISRC, or its title and
+/// artist, and is carried on every row rather than on Song, so Song itself has
+/// no new column. A day the read failed still gets a row, with `failure` set and
+/// no count, so the cron does not try that song again the same day.
+model SongStreamSnapshot {
+  id             String   @id @default(cuid())
+  songId         String
+  orgId          String
+  /// The UTC calendar day of the reading.
+  day            DateTime @db.Date
+  spotifyTrackId String?
+  trackName      String?
+  trackArtists   String?
+  /// Spotify's all-time play count for the track, as its web player shows it.
+  playCount      BigInt?
+  failure        String?
+  recordedAt     DateTime @default(now())
+
+  song Song @relation(fields: [songId], references: [id], onDelete: Cascade)
+
+  @@unique([songId, day])
 }
 
 /// A campaign can run in waves — "4 phases of 10 posts each". Posts point at a
