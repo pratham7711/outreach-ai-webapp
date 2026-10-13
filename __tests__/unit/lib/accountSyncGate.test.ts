@@ -83,3 +83,11 @@ it("writes a real drop in followers, and a row with nothing bound yet", async ()
   expect(await persistAccountIdentity("acc-1", identity({ followersCount: 31_000 }), "INSTAGRAM")).toBe(true);
   expect(written()).toMatchObject({ followersCount: 31_000 });
 });
+
+it("leaves the stored follower count alone when Instagram omitted followers_count, rather than writing 0 (plan A9)", async () => {
+  expect(
+    await persistAccountIdentity("acc-1", identity({ followersCount: null, mediaCount: null }), "INSTAGRAM"),
+  ).toBe(true);
+  expect(written()).not.toHaveProperty("followersCount");
+  expect(written().mediaCount).toBeNull();
+});

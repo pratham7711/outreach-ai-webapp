@@ -2,6 +2,7 @@ import {
   fetchInstagramAccount,
   fetchInstagramMedia,
 } from "@/lib/platforms/instagramAccount";
+import { fetchInstagramLoginProfile } from "@/lib/platforms/instagramLogin";
 
 function jsonResponse(body: unknown, ok = true, status = 200) {
   return { ok, status, json: async () => body } as unknown as Response;
@@ -56,6 +57,26 @@ describe("fetchInstagramAccount", () => {
     );
     const info = await fetchInstagramAccount("token");
     expect(info?.igUserId).toBe("17841400000000000");
+  });
+
+  it("reports a count the Graph response omitted as null, never 0 (plan A9)", async () => {
+    const rest: Record<string, unknown> = { ...IG_ACCOUNT.data[0].instagram_business_account };
+    delete rest.followers_count;
+    delete rest.media_count;
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue(jsonResponse({ data: [{ instagram_business_account: rest }] }));
+    const info = await fetchInstagramAccount("token");
+    expect(info).toMatchObject({ followerCount: null, followingCount: 310, mediaCount: null });
+  });
+
+  it("keeps a measured 0 (a brand-new account with no posts)", async () => {
+    global.fetch = jest.fn().mockResolvedValue(
+      jsonResponse({
+        data: [{ instagram_business_account: { ...IG_ACCOUNT.data[0].instagram_business_account, media_count: 0 } }],
+      }),
+    );
+    expect((await fetchInstagramAccount("token"))?.mediaCount).toBe(0);
   });
 
   it("returns null when the token carries no Instagram Business account at all", async () => {
@@ -224,5 +245,35 @@ describe("fetchInstagramMedia", () => {
   it("returns null when the media edge itself fails, so the portal can say reconnect", async () => {
     global.fetch = jest.fn().mockResolvedValueOnce(jsonResponse(null, false, 500));
     await expect(fetchInstagramMedia("token", "ig1")).resolves.toBeNull();
+  });
+});
+
+describe("fetchInstagramLoginProfile", () => {
+  const realFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  it("reports an omitted follower or media count as null, never 0 (plan A9)", async () => {
+    global.fetch = jest.fn().mockResolvedValue(
+      jsonResponse({ user_id: "17841400000000000", username: "boringbrand", follows_count: 12 }),
+    );
+    await expect(fetchInstagramLoginProfile("token", new AbortController().signal)).resolves.toMatchObject({
+      igUserId: "17841400000000000",
+      followerCount: null,
+      followingCount: 12,
+      mediaCount: null,
+    });
+  });
+
+  it("passes measured counts through, 0 included", async () => {
+    global.fetch = jest.fn().mockResolvedValue(
+      jsonResponse({ user_id: "17841400000000000", username: "boringbrand", followers_count: 8421, follows_count: 0, media_count: 214 }),
+    );
+    await expect(fetchInstagramLoginProfile("token", new AbortController().signal)).resolves.toMatchObject({
+      followerCount: 8421,
+      followingCount: 0,
+      mediaCount: 214,
+    });
   });
 });

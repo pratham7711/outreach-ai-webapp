@@ -107,6 +107,30 @@ describe("buildPlatformInsights — views the platform did not measure", () => {
     expect(block!.posts.find((p) => p.id === "photo")?.views).toBe(400);
   });
 
+  it("reports a hidden like count as null, not 0, and ranks by measured likes only (plan A9)", async () => {
+    /* A creator who hid like counts: the media edge omits like_count, so the
+       reader's flat likesCount is a coerced 0 and only `exact` says it was not
+       measured. The post must read "— likes", never "0 likes", and must not
+       lose the best-post slot to a coerced 0. */
+    (fetchInstagramMedia as jest.Mock).mockResolvedValueOnce([
+      { ...media("hidden", 0, undefined), exact: { comments: 4 } },
+      media("liked", 12, undefined),
+    ]);
+
+    const block = await buildPlatformInsights(account, "org1");
+    const hidden = block!.posts.find((p) => p.id === "hidden");
+    expect(hidden?.likes).toBeNull();
+    expect(hidden?.comments).toBe(4);
+    expect(block!.posts.find((p) => p.id === "liked")?.likes).toBe(12);
+    expect(block!.bestPost?.id).toBe("liked");
+  });
+
+  it("keeps a measured 0 like count as 0", async () => {
+    (fetchInstagramMedia as jest.Mock).mockResolvedValueOnce([media("fresh", 0, 20)]);
+    const block = await buildPlatformInsights(account, "org1");
+    expect(block!.posts[0].likes).toBe(0);
+  });
+
   it("captions a post with its title, falling back to the description", async () => {
     (fetchInstagramMedia as jest.Mock).mockResolvedValueOnce([
       { ...media("m1", 10, 100), title: "First line of caption", description: "First line of caption\nmore" },

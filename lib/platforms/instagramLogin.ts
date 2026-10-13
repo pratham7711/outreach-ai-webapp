@@ -75,9 +75,11 @@ export type InstagramLoginProfile = {
   profileLink: string | null;
   /** Instagram publishes no verified flag on either path. */
   isVerified: boolean;
-  followerCount: number;
-  followingCount: number;
-  mediaCount: number;
+  /** Null when the Graph response omitted the field — an unknown, never a 0
+   *  (plan A9). accountSync then keeps the stored follower count. */
+  followerCount: number | null;
+  followingCount: number | null;
+  mediaCount: number | null;
 };
 
 export type InstagramLoginMedia = {
@@ -283,9 +285,9 @@ export async function fetchInstagramLoginProfile(
     bio: typeof data.biography === "string" && data.biography ? data.biography : null,
     profileLink: username ? `https://www.instagram.com/${username}/` : null,
     isVerified: false,
-    followerCount: num(data.followers_count),
-    followingCount: num(data.follows_count),
-    mediaCount: num(data.media_count),
+    followerCount: optNum(data.followers_count) ?? null,
+    followingCount: optNum(data.follows_count) ?? null,
+    mediaCount: optNum(data.media_count) ?? null,
   };
 }
 
