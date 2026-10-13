@@ -29,6 +29,7 @@
 import { outreach } from "./postList.generated.js";
 import { snapshotViewsKnown } from "@/lib/metricDisplay";
 import { viewsReadAt } from "@/lib/posts/fieldFreshness";
+import { postThumbnailUrl } from "@/lib/postMedia";
 
 const PostListMessage = outreach.postlist.v1.PostList;
 
@@ -196,7 +197,12 @@ export function toPostDto(row: PostRow, hasOpenFraudFlag: boolean, complianceFla
     platform: str(row.platform),
     platformPostId: str(row.platformPostId),
     postUrl: str(row.postUrl),
-    thumbnailUrl: strOrNull(row.thumbnailUrl),
+    thumbnailUrl: postThumbnailUrl({
+      platform: str(row.platform),
+      platformPostId: strOrNull(row.platformPostId),
+      postUrl: strOrNull(row.postUrl),
+      thumbnailUrl: strOrNull(row.thumbnailUrl),
+    }),
     caption: strOrNull(row.caption),
     mediaType: strOrNull(row.mediaType),
     postedAt: iso(row.postedAt) ?? "",

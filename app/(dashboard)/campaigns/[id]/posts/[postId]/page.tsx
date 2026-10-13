@@ -24,7 +24,7 @@ import { viewsAsOf, viewsReadAt } from "@/lib/posts/fieldFreshness";
 import PostStatusChip from "@/components/posts/PostStatusChip";
 import { AgeLabel } from "@/components/ds/AgeLabel";
 import { isUnknownMetric, metricReason, metricText, postCounterValue, unknownMetric, type MetricValue } from "@/lib/creators/metricValue";
-import { imgSrc, embedSrcFor } from "@/lib/postMedia";
+import { imgSrc, embedSrcFor, postThumbnailUrl } from "@/lib/postMedia";
 import { stripAt, formatDateAbs, formatDateTimeAbs, formatFull, fitFigureSize } from "@/lib/format";
 import { MIN_SNAPSHOTS } from "@/lib/fraud/botSignals";
 import { loadCharts } from "@/components/charts/lazyCharts";
@@ -438,7 +438,7 @@ export default function PostDetailPage() {
 
   const embedSrc = embedSrcFor(post.platform, post.platformPostId, post.postUrl);
   // Not the raw CDN URL: TikTok's thumbnail hosts are blocked on some networks.
-  const thumb = imgSrc(post.thumbnailUrl, 240, 160);
+  const thumb = imgSrc(postThumbnailUrl(post), 240, 160);
 
   const engRate =
     fieldMetricValue(post.likesCount, post.lastSyncedAt, post.platformMetrics, "likes") === null

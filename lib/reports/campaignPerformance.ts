@@ -14,6 +14,7 @@ import { soundSeries, videosAddedSinceLast } from "@/lib/sounds/usageSeries";
 import { usesPrecisionOf } from "@/lib/sounds/precision";
 import { CHART_BUCKET_HOURS, effectiveChartGranularity, parseGranularity } from "@/lib/trackers/granularity";
 import type { SharePlatform } from "@/lib/reports/shareVisibility";
+import { postThumbnailUrl } from "@/lib/postMedia";
 import type { ActivationStatus } from "@/lib/generated/prisma/client";
 
 /**
@@ -705,7 +706,7 @@ async function computeCampaignPerformanceUncached(
         platform: p.platform,
         platformPostId: p.platformPostId,
         postUrl: p.postUrl,
-        thumbnailUrl: p.thumbnailUrl,
+        thumbnailUrl: postThumbnailUrl(p),
         caption: p.caption,
         postedAt: p.postedAt.toISOString(),
         lastSyncedAt: p.lastSyncedAt ? p.lastSyncedAt.toISOString() : null,

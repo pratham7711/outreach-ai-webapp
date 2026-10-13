@@ -23,6 +23,31 @@ export function mediaUrl(raw: string | null | undefined): string | null {
   return s;
 }
 
+/** A YouTube video's eleven-character id, from the stored id when it has that shape, else from the URL. */
+export function youtubeVideoId(platformPostId: string | null | undefined, postUrl: string | null | undefined): string | null {
+  const id = platformPostId?.trim();
+  if (id && /^[\w-]{11}$/.test(id)) return id;
+  return (postUrl ?? "").match(/(?:youtu\.be\/|[?&]v=|\/shorts\/|\/live\/|\/embed\/)([\w-]{11})/)?.[1] ?? null;
+}
+
+/**
+ * A post's picture: the stored thumbnail, or for a YouTube post with none, the
+ * one YouTube serves for every video at a fixed address. The Data API writes
+ * null without a key or past its quota, which left YouTube cards blank although
+ * the picture was always there to be had.
+ */
+export function postThumbnailUrl(post: {
+  platform: string;
+  platformPostId?: string | null;
+  postUrl?: string | null;
+  thumbnailUrl?: string | null;
+}): string | null {
+  if (post.thumbnailUrl) return post.thumbnailUrl;
+  if (post.platform !== "YOUTUBE") return null;
+  const vid = youtubeVideoId(post.platformPostId, post.postUrl);
+  return vid ? `https://i.ytimg.com/vi/${vid}/hqdefault.jpg` : null;
+}
+
 /**
  * Each platform publishes its own embed player, so a post can be watched in
  * place rather than in a new tab. Anything we cannot build a player URL for
@@ -46,8 +71,7 @@ export function embedSrcFor(
          stored its own 32-character record id in platformPostId on 838 posts,
          and handing that to the player drew "Video unavailable" for every one
          of them, so the stored id is only trusted when it has the right shape. */
-      const stored = id && /^[\w-]{11}$/.test(id) ? id : undefined;
-      const vid = stored ?? url.match(/(?:youtu\.be\/|[?&]v=|\/shorts\/|\/live\/|\/embed\/)([\w-]{11})/)?.[1];
+      const vid = youtubeVideoId(id, url);
       return vid ? `https://www.youtube.com/embed/${vid}` : null;
     }
     case "INSTAGRAM": {

@@ -1,4 +1,4 @@
-import { mediaUrl, embedSrcFor, imgSrc, shareImgSrc } from "@/lib/postMedia";
+import { mediaUrl, embedSrcFor, imgSrc, shareImgSrc, youtubeVideoId, postThumbnailUrl } from "@/lib/postMedia";
 import { metricValue, engagementRateValue } from "@/lib/metricDisplay";
 
 /**
@@ -163,5 +163,39 @@ describe("imgSrc", () => {
   it("snaps the share-link variant the same way", () => {
     expect(shareImgSrc("tok", "https://x.cdn.bubble.io/f/a.png", 112)).toContain("&w=128");
     expect(shareImgSrc("tok", "https://x.cdn.bubble.io/f/a.png", 240, 160)).toContain("&w=240&h=160");
+  });
+});
+
+describe("youtubeVideoId", () => {
+  it("trusts a stored id only when it has YouTube's eleven-character shape", () => {
+    expect(youtubeVideoId("9bZkp7q19f0", null)).toBe("9bZkp7q19f0");
+    // An importer's 32-character record id is not a video id; the URL is.
+    expect(youtubeVideoId("1690000000000x123456789012345678", "https://www.youtube.com/watch?v=9bZkp7q19f0")).toBe("9bZkp7q19f0");
+  });
+
+  it("reads watch, short-link, Shorts and live URLs", () => {
+    expect(youtubeVideoId(null, "https://youtu.be/9bZkp7q19f0?t=3")).toBe("9bZkp7q19f0");
+    expect(youtubeVideoId(null, "https://www.youtube.com/shorts/9bZkp7q19f0")).toBe("9bZkp7q19f0");
+    expect(youtubeVideoId(null, "https://www.youtube.com/live/9bZkp7q19f0")).toBe("9bZkp7q19f0");
+    expect(youtubeVideoId(null, "https://www.youtube.com/@someone")).toBeNull();
+  });
+});
+
+describe("postThumbnailUrl", () => {
+  it("keeps a stored thumbnail", () => {
+    expect(postThumbnailUrl({ platform: "YOUTUBE", platformPostId: "9bZkp7q19f0", thumbnailUrl: "//ea59.cdn.bubble.io/x.png" })).toBe(
+      "//ea59.cdn.bubble.io/x.png"
+    );
+  });
+
+  it("gives a YouTube post with none the picture YouTube serves for every video", () => {
+    expect(postThumbnailUrl({ platform: "YOUTUBE", platformPostId: null, postUrl: "https://www.youtube.com/watch?v=9bZkp7q19f0", thumbnailUrl: null })).toBe(
+      "https://i.ytimg.com/vi/9bZkp7q19f0/hqdefault.jpg"
+    );
+  });
+
+  it("does not invent one for other platforms or an unreadable YouTube link", () => {
+    expect(postThumbnailUrl({ platform: "TIKTOK", platformPostId: "7300000000000000000", thumbnailUrl: null })).toBeNull();
+    expect(postThumbnailUrl({ platform: "YOUTUBE", platformPostId: null, postUrl: "https://www.youtube.com/@someone", thumbnailUrl: null })).toBeNull();
   });
 });
