@@ -34,6 +34,9 @@ declare module "@pratham7711/ui" {
   export interface ModalProps {
     open: boolean; onClose: () => void; title?: string; size?: "sm"|"md"|"lg";
     children?: React.ReactNode; footer?: React.ReactNode;
+    /** Drops the header's close button (the bundle reads it as `hideClose`);
+     *  Esc and a backdrop click still close. */
+    hideClose?: boolean;
   }
   export const Modal: React.FC<ModalProps>
   export interface EmptyStateProps {

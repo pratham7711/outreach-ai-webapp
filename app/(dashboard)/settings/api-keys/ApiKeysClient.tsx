@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Key, Plus, Trash2, Copy, Check, AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/ds";
+import { Button } from "@/components/ds/Button";
+import { Input, Modal } from "@pratham7711/ui";
 import { toast } from "sonner";
 import { action } from "@/lib/ui/actions";
 import { BRAND } from "@/lib/brand";
@@ -236,205 +238,81 @@ export default function ApiKeysClient() {
         </div>
       )}
 
-      {/* Create Modal */}
-      {showCreate && !createdKey && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "var(--cc-scrim-bg)",
-            zIndex: 100,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-          onClick={() => setShowCreate(false)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "var(--cc-card)",
-              borderRadius: 16,
-              padding: 24,
-              width: 420,
-              maxWidth: "90vw",
-              boxShadow: "0 20px 60px color-mix(in srgb, var(--cc-shadow-ink) 15%, transparent)",
-            }}
-          >
-            <h2
-              style={{
-                fontSize: "var(--cc-t-18)",
-                fontWeight: 700,
-                color: "var(--cc-text)",
-                marginBottom: 16,
-              }}
+      {/* The library Modal rather than a hand-rolled overlay: the old one was a
+          pair of divs, so it had no dialog role, never took focus (Tab walked
+          the page behind it), Esc did nothing and "Key Name" was a <label>
+          tied to nothing. hideClose makes the name field the first focusable,
+          which is where the Modal puts focus; Cancel and Esc still close it.
+          The form makes Enter submit without a key handler of its own. */}
+      <Modal
+        open={showCreate && !createdKey}
+        onClose={() => setShowCreate(false)}
+        title="Create API Key"
+        size="sm"
+        hideClose
+        footer={
+          <div className="cc-modal-footer">
+            <Button variant="secondary" size="sm" onClick={() => setShowCreate(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              type="submit"
+              form="cc-create-api-key"
+              disabled={!newName.trim() || creating}
             >
-              Create API Key
-            </h2>
-            <label
-              style={{
-                fontSize: "var(--cc-t-13)",
-                fontWeight: "var(--cc-fw-strong)",
-                color: "var(--cc-text)",
-                marginBottom: 6,
-                display: "block",
-              }}
-            >
-              Key Name
-            </label>
-            <input
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="e.g. Production Backend"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleCreate();
-              }}
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                fontSize: "var(--cc-t-14)",
-                borderRadius: 8,
-                border: "1px solid var(--cc-border)",
-                color: "var(--cc-text)",
-                background: "var(--cc-card)",
-                boxSizing: "border-box",
-              }}
-            />
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: 8,
-                marginTop: 20,
-              }}
-            >
-              <button
-                onClick={() => setShowCreate(false)}
-                style={{
-                  padding: "9px 16px",
-                  fontSize: "var(--cc-t-14)",
-                  fontWeight: "var(--cc-fw-strong)",
-                  borderRadius: 8,
-                  border: "1px solid var(--cc-border)",
-                  background: "var(--cc-card)",
-                  color: "var(--cc-text)",
-                  cursor: "pointer",
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreate}
-                disabled={!newName.trim() || creating}
-                style={{
-                  padding: "9px 16px",
-                  fontSize: "var(--cc-t-14)",
-                  fontWeight: "var(--cc-fw-strong)",
-                  borderRadius: 8,
-                  border: "none",
-                  background: newName.trim()
-                    ? "var(--cc-primary)"
-                    : "var(--cc-border)",
-                  color: newName.trim() ? "var(--cc-on-primary)" : "white",
-                  cursor: newName.trim() ? "pointer" : "not-allowed",
-                  opacity: creating ? 0.6 : 1,
-                }}
-              >
-                {creating ? "Creating..." : "Create Key"}
-              </button>
-            </div>
+              {creating ? "Creating..." : "Create Key"}
+            </Button>
           </div>
-        </div>
-      )}
+        }
+      >
+        <form
+          id="cc-create-api-key"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void handleCreate();
+          }}
+        >
+          <Input
+            id="cc-api-key-name"
+            label="Key name"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="e.g. Production Backend"
+            autoComplete="off"
+          />
+        </form>
+      </Modal>
 
-      {/* Confirm Revoke Modal */}
-      {confirmRevoke && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "var(--cc-scrim-bg)",
-            zIndex: 100,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-          onClick={() => setConfirmRevoke(null)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "var(--cc-card)",
-              borderRadius: 16,
-              padding: 24,
-              width: 400,
-              maxWidth: "90vw",
-              boxShadow: "0 20px 60px color-mix(in srgb, var(--cc-shadow-ink) 15%, transparent)",
-            }}
-          >
-            <h2
-              style={{
-                fontSize: "var(--cc-t-18)",
-                fontWeight: 700,
-                color: "var(--cc-text)",
-                marginBottom: 8,
-              }}
+      {/* Same dialog, for the destructive step. hideClose leaves Cancel as the
+          first focusable, so Enter on an opened confirm does not revoke. */}
+      <Modal
+        open={confirmRevoke !== null}
+        onClose={() => setConfirmRevoke(null)}
+        title="Revoke API Key?"
+        size="sm"
+        hideClose
+        footer={
+          <div className="cc-modal-footer">
+            <Button variant="secondary" size="sm" onClick={() => setConfirmRevoke(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => confirmRevoke && handleRevoke(confirmRevoke)}
+              disabled={revoking !== null && revoking === confirmRevoke}
             >
-              Revoke API Key?
-            </h2>
-            <p
-              style={{
-                fontSize: "var(--cc-t-14)",
-                color: "var(--cc-text-muted)",
-                marginBottom: 20,
-              }}
-            >
-              This action cannot be undone. Any systems using this key will
-              lose access immediately.
-            </p>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: 8,
-              }}
-            >
-              <button
-                onClick={() => setConfirmRevoke(null)}
-                style={{
-                  padding: "9px 16px",
-                  fontSize: "var(--cc-t-14)",
-                  fontWeight: "var(--cc-fw-strong)",
-                  borderRadius: 8,
-                  border: "1px solid var(--cc-border)",
-                  background: "var(--cc-card)",
-                  color: "var(--cc-text)",
-                  cursor: "pointer",
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleRevoke(confirmRevoke)}
-                disabled={revoking === confirmRevoke}
-                style={{
-                  padding: "9px 16px",
-                  fontSize: "var(--cc-t-14)",
-                  fontWeight: "var(--cc-fw-strong)",
-                  borderRadius: 8,
-                  border: "none",
-                  background: "var(--cc-danger-solid)",
-                  color: "var(--cc-on-primary)",
-                  cursor: "pointer",
-                  opacity: revoking === confirmRevoke ? 0.6 : 1,
-                }}
-              >
-                {revoking === confirmRevoke ? "Revoking..." : "Revoke Key"}
-              </button>
-            </div>
+              {revoking !== null && revoking === confirmRevoke ? "Revoking..." : "Revoke Key"}
+            </Button>
           </div>
-        </div>
-      )}
+        }
+      >
+        <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", margin: 0 }}>
+          This action cannot be undone. Any systems using this key will lose access immediately.
+        </p>
+      </Modal>
 
       {/* Usage Instructions */}
       <div

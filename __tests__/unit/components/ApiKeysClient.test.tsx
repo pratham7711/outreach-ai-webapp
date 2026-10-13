@@ -9,6 +9,30 @@ jest.mock("@/components/ds", () => ({
 
 jest.mock("sonner", () => ({ toast: { error: jest.fn(), success: jest.fn() } }));
 
+/* The create and revoke dialogs are the library's Modal and Input now, and
+   ds/Button wraps the library's Button. @pratham7711/ui's "exports" map has no
+   `require` condition for jest's CJS resolver, so it is stubbed with just
+   enough of each to keep the contract under test: a labelled input, and a
+   dialog that exists only while open. */
+jest.mock("@pratham7711/ui", () => ({
+  Button: ({ children, loading: _loading, variant: _variant, size: _size, ...rest }: any) => (
+    <button {...rest}>{children}</button>
+  ),
+  Input: ({ label, id, ...rest }: any) => (
+    <>
+      <label htmlFor={id}>{label}</label>
+      <input id={id} {...rest} />
+    </>
+  ),
+  Modal: ({ open, title, children, footer }: any) =>
+    open ? (
+      <div role="dialog" aria-label={title}>
+        {children}
+        {footer}
+      </div>
+    ) : null,
+}), { virtual: true });
+
 import ApiKeysClient from "@/app/(dashboard)/settings/api-keys/ApiKeysClient";
 
 function mockFetchOnce(res: { ok: boolean; status?: number; body: unknown }) {
@@ -71,5 +95,39 @@ describe("ApiKeysClient empty state", () => {
 
     expect(await screen.findByText("CI bot")).toBeInTheDocument();
     expect(screen.queryByText("Could not load your API keys")).toBeNull();
+  });
+});
+
+describe("ApiKeysClient create dialog", () => {
+  it("is a named dialog whose field is labelled, and Enter in it creates the key", async () => {
+    mockFetchOnce({ ok: true, body: { keys: [] } });
+    render(<ApiKeysClient />);
+    fireEvent.click(await screen.findByRole("button", { name: "Create your first key" }));
+
+    expect(screen.getByRole("dialog", { name: "Create API Key" })).toBeInTheDocument();
+    const field = screen.getByLabelText("Key name");
+
+    mockFetchOnce({ ok: true, body: { key: "sk_test_once" } });
+    mockFetchOnce({ ok: true, body: { keys: [] } });
+    fireEvent.change(field, { target: { value: "CI bot" } });
+    fireEvent.submit(field.closest("form") as HTMLFormElement);
+
+    await waitFor(() =>
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/keys",
+        expect.objectContaining({ method: "POST", body: JSON.stringify({ name: "CI bot" }) })
+      )
+    );
+  });
+
+  it("does not submit an empty name", async () => {
+    mockFetchOnce({ ok: true, body: { keys: [] } });
+    render(<ApiKeysClient />);
+    fireEvent.click(await screen.findByRole("button", { name: "Create your first key" }));
+
+    fireEvent.submit(screen.getByLabelText("Key name").closest("form") as HTMLFormElement);
+
+    expect((global.fetch as jest.Mock).mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(0);
+    expect(screen.getByRole("button", { name: "Create Key" })).toBeDisabled();
   });
 });
