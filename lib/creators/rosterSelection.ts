@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { creatorOrderBy, creatorWhere, readCreatorFilters } from "@/lib/listFilters";
 import { readCreatorSort } from "@/lib/listParams";
 import { rosterTablesReady } from "@/lib/creators/rosterTables";
+import { pinsUnknownLast, splitByKnownFollowers, UNKNOWN_FOLLOWERS_ORDER } from "@/lib/creators/rosterSort";
 
 /**
  * Which creators a bulk action on the roster means.
@@ -40,6 +41,17 @@ export async function resolveRosterSelection(orgId: string, selection: RosterSel
   if (count > MAX_BULK_CREATORS) {
     return { ok: false, status: 413, error: `That is ${count} creators; narrow the filters to ${MAX_BULK_CREATORS} or fewer.` };
   }
-  const rows = await db.creator.findMany({ where, select: { id: true }, orderBy: creatorOrderBy(readCreatorSort(sp)) });
+  const sort = readCreatorSort(sp);
+  if (pinsUnknownLast(sort)) {
+    // The same two segments the roster page reads, so an export comes out in
+    // the order the screen showed: known follower counts, then the unknowns.
+    const split = splitByKnownFollowers(where);
+    const [known, unknown] = await Promise.all([
+      db.creator.findMany({ where: split.known, select: { id: true }, orderBy: creatorOrderBy(sort) }),
+      db.creator.findMany({ where: split.unknown, select: { id: true }, orderBy: UNKNOWN_FOLLOWERS_ORDER }),
+    ]);
+    return { ok: true, ids: [...known, ...unknown].map((r) => r.id) };
+  }
+  const rows = await db.creator.findMany({ where, select: { id: true }, orderBy: creatorOrderBy(sort) });
   return { ok: true, ids: rows.map((r) => r.id) };
 }

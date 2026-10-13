@@ -3,7 +3,7 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, LayoutGrid, List as ListIcon, Users, Upload, X, Globe2, ChevronRight, AlertTriangle } from "lucide-react";
 import { Badge, Card, Input, EmptyState } from "@pratham7711/ui";
-import { PageHeader, StatusTabs, Pagination, FilterDrawer, FilterButton, SortableTh, Button } from "@/components/ds";
+import { PageHeader, StatusTabs, Pagination, FilterDrawer, FilterButton, SortableTh, Button, Dropdown } from "@/components/ds";
 import type { FilterDef, FilterValues } from "@/components/ds";
 import { Search } from "lucide-react";
 import AddCreatorModal from "@/components/modals/AddCreatorModal";
@@ -375,6 +375,24 @@ export default function CreatorsClient({
     push({ sort: key, dir, page: null });
   };
 
+  /* The grid has no column headers to click, so it had no way to sort at all.
+     The same orders the table offers, as one menu that serves both views.
+     Followers puts the unread creators last in both directions (the server
+     reads it in two segments); Avg. views is not offered because it is
+     measured after a page is fetched and cannot be ordered across pages. */
+  const sortOptions = [
+    { value: "added:desc", label: "Newest added" },
+    { value: "added:asc", label: "Oldest added" },
+    { value: "name:asc", label: "Name, A to Z" },
+    { value: "name:desc", label: "Name, Z to A" },
+    { value: "followers:desc", label: "Most followers" },
+    { value: "followers:asc", label: "Fewest followers" },
+    { value: "posts:desc", label: "Most posts" },
+    { value: "posts:asc", label: "Fewest posts" },
+    { value: "price:desc", label: "Highest price" },
+    { value: "price:asc", label: "Lowest price" },
+  ];
+
   const FILTERS: FilterDef[] = [
     // Offered only once the org has defined a tag, the way the campaigns drawer
     // treats its own -- a dropdown that can only ever be empty is not a filter.
@@ -616,6 +634,16 @@ export default function CreatorsClient({
           />
         </div>
         <FilterButton count={filterCount} onClick={() => setShowFilters(true)} />
+        <Dropdown
+          ariaLabel="Sort creators"
+          value={`${sort.key}:${sort.dir}`}
+          onChange={(v) => {
+            const [key, dir] = v.split(":");
+            push({ sort: key, dir, page: null });
+          }}
+          options={sortOptions}
+          minWidth={170}
+        />
         <div style={{ display: "flex", alignItems: "center", gap: 4, background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 10, padding: 4 }}>
           <Button variant={view === "grid" ? "primary" : "ghost"} size="sm" onClick={() => setView("grid")} aria-label="Grid view">
             <LayoutGrid size={16} />
@@ -750,12 +778,19 @@ export default function CreatorsClient({
                 <SortableTh label="Creator" sortKey="name" sort={sort} onToggle={toggleSort} padX={ROSTER_PAD_X} />
                 <SortableTh label="Accounts" padX={ROSTER_PAD_X} />
                 <SortableTh label="Tags" padX={ROSTER_PAD_X} />
-                {/* Neither of these can be ordered truthfully: Avg. Views is
-                    measured from posts after this page was fetched, and an
-                    unfetched follower count is a 0 that means unknown. See
-                    CREATOR_SORT_KEYS. */}
+                {/* Followers sorts with the unknown zeros pinned last either way
+                    (lib/creators/rosterSort). Avg. Views still cannot be ordered
+                    truthfully: it is measured from posts after this page was
+                    fetched. See CREATOR_SORT_KEYS. */}
                 {optionalStats.map((stat) => (
-                  <SortableTh key={stat.key} label={stat.label} padX={ROSTER_PAD_X} />
+                  <SortableTh
+                    key={stat.key}
+                    label={stat.label}
+                    sortKey={stat.key === "followers" ? "followers" : undefined}
+                    sort={sort}
+                    onToggle={toggleSort}
+                    padX={ROSTER_PAD_X}
+                  />
                 ))}
                 {hasAudience && <SortableTh label="Audience" padX={ROSTER_PAD_X} />}
                 {hasPrice && <SortableTh label="Price" sortKey="price" sort={sort} onToggle={toggleSort} padX={ROSTER_PAD_X} />}
