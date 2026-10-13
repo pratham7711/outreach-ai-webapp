@@ -20,6 +20,11 @@ jobs:
       - run: npx prisma generate
       - name: Typecheck (zero-error baseline)
         run: npx tsc --noEmit
+      - name: Lint ratchet (no new ESLint problems)
+        # app/, components/ and lib/ already hold 411 ESLint problems, so plain
+        # `eslint` fails on every run. This fails only when a file/rule count
+        # rises above scripts/lint-ratchet.baseline.json. About 16s locally.
+        run: npm run lint:ratchet
       - name: Unit tests
         run: npx jest --config jest.config.js --maxWorkers=2
       - name: Integration tests
