@@ -18,6 +18,34 @@ async function navigateToFirstPostDetail(page: import('@playwright/test').Page):
   return firstPostDetailHref(page);
 }
 
+/* The tracking card paints after its own fetch, and isVisible() answers at
+   once -- its `timeout` option is ignored -- so asking "is Untrack showing?"
+   straight after networkidle could read false on a tracked post and then wait
+   for a Track button that was never coming. Wait for whichever of the two the
+   card settles on, then ask. */
+async function trackingState(page: import('@playwright/test').Page) {
+  const trackBtn = page.getByRole('button', { name: /^Track$/i }).first();
+  const untrackBtn = page.getByRole('button', { name: /^Untrack$/i }).first();
+  await expect(trackBtn.or(untrackBtn).first()).toBeVisible({ timeout: 20000 });
+  return { trackBtn, untrackBtn, isTracked: await untrackBtn.isVisible() };
+}
+
+/* Track and Untrack flip their label the moment they are clicked, before the
+   server has said anything, so the label alone proves nothing. This used to
+   sleep 2s and hope the write had landed. Wait for the write itself; the
+   caller then waits for the button to come back enabled, which happens only
+   after the timeseries re-read behind it (components/ds Button hides its
+   label and sets aria-busy until then). */
+async function toggleTracking(page: import('@playwright/test').Page, button: import('@playwright/test').Locator) {
+  await Promise.all([
+    page.waitForResponse(
+      (r) => /\/posts\/[^/]+\/track$/.test(new URL(r.url()).pathname) && r.request().method() === 'POST',
+      { timeout: 30000 },
+    ),
+    button.click(),
+  ]);
+}
+
 test.describe('Post Tracking', () => {
   test('post detail tracking card: Track button toggles to Untrack, status line appears', async ({ page }) => {
     const href = await navigateToFirstPostDetail(page);
@@ -28,17 +56,12 @@ test.describe('Post Tracking', () => {
     const trackingHeading = page.getByText('Tracking').first();
     await expect(trackingHeading).toBeVisible({ timeout: 20000 });
 
-    const trackBtn = page.getByRole('button', { name: /^Track$/i }).first();
-    const untrackBtn = page.getByRole('button', { name: /^Untrack$/i }).first();
-
-    const isTracked = await untrackBtn.isVisible({ timeout: 3000 }).catch(() => false);
+    const { trackBtn, untrackBtn, isTracked } = await trackingState(page);
 
     if (!isTracked) {
-      await expect(trackBtn).toBeVisible({ timeout: 10000 });
-      await trackBtn.click();
-      await page.waitForTimeout(2000);
+      await toggleTracking(page, trackBtn);
 
-      await expect(untrackBtn).toBeVisible({ timeout: 15000 });
+      await expect(untrackBtn).toBeEnabled({ timeout: 15000 });
 
       const statusLine = page.getByText(/read (hourly|daily|every \d+h), .+(left|finished)/i).first();
       await expect(statusLine).toBeVisible({ timeout: 10000 });
@@ -54,15 +77,11 @@ test.describe('Post Tracking', () => {
     await page.goto(href);
     await page.waitForLoadState('networkidle');
 
-    const untrackBtn = page.getByRole('button', { name: /^Untrack$/i }).first();
-    const isTracked = await untrackBtn.isVisible({ timeout: 3000 }).catch(() => false);
+    const { trackBtn, untrackBtn, isTracked } = await trackingState(page);
 
     if (!isTracked) {
-      const trackBtn = page.getByRole('button', { name: /^Track$/i }).first();
-      if (await trackBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-        await trackBtn.click();
-        await page.waitForTimeout(2000);
-      }
+      await toggleTracking(page, trackBtn);
+      await expect(untrackBtn).toBeEnabled({ timeout: 15000 });
     }
 
     // The heuristics need 3 readings (MIN_SNAPSHOTS in lib/fraud/botSignals.ts);
@@ -91,24 +110,15 @@ test.describe('Post Tracking', () => {
     const trackingHeading = page.getByText('Tracking').first();
     await expect(trackingHeading).toBeVisible({ timeout: 20000 });
 
-    const untrackBtn = page.getByRole('button', { name: /^Untrack$/i }).first();
-    const trackBtn = page.getByRole('button', { name: /^Track$/i }).first();
-
-    const isTracked = await untrackBtn.isVisible({ timeout: 3000 }).catch(() => false);
+    const { trackBtn, untrackBtn, isTracked } = await trackingState(page);
 
     if (!isTracked) {
-      if (await trackBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-        await trackBtn.click();
-        await page.waitForTimeout(2000);
-        await expect(untrackBtn).toBeVisible({ timeout: 10000 });
-      }
+      await toggleTracking(page, trackBtn);
+      await expect(untrackBtn).toBeEnabled({ timeout: 15000 });
     }
 
-    if (await untrackBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await untrackBtn.click();
-      await page.waitForTimeout(2000);
-      await expect(trackBtn).toBeVisible({ timeout: 10000 });
-    }
+    await toggleTracking(page, untrackBtn);
+    await expect(trackBtn).toBeEnabled({ timeout: 15000 });
   });
 
   test('timeseries chart section is present in tracking card', async ({ page }) => {

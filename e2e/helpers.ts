@@ -28,12 +28,53 @@ export async function expectMinItems(page: Page, selector: string, minCount: num
   expect(count).toBeGreaterThanOrEqual(minCount);
 }
 
-/** Type into a search input and wait for debounce */
-export async function searchFor(page: Page, text: string, placeholder: string | RegExp = /search/i): Promise<void> {
+/**
+ * Type into a search input and wait for the search to be applied.
+ *
+ * The list pages debounce their search box into the URL (`?q=`, 350ms on
+ * campaigns) and filter on the server from there, so the query string
+ * changing is the moment the search has been asked for. That replaced a flat
+ * 600ms sleep, which was both slower than needed and no guarantee on a loaded
+ * machine. Pass `urlParam: null` for a box that filters in place without
+ * touching the URL; the caller's own retrying assertions then do the waiting.
+ */
+export async function searchFor(
+  page: Page,
+  text: string,
+  placeholder: string | RegExp = /search/i,
+  { urlParam = 'q' }: { urlParam?: string | null } = {},
+): Promise<void> {
   const input = page.getByPlaceholder(placeholder).first();
   await input.fill(text);
-  await page.waitForTimeout(600);
+  if (urlParam) {
+    await page.waitForURL((url) => url.searchParams.get(urlParam) === text, { timeout: 15000 });
+  }
 }
+
+/**
+ * Wait until React has hydrated the element `selector` names.
+ *
+ * Server-rendered forms are on the page before React has attached a single
+ * handler to them. Text typed into a controlled input before hydration is
+ * lost when React takes it over, and a click on submit then posts an empty
+ * form -- which is what flat sleeps before filling a form were papering over.
+ * React writes its props onto each DOM node it hydrates (`__reactProps$<id>`),
+ * so their presence on the field is the exact moment it starts listening.
+ */
+export async function waitForHydration(page: Page, selector: string, timeout = 30000): Promise<void> {
+  await page.waitForSelector(selector, { timeout });
+  await page.waitForFunction(
+    (sel) => {
+      const el = document.querySelector(sel);
+      return !!el && Object.keys(el).some((k) => k.startsWith('__reactProps'));
+    },
+    selector,
+    { timeout },
+  );
+}
+
+/** The sign-in form's email field, for waitForHydration. */
+export const LOGIN_EMAIL_FIELD = 'input[type="email"], input[name="email"]';
 
 /** Navigate to a page and wait for main content */
 export async function navigateAndWait(page: Page, path: string, timeout = 30000): Promise<void> {
