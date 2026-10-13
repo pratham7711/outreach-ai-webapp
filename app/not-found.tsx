@@ -1,6 +1,20 @@
-import Link from "next/link";
+import { auth } from "@/lib/auth";
+import { getCreatorSession } from "@/lib/creator-auth";
+import { NotFoundActions } from "@/components/errors/NotFoundActions";
 
-export default function NotFound() {
+/* Who is asking decides where the button goes (see NotFoundActions). A 404 must
+   render even when the session store is unreachable, so either read failing
+   counts as signed out rather than turning the 404 into a 500. */
+async function signedIn() {
+  const [agency, creator] = await Promise.all([
+    auth().then((s) => Boolean(s?.user)).catch(() => false),
+    getCreatorSession().then(Boolean).catch(() => false),
+  ]);
+  return { agency, creator };
+}
+
+export default async function NotFound() {
+  const { agency, creator } = await signedIn();
   return (
     <div
       style={{
@@ -49,24 +63,7 @@ export default function NotFound() {
         >
           The page you are looking for does not exist or has been moved.
         </p>
-        <Link
-          href="/dashboard"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "12px 24px",
-            background: "var(--cc-primary)",
-            color: "var(--cc-on-primary)",
-            borderRadius: 10,
-            fontSize: 14,
-            fontWeight: 600,
-            textDecoration: "none",
-            transition: "background 0.15s",
-          }}
-        >
-          Go to Dashboard
-        </Link>
+        <NotFoundActions agency={agency} creator={creator} />
       </div>
     </div>
   );
