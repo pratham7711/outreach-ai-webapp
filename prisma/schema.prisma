@@ -1196,6 +1196,7 @@ model Post {
   phase      CampaignPhase?       @relation(fields: [phaseId], references: [id], onDelete: SetNull)
   snapshots  PostMetricSnapshot[]
   syncSlot   SyncSlot?
+  thumbnail  PostThumbnail?
 
   @@index([phaseId])
   // Post is the largest table in the app and every campaign screen filters on
@@ -1233,6 +1234,30 @@ model PostMetricSnapshot {
   // campaign at once by the share report.
   @@index([postId])
   @@index([postId, recordedAt])
+}
+
+/// A post's picture, held as bytes rather than as a link.
+///
+/// TikTok and Instagram sign every cover URL with an expiry (`x-expires=`,
+/// a hex `oe=`), and each sync replaces the stored link with a fresh one. Once
+/// a campaign stops syncing nothing renews it, and the picture goes blank: 217
+/// of 650 posts on client share links on 2026-10-13. So when a sync sees a
+/// cover it downloads it, shrinks it to a WebP and keeps it here, the way
+/// CreatorAvatar keeps profile pictures. YouTube covers live at a fixed,
+/// permanent address and are never copied. Read through
+/// /api/posts/[id]/thumbnail and /api/share/[token]/thumbnail/[postId].
+model PostThumbnail {
+  postId    String    @id
+  orgId     String
+  data      Bytes?
+  sourceUrl String?
+  fetchedAt DateTime?
+  failedAt  DateTime?
+  failure   String?
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
 }
 
 model TikTokSound {
