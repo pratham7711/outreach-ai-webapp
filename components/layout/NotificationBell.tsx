@@ -106,15 +106,15 @@ export function NotificationBell() {
     const next = visible + STEP;
     setVisible(next);
     /* Fetch another page only when the lines already loaded will not fill the
-       next screenful. `before` is the oldest row held; the API answers rows at
-       or before it, and the repeat is dropped above. */
+       next screenful. `before`/`beforeId` name the oldest row held; the API
+       answers the rows strictly after it in the feed's order. */
     if (groups.length > next || !hasMore || loadingMore) return;
-    const oldest = rows[rows.length - 1]?.createdAt;
-    if (!oldest) return;
+    const oldest = rows[rows.length - 1];
+    if (!oldest?.createdAt) return;
     setLoadingMore(true);
     try {
       const page = await apiFetch<FeedResponse>(
-        `/api/notifications?limit=${PAGE_ROWS}&before=${encodeURIComponent(oldest)}`
+        `/api/notifications?limit=${PAGE_ROWS}&before=${encodeURIComponent(oldest.createdAt)}&beforeId=${encodeURIComponent(oldest.id)}`
       );
       setOlder((prev) => [...prev, ...page.items]);
       setOlderHasMore(page.hasMore === true);

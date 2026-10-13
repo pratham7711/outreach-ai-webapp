@@ -125,6 +125,19 @@ describe("GET /api/notifications pages through the window", () => {
     expect(body.unreadCount).toBeUndefined();
   });
 
+  it("starts strictly after the boundary row when the cursor names its id, so rows sharing one instant still page", async () => {
+    mockDb.auditLog.findMany.mockResolvedValue(rows(2));
+    const before = "2026-10-10T00:00:30.000Z";
+    await GET(at(`?limit=20&before=${encodeURIComponent(before)}&beforeId=a7`));
+    const where = mockDb.auditLog.findMany.mock.calls[0][0].where;
+    expect(where.orgId).toBe("org-1");
+    expect(where.createdAt.gte).toBeInstanceOf(Date);
+    expect(where.OR).toEqual([
+      { createdAt: { lt: new Date(before) } },
+      { createdAt: new Date(before), id: { lt: "a7" } },
+    ]);
+  });
+
   it("ignores a cursor that is not a date", async () => {
     await GET(at("?before=nonsense"));
     expect(mockDb.auditLog.findMany.mock.calls[0][0].where.createdAt.lte).toBeUndefined();

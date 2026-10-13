@@ -30,7 +30,8 @@ import { resolvePrefs } from "@/lib/notifications";
  *
  * Paged, because the bell used to show the newest 8 of what could be 808 unread
  * with no way to reach the rest. `limit` (capped at NOTIFICATION_PAGE_MAX) sizes
- * a page, `before` is the createdAt of the oldest row already shown, and
+ * a page, `before` and `beforeId` are the createdAt and id of the oldest row
+ * already shown, and
  * `hasMore` says whether another page exists. A `before` page skips the unread
  * count: the first page already carries it, and it does not depend on paging.
  */
@@ -61,6 +62,7 @@ export async function GET(req: NextRequest) {
   };
   const since = parseDate(params.get("since"));
   const before = parseDate(params.get("before"));
+  const beforeId = params.get("beforeId");
   const askedLimit = Number.parseInt(params.get("limit") ?? "", 10);
   const limit = Number.isFinite(askedLimit)
     ? Math.min(NOTIFICATION_PAGE_MAX, Math.max(1, askedLimit))
@@ -75,10 +77,23 @@ export async function GET(req: NextRequest) {
 
   const [rows, unreadCount] = await Promise.all([
     db.auditLog.findMany({
-      /* `lte`, not `lt`: two rows written in the same millisecond can sit
-         either side of a page boundary, and `lt` would skip the second. The
-         repeated boundary row is dropped by id on the client. */
-      where: before ? { ...where, createdAt: { gte: floor, lte: before } } : where,
+      /* The page boundary is the (createdAt, id) of the oldest row already
+         shown, the same pair the rows are ordered by. A timestamp alone was not
+         enough: a bulk action writes many rows in one instant, and with `lte`
+         a page made entirely of those rows came back unchanged on every Show
+         more, so the list stopped growing while hasMore stayed true. With the
+         id the next page starts strictly after the boundary row. `before`
+         without `beforeId` keeps the old `lte` answer, whose repeated boundary
+         row the client drops by id. */
+      where: before
+        ? beforeId
+          ? {
+              ...where,
+              createdAt: { gte: floor, lte: before },
+              OR: [{ createdAt: { lt: before } }, { createdAt: before, id: { lt: beforeId } }],
+            }
+          : { ...where, createdAt: { gte: floor, lte: before } }
+        : where,
       // id breaks ties, so the same rows come back in the same order each time.
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       // One past the page, to answer hasMore without a second count.
