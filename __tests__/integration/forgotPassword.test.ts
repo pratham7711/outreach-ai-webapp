@@ -5,11 +5,10 @@
 /**
  * The password reset request.
  *
- * The behaviour worth pinning is the pair of things this endpoint must do at
- * once: never reveal whether an address is registered, and never let the page
- * claim an email was sent when no provider exists. Those pull in opposite
- * directions, and the resolution is that `delivery` describes the SERVER, so it
- * is identical for a known and an unknown address.
+ * The behaviour worth pinning: the response is the same for every address,
+ * registered or not, and whether or not the server can send mail; the link is
+ * never written to a log; and the stored token is the link's hash, not the
+ * link's token.
  */
 import { NextRequest } from "next/server";
 
@@ -25,11 +24,17 @@ jest.mock("@/lib/email", () => ({
   sendEmail: jest.fn(),
 }));
 
+const mockLog = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+jest.mock("@/lib/observability/logger", () => ({
+  createLogger: () => mockLog,
+}));
+
 jest.mock("@/lib/rateLimit", () => ({
   rateLimit: jest.fn(() => ({ allowed: true })),
   rateLimitKey: jest.fn(() => "key"),
 }));
 
+import { createHash } from "crypto";
 import { POST } from "@/app/api/auth/forgot-password/route";
 import { db } from "@/lib/db";
 import { emailConfigured, sendEmail } from "@/lib/email";
@@ -72,10 +77,30 @@ describe("with an email provider configured", () => {
   it("mints a single-use token and emails the link", async () => {
     const res = await asProduction(() => POST(request("someone@example.com")));
     expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({ ok: true, delivery: "sent" });
+    await expect(res.json()).resolves.toEqual({ ok: true });
     expect(mockDb.verificationToken.create).toHaveBeenCalledTimes(1);
     const link = mockSend.mock.calls[0][0].text as string;
     expect(link).toContain("/reset-password?token=");
+  });
+
+  /* The table used to hold the raw token, so read access to it was a working
+     reset link for every account with one outstanding. */
+  it("stores the sha256 of the emailed token, never the token itself", async () => {
+    await POST(request("someone@example.com"));
+    const raw = (mockSend.mock.calls[0][0].text as string).match(/token=([0-9a-f]+)/)![1];
+    const stored = mockDb.verificationToken.create.mock.calls[0][0].data.token;
+    expect(stored).not.toBe(raw);
+    expect(stored).toBe(createHash("sha256").update(raw).digest("hex"));
+  });
+
+  it("does not write the link to the log when the send fails", async () => {
+    mockSend.mockResolvedValue({ sent: false, reason: "provider_error" });
+    await POST(request("someone@example.com"));
+    const raw = (mockSend.mock.calls[0][0].text as string).match(/token=([0-9a-f]+)/)![1];
+    const logged = JSON.stringify([mockLog.info.mock.calls, mockLog.warn.mock.calls, mockLog.error.mock.calls]);
+    expect(mockLog.error).toHaveBeenCalled();
+    expect(logged).not.toContain(raw);
+    expect(logged).not.toContain("reset-password?token=");
   });
 
   it("replaces any earlier token for the same address", async () => {
@@ -95,7 +120,7 @@ describe("with an email provider configured", () => {
   it("still reports sent for an address that is not registered", async () => {
     mockDb.user.findUnique.mockResolvedValue(null);
     const res = await asProduction(() => POST(request("nobody@example.com")));
-    await expect(res.json()).resolves.toEqual({ ok: true, delivery: "sent" });
+    await expect(res.json()).resolves.toEqual({ ok: true });
     expect(mockDb.verificationToken.create).not.toHaveBeenCalled();
     expect(mockSend).not.toHaveBeenCalled();
   });
@@ -104,15 +129,19 @@ describe("with an email provider configured", () => {
 describe("with no email provider", () => {
   beforeEach(() => mockConfigured.mockReturnValue(false));
 
-  it("says delivery is unavailable rather than letting the page claim a send", async () => {
+  /* The response used to carry delivery: "unavailable", which told an
+     unauthenticated caller how the deployment was configured. */
+  it("answers exactly as it does with a provider, so configuration is not disclosed", async () => {
     const res = await asProduction(() => POST(request("someone@example.com")));
-    await expect(res.json()).resolves.toEqual({ ok: true, delivery: "unavailable" });
+    await expect(res.json()).resolves.toEqual({ ok: true });
     expect(mockSend).not.toHaveBeenCalled();
   });
 
-  it("still creates the token, so an admin can hand the link over", async () => {
+  it("does not write the link to the log", async () => {
     await POST(request("someone@example.com"));
-    expect(mockDb.verificationToken.create).toHaveBeenCalledTimes(1);
+    const logged = JSON.stringify([mockLog.info.mock.calls, mockLog.warn.mock.calls, mockLog.error.mock.calls]);
+    expect(mockLog.warn).toHaveBeenCalled();
+    expect(logged).not.toContain("reset-password?token=");
   });
 
   it("answers identically for an unknown address, so nothing is enumerable", async () => {
