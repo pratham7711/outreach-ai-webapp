@@ -1,5 +1,8 @@
 import {
+  MAPPABLE_FIELDS,
+  METRIC_FIELDS,
   detectMapping,
+  isMetricHeader,
   isSignupFormMapping,
   mergePeople,
   nicheTags,
@@ -254,10 +257,26 @@ describe("detectMapping", () => {
     expect(m[SIGNUP_HEADERS.indexOf("Email")]).toBe("email");
     expect(m[SIGNUP_HEADERS.indexOf("Email Address")]).toBeNull();
     expect(m[SIGNUP_HEADERS.indexOf("Titkok Link")]).toBe("tiktokLink");
-    expect(m[SIGNUP_HEADERS.indexOf("Average Views(IG)")]).toBe("instagramAvgViews");
+    // Follower and view columns are left unmapped: figures come from the platforms.
+    for (const h of ["Tiktok Followers", "Average Views(Tiktok)", "Instagram Followers", "Average Views(IG)", "Youtube Subscribers", "Average Views (Youtube)"]) {
+      expect(m[SIGNUP_HEADERS.indexOf(h)]).toBeNull();
+    }
     expect(m[SIGNUP_HEADERS.indexOf("Country of Audience")]).toBe("audienceCountry");
     expect(m[SIGNUP_HEADERS.indexOf("Country")]).toBe("country");
     expect(isSignupFormMapping(m)).toBe(true);
+  });
+
+  it("never maps a metric column, and keeps one from being claimed as something else", () => {
+    const headers = ["Name", "TikTok link", "Followers", "Average views", "Engagement rate", "Total likes", "Rate per video"];
+    expect(detectMapping(headers)).toEqual(["name", "tiktokLink", null, null, null, null, "price"]);
+    expect(headers.map(isMetricHeader)).toEqual([false, false, true, true, true, true, false]);
+    // Form questions that only look like figures stay ordinary columns.
+    expect(["Any comments?", "How can we reach you?", "What do you like?", "Overview"].map(isMetricHeader)).toEqual([false, false, false, false]);
+  });
+
+  it("offers no metric field to map a column to", () => {
+    expect(MAPPABLE_FIELDS.some((f) => METRIC_FIELDS.has(f))).toBe(false);
+    expect(MAPPABLE_FIELDS).toContain("tiktokLink");
   });
 
   it("prefers Artist Name over Legal Name", () => {
@@ -280,10 +299,23 @@ describe("readRow", () => {
       rate: 25,
       tags: expect.arrayContaining(["Anime"]),
     });
-    expect(r.person.links.map((l) => [l.platform, l.handle, l.followersCount])).toEqual([
-      ["TIKTOK", "akiedits", 391900],
-      ["INSTAGRAM", "aki.edits", 12500],
+    // Accounts only: the follower and view cells beside them are not read.
+    expect(r.person.links).toEqual([
+      { platform: "TIKTOK", handle: "akiedits", url: "https://www.tiktok.com/@akiedits" },
+      { platform: "INSTAGRAM", handle: "aki.edits", url: "https://www.instagram.com/aki.edits/" },
     ]);
+  });
+
+  it("reads no counts even when a mapping still names a metric column", () => {
+    const old = [...mapping];
+    old[SIGNUP_HEADERS.indexOf("Tiktok Followers")] = "tiktokFollowers";
+    old[SIGNUP_HEADERS.indexOf("Average Views(IG)")] = "instagramAvgViews";
+    const r = readRow(signupRow(), old, 2);
+    if (!("person" in r)) throw new Error("expected a person");
+    for (const l of r.person.links) {
+      expect(l).not.toHaveProperty("followersCount");
+      expect(l).not.toHaveProperty("averageViews");
+    }
   });
 
   it("falls back to the handle when the name is the placeholder", () => {

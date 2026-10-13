@@ -117,8 +117,10 @@ jest.mock("@/lib/db", () => ({
 
 import { applyImport, planImport } from "@/lib/creators/importCreators";
 
+/* Counts ride along the way an older caller's sheet would have carried them,
+   so every test below also shows that none of them is ever written. */
 function link(platform: ImportLink["platform"], handle: string, followersCount: number | null = 1000): ImportLink {
-  return { platform, handle, url: `https://example.com/${handle}`, followersCount, averageViews: 100 };
+  return { platform, handle, url: `https://example.com/${handle}`, followersCount, averageViews: 100 } as ImportLink;
 }
 function person(over: Partial<ImportPerson> = {}): ImportPerson {
   return {
@@ -158,8 +160,15 @@ describe("planImport + applyImport", () => {
     const counts = await applyImport("org-1", plan, "Sign-up form");
     expect(counts).toMatchObject({ created: 1, updated: 0, unchanged: 0 });
     expect(store.creator).toEqual([
-      expect.objectContaining({ orgId: "org-1", name: "Aki Edits", handle: "@akiedits", platform: "TIKTOK", followersCount: 50000, rate: 25 }),
+      expect.objectContaining({ orgId: "org-1", name: "Aki Edits", handle: "@akiedits", platform: "TIKTOK", rate: 25 }),
     ]);
+    // Figures come from the platforms: nothing from the sheet is written.
+    expect(store.creator[0]).not.toHaveProperty("followersCount");
+    expect(store.creator[0]).not.toHaveProperty("averageViews");
+    for (const l of store.link) {
+      expect(l).not.toHaveProperty("followersCount");
+      expect(l).not.toHaveProperty("averageViews");
+    }
     expect(store.link.map((l) => [l.platform, l.handle, l.isPrimary])).toEqual([
       ["TIKTOK", "akiedits", true],
       ["INSTAGRAM", "aki.edits", false],
@@ -182,11 +191,13 @@ describe("planImport + applyImport", () => {
     const plan = await planImport("org-1", [person()]);
     expect(plan.people[0]).toMatchObject({ action: "update", creatorId: c.id });
     expect(plan.people[0].changes).toEqual(
-      expect.arrayContaining(["adds Instagram", "fills name", "fills followers", "adds details", "adds 1 tag"]),
+      expect.arrayContaining(["adds Instagram", "fills name", "adds details", "adds 1 tag"]),
     );
+    expect(plan.people[0].changes).not.toContain("fills followers");
     await applyImport("org-1", plan, "x");
     expect(store.creator).toHaveLength(1);
-    expect(store.creator[0]).toMatchObject({ name: "Aki Edits", contactEmail: "agency-typed@example.com", rate: 99, followersCount: 50000 });
+    // A stored 0 stays 0 (shown as "—" until a read): the sheet's 50,000 is not taken.
+    expect(store.creator[0]).toMatchObject({ name: "Aki Edits", contactEmail: "agency-typed@example.com", rate: 99, followersCount: 0 });
     // Its own account becomes the primary link.
     expect(store.link.find((l) => l.platform === "TIKTOK")).toMatchObject({ creatorId: c.id, isPrimary: true });
   });
@@ -247,21 +258,19 @@ describe("planImport + applyImport", () => {
     it("corrects each value still exactly as that import wrote it, and says before → after", async () => {
       const plan = await planImport("org-1", [reread()], [], [misread()]);
       expect(plan.people[0].action).toBe("correct");
-      expect(plan.people[0].corrections).toEqual(
-        expect.arrayContaining([
-          "TikTok followers 17 → 17,300",
-          "name “aki@example.com” → “akiedits”",
-          "audience country “IndonÉSia” → “Indonesia”",
-        ]),
-      );
-      // A blank the first import left is filled, not "corrected".
-      expect(plan.people[0].changes).toContain("fills Instagram followers");
+      expect(plan.people[0].corrections).toEqual([
+        "name “aki@example.com” → “akiedits”",
+        "audience country “IndonÉSia” → “Indonesia”",
+      ]);
+      // Counts are neither corrected nor filled: the platform's read owns them.
+      expect(plan.people[0].changes.some((c) => /followers|views/.test(c))).toBe(false);
 
       expect(await applyImport("org-1", plan, "x")).toMatchObject({ created: 0, updated: 0, corrected: 1 });
-      expect(store.creator[0]).toMatchObject({ name: "akiedits", followersCount: 17300 });
+      expect(store.creator[0]).toMatchObject({ name: "akiedits" });
+      expect(store.creator[0]).not.toHaveProperty("followersCount");
       expect(store.link.map((l) => [l.platform, l.followersCount])).toEqual([
-        ["TIKTOK", 17300],
-        ["INSTAGRAM", 284000],
+        ["TIKTOK", undefined],
+        ["INSTAGRAM", undefined],
       ]);
       expect(store.detail[0].audienceCountry).toBe("Indonesia");
 
