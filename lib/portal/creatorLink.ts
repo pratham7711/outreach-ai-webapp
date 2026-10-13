@@ -42,7 +42,9 @@ import { stripAt } from "@/lib/format";
  */
 export type LinkedCreator = { id: string; orgId: string };
 
-export type LinkSubject = { handle: string; email: string; creatorUserId?: string | null };
+/* `email` is accepted so a whole portal session can be passed in, and is not
+   read: see "An email is not a proof" above. */
+export type LinkSubject = { handle: string; email?: string | null; creatorUserId?: string | null };
 
 function handleVariants(handle: string): string[] {
   const bare = stripAt(handle);
@@ -101,4 +103,37 @@ export async function isCreatorLinked(
 ): Promise<boolean> {
   const linked = await findLinkedCreatorsForHandle(subject);
   return linked.some((c) => c.id === creatorId);
+}
+
+/**
+ * The other direction: which portal account, if any, has proven it owns this
+ * org-side roster row -- for the agency side deciding who to address.
+ *
+ * negotiations/start-batch used to pick the portal account by handle alone and
+ * open the offer's conversation with it, so the rate, the campaign and the
+ * agency's name went to whoever had registered that handle first, proof or
+ * not. The portal's own offer routes are gated on the proofs above; the message
+ * that announces the offer has to be addressed by the same rule or it leaks
+ * what the gate protects.
+ *
+ * Proof 1 is read straight off the row. Proof 2 starts from the portal account
+ * holding the roster handle and asks the same question findLinkedCreatorsForHandle
+ * answers, so the two directions cannot disagree.
+ */
+export async function findProvenCreatorUserForCreator(creator: {
+  id: string;
+  handle: string;
+  creatorUserId: string | null;
+}): Promise<{ id: string } | null> {
+  if (creator.creatorUserId) return { id: creator.creatorUserId };
+  const candidate = await db.creatorUser.findFirst({
+    where: { handle: { in: handleVariants(creator.handle) } },
+    select: { id: true, handle: true },
+  });
+  if (!candidate) return null;
+  const proven = await isCreatorLinked(creator.id, {
+    handle: candidate.handle,
+    creatorUserId: candidate.id,
+  });
+  return proven ? { id: candidate.id } : null;
 }

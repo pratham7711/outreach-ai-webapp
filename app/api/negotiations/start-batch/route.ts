@@ -4,7 +4,10 @@ import { auth } from "@/lib/auth";
 import { createAuditActor, logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { getOrCreateConversation, appendMessage } from "@/lib/negotiation/conversation";
+import { findProvenCreatorUserForCreator } from "@/lib/portal/creatorLink";
 import { z } from "zod";
+import { permissionDenial } from "@/lib/authz";
+import { sessionCampaignScopeDenial } from "@/lib/campaignAccess";
 
 const startBatchSchema = z.object({
   campaignId: z.string().min(1),
@@ -26,6 +29,9 @@ export async function POST(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    /* The same permission as making one offer (campaigns/[id]/negotiations). */
+    const denied = permissionDenial(session.user, "campaigns:edit_own");
+    if (denied) return denied;
     const orgId = (session.user as any).orgId as string;
 
     const body = await request.json();
@@ -40,11 +46,13 @@ export async function POST(request: NextRequest) {
       select: { id: true, title: true },
     });
     if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+    const outOfScope = await sessionCampaignScopeDenial(session.user, campaignId);
+    if (outOfScope) return outOfScope;
 
     const uniqueCreatorIds = Array.from(new Set(creatorIds));
     const creators = await db.creator.findMany({
       where: { id: { in: uniqueCreatorIds }, orgId, deletedAt: null },
-      select: { id: true, name: true, handle: true },
+      select: { id: true, name: true, handle: true, creatorUserId: true },
     });
     const creatorById = new Map(creators.map((c) => [c.id, c]));
 
@@ -74,17 +82,13 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      const bareHandle = creator.handle.replace(/^@/, "");
-      const creatorUser = await db.creatorUser.findFirst({
-        where: {
-          OR: [
-            { handle: creator.handle },
-            { handle: `@${bareHandle}` },
-            { handle: bareHandle },
-          ],
-        },
-        select: { id: true },
-      });
+      /* Only a portal account that has PROVEN it owns this roster row
+         (lib/portal/creatorLink.ts) is sent the offer. Matching by handle alone
+         delivered the rate, the campaign and the agency's name to whoever had
+         registered the handle first. An unproven creator still gets the offer
+         row; it reaches them once they link (accepting an invite, or
+         connecting the account). */
+      const creatorUser = await findProvenCreatorUserForCreator(creator);
 
       let onPortal = false;
       if (creatorUser) {

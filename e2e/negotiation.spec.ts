@@ -83,6 +83,35 @@ async function startBatchViaApi(adminToken: string, campaignId: string, creatorI
   return { offerId: result?.offerId ?? null, onPortal: result?.onPortal ?? false };
 }
 
+/* creator-1 ("@blessingjolie") is the roster row the offers are made to, and
+   creator@demo.com is the portal login that answers them. Sharing a handle is
+   not proof of owning the row (lib/portal/creatorLink.ts), so the portal sees
+   no offer until the row is linked -- the same way a real rostered creator
+   links: the agency sends its per-creator invite link and the creator accepts
+   it. camp-3 is used because creator-1 is already on it (seed act-4), so the
+   accept adds no activation. Accepting again from the same login is a no-op. */
+async function linkCreator1ToPortal(adminToken: string) {
+  const apiCtx = await playwrightRequest.newContext({ baseURL: BASE });
+  const invite = await apiCtx.post('/api/campaigns/camp-3/invites', {
+    data: { creatorId: 'creator-1' },
+    headers: { Cookie: `authjs.session-token=${adminToken}` },
+  });
+  if (invite.status() !== 201) {
+    const text = await invite.text();
+    await apiCtx.dispose();
+    throw new Error(`invite create failed: ${invite.status()} ${text}`);
+  }
+  const { inviteToken } = await invite.json();
+  await apiCtx.dispose();
+
+  const portalCtx = await playwrightRequest.newContext({ baseURL: BASE, storageState: await portalLoginStorageState() });
+  const accept = await portalCtx.post(`/api/portal/invites/${inviteToken}/accept`);
+  const status = accept.status();
+  const text = await accept.text();
+  await portalCtx.dispose();
+  if (status !== 200 && status !== 201) throw new Error(`invite accept failed: ${status} ${text}`);
+}
+
 /* The agency's side of this flow -- Make Offer, Approve, Reject in the
    campaign's Negotiations section -- left the UI in October 2026 with the rest
    of the payments surface, and its three tests with it. The creator's Offers
@@ -92,6 +121,8 @@ async function startBatchViaApi(adminToken: string, campaignId: string, creatorI
 test.describe('AI Negotiation', () => {
   test('(b) portal: counter at 200 → AI counter between 100 and 125, status COUNTERED, aiRound=1', async () => {
     const adminToken = await orgAdminToken();
+
+    await linkCreator1ToPortal(adminToken);
 
     let offerId: string | null = null;
     let onPortal = false;
@@ -104,15 +135,10 @@ test.describe('AI Negotiation', () => {
       return;
     }
 
-    if (!onPortal || !offerId) {
-      test.fixme(
-        true,
-        `App bug: start-batch bridge fails for creator-1 (org handle "@blessingjolie" vs portal handle "blessingjolie"). ` +
-        `The negotiations/start-batch route does exact handle match without stripping "@". ` +
-        `onPortal=${onPortal}. Fix: use the same strip-"@" logic as resolveCreatorUserForCreator in messaging.`
-      );
-      return;
-    }
+    /* Linked above, so start-batch must address the portal login. A false here
+       is a broken proof, not a fixture gap, and fails rather than skips. */
+    expect(onPortal).toBe(true);
+    expect(offerId).toBeTruthy();
 
     const portalState = await portalLoginStorageState();
     const portalReqCtx = await playwrightRequest.newContext({ baseURL: BASE, storageState: portalState });
@@ -132,6 +158,8 @@ test.describe('AI Negotiation', () => {
   test('(c) portal: second counter returns 409', async () => {
     const adminToken = await orgAdminToken();
 
+    await linkCreator1ToPortal(adminToken);
+
     let offerId: string | null = null;
     let onPortal = false;
     try {
@@ -143,14 +171,8 @@ test.describe('AI Negotiation', () => {
       return;
     }
 
-    if (!onPortal || !offerId) {
-      test.fixme(
-        true,
-        `App bug: same handle mismatch as test (b) — start-batch doesn't bridge "@blessingjolie" to portal user "blessingjolie". ` +
-        `Portal cannot see the offer, so counter and 409-block cannot be tested end-to-end.`
-      );
-      return;
-    }
+    expect(onPortal).toBe(true);
+    expect(offerId).toBeTruthy();
 
     const portalState = await portalLoginStorageState();
     const portalReqCtx = await playwrightRequest.newContext({ baseURL: BASE, storageState: portalState });
@@ -160,7 +182,7 @@ test.describe('AI Negotiation', () => {
     const firstOk = firstCounter.ok();
     const firstText = await firstCounter.text();
     if (!firstOk) {
-      test.fixme(true, `First counter failed: ${firstCounter.status()} ${firstText}. Handle mismatch likely.`);
+      test.fixme(true, `First counter failed: ${firstCounter.status()} ${firstText}.`);
       await portalReqCtx.dispose();
       return;
     }

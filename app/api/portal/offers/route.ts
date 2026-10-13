@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
-import { findCreatorsForHandle } from "@/lib/portal/creatorLookup";
+import { findLinkedCreatorsForHandle } from "@/lib/portal/creatorLink";
 
 // GET /api/portal/offers — negotiation offers addressed to the signed-in creator
 export async function GET() {
@@ -9,14 +9,16 @@ export async function GET() {
     const session = await getCreatorSession();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    /* Offers stay on the handle bridge, not the proven-ownership link in
-       lib/portal/creatorLink.ts: an offer is addressed to a handle, and the
-       roster flow is "agency makes an offer → creator registers → creator
-       counters" before any email or OAuth proof exists (the E2E fixture is
-       exactly that creator). The brand still has to approve, so an unproven
-       counter cannot sign anyone to a rate by itself. Connections, insights,
-       reviews and earnings remain ownership-gated. */
-    const creators = await findCreatorsForHandle(session.handle);
+    /* Proven ownership only (lib/portal/creatorLink.ts): a roster row linked to
+       this login by identity, or carrying an OAuth-connected account whose
+       platform handle is this portal handle -- the same rule connections,
+       insights, reviews and earnings use. Matching by handle alone handed any
+       account that registered "bigcreator" every agency's offers to the roster
+       row of that name: the rate, the agency, the campaign, and the right to
+       accept or counter. A creator the agency rostered before they signed up
+       sees their offers once they link, by accepting the agency's invite link
+       or connecting the account. */
+    const creators = await findLinkedCreatorsForHandle(session);
     if (creators.length === 0) {
       return NextResponse.json({ offers: [] });
     }

@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import type { CreatorSession } from "@/lib/creator-auth";
 import { findCreatorsForHandle } from "@/lib/portal/creatorLookup";
+import { findLinkedCreatorsForHandle } from "@/lib/portal/creatorLink";
 import { nextCampaignDate, type CampaignDate } from "@/lib/portal/campaignDates";
 import { campaignInvitePath, portalCampaignPath } from "@/lib/portal/invitePath";
 import { isPortalCampaignActionable } from "@/lib/marketplace/portalVisibility";
@@ -100,6 +101,7 @@ export async function listJoinedCampaigns(
     where: { deletedAt: null, campaign: { deletedAt: null }, OR: branches },
     select: {
       id: true,
+      creatorId: true,
       status: true,
       deliverableDueDate: true,
       feedbackNotes: true,
@@ -122,6 +124,18 @@ export async function listJoinedCampaigns(
     orderBy: { createdAt: "desc" },
   });
 
+  /* The agency's note on a declined draft is written to the creator on that
+     roster row, not to whoever registered its handle. The campaign itself is
+     public on /explore; the note is not. So a handle-only row shows the note
+     only once the login has proven it owns the row (lib/portal/creatorLink.ts,
+     the OAuth proof), and the proof is only looked up when such a note exists. */
+  const needsProof = activations.some(
+    (a) => a.status === "DECLINED" && a.feedbackNotes && !identitySet.has(a.creatorId),
+  );
+  const provenIds = needsProof
+    ? new Set((await findLinkedCreatorsForHandle(session)).map((c) => c.id))
+    : identitySet;
+
   /* One row per campaign. Two roster rows in the same agency can both be on a
      campaign (an import duplicate); the creator still has one campaign. */
   const seen = new Set<string>();
@@ -138,7 +152,8 @@ export async function listJoinedCampaigns(
       activationStatus: a.status,
       actionable: isPortalCampaignActionable(a.campaign.status),
       postsSubmitted: a._count.posts,
-      feedback: a.status === "DECLINED" && a.feedbackNotes ? a.feedbackNotes : null,
+      feedback:
+        a.status === "DECLINED" && a.feedbackNotes && provenIds.has(a.creatorId) ? a.feedbackNotes : null,
       deliverableDueDate: iso(a.deliverableDueDate),
       submissionDeadline: iso(a.campaign.submissionDeadline),
       next: nextCampaignDate(

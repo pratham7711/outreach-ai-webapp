@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getCreatorSession, creatorHandleVariants } from "@/lib/creator-auth";
+import { getCreatorSession } from "@/lib/creator-auth";
+import { isCreatorLinked } from "@/lib/portal/creatorLink";
 import { getOrCreateConversation, appendMessage } from "@/lib/negotiation/conversation";
 import { getAdvisor } from "@/lib/negotiation/engine";
 import { z } from "zod";
@@ -35,16 +36,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const offer = await db.negotiationOffer.findFirst({ where: { id: offerId } });
     if (!offer) return NextResponse.json({ error: "Offer not found" }, { status: 404 });
 
-    // Ownership: the org-side creator on the offer must bridge (by handle) to this creator user.
+    /* Ownership: the roster row the offer names must be one this login has
+       PROVEN it owns (lib/portal/creatorLink.ts) -- the same rule as reading
+       offers in ../route.ts. A handle match alone let anyone who registered the
+       handle accept or counter another org's offer. 404, not 403, so an offer
+       id cannot be probed for whether it exists. */
+    if (!(await isCreatorLinked(offer.creatorId, session))) {
+      return NextResponse.json({ error: "Offer not found" }, { status: 404 });
+    }
     const creator = await db.creator.findFirst({
-      where: { id: offer.creatorId, handle: { in: creatorHandleVariants(session.handle) }, deletedAt: null },
+      where: { id: offer.creatorId, deletedAt: null },
       select: { id: true, followersCount: true, averageViews: true, rate: true },
     });
     if (!creator) return NextResponse.json({ error: "Offer not found" }, { status: 404 });
-
-    /* Deliberately no isCreatorLinked() here — see the note in ../route.ts:
-       offers stay on the handle bridge so a roster creator can counter before
-       an email or OAuth proof exists; the brand's approval is the safeguard. */
 
     if (offer.status === "ACCEPTED" || offer.status === "REJECTED") {
       return NextResponse.json({ error: "Offer is no longer actionable" }, { status: 409 });
@@ -81,14 +85,27 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     if (action === "accept") {
       const standing = offer.aiCounterRate ?? offer.counterRate ?? offer.offeredRate;
-      const updated = await db.negotiationOffer.update({
-        where: { id: offer.id },
+      /* Conditional on the offer still standing as read: no acceptance yet and
+         the same rates. Two accepts racing, or an accept racing the brand's
+         decision, otherwise both wrote. */
+      const swapped = await db.negotiationOffer.updateMany({
+        where: {
+          id: offer.id,
+          status: offer.status,
+          finalRate: null,
+          counterRate: offer.counterRate,
+          aiCounterRate: offer.aiCounterRate,
+        },
         data: {
           status: "COUNTERED",
           finalRate: standing,
           conversationId,
         },
       });
+      if (swapped.count === 0) {
+        return NextResponse.json({ error: "This offer changed while you were responding. Reload it and try again." }, { status: 409 });
+      }
+      const updated = await db.negotiationOffer.findUniqueOrThrow({ where: { id: offer.id } });
       await appendMessage({
         conversationId,
         senderType: "CREATOR",
@@ -112,14 +129,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       );
     }
 
-    const afterCounter = await db.negotiationOffer.update({
-      where: { id: offer.id },
+    /* Claims the single counter-round atomically: only an offer still at
+       aiRound 0, unaccepted and in the status read above takes the counter, so
+       two counters sent together cannot both run an AI round. */
+    const claimed = await db.negotiationOffer.updateMany({
+      where: { id: offer.id, status: offer.status, aiRound: 0, finalRate: null },
       data: {
         status: "COUNTERED",
         counterRate: creatorCounterRate,
         conversationId,
       },
     });
+    if (claimed.count === 0) {
+      return NextResponse.json(
+        { error: "This negotiation has already had its AI counter-round; the brand must decide." },
+        { status: 409 }
+      );
+    }
     await appendMessage({
       conversationId,
       senderType: "CREATOR",
