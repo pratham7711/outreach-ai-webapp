@@ -10,7 +10,7 @@ import { CreatorSelect } from "@/components/CreatorSelect";
 import { stripAt, formatDateAbs, formatFull } from "@/lib/format";
 import type { ComplianceFlag } from "@/lib/compliance/postCompliance";
 import PostMedia from "@/components/PostMedia";
-import { unwrittenMetricValue, fieldMetricValue, engagementRateValue, summarizePostMetrics } from "@/lib/metricDisplay";
+import { unwrittenMetricValue, fieldMetricValue, engagementRateValue, summarizePostMetrics, sharesUnknownReason } from "@/lib/metricDisplay";
 import { postAgeContext, postMeasuredAt, postStatus } from "@/lib/posts/postStatus";
 import { viewsAsOf } from "@/lib/posts/fieldFreshness";
 import PostStatusChip from "@/components/posts/PostStatusChip";
@@ -2170,7 +2170,11 @@ export default function PostsTab({
                   )}
                   {anyShares && (
                     <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", textAlign: "right" }}>
-                      {shares === null ? "" : formatNumber(shares)}
+                      {shares === null ? (
+                        <span title={sharesUnknownReason(post.platform).title}>{"\u2014"}</span>
+                      ) : (
+                        formatNumber(shares)
+                      )}
                     </span>
                   )}
                   {anySaves && (
@@ -2308,6 +2312,7 @@ export default function PostsTab({
                 selectionActive={selectedIds.size > 0}
                 onToggleSelect={toggleSelect}
                 onOpenMenu={openMenu}
+                showShares={anyShares}
               />
             ))}
           </div>

@@ -8,7 +8,7 @@
  * Instagram posts on the reference campaign reported "0 likes, 0 shares" while
  * CreatorCore's report of the same three posts shows neither row.
  */
-import { fieldMetricValue, measuredFields, MEASURED_FIELDS_KEY, viewsCoverageNote } from "@/lib/metricDisplay";
+import { fieldMetricValue, measuredFields, MEASURED_FIELDS_KEY, viewsCoverageNote, sharesUnknownReason } from "@/lib/metricDisplay";
 
 const SYNCED = new Date("2026-08-22T00:00:00Z");
 const bag = (fields: string[]) => ({ [MEASURED_FIELDS_KEY]: fields });
@@ -75,5 +75,21 @@ describe("viewsCoverageNote", () => {
 
   it("says nothing for a report cached before the count existed", () => {
     expect(viewsCoverageNote(undefined, 40)).toBeNull();
+  });
+});
+
+describe("sharesUnknownReason", () => {
+  it("puts an Instagram blank on Instagram, not on a missed read", () => {
+    expect(sharesUnknownReason("INSTAGRAM").short).toBe("Instagram doesn't provide");
+    expect(sharesUnknownReason("INSTAGRAM").title).toMatch(/connected account/);
+  });
+
+  it("puts a YouTube blank on YouTube", () => {
+    expect(sharesUnknownReason("YOUTUBE").short).toBe("YouTube doesn't provide");
+  });
+
+  it("calls a TikTok blank unread, since TikTok does report shares", () => {
+    expect(sharesUnknownReason("TIKTOK").short).toBe("not reported");
+    expect(sharesUnknownReason("TIKTOK").title).toMatch(/not been read|No share count/);
   });
 });

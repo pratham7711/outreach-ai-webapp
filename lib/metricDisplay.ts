@@ -192,6 +192,27 @@ export function fieldMetricValue(
 }
 
 /**
+ * Why a post has no share count: a few words for a card line, a sentence for
+ * its tooltip. For Instagram and YouTube the blank is the platform's, not a
+ * read we missed -- Instagram reports shares only to the account's own
+ * insights, and YouTube publishes none. MEASURED 2026-10-13 on four live
+ * reels: the logged-out post page and the embed both carried likes and
+ * comments as text and no share, repost or send count.
+ */
+export function sharesUnknownReason(platform: string): { short: string; title: string } {
+  if (platform === "INSTAGRAM") {
+    return {
+      short: "Instagram doesn't provide",
+      title: "Instagram only reports shares to the creator's own connected account.",
+    };
+  }
+  if (platform === "YOUTUBE") {
+    return { short: "YouTube doesn't provide", title: "YouTube does not publish a share count." };
+  }
+  return { short: "not reported", title: "No share count has been read for this post yet." };
+}
+
+/**
  * The line under a views total that leaves posts out, or null when it covers
  * every post.
  *

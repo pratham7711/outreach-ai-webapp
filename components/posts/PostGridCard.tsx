@@ -4,7 +4,7 @@ import { memo, type ReactNode } from "react";
 import { Badge } from "@pratham7711/ui";
 import { Eye, Heart, MessageCircle, TrendingUp, Share2, Bookmark, Check } from "lucide-react";
 import { formatDateAbs, formatFull } from "@/lib/format";
-import { fieldMetricValue, engagementRateValue, unwrittenMetricValue } from "@/lib/metricDisplay";
+import { fieldMetricValue, engagementRateValue, unwrittenMetricValue, sharesUnknownReason } from "@/lib/metricDisplay";
 import { postAgeContext, postMeasuredAt, postStatus } from "@/lib/posts/postStatus";
 import { viewsAsOf } from "@/lib/posts/fieldFreshness";
 import PostStatusChip from "@/components/posts/PostStatusChip";
@@ -80,6 +80,7 @@ function PostGridCardImpl({
   selectionActive,
   onToggleSelect,
   onOpenMenu,
+  showShares = false,
 }: {
   post: PostCardPost;
   selected: boolean;
@@ -88,6 +89,10 @@ function PostGridCardImpl({
   selectionActive: boolean;
   onToggleSelect: (postId: string) => void;
   onOpenMenu: (postId: string, x: number, y: number) => void;
+  /** Some post in this list has a share count, so a card without one says
+   *  why rather than dropping the line -- otherwise the grid reads as some
+   *  cards missing a field the others have. */
+  showShares?: boolean;
 }) {
   const unknownCreator = isUnattributedCreator(post.creator);
   const tracking = post.trackingEnabled === true;
@@ -230,13 +235,22 @@ function PostGridCardImpl({
             },
             cardLikes !== null && { key: "likes", icon: <Heart size={13} aria-hidden="true" />, text: `${formatNumber(cardLikes)} likes` },
             cardComments !== null && { key: "comments", icon: <MessageCircle size={13} aria-hidden="true" />, text: `${formatNumber(cardComments)} comments` },
-            cardShares !== null && { key: "shares", icon: <Share2 size={13} aria-hidden="true" />, text: `${formatNumber(cardShares)} shares` },
+            cardShares !== null
+              ? { key: "shares", icon: <Share2 size={13} aria-hidden="true" />, text: `${formatNumber(cardShares)} shares` }
+              : showShares && {
+                  key: "shares",
+                  icon: <Share2 size={13} aria-hidden="true" />,
+                  text: "\u2014 shares",
+                  note: sharesUnknownReason(post.platform).short,
+                  title: sharesUnknownReason(post.platform).title,
+                  unknown: true,
+                },
             cardSaves !== null && { key: "saves", icon: <Bookmark size={13} aria-hidden="true" />, text: `${formatNumber(cardSaves)} saves` },
             cardEngRate !== null && { key: "eng", icon: <TrendingUp size={13} aria-hidden="true" />, text: `${cardEngRate.toFixed(1)}% eng. rate` },
-          ].filter(Boolean) as { key: string; icon: ReactNode; text: string; note?: string; title?: string }[];
+          ].filter(Boolean) as { key: string; icon: ReactNode; text: string; note?: string; title?: string; unknown?: boolean }[];
           // Nothing measured at all: say so once. Four zeroes claim
           // this post was watched by nobody, which we never checked.
-          if (rows.length === 0) {
+          if (rows.every((row) => row.unknown)) {
             return (
               <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--cc-t-13)", color: "color-mix(in srgb, var(--cc-overlay-ink-text) 72%, transparent)" }}>
                 <Eye size={13} aria-hidden="true" />Not synced yet
