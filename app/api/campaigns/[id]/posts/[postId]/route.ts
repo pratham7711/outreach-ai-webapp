@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { isRemovedFromCampaign, REMOVED_POST_REFUSAL } from "@/lib/posts/removed";
 import { auth } from "@/lib/auth";
 import { permissionDenial } from "@/lib/authz";
 import { withoutImportCopy } from "@/lib/serialization/importCopy";
@@ -80,6 +81,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     const existing = await db.post.findFirst({ where: { id: postId, campaignId } });
     if (!existing) return NextResponse.json({ error: "Post not found" }, { status: 404 });
+    if (isRemovedFromCampaign(existing)) return NextResponse.json(REMOVED_POST_REFUSAL, { status: 409 });
 
     const body = await request.json();
 

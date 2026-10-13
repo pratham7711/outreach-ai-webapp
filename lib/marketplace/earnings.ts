@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { findCreatorsForHandle } from "@/lib/portal/creatorLookup";
 import { findLinkedCreatorsForHandle, type LinkSubject } from "@/lib/portal/creatorLink";
 
@@ -127,7 +128,7 @@ export async function computeCreatorEarnings(
 
   const activationIds = marketplaceActivations.map((a) => a.id);
   const posts = await db.post.findMany({
-    where: { activationId: { in: activationIds } },
+    where: { activationId: { in: activationIds }, ...NOT_REMOVED },
     select: {
       id: true,
       activationId: true,

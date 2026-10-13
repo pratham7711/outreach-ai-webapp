@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import type { Platform } from "@/lib/generated/prisma/client";
 import { logAudit } from "@/lib/audit";
 import { createLogger } from "@/lib/observability/logger";
@@ -197,7 +198,7 @@ async function campaignInstagramCreators(
   const notHolding = { orgId, deletedAt: null, NOT: UNATTRIBUTED_CREATOR_WHERE };
   const [posted, activated] = await Promise.all([
     db.post.findMany({
-      where: { campaignId, campaign: { orgId }, platform: "INSTAGRAM", creator: notHolding },
+      where: { campaignId, campaign: { orgId }, platform: "INSTAGRAM", ...NOT_REMOVED, creator: notHolding },
       orderBy: { createdAt: "desc" },
       distinct: ["creatorId"],
       take: MAX_OWNER_CANDIDATES,

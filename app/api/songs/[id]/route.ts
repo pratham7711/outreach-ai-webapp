@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { authenticateRequest } from "@/lib/authenticate";
 import { fieldMetricValue, postEngagementPercent, rollupEngagement } from "@/lib/metricDisplay";
 import { logAudit } from "@/lib/audit";
@@ -47,6 +48,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
             orderBy: { sequence: "asc" },
           },
           posts: {
+            where: NOT_REMOVED,
             select: {
               id: true,
               phaseId: true,

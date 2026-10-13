@@ -22,9 +22,10 @@ jest.mock("@/lib/db", () => ({
        no order to rely on. */
     $queryRaw: jest.fn((strings: TemplateStringsArray) => {
       const sql = strings.join("?");
+      postStampSql.push(sql);
       if (sql.includes('"Activation"')) return Promise.resolve([{ activations: null }]);
       if (sql.includes('"Song"')) return Promise.resolve([audioRow]);
-      return Promise.resolve([{ posts: BigInt(0), synced: null, views: null }]);
+      return Promise.resolve([postRow]);
     }),
     activation: { findMany: jest.fn().mockResolvedValue([]) },
     campaign: { findUnique: jest.fn().mockResolvedValue(null) },
@@ -34,14 +35,44 @@ jest.mock("@/lib/db", () => ({
 
 const keys: string[][] = [];
 let audioRow: { song: string | null; sound_at: Date | null } = { song: null, sound_at: null };
+let postRow: { posts: bigint; synced: Date | null; views: string | null; removed?: Date | null } = { posts: BigInt(0), synced: null, views: null };
+const postStampSql: string[] = [];
 
 import { computeCampaignPerformance } from "@/lib/reports/campaignPerformance";
+import { notRemovedSql } from "@/lib/posts/removed";
 
 const campaign = { id: "camp-1", orgId: "org-1", budget: null, currency: "USD" };
 
 beforeEach(() => {
   keys.length = 0;
+  postStampSql.length = 0;
   audioRow = { song: null, sound_at: null };
+  postRow = { posts: BigInt(0), synced: null, views: null };
+});
+
+/* "Remove from campaign" is a soft remove (lib/posts/removed): the row stays,
+   so the stamp counts only the live posts and also watches the newest
+   removedAt -- otherwise a remove or a restore would keep serving the hour-old
+   report with the wrong totals. */
+it("stamps only the live posts, with the filter lib/posts/removed hands raw SQL", async () => {
+  await computeCampaignPerformance(campaign);
+  const sql = postStampSql.find((q) => q.includes('FROM "Post"'))!;
+  expect(sql.split(`FILTER (WHERE ${notRemovedSql()})`)).toHaveLength(5);
+  expect(sql).toContain('MAX("removedAt") AS removed');
+});
+
+it("moves the key when a post is removed or restored", async () => {
+  postRow = { posts: BigInt(6), synced: null, views: "600", removed: null };
+  await computeCampaignPerformance(campaign);
+  postRow = { posts: BigInt(5), synced: null, views: "500", removed: new Date("2026-10-14T00:00:00Z") };
+  await computeCampaignPerformance(campaign);
+  // Restored: the campaign is exactly as it was before the remove, and so is its key.
+  postRow = { posts: BigInt(6), synced: null, views: "600", removed: null };
+  await computeCampaignPerformance(campaign);
+
+  expect(keys).toHaveLength(3);
+  expect(keys[1]).not.toEqual(keys[0]);
+  expect(keys[2]).toEqual(keys[0]);
 });
 
 it("keys the cached report on the campaign currency", async () => {

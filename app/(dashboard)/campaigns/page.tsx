@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { UNATTRIBUTED_CREATOR_WHERE } from "@/lib/posts/unattributedName";
 import CampaignsClient from "./CampaignsClient";
 import { CAMPAIGNS_PAGE_SIZE } from "@/lib/listPageSize";
@@ -58,7 +59,7 @@ export default async function CampaignsPage({
       where,
       include: {
         client: { select: { name: true } },
-        _count: { select: { activations: true, posts: true } },
+        _count: { select: { activations: true, posts: { where: NOT_REMOVED } } },
         teamMembers: { select: { user: { select: { id: true, name: true, avatarUrl: true } } } },
         tagLinks: { select: { tag: { select: { name: true } } } },
         statusDef: { select: { id: true, name: true, bucket: true } },
@@ -141,7 +142,7 @@ export default async function CampaignsPage({
   // thousands of posts, and only covers the page being shown.
   const visibleIds = campaigns.map((c) => c.id);
   const [postPairs, activationPairs] = await Promise.all([
-    db.post.groupBy({ by: ["campaignId", "creatorId"], where: { campaignId: { in: visibleIds }, creator: { NOT: UNATTRIBUTED_CREATOR_WHERE } } }),
+    db.post.groupBy({ by: ["campaignId", "creatorId"], where: { campaignId: { in: visibleIds }, ...NOT_REMOVED, creator: { NOT: UNATTRIBUTED_CREATOR_WHERE } } }),
     db.activation.groupBy({ by: ["campaignId", "creatorId"], where: { campaignId: { in: visibleIds } } }),
   ]);
   const creatorsByCampaign = new Map<string, Set<string>>();

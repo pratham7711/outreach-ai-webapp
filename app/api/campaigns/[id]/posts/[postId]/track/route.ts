@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { isRemovedFromCampaign, REMOVED_POST_REFUSAL } from "@/lib/posts/removed";
 import { requirePermission } from "@/lib/authz";
 import { fetchPostMetrics } from "@/lib/platforms/fetchPostMetrics";
 import { applyPostMetrics } from "@/lib/sync/syncPost";
@@ -50,6 +51,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const post = await db.post.findFirst({ where: { id: postId, campaignId } });
     if (!post) return NextResponse.json({ error: "Post not found" }, { status: 404 });
+    if (isRemovedFromCampaign(post)) return NextResponse.json(REMOVED_POST_REFUSAL, { status: 409 });
 
     const body = await request.json().catch(() => ({}));
     const parsed = trackSchema.safeParse(body);

@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { RATED_POSTS_FILTER, rollupEngagementFromTotals } from "@/lib/metricDisplay";
 
 /**
@@ -20,7 +21,7 @@ export async function deriveAverageViews(creatorIds: string[]): Promise<Map<stri
 
   const grouped = await db.post.groupBy({
     by: ["creatorId"],
-    where: { creatorId: { in: creatorIds }, viewsCount: { gt: 0 } },
+    where: { creatorId: { in: creatorIds }, ...NOT_REMOVED, viewsCount: { gt: 0 } },
     _avg: { viewsCount: true },
   });
 
@@ -53,7 +54,7 @@ export async function deriveAverageViewsMeasured(creatorIds: string[]): Promise<
 
   const grouped = await db.post.groupBy({
     by: ["creatorId"],
-    where: { creatorId: { in: creatorIds }, viewsCount: { gt: 0 } },
+    where: { creatorId: { in: creatorIds }, ...NOT_REMOVED, viewsCount: { gt: 0 } },
     _avg: { viewsCount: true },
     _max: { lastSyncedAt: true, lastFreshAt: true },
   });
@@ -89,7 +90,7 @@ export async function deriveEngagementRates(creatorIds: string[]): Promise<Map<s
 
   const grouped = await db.post.groupBy({
     by: ["creatorId"],
-    where: { creatorId: { in: creatorIds }, ...RATED_POSTS_FILTER },
+    where: { creatorId: { in: creatorIds }, ...NOT_REMOVED, ...RATED_POSTS_FILTER },
     _sum: { viewsCount: true, likesCount: true, commentsCount: true, sharesCount: true, savesCount: true },
     _count: { _all: true },
   });
@@ -145,7 +146,7 @@ export async function deriveCreatorCampaigns(
   const [postPairs, activations] = await Promise.all([
     db.post.groupBy({
       by: ["campaignId"],
-      where: { creatorId, campaign: { orgId, deletedAt: null } },
+      where: { creatorId, ...NOT_REMOVED, campaign: { orgId, deletedAt: null } },
       _count: { _all: true },
     }),
     db.activation.findMany({
@@ -194,7 +195,7 @@ export async function deriveCampaignCounts(creatorIds: string[]): Promise<Map<st
   if (creatorIds.length === 0) return result;
 
   const [postPairs, activationPairs] = await Promise.all([
-    db.post.groupBy({ by: ["creatorId", "campaignId"], where: { creatorId: { in: creatorIds } } }),
+    db.post.groupBy({ by: ["creatorId", "campaignId"], where: { creatorId: { in: creatorIds }, ...NOT_REMOVED } }),
     db.activation.groupBy({
       by: ["creatorId", "campaignId"],
       where: { creatorId: { in: creatorIds }, deletedAt: null },

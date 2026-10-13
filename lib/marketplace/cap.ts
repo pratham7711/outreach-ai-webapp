@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { earnedMinorForPost, parseRatePerThousand } from "@/lib/marketplace/earnings";
 
 /**
@@ -47,7 +48,7 @@ export async function computeCampaignAccrual(
   const rates = parseRatePerThousand(c?.ratePerThousand);
 
   const posts = await db.post.findMany({
-    where: { campaignId, status: "APPROVED" },
+    where: { campaignId, status: "APPROVED", ...NOT_REMOVED },
     select: { viewsCount: true, platform: true },
   });
 

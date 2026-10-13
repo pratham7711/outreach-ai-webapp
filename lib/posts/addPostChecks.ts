@@ -123,6 +123,10 @@ export type ExistingPost = {
   creatorId: string;
   creatorName: string;
   creatorHandle: string;
+  /** Taken out of its campaign with "Remove from campaign" (lib/posts/removed).
+   *  Still returned: re-adding the link restores this row instead of creating
+   *  a second one, and its creator is still a good answer to "who posted it". */
+  removed: boolean;
 };
 
 /**
@@ -138,6 +142,10 @@ export type ExistingPost = {
  * matched on its canonical prefix rather than in full.
  *
  * Scoped by campaign.orgId -- Post has no orgId of its own.
+ *
+ * Removed posts are included and flagged, never filtered: the add route turns
+ * a removed copy in the same campaign into a restore, and whoever asks "is it
+ * already in a campaign" filters on `removed` themselves.
  */
 export async function findExistingPosts(orgId: string, postUrl: string): Promise<ExistingPost[]> {
   const detected = detectPlatform(postUrl);
@@ -166,6 +174,7 @@ export async function findExistingPosts(orgId: string, postUrl: string): Promise
     select: {
       id: true,
       campaignId: true,
+      removedAt: true,
       campaign: { select: { title: true } },
       creator: { select: { id: true, name: true, handle: true } },
     },
@@ -181,6 +190,7 @@ export async function findExistingPosts(orgId: string, postUrl: string): Promise
     creatorId: r.creator.id,
     creatorName: r.creator.name,
     creatorHandle: r.creator.handle,
+    removed: r.removedAt != null,
   }));
 }
 
@@ -286,8 +296,10 @@ export async function precheckPostUrl(
     creator,
     creatorWillBeAdded,
     willBeUnattributed: Boolean(detected?.platform) && !creator && !creatorWillBeAdded,
-    inThisCampaign: existing.find((e) => e.campaignId === campaignId) ?? null,
-    inOtherCampaigns: existing.filter((e) => e.campaignId !== campaignId),
+    /* A removed copy is in neither list: the add restores it in this campaign,
+       and in another campaign it no longer counts anywhere. */
+    inThisCampaign: existing.find((e) => e.campaignId === campaignId && !e.removed) ?? null,
+    inOtherCampaigns: existing.filter((e) => e.campaignId !== campaignId && !e.removed),
   };
 }
 

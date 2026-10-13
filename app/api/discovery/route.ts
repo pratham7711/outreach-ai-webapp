@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { UNATTRIBUTED_CREATOR_WHERE } from "@/lib/posts/unattributedName";
 import { deriveAverageViews, deriveCampaignCounts } from "@/lib/creatorMetrics";
 import { auth } from "@/lib/auth";
@@ -82,7 +83,7 @@ export async function GET(req: NextRequest) {
       skip: (page - 1) * limit,
       take: limit,
       include: {
-        _count: { select: { activations: true, posts: true } },
+        _count: { select: { activations: true, posts: { where: NOT_REMOVED } } },
       },
     }),
     db.creator.count({ where }),

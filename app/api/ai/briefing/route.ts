@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { getOrgEntitlements, hasOrgFeature } from "@/lib/entitlements";
 import { AI_ASSISTANT_FEATURE } from "@/lib/featureKeys";
 import { requirePermission } from "@/lib/authz";
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
           })
         : null,
       db.post.findMany({
-        where: { campaign: { orgId } },
+        where: { campaign: { orgId }, ...NOT_REMOVED },
         orderBy: { viewsCount: "desc" },
         take: 3,
         include: { creator: { select: { name: true } } },
@@ -90,7 +91,7 @@ Be professional, highlight trends, and keep it under 200 words.`;
   const campaign = await db.campaign.findFirst({
     where: { id, orgId, deletedAt: null },
     include: {
-      _count: { select: { activations: true, posts: true } },
+      _count: { select: { activations: true, posts: { where: NOT_REMOVED } } },
     },
   });
 

@@ -25,6 +25,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { alertOps } from "@/lib/alerts";
 import { snapshotOrgViews, utcDayOf } from "@/lib/analytics/orgViewsSnapshot";
+import { notRemovedSql } from "@/lib/posts/removed";
 import { GET } from "@/app/api/cron/snapshot-org-views/route";
 
 const mockDb = db as unknown as {
@@ -137,6 +138,13 @@ describe("snapshotOrgViews", () => {
     expect(sql).toContain('c."deletedAt" IS NULL');
     // The tenant boundary is the join through Campaign; Post has no orgId.
     expect(sql).toContain('JOIN "Campaign" c ON c.id = p."campaignId"');
+  });
+
+  it("leaves posts removed from their campaign out of the reading", async () => {
+    await snapshotOrgViews({ now: new Date("2026-09-01T03:30:00Z") });
+    const sql = mockDb.$queryRaw.mock.calls[0][0].join("?");
+    // Written out, not interpolated: the same text lib/posts/removed hands raw SQL.
+    expect(sql).toContain(`AND ${notRemovedSql("p")}`);
   });
 
   it("counts a video delivered against two campaigns once, from its freshest copy", async () => {

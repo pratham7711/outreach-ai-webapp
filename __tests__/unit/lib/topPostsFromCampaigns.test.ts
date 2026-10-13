@@ -39,7 +39,7 @@ it("returns null when the workspace tracks no posts for the creator", async () =
 it("scopes the read to the creator and orders by views", async () => {
   await readTopPostsFromCampaigns("c1");
   const arg = mockFindMany.mock.calls[0][0];
-  expect(arg.where).toEqual({ creatorId: "c1" });
+  expect(arg.where).toEqual({ creatorId: "c1", removedAt: null });
   expect(arg.orderBy).toEqual({ viewsCount: "desc" });
   expect(arg.take).toBeGreaterThanOrEqual(TOP_POSTS_LIMIT);
 });

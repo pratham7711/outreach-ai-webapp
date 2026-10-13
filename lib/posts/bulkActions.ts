@@ -128,10 +128,11 @@ export function bulkActionSummary(action: BulkAction, count: number, ttlDays?: n
 /* ─── Remove from campaign ───────────────────────────────────────────────────
 
    Not one of BULK_ACTIONS: those are column writes the bulk route applies with
-   one updateMany, and a removal is a delete with its own route (DELETE
-   .../posts), its own confirmation and its own refusal. What the two share is
-   the cap and the wording, which live here so the dialog, the toast and the
-   route cannot disagree about what was asked for. */
+   one updateMany, and a removal has its own route (DELETE .../posts), its own
+   confirmation, its own refusal and its own way back (POST .../posts/restore).
+   It is a soft remove -- see lib/posts/removed. What the two share is the cap
+   and the wording, which live here so the dialog, the toast and the route
+   cannot disagree about what was asked for. */
 
 /** The ids a remove call may act on: trimmed, de-duplicated, capped. Null when unusable. */
 export function removablePostIds(raw: unknown): string[] | null {
@@ -147,10 +148,12 @@ export function removeConfirmText(count: number): { title: string; description: 
   const posts = `${count} post${count === 1 ? "" : "s"}`;
   return {
     title: `Remove ${posts} from this campaign?`,
+    /* It used to say "This can't be undone" -- true of the hard delete it
+       described. The post is now kept, so the dialog says how to get it back. */
     description:
       count === 1
-        ? "The post, its readings and its views come out of this campaign's totals. This can't be undone; add the link again to bring it back."
-        : `These ${posts}, their readings and their views come out of this campaign's totals. This can't be undone; add the links again to bring them back.`,
+        ? "The post and its views come out of this campaign's totals. You can undo this right after, or restore it later from Removed."
+        : `These ${posts} and their views come out of this campaign's totals. You can undo this right after, or restore them later from Removed.`,
     confirmLabel: `Remove ${posts}`,
   };
 }
@@ -158,4 +161,14 @@ export function removeConfirmText(count: number): { title: string; description: 
 /** What the operator is told afterwards. */
 export function removePostsSummary(removed: number): string {
   return `Removed ${removed} post${removed === 1 ? "" : "s"} from this campaign.`;
+}
+
+/** The line under that summary, saying how to get them back. */
+export function removePostsUndoHint(removed: number): string {
+  return `Undo now, or restore ${removed === 1 ? "it" : "them"} later from Removed.`;
+}
+
+/** What the operator is told after a restore -- from the toast's Undo or the Removed view. */
+export function restorePostsSummary(restored: number): string {
+  return `Restored ${restored} post${restored === 1 ? "" : "s"} to this campaign.`;
 }

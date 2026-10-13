@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { isRemovedFromCampaign, REMOVED_POST_REFUSAL } from "@/lib/posts/removed";
 import { auth } from "@/lib/auth";
 import { permissionDenial } from "@/lib/authz";
 import { SYNC_POST_INCLUDE, syncPost } from "@/lib/sync/syncPost";
@@ -28,6 +29,7 @@ export async function POST(
 
     const post = await db.post.findFirst({ where: { id: postId, campaignId } });
     if (!post) return NextResponse.json({ error: "Post not found" }, { status: 404 });
+    if (isRemovedFromCampaign(post)) return NextResponse.json(REMOVED_POST_REFUSAL, { status: 409 });
 
     /* TikTok needs a sandbox egress, exactly as the campaign-wide refresh does.
      *

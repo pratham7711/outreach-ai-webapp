@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { withoutImportCopy } from "@/lib/serialization/importCopy";
 import { findForeignRef } from "@/lib/tenantRefs";
 import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
@@ -84,7 +85,7 @@ export async function GET(request: NextRequest) {
             },
           },
           _count: {
-            select: { activations: true, posts: true },
+            select: { activations: true, posts: { where: NOT_REMOVED } },
           },
         },
         orderBy: { updatedAt: "desc" },
@@ -210,7 +211,7 @@ export async function POST(request: NextRequest) {
           },
         },
         _count: {
-          select: { activations: true, posts: true },
+          select: { activations: true, posts: { where: NOT_REMOVED } },
         },
       },
       });

@@ -38,9 +38,10 @@ import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import { useCampaignNav } from "@/components/providers/CampaignNavProvider";
 import { CampaignShareButton } from "@/components/campaigns/CampaignShareButton";
 import { useConfirm } from "@/components/ds/ConfirmDialog";
-import { removeConfirmText, removePostsSummary } from "@/lib/posts/bulkActions";
+import { removeConfirmText, removePostsSummary, removePostsUndoHint, restorePostsSummary } from "@/lib/posts/bulkActions";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 
 const PerformanceOverTimeArea = dynamic(() => loadCharts().then((m) => m.PerformanceOverTimeArea), {
   ssr: false,
@@ -84,6 +85,8 @@ type PostDetail = {
   snapshots: Snapshot[];
   /** Sent by GET only, for the rail's heading. */
   campaignTitle?: string;
+  /** Set when the post was removed from this campaign (a soft remove). */
+  removedAt?: string | null;
 };
 
 type Snapshot = {
@@ -353,7 +356,7 @@ export default function PostDetailPage() {
       const res = await fetch(`/api/campaigns/${params.id}/posts/${params.postId}/sync`, { method: "POST" });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setSyncNote(body.error ?? "Could not sync this post.");
+        setSyncNote(body.message ?? body.error ?? "Could not sync this post.");
         return;
       }
       setPost(body);
@@ -368,8 +371,8 @@ export default function PostDetailPage() {
   };
 
   /* Remove from campaign (walkthrough F2): the same confirmed DELETE the Posts
-     tab's menu and bulk bar use, then back to the campaign's posts -- this
-     page's post no longer exists once it succeeds. */
+     tab's menu and bulk bar use, then back to the campaign's posts. The remove
+     is soft, so the toast's Undo restores the post and comes back here. */
   const confirm = useConfirm();
   const [removing, setRemoving] = useState(false);
   const handleRemove = async () => {
@@ -387,12 +390,54 @@ export default function PostDetailPage() {
         setSyncNote(body.error ?? "Could not remove this post.");
         return;
       }
-      toast.success(removePostsSummary(1));
+      toast.success(removePostsSummary(1), {
+        description: removePostsUndoHint(1),
+        duration: 10_000,
+        action: { label: "Undo", onClick: () => void handleRestore(true, railCounts) },
+      });
       router.push(`/campaigns/${params.id}?section=posts`);
     } catch {
       setSyncNote("Could not remove this post.");
     } finally {
       setRemoving(false);
+    }
+  };
+
+  /* Put a removed post back: the toast's Undo (which has already left this
+     page, so it navigates back) or the Restore button a removed post shows.
+     The rail's counts are the campaign page's, which is not mounted to
+     recount: an Undo puts back the counts from just before the remove, and a
+     Restore here adds this one post back. */
+  const [restoring, setRestoring] = useState(false);
+  const handleRestore = async (fromUndo = false, countsBeforeRemove = railCounts) => {
+    setRestoring(true);
+    setSyncNote(null);
+    try {
+      const res = await fetch(`/api/campaigns/${params.id}/posts/restore`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postIds: [params.postId] }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const message = body.message ?? body.error ?? "Could not restore this post.";
+        if (fromUndo) toast.error(message);
+        else setSyncNote(message);
+        return;
+      }
+      toast.success(restorePostsSummary(1));
+      if (fromUndo) {
+        publishRail({ title: railTitle, counts: countsBeforeRemove });
+        router.push(`/campaigns/${params.id}/posts/${params.postId}`);
+      } else {
+        if (typeof railCounts.posts === "number") publishRail({ title: railTitle, counts: { ...railCounts, posts: railCounts.posts + 1 } });
+        await fetchPost();
+      }
+    } catch {
+      if (fromUndo) toast.error("Could not restore this post.");
+      else setSyncNote("Could not restore this post.");
+    } finally {
+      setRestoring(false);
     }
   };
 
@@ -648,6 +693,11 @@ export default function PostDetailPage() {
             {syncNote && (
               <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "4px 0 0" }}>{syncNote}</p>
             )}
+            {post.removedAt && (
+              <p data-removed-note style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-danger-fg)", margin: "4px 0 0" }}>
+                Removed from this campaign on {formatDateTimeAbs(post.removedAt)}. It doesn&apos;t count toward the campaign&apos;s totals and isn&apos;t synced until you restore it.
+              </p>
+            )}
           </div>
           <div className="cc-post-actions">
             {/* The campaign's, not the post's: the share link is the campaign
@@ -658,12 +708,18 @@ export default function PostDetailPage() {
                 <Flag size={14} /> {flagged ? "Flagged" : "Flag Suspicious"}
               </span>
             </Button>
-            <Button variant="secondary" onClick={handleSync} loading={syncing}>
+            <Button variant="secondary" onClick={handleSync} loading={syncing} disabled={Boolean(post.removedAt)}>
               <span style={{ display: "flex", alignItems: "center", gap: 4 }}><RefreshCw size={14} /> Sync Now</span>
             </Button>
+            {post.removedAt ? (
+              <Button variant="secondary" onClick={() => void handleRestore()} loading={restoring}>
+                <span style={{ display: "flex", alignItems: "center", gap: 4 }}><RotateCcw size={14} /> Restore to campaign</span>
+              </Button>
+            ) : (
             <Button variant="secondary" onClick={handleRemove} loading={removing}>
               <span style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--cc-danger)" }}><Trash2 size={14} /> Remove</span>
             </Button>
+            )}
             <a href={post.postUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
               <Button variant="primary">
                 <span style={{ display: "flex", alignItems: "center", gap: 4 }}><ExternalLink size={14} /> View Post</span>
@@ -900,7 +956,7 @@ export default function PostDetailPage() {
                 </select>
               </label>
             )}
-            <Button variant={trackingEnabled ? "secondary" : "primary"} onClick={handleToggleTracking} loading={trackToggling}>
+            <Button variant={trackingEnabled ? "secondary" : "primary"} onClick={handleToggleTracking} loading={trackToggling} disabled={Boolean(post.removedAt)}>
               {trackingEnabled ? "Untrack" : "Track"}
             </Button>
           </div>

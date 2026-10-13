@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { parseShareVisibility } from "@/lib/reports/shareVisibility";
 import { rateLimit } from "@/lib/rateLimit";
 import { getRequestIp } from "@/lib/request";
@@ -81,6 +82,7 @@ export async function GET(
   const posts = await db.post.findMany({
     where: {
       campaignId: link.campaign.id,
+      ...NOT_REMOVED,
       ...(visibility.platforms.length && { platform: { in: visibility.platforms as unknown as never } }),
     },
     select: {

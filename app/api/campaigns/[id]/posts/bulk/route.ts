@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { requirePermission } from "@/lib/authz";
 import { parsePostTracking } from "@/lib/trackers/granularity";
 import { POST_TTL_MAX_DAYS, POST_TTL_MIN_DAYS, clampTtlDays } from "@/lib/sync/postTracking";
@@ -86,7 +87,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     });
 
     // campaignId is the tenant guard; see the note at the top of this file.
-    const update = db.post.updateMany({ where: { id: { in: ids }, campaignId }, data });
+    /* NOT_REMOVED: a removed post is out of the campaign, so approving or
+       tracking it from a stale selection would act on a post nobody sees.
+       It is skipped and the count says so, like another tenant's id. */
+    const update = db.post.updateMany({ where: { id: { in: ids }, campaignId, ...NOT_REMOVED }, data });
     /* Tracking a sealed post again removes its seal, as the single-post route
        does, or the cron never reads it while the list says it is tracked. */
     const [result] =
@@ -94,7 +98,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         ? await db.$transaction([
             update,
             db.postMetricSnapshot.deleteMany({
-              where: { isFinalSnapshot: true, post: { id: { in: ids }, campaignId } },
+              where: { isFinalSnapshot: true, post: { id: { in: ids }, campaignId, ...NOT_REMOVED } },
             }),
           ])
         : [await update];

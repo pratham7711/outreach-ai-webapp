@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { getCreatorSession } from "@/lib/creator-auth";
 import { parseRatePerThousand, earnedMinorForPost } from "@/lib/marketplace/earnings";
 import { isPortalCampaignActionable } from "@/lib/marketplace/portalVisibility";
@@ -93,7 +94,7 @@ export async function GET(
 
     if (activation) {
       const posts = await db.post.findMany({
-        where: { activationId: activation.id },
+        where: { activationId: activation.id, ...NOT_REMOVED },
         select: {
           id: true,
           postUrl: true,

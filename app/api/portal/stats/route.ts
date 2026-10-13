@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { getCreatorSession } from "@/lib/creator-auth";
 import { findLinkedCreatorsForHandle } from "@/lib/portal/creatorLink";
 import { fieldMetricValue } from "@/lib/metricDisplay";
@@ -58,7 +59,7 @@ export async function GET() {
         },
       }),
       db.post.findMany({
-        where: { creatorId: { in: ids }, campaign: { deletedAt: null } },
+        where: { creatorId: { in: ids }, campaign: { deletedAt: null }, ...NOT_REMOVED },
         select: {
           id: true,
           platform: true,

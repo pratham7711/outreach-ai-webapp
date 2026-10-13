@@ -96,6 +96,27 @@ beforeEach(() => {
 // ─── GET /api/campaigns/[id] — detail data ──────────────────────────────────
 
 describe('GET /api/campaigns/[id] detail', () => {
+  /* A post removed from the campaign keeps its row (lib/posts/removed), so the
+     only thing between its views and the header totals is the where. The mock
+     applies that where's removedAt condition the way Postgres would, over a
+     table holding one live post and one removed post with far more views. */
+  it('leaves a post removed from the campaign out of the roster and every total', async () => {
+    mockDb.campaign.findFirst.mockResolvedValue(mockCampaign);
+    const table = [
+      { ...mockPosts[0], removedAt: null },
+      { ...mockPosts[0], viewsCount: 9_000_000, likesCount: 70_000, removedAt: new Date() },
+    ];
+    mockDb.post.findMany.mockImplementation(({ where }: any) =>
+      Promise.resolve(
+        table.filter((p) => !('removedAt' in where) || (where.removedAt === null ? p.removedAt === null : p.removedAt !== null)),
+      ),
+    );
+
+    const body = await (await GET(makeRequest('http://localhost/api/campaigns/camp-1'), makeParams('camp-1'))).json();
+    expect(body.summary).toEqual(expect.objectContaining({ posts: 1, views: 50000, likes: 3000 }));
+    expect(body.roster).toEqual([expect.objectContaining({ posts: 1, views: 50000 })]);
+  });
+
   it('returns activations with creator data', async () => {
     mockDb.campaign.findFirst.mockResolvedValue(mockCampaign);
 
@@ -171,7 +192,7 @@ describe('GET /api/campaigns/[id] detail', () => {
     await GET(makeRequest('http://localhost/api/campaigns/camp-1'), makeParams('camp-1'));
 
     const postsArgs = mockDb.post.findMany.mock.calls[0][0];
-    expect(postsArgs.where).toEqual({ campaignId: 'camp-1', campaign: { orgId: 'org-1', deletedAt: null } });
+    expect(postsArgs.where).toEqual({ campaignId: 'camp-1', campaign: { orgId: 'org-1', deletedAt: null }, removedAt: null });
     /* contactEmail and paymentInfo went to every seat that could open the
        campaign while activations included the whole creator row. */
     const campaignArgs = mockDb.campaign.findFirst.mock.calls[0][0];

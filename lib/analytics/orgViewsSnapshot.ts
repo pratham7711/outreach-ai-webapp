@@ -70,6 +70,7 @@ export async function readOrgViewTotals(): Promise<Totals[]> {
           FROM "Post" p
           JOIN "Campaign" c ON c.id = p."campaignId"
          WHERE c."deletedAt" IS NULL
+           AND p."removedAt" IS NULL
       ) videos
      WHERE copy = 1
      GROUP BY 1

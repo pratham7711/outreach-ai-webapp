@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import type { CreatorSession } from "@/lib/creator-auth";
 import { findCreatorsForHandle } from "@/lib/portal/creatorLookup";
 import { findLinkedCreatorsForHandle } from "@/lib/portal/creatorLink";
@@ -119,7 +120,7 @@ export async function listJoinedCampaigns(
           },
         },
       },
-      _count: { select: { posts: true } },
+      _count: { select: { posts: { where: NOT_REMOVED } } },
     },
     orderBy: { createdAt: "desc" },
   });

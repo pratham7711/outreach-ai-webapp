@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx";
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { toCsv, type Cell } from "@/lib/csv";
 import { platformLabel } from "@/lib/format";
 import { rosterTablesReady } from "@/lib/creators/rosterTables";
@@ -56,7 +57,7 @@ export async function rosterExportRows(orgId: string, ids: string[], opts: Roste
           contactEmail: true,
           addedAt: true,
           tagLinks: { select: { tag: { select: { name: true } } } },
-          _count: { select: { posts: true } },
+          _count: { select: { posts: { where: NOT_REMOVED } } },
           ...(roster && {
             profileLinks: {
               select: {

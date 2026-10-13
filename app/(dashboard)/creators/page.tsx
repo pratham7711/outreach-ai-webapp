@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { deriveAverageViewsMeasured, deriveCampaignCounts } from "@/lib/creatorMetrics";
 import CreatorsClient from "./CreatorsClient";
 import { CREATORS_PAGE_SIZE } from "@/lib/listPageSize";
@@ -61,7 +62,7 @@ export default async function CreatorsPage({
     db.creator.findMany({
       where: w,
       include: {
-        _count: { select: { activations: true, posts: true } },
+        _count: { select: { activations: true, posts: { where: NOT_REMOVED } } },
         tagLinks: { select: { tag: { select: { name: true } } } },
       },
       orderBy,

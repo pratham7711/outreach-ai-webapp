@@ -75,6 +75,7 @@ export const CAMPAIGNS_DEFAULT_STATUS = "IN_PROGRESS" as const;
    list's client component reads it; importing it from here shipped zod and the
    Prisma namespace to the browser again. Re-exported for the server callers. */
 import { CAMPAIGN_STATUS_ALL } from "@/lib/listParams";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 export { CAMPAIGN_STATUS_ALL };
 export const CAMPAIGN_TYPES = ["BUDGET_BASED", "VIEW_BASED", "OPEN_COMMUNITY", "PRIVATE_INVITE"] as const;
 
@@ -165,7 +166,7 @@ export function campaignWhere(orgId: string, f: CampaignFilters): Prisma.Campaig
     ...(f.teamMemberIds.length && { teamMembers: { some: { userId: { in: f.teamMemberIds } } } }),
     ...(dateRange(f.createdFrom, f.createdTo) && { createdAt: dateRange(f.createdFrom, f.createdTo) }),
     ...(f.hasCreators && { activations: { some: {} } }),
-    ...(f.hasPosts && { posts: { some: {} } }),
+    ...(f.hasPosts && { posts: { some: NOT_REMOVED } }),
     ...(f.search
       ? {
           OR: [
@@ -335,7 +336,7 @@ export function creatorWhere(orgId: string, f: CreatorFilters, { roster = false 
       followersCount: countRange(f.minFollowers, f.maxFollowers),
     }),
     ...(dateRange(f.addedFrom, f.addedTo) && { addedAt: dateRange(f.addedFrom, f.addedTo) }),
-    ...(f.hasPosts && { posts: { some: {} } }),
+    ...(f.hasPosts && { posts: { some: NOT_REMOVED } }),
     // Include widens (carrying ANY of these), exclude narrows (carrying NONE),
     // which is what makes the pair useful together: every Music creator who is
     // not also Unresponsive.
@@ -418,6 +419,8 @@ export function creatorOrderBy(sort: CreatorSort): Prisma.CreatorOrderByWithRela
     case "name":
       return [{ name: dir }, tiebreak];
     case "posts":
+      /* Counts removed posts too: a relation _count in orderBy takes no
+         filter. It only orders; the figure shown beside it is NOT_REMOVED. */
       return [{ posts: { _count: dir } }, tiebreak];
     case "price":
       // Unpriced creators are unknown, not free, so they sit at the end either way.

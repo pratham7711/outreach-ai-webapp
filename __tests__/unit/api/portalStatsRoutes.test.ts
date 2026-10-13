@@ -129,6 +129,7 @@ describe("GET /api/portal/stats", () => {
     expect(mdb.post.findMany.mock.calls[0][0].where).toEqual({
       creatorId: { in: ["cr-1", "cr-2"] },
       campaign: { deletedAt: null },
+      removedAt: null,
     });
   });
 });

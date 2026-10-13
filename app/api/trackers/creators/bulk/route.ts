@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import type { Prisma } from "@/lib/generated/prisma";
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
 import { requirePermission } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
@@ -137,7 +138,7 @@ export async function POST(req: NextRequest) {
         deletedAt: null,
         OR: [
           { activations: { some: { campaignId: campaign.id, deletedAt: null } } },
-          { posts: { some: { campaignId: campaign.id } } },
+          { posts: { some: { campaignId: campaign.id, ...NOT_REMOVED } } },
         ],
       };
     } else {

@@ -8,6 +8,7 @@ import {
   OLD_POST_DAYS,
   dueCutoff,
 } from "@/lib/sync/postTracking";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 
 /**
  * Who the post sweep asks, and how many of each it asks for.
@@ -141,6 +142,9 @@ export function sweepTierWhere(tier: SweepTier, ctx: TierContext): Prisma.PostWh
   const base: Prisma.PostWhereInput = {
     platform,
     syncDisabledAt: null,
+    /* A post removed from its campaign is neither read nor sealed: it is
+       left exactly as it was, so a restore picks up where it stopped. */
+    ...NOT_REMOVED,
     snapshots: { none: { isFinalSnapshot: true } },
   };
   const live: Prisma.PostWhereInput["campaign"] = {

@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import {
   MEASURED_POSTS_FILTER,
   RATED_POSTS_FILTER,
@@ -123,7 +124,7 @@ const TOOLS: Tool[] = [
             campaignType: true,
             budget: true,
             currency: true,
-            _count: { select: { activations: true, posts: true } },
+            _count: { select: { activations: true, posts: { where: NOT_REMOVED } } },
           },
           orderBy: { updatedAt: "desc" },
           take: page.limit,
@@ -150,7 +151,7 @@ const TOOLS: Tool[] = [
       if (!args.id) return toolFailure("id is required");
       const campaign = await db.campaign.findFirst({
         where: { id: args.id, ...campaignFilter(caller) },
-        include: { tags: true, _count: { select: { activations: true, posts: true } } },
+        include: { tags: true, _count: { select: { activations: true, posts: { where: NOT_REMOVED } } } },
       });
       if (!campaign) {
         return toolFailure("Campaign not found", "Call list_campaigns to see the ids this key can read.");
@@ -181,7 +182,7 @@ const TOOLS: Tool[] = [
       }
 
       const topCount = Math.min(Math.max(Number(args.topPosts ?? 5) || 0, 0), 25);
-      const scope = { campaignId: campaign.id };
+      const scope = { campaignId: campaign.id, ...NOT_REMOVED };
 
       const [allRow, measuredRow, ratedRow, byPlatform, topPosts, creators, range] = await Promise.all([
         db.post.aggregate({ where: scope, _sum: { viewsCount: true }, _count: { _all: true } }),
@@ -334,6 +335,9 @@ const TOOLS: Tool[] = [
          its own. Every filter below narrows this; none replaces it. */
       const where: Record<string, any> = {
         campaign: campaignFilter(caller),
+        /* A post removed from its campaign is out of every campaign read,
+           this one included (lib/posts/removed). */
+        ...NOT_REMOVED,
         ...(args.campaignId && { campaignId: args.campaignId }),
         ...(args.creatorId && { creatorId: args.creatorId }),
         ...(args.platform && { platform: args.platform }),
@@ -394,6 +398,7 @@ const TOOLS: Tool[] = [
       const post = await db.post.findFirst({
         where: {
           campaign: campaignFilter(caller),
+          ...NOT_REMOVED,
           ...(args.id ? { id: args.id } : { postUrl: args.postUrl }),
         },
         select: {
@@ -442,7 +447,7 @@ const TOOLS: Tool[] = [
     run: async (orgId, args, caller) => {
       if (!args.id) return toolFailure("id is required");
       const post = await db.post.findFirst({
-        where: { id: args.id, campaign: campaignFilter(caller) },
+        where: { id: args.id, campaign: campaignFilter(caller), ...NOT_REMOVED },
         select: { id: true, postUrl: true, platform: true, viewsCount: true, lastSyncedAt: true },
       });
       if (!post) {
@@ -650,6 +655,7 @@ const TOOLS: Tool[] = [
       const scope: Record<string, any> = {
         creatorId: creator.id,
         campaign: campaignFilter(caller),
+        ...NOT_REMOVED,
         ...(args.campaignId && { campaignId: args.campaignId }),
       };
 
@@ -757,7 +763,7 @@ const TOOLS: Tool[] = [
         ...(args.status && { status: args.status }),
         ...(args.overdue === true && {
           deliverableDueDate: { lt: new Date() },
-          posts: { none: {} },
+          posts: { none: NOT_REMOVED },
         }),
       };
 
@@ -774,7 +780,7 @@ const TOOLS: Tool[] = [
             createdAt: true,
             campaign: { select: { id: true, title: true } },
             creator: { select: { id: true, name: true, handle: true, platform: true } },
-            _count: { select: { posts: true, deliverables: true } },
+            _count: { select: { posts: { where: NOT_REMOVED }, deliverables: true } },
           },
           orderBy: [{ deliverableDueDate: "asc" }, { createdAt: "desc" }],
           take: page.limit,
@@ -918,6 +924,7 @@ const TOOLS: Tool[] = [
        */
       const orgPosts = {
         campaign: { orgId, deletedAt: null },
+        ...NOT_REMOVED,
         ...excludingDuplicates(await duplicatePostIds(orgId)),
       };
       const [viewRow, ratedRow, payoutRow] = await Promise.all([

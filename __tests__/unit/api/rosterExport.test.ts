@@ -179,7 +179,7 @@ describe("unknown figures in the export (plan §13 A1)", () => {
     expect(col(rows[0], "Followers (primary)")).toBe(150000);
     // Every figure known: nothing to explain, and the cell is left empty.
     expect(col(rows[0], "Why a figure is —")).toBeNull();
-    expect(mdb.post.groupBy.mock.calls[0][0].where).toEqual({ creatorId: { in: ["a"] }, viewsCount: { gt: 0 } });
+    expect(mdb.post.groupBy.mock.calls[0][0].where).toEqual({ creatorId: { in: ["a"] }, viewsCount: { gt: 0 }, removedAt: null });
   });
 
   it("never writes 0 for an account's follower count", async () => {

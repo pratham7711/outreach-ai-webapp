@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { campaignScopeWhereFor } from "@/lib/campaignScope";
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { findForeignRef } from "@/lib/tenantRefs";
 import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
 import { requirePermission } from "@/lib/authz";
@@ -121,7 +122,7 @@ export async function GET(
        they are org-filtered through the relation, and dropped unread when the
        campaign is out of the caller's scope. */
     const postsRead = db.post.findMany({
-      where: { campaignId: id, campaign: { orgId, deletedAt: null } },
+      where: { campaignId: id, campaign: { orgId, deletedAt: null }, ...NOT_REMOVED },
       select: {
         platform: true,
         viewsCount: true,
@@ -174,8 +175,9 @@ export async function GET(
         // has to show which client is attached before the client list has
         // finished loading.
         client: { select: { id: true, name: true } },
+        /* The header's "N posts" -- removed posts are not in the campaign. */
         _count: {
-          select: { activations: true, posts: true },
+          select: { activations: true, posts: { where: NOT_REMOVED } },
         },
       },
     });
@@ -362,7 +364,7 @@ export async function PATCH(
           },
         },
         _count: {
-          select: { activations: true, posts: true },
+          select: { activations: true, posts: { where: NOT_REMOVED } },
         },
         // The page merges this response in place of re-reading the campaign,
         // so it carries the client's name the edit form shows.

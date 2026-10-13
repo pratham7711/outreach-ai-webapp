@@ -75,12 +75,17 @@ export async function orgDataStamp(orgId: string, parts: OrgStampParts = {}): Pr
          not move with the scan order; casting to numeric for safety cost 50ms.
          A fractional count could only ever cost a needless miss, never a stale
          hit. format() keeps each sum in its own slot when one is NULL. */
-      (SELECT count(*)::text || ':' || format('%s,%s,%s,%s,%s,%s,%s,%s',
+      (SELECT count(*)::text || ':' || format('%s,%s,%s,%s,%s,%s,%s,%s,%s,%s',
                 sum(p."viewsCount"), sum(p."likesCount"), sum(p."commentsCount"),
                 sum(p."sharesCount"), sum(p."savesCount"),
                 sum(extract(epoch FROM p."lastSyncedAt")::numeric),
                 sum(extract(epoch FROM p."postedAt")::numeric),
-                sum(hashtextextended(concat_ws('|', p."creatorId", p."campaignId", p.platform, p."postUrl"), 0)))
+                sum(hashtextextended(concat_ws('|', p."creatorId", p."campaignId", p.platform, p."postUrl"), 0)),
+                /* Remove from campaign only stamps removedAt, and every org read
+                   leaves those posts out -- so a remove or a restore has to move
+                   the stamp. How many are removed, and when, covers both. */
+                count(p."removedAt"),
+                sum(extract(epoch FROM p."removedAt")::numeric))
          FROM "Post" p JOIN "Campaign" c ON c.id = p."campaignId"
         WHERE c."orgId" = ${orgId}) AS posts,
       (SELECT count(*)::text || ':' || coalesce(sum(hashtextextended(ROW(id, title, status, "createdAt", "deletedAt")::text, 0))::text, '')
