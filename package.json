@@ -9,6 +9,7 @@
     "proto:gen": "pbjs -t static-module -w es6 --no-create --no-verify --no-convert --no-delimited -o lib/serialization/postList.generated.js lib/serialization/postList.proto && pbts -o lib/serialization/postList.generated.d.ts lib/serialization/postList.generated.js",
     "start": "next start",
     "lint": "eslint",
+    "lint:ratchet": "node scripts/lint-ratchet.mjs",
     "test": "node scripts/run-tests.js",
     "test:install": "npm install --save-dev jest @testing-library/react @testing-library/jest-dom @testing-library/user-event jest-environment-jsdom ts-jest @types/jest supertest @playwright/test playwright",
     "test:unit": "jest --config jest.config.js",

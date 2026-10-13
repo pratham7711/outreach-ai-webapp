@@ -49,7 +49,8 @@ test.describe('Gate 2 Dashboard — Performance Tab', () => {
     await page.waitForLoadState('networkidle');
     await page.getByText('Views').first().waitFor({ state: 'visible', timeout: 30000 });
 
-    await page.waitForTimeout(2000);
+    // The leaderboard's own panel, rather than two seconds and a hope.
+    await expect(page.getByText('Top Creators').first()).toBeVisible({ timeout: 20000 });
     const pageText = await page.textContent('body');
     expect(pageText).toMatch(/\d/);
   });
@@ -64,21 +65,20 @@ test.describe('Gate 2 Dashboard — Performance Tab', () => {
     await expect(postsTab).toBeVisible({ timeout: 15000 });
     await postsTab.click();
 
-    await page.waitForTimeout(1500);
+    // The tab has painted once its posts have.
+    await expect(postHandles(page).first()).toBeVisible({ timeout: 20000 });
 
     const viewsHeader = page.getByRole('button', { name: /views/i }).first();
     if (await viewsHeader.isVisible()) {
       await viewsHeader.click();
-      await page.waitForTimeout(500);
 
       const rows = page.locator('tr, [data-row]');
       const firstCount = await rows.count();
 
       await viewsHeader.click();
-      await page.waitForTimeout(500);
 
-      const secondCount = await rows.count();
-      expect(firstCount).toBe(secondCount);
+      // A re-sort reorders rows, it never adds or drops one.
+      await expect(rows).toHaveCount(firstCount);
     } else {
       test.skip();
     }
@@ -118,7 +118,6 @@ test.describe('Gate 2 Dashboard — Performance Tab', () => {
 
     const postsTab = page.getByRole('link', { name: /^Posts/i }).first();
     await postsTab.click();
-    await page.waitForTimeout(3000);
 
     /* No test.fixme() on an empty list any more. camp-1 is seeded, so zero
        posts here is a broken tab reporting itself as a skip inside a green
@@ -148,7 +147,11 @@ test.describe('Gate 2 Dashboard — Analytics page', () => {
   test('campaign comparison: select 2 campaigns, table renders', async ({ page }) => {
     await page.goto('/analytics');
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(2000);
+    // The page has drawn once its range control has and the loading grid is gone.
+    await expect(page.getByRole('group', { name: 'Date range' })).toBeVisible({ timeout: 20000 });
+    await page
+      .waitForFunction(() => document.querySelectorAll('.ui-skeleton').length === 0, null, { timeout: 20000 })
+      .catch(() => {});
 
     const comparisonSection = page.getByText(/comparison/i).first();
     if (await comparisonSection.isVisible({ timeout: 5000 }).catch(() => false)) {
@@ -157,9 +160,7 @@ test.describe('Gate 2 Dashboard — Analytics page', () => {
       if (count >= 2) {
         await checkboxes.nth(0).check();
         await checkboxes.nth(1).check();
-        await page.waitForTimeout(1500);
-        const bodyText = await page.textContent('body');
-        expect(bodyText).toMatch(/views|engagement/i);
+        await expect(page.locator('body')).toContainText(/views|engagement/i, { timeout: 15000 });
       }
     }
   });
@@ -204,8 +205,13 @@ test.describe('Gate 2 Dashboard — Share Report', () => {
 
     const createBtn = page.getByRole('button', { name: /create share link/i }).first();
     if (await createBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await createBtn.click();
-      await page.waitForTimeout(2000);
+      await Promise.all([
+        page.waitForResponse(
+          (r) => r.url().includes('/api/campaigns/camp-1/share') && r.request().method() === 'POST',
+          { timeout: 30000 },
+        ),
+        createBtn.click(),
+      ]);
     }
 
     const urlInput = page.locator('input[type="text"][readonly], input[value*="share"]').first();

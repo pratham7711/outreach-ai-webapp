@@ -28,12 +28,53 @@ export async function expectMinItems(page: Page, selector: string, minCount: num
   expect(count).toBeGreaterThanOrEqual(minCount);
 }
 
-/** Type into a search input and wait for debounce */
-export async function searchFor(page: Page, text: string, placeholder: string | RegExp = /search/i): Promise<void> {
+/**
+ * Type into a search input and wait for the search to be applied.
+ *
+ * The list pages debounce their search box into the URL (`?q=`, 350ms on
+ * campaigns) and filter on the server from there, so the query string
+ * changing is the moment the search has been asked for. That replaced a flat
+ * 600ms sleep, which was both slower than needed and no guarantee on a loaded
+ * machine. Pass `urlParam: null` for a box that filters in place without
+ * touching the URL; the caller's own retrying assertions then do the waiting.
+ */
+export async function searchFor(
+  page: Page,
+  text: string,
+  placeholder: string | RegExp = /search/i,
+  { urlParam = 'q' }: { urlParam?: string | null } = {},
+): Promise<void> {
   const input = page.getByPlaceholder(placeholder).first();
   await input.fill(text);
-  await page.waitForTimeout(600);
+  if (urlParam) {
+    await page.waitForURL((url) => url.searchParams.get(urlParam) === text, { timeout: 15000 });
+  }
 }
+
+/**
+ * Wait until React has hydrated the element `selector` names.
+ *
+ * Server-rendered forms are on the page before React has attached a single
+ * handler to them. Text typed into a controlled input before hydration is
+ * lost when React takes it over, and a click on submit then posts an empty
+ * form -- which is what flat sleeps before filling a form were papering over.
+ * React writes its props onto each DOM node it hydrates (`__reactProps$<id>`),
+ * so their presence on the field is the exact moment it starts listening.
+ */
+export async function waitForHydration(page: Page, selector: string, timeout = 30000): Promise<void> {
+  await page.waitForSelector(selector, { timeout });
+  await page.waitForFunction(
+    (sel) => {
+      const el = document.querySelector(sel);
+      return !!el && Object.keys(el).some((k) => k.startsWith('__reactProps'));
+    },
+    selector,
+    { timeout },
+  );
+}
+
+/** The sign-in form's email field, for waitForHydration. */
+export const LOGIN_EMAIL_FIELD = 'input[type="email"], input[name="email"]';
 
 /** Navigate to a page and wait for main content */
 export async function navigateAndWait(page: Page, path: string, timeout = 30000): Promise<void> {
@@ -113,3 +154,54 @@ export async function firstPostDetailHref(page: Page): Promise<string> {
   await page.keyboard.press('Escape');
   return href as string;
 }
+
+/**
+ * Console errors and uncaught exceptions from a page, collected from the moment
+ * this is called. Read it at the end of a test with `unexpectedErrors`.
+ */
+export function collectPageErrors(page: Page): string[] {
+  const errors: string[] = [];
+  page.on('console', (m) => {
+    /* Chrome's "Failed to load resource" line names no URL in its text; the
+       location does, and a failure that does not say which request is a
+       failure nobody can act on. */
+    if (m.type() === 'error') errors.push(`${m.text()}${m.location().url ? ` [${m.location().url}]` : ''}`);
+  });
+  page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+  return errors;
+}
+
+/**
+ * The errors a test did not ask for. A page showing a dead link is SUPPOSED to
+ * have had a 4xx from its own API, and Chrome logs every one of those as a
+ * console error ("Failed to load resource: ... status of 404"), so a test of an
+ * error state passes `allowHttp4xx` -- which drops exactly those lines and
+ * nothing else. A thrown exception or a 5xx still counts.
+ */
+export function unexpectedErrors(errors: string[], { allowHttp4xx = false } = {}): string[] {
+  return errors.filter(
+    (e) =>
+      !(allowHttp4xx && /Failed to load resource: the server responded with a status of 4\d\d/.test(e)) &&
+      !MISSING_AVATAR.test(e),
+  );
+}
+
+/* A creator with no stored picture: /api/creators/<id>/avatar (and the shared
+   list's equivalent) answers 404 by design and CreatorAvatar falls back to
+   initials, so nobody sees a broken image -- but Chrome still logs the 404.
+   Only that exact request is let through. */
+const MISSING_AVATAR = /status of 404 \(Not Found\) \[[^\]]*\/avatar(\?[^\]]*)?\]$/;
+
+/** The page itself does not scroll sideways (1px of subpixel rounding allowed). */
+export async function expectNoHorizontalScroll(page: Page, label: string): Promise<void> {
+  const { scrollWidth, clientWidth } = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    clientWidth: document.documentElement.clientWidth,
+  }));
+  expect(scrollWidth, `${label}: scrollWidth ${scrollWidth} should be <= clientWidth ${clientWidth} + 1`).toBeLessThanOrEqual(
+    clientWidth + 1,
+  );
+}
+
+/** A phone, for the pages people open from a link in a messaging app. */
+export const PHONE = { width: 390, height: 844 };

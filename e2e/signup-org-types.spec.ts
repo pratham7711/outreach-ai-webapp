@@ -1,6 +1,14 @@
 import { test, expect } from '@playwright/test';
+import { waitForHydration, LOGIN_EMAIL_FIELD } from './helpers';
 
 const HMR_ROUTER_PUSH_BUG = `APP BUG (dev-mode HMR race): After /api/signup returns 201, router.push('/login?registered=1') is called but Next.js Turbopack HMR fires before the navigation completes (it compiles the /login route on first access), causing the page to reset back to /signup. Confirmed via: (a) API call returns 201 {"success":true} in the network interception; (b) navigation event "navigated to /login?registered=1" DOES appear in the framenavigated listener then immediately "navigated to /signup" from HMR reload. Repro: start dev server (PORT=3009 npm run dev), open http://localhost:3009/signup in headless browser, fill all fields, click Create account, observe 201 API response followed by page reset to /signup. Fix: replace router.push in signup/page.tsx with window.location.href (full navigation, immune to HMR) or test against a production build.`;
+
+/* The signup form is server-rendered, so typing into it before React has
+   hydrated it loses the text -- see waitForHydration. That replaced the flat
+   3s sleeps this file used to take before every fill. */
+async function waitForSignupForm(page: import('@playwright/test').Page) {
+  await waitForHydration(page, 'input[placeholder="Acme Agency"]');
+}
 
 test.describe('Signup — agency-only flow', () => {
   test.beforeEach(async ({ context }) => {
@@ -12,8 +20,7 @@ test.describe('Signup — agency-only flow', () => {
     opts: { orgName: string; name: string; email: string; password: string }
   ) {
     await page.goto('/signup', { waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('input[placeholder="Acme Agency"]', { timeout: 30000 });
-    await page.waitForTimeout(3000);
+    await waitForSignupForm(page);
     await page.getByPlaceholder('Acme Agency').fill(opts.orgName);
     await page.getByPlaceholder('Jane Doe').fill(opts.name);
     await page.getByPlaceholder('you@company.com').fill(opts.email);
@@ -29,7 +36,13 @@ test.describe('Signup — agency-only flow', () => {
     let captured: { status: number; text: string } | null = null;
     const pattern = '**/api/signup';
     await page.route(pattern, async route => {
-      const res = await route.fetch();
+      /* route.fetch goes out through Node's keep-alive agent, which can pick
+         a socket the server is closing at that same moment (its idle timeout
+         is 5s) and fail with "read ECONNRESET" before the request was read.
+         MEASURED once in four runs after the hydration wait replaced the 3s
+         sleeps, which moved the gap between two signups near that window.
+         maxRetries retries exactly that error and nothing else. */
+      const res = await route.fetch({ maxRetries: 2 });
       const text = await res.text();
       captured = { status: res.status(), text };
       await route.fulfill({ response: res, body: text });
@@ -93,6 +106,11 @@ test.describe('Signup — agency-only flow', () => {
     expect(status).toBe(201);
 
     await page.goto('/login', { waitUntil: 'domcontentloaded' });
+    /* MEASURED: once in three runs on a loaded machine this never reached
+       /campaigns within 30s and reported itself as the HMR fixme below
+       instead of failing. Typing before hydration is the likely cause
+       (unverified -- the fixme leaves no trace); waiting rules it out. */
+    await waitForHydration(page, LOGIN_EMAIL_FIELD);
     await page.getByRole('textbox', { name: 'Email' }).fill(email);
     await page.getByRole('textbox', { name: 'Password' }).fill(password);
     await page.getByRole('button', { name: 'Sign in' }).click();
@@ -122,7 +140,11 @@ test.describe('Signup — agency-only flow', () => {
     const { status: status1 } = await assertSignupApiSucceeds(page);
     expect(status1).toBe(201);
 
-    await page.waitForTimeout(3000);
+    /* A 201 sends the page on to /login. Let that navigation finish before
+       loading /signup again, or it can land on top of the second form. The
+       dev-server HMR race described above can leave it on /signup instead,
+       which is just as settled. */
+    await page.waitForURL(/\/login/, { timeout: 15000 }).catch(() => {});
 
     await fillSignupForm(page, {
       orgName: `E2E Dup Org B ${epoch}`,
@@ -149,8 +171,7 @@ test.describe('Signup — agency-only flow', () => {
     const epoch = Date.now();
 
     await page.goto('/signup', { waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('input[placeholder="Acme Agency"]', { timeout: 30000 });
-    await page.waitForTimeout(3000);
+    await waitForSignupForm(page);
     await page.getByPlaceholder('Acme Agency').fill(`E2E Mismatch Org ${epoch}`);
     await page.getByPlaceholder('Jane Doe').fill('E2E Mismatch User');
     await page.getByPlaceholder('you@company.com').fill(`e2e-mismatch-${epoch}@example.dev`);

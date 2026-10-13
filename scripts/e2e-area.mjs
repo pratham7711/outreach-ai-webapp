@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Run the E2E specs for one part of the app instead of all 37 files.
+ * Run the E2E specs for one part of the app instead of every spec file.
  *
  *   node scripts/e2e-area.mjs --list                 what areas exist
  *   node scripts/e2e-area.mjs campaigns analytics    run those areas

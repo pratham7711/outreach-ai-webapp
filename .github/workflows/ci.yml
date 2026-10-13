@@ -20,6 +20,11 @@ jobs:
       - run: npx prisma generate
       - name: Typecheck (zero-error baseline)
         run: npx tsc --noEmit
+      - name: Lint ratchet (no new ESLint problems)
+        # app/, components/ and lib/ already hold 411 ESLint problems, so plain
+        # `eslint` fails on every run. This fails only when a file/rule count
+        # rises above scripts/lint-ratchet.baseline.json. About 16s locally.
+        run: npm run lint:ratchet
       - name: Unit tests
         run: npx jest --config jest.config.js --maxWorkers=2
       - name: Integration tests
@@ -170,8 +175,10 @@ jobs:
           exit 1
 
       - name: Run E2E suite (production build)
-        # No --workers override: the config pins workers to 1 because the auth
-        # setup projects race each other, and a CLI flag silently outranks it.
+        # No --workers override: playwright.config.ts runs 4 workers (files in
+        # parallel; tests within a file in order unless the file opts out, as
+        # contrast.spec.ts does; E2E_WORKERS overrides it), and a CLI flag
+        # would silently outrank that.
         run: npx playwright test
 
       - name: Upload Playwright report

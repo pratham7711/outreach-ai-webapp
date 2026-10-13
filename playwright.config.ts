@@ -1,5 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 import { loadEnvConfig } from '@next/env';
+import { createHash } from 'node:crypto';
 
 /* The Playwright runner is a plain Node process: unlike `next dev` it does not
    read .env.local, so NEXTAUTH_SECRET was absent and e2e/fixtures/auth.setup.ts
@@ -21,6 +22,36 @@ const E2E_URL = process.env.E2E_BASE_URL || `http://localhost:${E2E_PORT}`;
    having to be handed both. Without this they keep their own 3009 fallback
    while everything around them moves. */
 process.env.E2E_BASE_URL = E2E_URL;
+
+/* E2E_SKIP_BUILD=1 starts `next start` on the build already in .next instead
+   of building again: for re-running specs on code that has not changed since
+   this config last built it (a flaky spec three times over, a failed full run
+   again), each of which otherwise pays for a fresh build first. Unset, the
+   command is what it was, plus one line that stamps the build it just made.
+
+   It refuses rather than trusting the caller, and exits with the reason
+   before a single test runs:
+   - no .next/BUILD_ID;
+   - any build input newer than it -- a stale build would serve the previous
+     code to a green run, the one outcome this exists to make impossible;
+   - no stamp from this config, or a stamp for another URL or database. A
+     plain `npm run build` is NOT equivalent to the build below: it reads
+     DATABASE_URL from .env.local, the build prerenders pages from the
+     database (generateStaticParams in app/(public)/explore/[slug] queries
+     campaigns; a build here listed an /explore/<slug> in its prerender
+     manifest), and it inlines NEXT_PUBLIC_APP_URL for whatever port
+     .env.local names. The stamp is a hash of the URL and the database
+     URL, so it holds no credentials. */
+const SKIP_BUILD = process.env.E2E_SKIP_BUILD === '1';
+const BUILD_DB = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL || '';
+const BUILD_STAMP = createHash('sha256').update(`${E2E_URL}\n${BUILD_DB}`).digest('hex').slice(0, 16);
+const BUILD_STEP = SKIP_BUILD
+  ? 'if [ ! -f .next/BUILD_ID ]; then echo "E2E_SKIP_BUILD=1 but .next holds no production build -- run once without it" >&2; exit 1; fi; ' +
+    'stale=$(find app components lib types proxy.ts next.config.ts tsconfig.json tailwind.config.ts postcss.config.mjs package.json package-lock.json prisma/schema.prisma .env .env.local -newer .next/BUILD_ID -type f -print 2>/dev/null | head -1); ' +
+    'if [ -n "$stale" ]; then echo "E2E_SKIP_BUILD=1 but $stale changed after the last build -- run once without E2E_SKIP_BUILD" >&2; exit 1; fi; ' +
+    `if [ "$(cat .next/e2e-build-stamp 2>/dev/null)" != "${BUILD_STAMP}" ] || [ .next/BUILD_ID -nt .next/e2e-build-stamp ]; then ` +
+    'echo "E2E_SKIP_BUILD=1 but the build in .next was not made by this config for this URL and database -- run once without E2E_SKIP_BUILD" >&2; exit 1; fi; '
+  : `npm run build && echo ${BUILD_STAMP} > .next/e2e-build-stamp && `;
 
 export default defineConfig({
   testDir: './e2e',
@@ -111,10 +142,11 @@ export default defineConfig({
        gap is startup plus those first-hit compiles. `npm run build` pays about
        40s once and `next start` then serves every route immediately.
        E2E_DEV_SERVER=1 puts the dev server back, for debugging a failure that
-       only reproduces under Turbopack. */
+       only reproduces under Turbopack. E2E_SKIP_BUILD=1 reuses the build
+       already in .next (see BUILD_STEP above). */
     command: process.env.E2E_DEV_SERVER
       ? `PORT=${E2E_PORT} SIGNUP_RATE_LIMIT_PER_HOUR=100 npm run dev`
-      : `npm run build && PORT=${E2E_PORT} SIGNUP_RATE_LIMIT_PER_HOUR=100 npm start`,
+      : `${BUILD_STEP}PORT=${E2E_PORT} SIGNUP_RATE_LIMIT_PER_HOUR=100 npm start`,
     url: E2E_URL,
     /* The build is inside this command, so the default 60s would time out on a
        cold one before the server ever bound the port. */

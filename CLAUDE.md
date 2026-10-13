@@ -281,15 +281,20 @@ If you must share a checkout, say so out loud before deploying and check
 `git status --porcelain` immediately before pushing.
 
 
-## Testing — run the affected area, not all 37 specs
+## Testing — run the affected area, not the whole suite
 
-The E2E suite is 37 spec files / 172 tests and runs sequentially (`workers: 1`),
-so a full sweep is ~15 minutes. Do not spend that on a change that touches one
-page. `e2e/areas.mjs` maps areas to specs AND to source paths; it is the single
+The E2E suite is 29 spec files / 151 tests, counting the 2 auth setup files
+(`npx playwright test --list`, 2026-10-13). It runs on 4 workers: files in
+parallel, tests within a file in order, except `contrast.spec.ts`, whose three
+theme sweeps run side by side. A full run measured 329s wall on this machine
+(39s production build and boot, then 289s of tests): 148 passed, 3 skipped.
+The slowest files set the floor: contrast (122s wall), responsive-a (121s),
+gate2-dashboard (90s). Do not spend that on a change that touches one page.
+`e2e/areas.mjs` maps areas to specs AND to source paths; it is the single
 source of truth, shared by the runner and the deploy gate.
 
 ```bash
-npm run test:e2e:list                    # the 10 areas and what each covers
+npm run test:e2e:list                    # the 13 areas and what each covers
 npm run test:e2e:area campaigns          # one area
 npm run test:e2e:area settings creators  # several
 npm run test:e2e:affected                # whatever this diff touches
@@ -307,13 +312,46 @@ Two rules the map enforces, both failing towards MORE testing:
 
 - A changed path matching no area is treated as cross-cutting and forces the
   full suite. Add new routes to `e2e/areas.mjs` or every diff touching them
-  runs everything.
-- A touch to `lib/format`, `components/ds/`, `components/ui/`, `globals.css`,
-  `prisma/`, `package.json` or the config forces the full suite regardless of
-  diff size — those change how every screen renders.
+  runs everything. Shared `lib/` and `components/` files are mapped in its
+  `IMPORTED_BY` table, from the import graph, only when they reach three areas
+  or fewer; wider ones stay unmapped on purpose.
+- A touch to `lib/format`, `lib/metricDisplay`, `components/ds/`,
+  `components/ui/`, `globals.css`, `prisma/`, `package.json` or the config
+  forces the full suite regardless of diff size — those change how every
+  screen renders.
 
 An area run records `playwright:<area>`, never `playwright`, so it cannot clear
 a gate that wants the whole suite.
+
+Knobs, all opt-in:
+
+- `E2E_WORKERS=<n>` overrides the 4 workers. Each worker holds its own Chrome;
+  use 2 when the machine is short of memory, 1 to bisect an order-dependent
+  failure.
+- `E2E_SKIP_BUILD=1` skips `npm run build` and starts on the build already in
+  `.next` (about 2s instead of a build). It only reuses a build that this
+  config made for the same URL and database, which it stamps. A plain
+  `npm run build` does not count, because it prerenders from `.env.local`'s
+  database. It refuses, with the reason, when any source is newer than the
+  build. So: run once without it, then re-run with it while only `e2e/`
+  changes.
+
+## Lint — the ratchet, not plain eslint
+
+`app/`, `components/` and `lib/` hold 411 ESLint problems (302 errors, 109
+warnings, 2026-10-13), so `npm run lint` always fails. Use the ratchet, which
+fails only when a file/rule count rises above
+`scripts/lint-ratchet.baseline.json`. It runs in the CI gate job and takes
+about 16s.
+
+```bash
+npm run lint:ratchet                 # fails on any NEW problem, listing where
+npm run lint:ratchet -- --update     # after fixing some: lock the lower counts in, commit the baseline
+```
+
+`--update` refuses while any rule's total is above the baseline, so it cannot
+wave new problems through. It does accept problems that only moved between
+files, such as after a rename.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
