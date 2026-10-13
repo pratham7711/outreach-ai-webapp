@@ -11,7 +11,7 @@ import {
   LayoutDashboard, Megaphone, Calendar, Users, Users2, LineChart,
   List, CreditCard, Shield,
   ChevronDown, Settings, LogOut, Menu, X, Key, BarChart2, Activity, Music, Tags,
-  Globe, MessageSquareWarning
+  Globe, MessageSquareWarning, Building2, Bell, Plug,
 } from "lucide-react";
 import { mediaUrl } from "@/lib/postMedia";
 import { useSidebar } from "@/components/providers/SidebarProvider";
@@ -61,9 +61,15 @@ export const NAV_SECTIONS = [
     items: [
       { href: "/settings", icon: Settings, label: "Settings" },
       { href: "/settings/general", icon: Tags, label: "General" },
+      /* Profile, Notifications and Integrations were cards on the Settings hub
+         with no row here, so the rail -- the index people actually scan --
+         listed six of the nine settings pages. */
+      { href: "/settings/profile", icon: Building2, label: "Profile" },
       { href: "/settings/team", icon: Users2, label: "Team" },
       { href: "/settings/trackers", icon: LineChart, label: "Tracker settings" },
       { href: "/settings/api-keys", icon: Key, label: "API Keys" },
+      { href: "/settings/notifications", icon: Bell, label: "Notifications" },
+      { href: "/settings/integrations", icon: Plug, label: "Integrations" },
       { href: "/settings/ingestion", icon: Activity, label: "Ingestion" },
     ],
   },

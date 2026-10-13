@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { Activity, ArrowRight, Bell, Building2, CreditCard, FileText, LineChart, Plug, Tags, Users } from "lucide-react";
+import { Activity, ArrowRight, Bell, Building2, FileText, Key, LineChart, Plug, Tags, Users } from "lucide-react";
 import { PageHeader } from "@/components/ds";
 import { hasPermission } from "@/lib/rbac";
 import { ORG_ADMIN_PERMISSION } from "@/lib/dashboardPolicy";
@@ -29,7 +29,9 @@ const cards = [
     title: "API Keys",
     description: "Create and revoke keys for API access and integrations.",
     href: "/settings/api-keys",
-    icon: CreditCard,
+    /* The key glyph the sidebar uses for this page; it was a credit card,
+       which read as Billing. */
+    icon: Key,
   },
   {
     title: "Trackers",
@@ -83,7 +85,7 @@ export default async function SettingsPage() {
     <div className="rsp-page page-enter">
       <PageHeader
         title="Settings"
-        subtitle="Manage access, security, and plan details for your workspace."
+        subtitle="Manage your workspace, team, access and integrations."
       />
 
       <div
