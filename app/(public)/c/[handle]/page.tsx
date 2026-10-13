@@ -237,8 +237,11 @@ export default async function CreatorProfilePage({
       </div>
 
       {/* ── Stats Grid ───────────────────────────────────────────────── */}
+      {/* Three tiles while payouts are off (no Lifetime Earnings, below). The
+          four-column grid strands the third under the first on a phone, with a
+          hole beside it; the balanced row lets it take the whole line. */}
       <div
-        className="rsp-grid-tiles-4"
+        className={PAYOUTS_ENABLED ? "rsp-grid-tiles-4" : "cc-tiles-balanced"}
         style={{
           marginBottom: 32,
         }}
@@ -266,8 +269,7 @@ export default async function CreatorProfilePage({
           { label: "Avg Views", value: unwrittenMetricValue(user.averageViews), fmt: (v: number) => formatNumber(v) },
           { label: "CPM", value: unwrittenMetricValue(user.cpm), fmt: (v: number) => `$${v.toFixed(2)}` },
           /* Earnings are a payouts figure, so the tile goes while payouts are
-             switched off (lib/payouts/switch.ts); the grid's auto-fit lets the
-             other three fill the row. */
+             switched off (lib/payouts/switch.ts). */
           ...(PAYOUTS_ENABLED
             ? [
                 {
