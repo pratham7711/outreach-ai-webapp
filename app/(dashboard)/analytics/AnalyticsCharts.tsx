@@ -4,7 +4,7 @@ import { formatCompact } from "@/lib/format";
 import {
   AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar,
 } from "recharts";
-import { ChartFrame } from "@/components/ds";
+import { ChartFrame } from "@/components/ds/ChartFrame";
 import { formatNumber, SERIES_COLORS } from "./shared";
 
 type MonthlyTrend = { month: string; campaigns: number; active: number };

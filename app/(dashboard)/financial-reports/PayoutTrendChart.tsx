@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
-import { ChartFrame } from "@/components/ds";
+import { ChartFrame } from "@/components/ds/ChartFrame";
 
 type MonthlyTrend = { month: string; paid: number; pending: number };
 

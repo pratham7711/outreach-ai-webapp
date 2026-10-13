@@ -4,7 +4,8 @@ import { formatCompact, formatCompactCurrency } from "@/lib/format";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, BarChart, Bar, LabelList, ReferenceLine,
 } from "recharts";
-import { ChartFrame, MetricHint } from "@/components/ds";
+import { MetricHint } from "@/components/ds";
+import { ChartFrame } from "@/components/ds/ChartFrame";
 import { cpm } from "@/lib/metrics";
 
 type ViewsPoint = { date: string; views: number };
