@@ -39,15 +39,19 @@ export function OverviewSection({
      therefore states a number that is not the one it claims to be — measured on
      /dashboard as "512 active campaigns" and "1832 creators" for several seconds
      before 8 and 1 replaced them. A placeholder is honest; a wrong number the
-     reader has already taken in is not. */
-  const pending = loading && !s;
+     reader has already taken in is not.
+     The same holds after a range change: the previous range's figures used to
+     stay up, unmarked, until the new ones replaced them, so a click on 7D
+     showed the 6M totals under a 7-day heading for as long as the request
+     took. Any request in flight now blanks the tiles. */
+  const pending = loading;
   const tileValue = (value: React.ReactNode) =>
     pending ? <Skeleton className="block h-7 w-24 rounded-md" /> : value;
 
   return (
     <div className="flex flex-col gap-6">
       {widgets.includes("kpi_grid") && (
-        <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-5 lg:grid-cols-4" aria-busy={pending}>
           <MetricTile
 
             metric="activeCampaigns"
@@ -80,13 +84,13 @@ export function OverviewSection({
                 metric="totalViews"
                 what="How many times posts published in the selected range have been watched, counting each post's lifetime views."
                 how="Adds up the latest view count of every tracked post published inside the range chosen above. The chart below is not filtered this way — each of its points covers every post the workspace holds, so its numbers are larger."
-                value={formatNumber(totalViews)}
+                value={tileValue(formatNumber(totalViews))}
               />
               <MetricTile
                 metric="totalPosts"
                 what="How many pieces of content your creators published in the selected range."
                 how="Counts tracked posts with a publish date inside the range chosen above, whether or not they are still live."
-                value={formatNumber(totalPosts)}
+                value={tileValue(formatNumber(totalPosts))}
               />
             </>
           )}
