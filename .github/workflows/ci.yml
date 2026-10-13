@@ -1,8 +1,18 @@
 name: CI
 
+# DRAFT -- not approved yet. Proposed path to production:
+#   git push origin HEAD:candidate/<slug>
+# runs gate (typecheck, lint ratchet, unit, integration, build) and the E2E
+# suite in three shards. If every one of them passes, `promote` fast-forwards
+# master to that exact commit. Vercel builds master as production, so that
+# push is the deploy, made only from a commit that passed. A candidate that
+# master has moved past is refused, never merged or forced. The
+# "Expected on prod" note is then due before the candidate push, since that
+# push is what deploys.
+# Pushes to master still run all of this, minus `promote`.
 on:
   push:
-    branches: [master]
+    branches: [master, 'candidate/**']
   pull_request:
     branches: [master]
   workflow_dispatch:
@@ -61,11 +71,22 @@ jobs:
   # Self-contained E2E against a PRODUCTION build (next start), on a throwaway
   # Postgres service container. No repo secrets required — all secrets are
   # generated inline. Non-blocking: NOT part of the required `gate` check.
+  # Except on candidate/**, where `promote` needs it.
+  #
+  # One shard on master and PRs, which is what this job did before. Three on a
+  # candidate, each with its own Postgres seeded the same way, because promote
+  # waits on the slowest shard, not on the sum of them.
   e2e-prod:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(startsWith(github.ref, 'refs/heads/candidate/') && '[1, 2, 3]' || '[1]') }}
     concurrency:
-      group: e2e-prod-${{ github.ref }}
+      # The shard is in the group: all of them share one ref, and a group
+      # without it would let each shard cancel the one before.
+      group: e2e-prod-${{ github.ref }}-${{ matrix.shard }}
       cancel-in-progress: true
     services:
       postgres:
@@ -99,6 +120,7 @@ jobs:
       # e2e/feedback.spec.ts reads the operator inbox as the seeded admin, as
       # .env.local allows locally.
       PLATFORM_ADMIN_EMAILS: admin@demo.com
+      E2E_SHARDS: ${{ startsWith(github.ref, 'refs/heads/candidate/') && '3' || '1' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -179,13 +201,13 @@ jobs:
         # parallel; tests within a file in order unless the file opts out, as
         # contrast.spec.ts does; E2E_WORKERS overrides it), and a CLI flag
         # would silently outrank that.
-        run: npx playwright test
+        run: npx playwright test --shard=${{ matrix.shard }}/${{ env.E2E_SHARDS }}
 
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.shard }}
           path: |
             playwright-report/
             test-results/
@@ -195,6 +217,47 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: next-start-log
+          name: next-start-log-${{ matrix.shard }}
           path: next-start.log
           retention-days: 7
+
+  # Fast-forwards master to the candidate that just passed. It runs only when
+  # the push was to candidate/**, and only after gate and every E2E shard
+  # passed. checkout leaves HEAD at github.sha, so the commit promoted is the
+  # one that was tested, never a newer one.
+  #
+  # Before this is enabled:
+  # - A push made with GITHUB_TOKEN starts no workflow run. Vercel's Git
+  #   integration still deploys master, but this workflow will not run again
+  #   on that push. That is expected: the same commit has just passed it.
+  # - If master is a protected branch, allow this workflow (github-actions[bot])
+  #   to push to it. Otherwise this push is rejected.
+  # - Production deploys need HEAD authored by prathamsharma7711@gmail.com.
+  #   A fast-forward does not rewrite commits, so the candidate's own author
+  #   reaches Vercel unchanged.
+  promote:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/candidate/')
+    needs: [gate, e2e-prod]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      # Two candidates passing at once must not race for master: the second
+      # is checked against master as the first one left it.
+      group: promote-master
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fast-forward master to this candidate
+        run: |
+          git fetch origin master
+          if ! git merge-base --is-ancestor origin/master HEAD; then
+            echo "::error::master has commits this candidate does not -- rebase it onto origin/master and push it again. On master, not in the candidate:"
+            git log --oneline HEAD..origin/master
+            exit 1
+          fi
+          # No --force: a push that is not a fast-forward is rejected by git
+          # itself, so the check above can only make this stricter.
+          git push origin HEAD:refs/heads/master
