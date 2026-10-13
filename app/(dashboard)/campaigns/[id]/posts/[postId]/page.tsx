@@ -28,6 +28,7 @@ import { imgSrc, embedSrcFor, postThumbnailUrl } from "@/lib/postMedia";
 import { stripAt, formatDateAbs, formatDateTimeAbs, formatFull, fitFigureSize } from "@/lib/format";
 import { MIN_SNAPSHOTS } from "@/lib/fraud/botSignals";
 import { loadCharts } from "@/components/charts/lazyCharts";
+import { breakableFigure } from "@/components/ds/BreakableFigure";
 import { readCadenceLabel, DEFAULT_POST_TRACKING } from "@/lib/trackers/granularity";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import { useCampaignNav } from "@/components/providers/CampaignNavProvider";
@@ -180,7 +181,9 @@ const STATUS_BADGE: Record<string, "warning" | "success" | "danger" | "neutral">
   REJECTED: "danger",
 };
 
-/** A metric-card figure that shrinks to fit rather than running off the card. */
+/** A metric-card figure that shrinks to fit, and wraps between digit groups
+    when shrinking is not enough -- never an ellipsis: "340,…" on a phone tile
+    read as a different number (MEASURED 2026-10-13 at 390). */
 function FigureValue({ text, color = "var(--cc-text)" }: { text: string; color?: string }) {
   return (
     <span
@@ -189,14 +192,12 @@ function FigureValue({ text, color = "var(--cc-text)" }: { text: string; color?:
         fontSize: fitFigureSize(text, 24),
         fontWeight: 700,
         color,
-        whiteSpace: "nowrap",
         fontVariantNumeric: "tabular-nums",
         display: "block",
-        overflow: "hidden",
-        textOverflow: "ellipsis",
+        overflowWrap: "break-word",
       }}
     >
-      {text}
+      {breakableFigure(text)}
     </span>
   );
 }
@@ -642,7 +643,10 @@ export default function PostDetailPage() {
 
       <div className="cc-tiles-balanced" style={{ marginBottom: 24 }}>
         {metricCards.map(({ key, field, label, icon: Icon, color }) => (
-          <Card key={key} variant="outlined" style={{ padding: "16px 20px" }}>
+          /* noPadding: the library's .ui-card-body added 24 a side inside
+             this card's own 16/20, leaving an 85px box for the figure in a
+             173px phone tile -- why "340,000" was cut to "340,…". */
+          <Card key={key} variant="outlined" noPadding style={{ padding: "16px 20px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
               <Icon size={16} color={color} />
               <span className="cc-microlabel">{label}</span>

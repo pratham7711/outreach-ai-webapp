@@ -1,5 +1,6 @@
 import { formatFull } from "@/lib/format";
 import { isUnknownMetric, metricText, type MetricValue } from "@/lib/creators/metricValue";
+import { breakableFigure } from "@/components/ds/BreakableFigure";
 
 /**
  * A creator figure as it is shown on a screen: the number, or "—" carrying why.
@@ -12,11 +13,17 @@ import { isUnknownMetric, metricText, type MetricValue } from "@/lib/creators/me
 export default function MetricFigure({
   value,
   format = formatFull,
+  breakable = false,
 }: {
   value: MetricValue;
   format?: (n: number) => string;
+  /** May wrap between digit groups -- for a narrow card, not a table column. */
+  breakable?: boolean;
 }) {
-  if (!isUnknownMetric(value)) return <>{format(value)}</>;
+  /* A card wraps the figure rather than cutting it (see BreakableFigure); the
+     text is the same string either way. A table keeps it on one line, where a
+     column that wraps a number mid-figure is worse than one that scrolls. */
+  if (!isUnknownMetric(value)) return <>{breakable ? breakableFigure(format(value)) : format(value)}</>;
   return (
     <span title={value.reason} data-unknown="" style={{ cursor: "help" }}>
       <span aria-hidden="true">{metricText(value)}</span>

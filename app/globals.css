@@ -4770,14 +4770,15 @@ h1, h2, h3, h4, h5, h6 {
   margin-bottom: var(--cc-kpi-label-mb);
 }
 
+/* Wraps between digit groups (the figure carries a <wbr> after each comma)
+   rather than ending in an ellipsis -- a cut figure reads as a different
+   number. */
 .cc-kpi-chip-value {
   font-size: var(--cc-kpi-value-fs);
   font-weight: var(--cc-kpi-value-fw);
   font-variant-numeric: tabular-nums;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: break-word;
 }
 
 /* Equal columns that wrap, rather than equal flex children that never do. The
@@ -10314,11 +10315,12 @@ a.cc-platform-chip[data-problem]:hover {
 .cc-roster-card-stats dt {
   margin-bottom: 2px;
 }
+/* Wraps between digit groups (MetricFigure puts a <wbr> after each comma)
+   instead of an ellipsis: three stats to a card left "1,826,153…" at 1440 and
+   at 390, which reads as a different number. MEASURED 2026-10-13. */
 .cc-roster-card-stats dd {
   margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: break-word;
   font-size: var(--cc-t-16);
   font-weight: 700;
   font-variant-numeric: tabular-nums;

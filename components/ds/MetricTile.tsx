@@ -5,6 +5,7 @@ import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { MetricHint } from "./MetricHint";
 import { METRIC_DEFINITIONS, type MetricKey } from "@/lib/metric-definitions";
+import { breakableFigure } from "./BreakableFigure";
 
 type Trend = "up" | "down" | "flat";
 
@@ -85,20 +86,26 @@ export function MetricTile({
       {/* min-w-0 on the row and on the label: the hint beside it is a 44px
           touch target that must not shrink, so when the tile is narrow the
           label is what gives way. Without this the button painted 7.5px
-          outside the tile at a 390px window. MEASURED 2026-09-15. */}
+          outside the tile at a 390px window. MEASURED 2026-09-15.
+
+          It gives way by WRAPPING, not by an ellipsis. Truncated, a phone
+          read "AVG ENGA…", "ACTIVE CAM…" and "NEW USES / 2…" (MEASURED
+          2026-10-13 at 390) -- a label cut mid-word is a guess, not a label. */}
       <div className="flex min-w-0 items-center gap-1.5">
-        <span className="cc-metric-label min-w-0 truncate">
+        <span className="cc-metric-label min-w-0 break-words">
           {displayLabel}
         </span>
         <MetricHint metric={metric} label={displayLabel} what={what} how={how} />
       </div>
 
       <span
-        /* title so the figure is recoverable if a future layout does clip it. */
+        /* Wraps between digit groups when the step-down above is not enough,
+           rather than cutting the figure: "2,400,…" on a phone tile read as a
+           different number. title stays, for a figure passed as a node. */
         title={valueText ?? undefined}
-        className={`overflow-hidden leading-none font-bold tracking-[-0.02em] text-ellipsis whitespace-nowrap text-foreground tabular-nums ${valueSize}`}
+        className={`leading-none font-bold tracking-[-0.02em] break-words text-foreground tabular-nums ${valueSize}`}
       >
-        {value}
+        {valueText !== null && typeof value === "string" ? breakableFigure(value) : value}
       </span>
 
       {delta && DeltaIcon ? (

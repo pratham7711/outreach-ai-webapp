@@ -561,7 +561,7 @@ export default function CreatorsClient({
         key: stat.key,
         label: stat.label,
         empty: (c: Creator) => isUnknownMetric(stat.read(c)),
-        render: (c: Creator) => <MetricFigure value={stat.read(c)} format={formatNumber} />,
+        render: (c: Creator) => <MetricFigure value={stat.read(c)} format={formatNumber} breakable />,
         age: (c: Creator) => <FigureAge value={stat.read(c)} time={stat.at(c)} />,
       })),
       ...(hasPrice

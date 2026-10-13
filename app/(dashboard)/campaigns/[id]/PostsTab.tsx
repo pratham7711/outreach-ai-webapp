@@ -15,6 +15,7 @@ import { postAgeContext, postMeasuredAt, postStatus } from "@/lib/posts/postStat
 import { viewsAsOf } from "@/lib/posts/fieldFreshness";
 import PostStatusChip from "@/components/posts/PostStatusChip";
 import { AgeLabel } from "@/components/ds/AgeLabel";
+import { breakableFigure } from "@/components/ds/BreakableFigure";
 import PostGridCard from "@/components/posts/PostGridCard";
 import { STATUS_BADGE, engRatePct, trackingLabel } from "@/lib/posts/postDisplay";
 import { summariseRefresh, type RefreshResult } from "@/lib/refreshSummary";
@@ -1752,7 +1753,7 @@ export default function PostsTab({
           {kpiChips.map((chip) => (
             <div key={chip.label} className="cc-kpi-chip">
               <span className="cc-kpi-chip-label">{chip.label}</span>
-              <span className="cc-kpi-chip-value" title={chip.value}>{chip.value}</span>
+              <span className="cc-kpi-chip-value" title={chip.value}>{breakableFigure(chip.value)}</span>
             </div>
           ))}
         </div>
