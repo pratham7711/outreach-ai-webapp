@@ -71,19 +71,11 @@ export const CAMPAIGN_STATUSES = ["DRAFT", "PENDING", "IN_PROGRESS", "COMPLETE",
  */
 export const CAMPAIGNS_DEFAULT_STATUS = "IN_PROGRESS" as const;
 
-/**
- * The All tab's value in the URL: an explicit "do not narrow by status".
- *
- * Once a bare /campaigns means Active, an absent parameter can no longer mean
- * "every status" -- All needs a value of its own or it is unreachable from the
- * sidebar. It is not a Campaign.status and never reaches a query: it is
- * stripped below, leaving exactly the empty filter an absent parameter already
- * produced. So /api/campaigns is unchanged for every existing caller, and
- * ?status=ALL now parses there instead of failing the enum -- which took the
- * whole safeParse down and silently dropped the client, tag and team filters
- * alongside it.
- */
-export const CAMPAIGN_STATUS_ALL = "ALL";
+/* CAMPAIGN_STATUS_ALL lives in lib/listParams (no imports) because the campaigns
+   list's client component reads it; importing it from here shipped zod and the
+   Prisma namespace to the browser again. Re-exported for the server callers. */
+import { CAMPAIGN_STATUS_ALL } from "@/lib/listParams";
+export { CAMPAIGN_STATUS_ALL };
 export const CAMPAIGN_TYPES = ["BUDGET_BASED", "VIEW_BASED", "OPEN_COMMUNITY", "PRIVATE_INVITE"] as const;
 
 export type CampaignFilters = {

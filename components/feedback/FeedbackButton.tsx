@@ -6,7 +6,7 @@ import { Modal } from "@pratham7711/ui";
 import { Button } from "@/components/ds";
 import { capturePage } from "@/lib/feedback/capture";
 import { installClientSignals, recentClientErrors, recentFailedRequests } from "@/lib/feedback/clientSignals";
-import { MAX_MESSAGE_CHARS, type FeedbackSurface } from "@/lib/feedback/submission";
+import { MAX_MESSAGE_CHARS, type FeedbackSurface } from "@/lib/feedback/limits";
 
 /**
  * The Feedback button on every page a client or creator uses.

@@ -14,9 +14,8 @@ import { CAMPAIGNS_PAGE_SIZE } from "@/lib/listPageSize";
 import { imgSrc } from "@/lib/postMedia";
 import FoldersPanel, { type FolderOption } from "./FoldersPanel";
 import { ShareModal } from "./ShareModal";
-import { UNFILED, isDefaultCampaignSort, type CampaignSort, type CampaignSortKey } from "@/lib/listParams";
+import { CAMPAIGN_STATUS_ALL, UNFILED, isDefaultCampaignSort, type CampaignSort, type CampaignSortKey } from "@/lib/listParams";
 import { CAMPAIGN_STATUS_STYLE } from "@/lib/statusColors";
-import { CAMPAIGN_STATUS_ALL } from "@/lib/listFilters";
 import { action } from "@/lib/ui/actions";
 
 type Campaign = {
