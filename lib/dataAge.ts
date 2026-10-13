@@ -174,11 +174,66 @@ export function dataAsOf(times: Iterable<string | Date | null | undefined>, now:
   return newest;
 }
 
-/** "Data as of 2 Oct 2026, 14:05 UTC", or a plain statement that nothing has been read. */
-export function dataAsOfLine(at: string | Date | null | undefined): string {
+/**
+ * "Data as of 2 Oct 2026, 14:05 UTC", or a plain statement that nothing has
+ * been read.
+ *
+ * With `coverage`, the line also says how many of the posts that time speaks
+ * for. The newest reading alone overstated it: a report whose one read post
+ * was synced this morning said "Data as of" this morning above four posts
+ * whose figures were an import's, never read by us -- so it now names the
+ * reading as the newest and says how many posts were read at all.
+ */
+export function dataAsOfLine(
+  at: string | Date | null | undefined,
+  coverage?: { read: number; total: number } | null,
+): string {
   const d = toDate(at);
-  return d ? `Data as of ${formatAsOf(d)}` : "Data as of: no readings yet";
+  if (!d) {
+    return coverage && coverage.total > 0 ? "Data as of: no post read by us yet" : "Data as of: no readings yet";
+  }
+  if (!coverage || coverage.total <= 0 || coverage.read >= coverage.total) return `Data as of ${formatAsOf(d)}`;
+  const rest = coverage.total - coverage.read;
+  return `Data as of ${formatAsOf(d)}, the newest reading · ${coverage.read} of ${coverage.total} ${plural(coverage.total, "post")} read by us; the other ${rest} show imported figures or none`;
 }
+
+function plural(n: number, noun: string): string {
+  return n === 1 ? noun : `${noun}s`;
+}
+
+/**
+ * The small line under a total on a KPI tile: when its figures were read, and
+ * -- when some are missing -- how many of the items it adds up it covers.
+ *
+ *   "as of 13 Oct 2026, 07:50 UTC · views known for 4 of 5 posts"
+ *
+ * `at` is the newest reading behind the total (dataAsOf over the items). A
+ * total with nothing to date says "time not recorded" rather than borrowing
+ * a time. Coverage is left out when it is complete, so a fully-read total
+ * carries only its time. Null when there is nothing to say at all.
+ */
+export function asOfCaption(
+  at: string | Date | null | undefined,
+  coverage?: { known: number | null | undefined; total: number; noun?: string; what?: string } | null,
+): string | null {
+  const parts: string[] = [];
+  const d = toDate(at);
+  if (d && ageMs(d) !== null) parts.push(`as of ${formatAsOf(d)}`);
+  else if (coverage && coverage.total > 0) parts.push(TIME_NOT_RECORDED);
+  if (coverage && typeof coverage.known === "number" && coverage.total > 0 && coverage.known < coverage.total) {
+    parts.push(
+      `${coverage.what ? `${coverage.what} ` : ""}known for ${coverage.known} of ${coverage.total} ${plural(coverage.total, coverage.noun ?? "post")}`,
+    );
+  }
+  return parts.length ? parts.join(" · ") : null;
+}
+
+/**
+ * The one phrase for a figure we hold but cannot date. The roster said "age
+ * unknown", Trackers and the creator figures "time not recorded", and the
+ * export "Age unknown" -- three wordings of one fact, read side by side.
+ */
+export const TIME_NOT_RECORDED = "time not recorded";
 
 /**
  * An export's "As of" cell: ISO 8601 in UTC, which every spreadsheet and
