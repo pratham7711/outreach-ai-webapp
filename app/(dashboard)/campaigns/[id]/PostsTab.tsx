@@ -1904,14 +1904,19 @@ export default function PostsTab({
             the theme's `order` rule moves. Hand-building the row here would
             have put the icon on the right in all three themes instead of the
             one that asked for it. */}
+        {/* Not `loading`: the ds Button lays its spinner over the children
+            and hides them, so the button read as two icons and no words for
+            the whole run. A fixed "Refreshing…" beside the turning glyph is
+            nearly the width of "Refresh Data" and does not change per tick;
+            the count stays in the note card below. */}
         <Button
           variant="secondary"
-          iconLeft={<RefreshCw size={16} />}
+          iconLeft={<RefreshCw size={16} style={{ animation: refreshingAll ? "cc-spin 1s linear infinite" : undefined }} />}
           onClick={handleRefreshAll}
-          loading={refreshingAll}
-          disabled={posts.length === 0}
+          aria-busy={refreshingAll}
+          disabled={posts.length === 0 || refreshingAll}
         >
-          Refresh Data
+          {refreshingAll ? "Refreshing\u2026" : "Refresh Data"}
         </Button>
 
         <Button variant="primary" iconLeft={<Plus size={16} />} onClick={openAddPost} {...action("add-posts")}>
