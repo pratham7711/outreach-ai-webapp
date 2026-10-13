@@ -219,7 +219,9 @@ export function asOfCaption(
   const parts: string[] = [];
   const d = toDate(at);
   if (d && ageMs(d) !== null) parts.push(`as of ${formatAsOf(d)}`);
-  else if (coverage && coverage.total > 0) parts.push(TIME_NOT_RECORDED);
+  /* Nothing known means nothing to date: "views known for 0 of 7 posts" says
+     it, and "time not recorded" in front of it would suggest a reading. */
+  else if (coverage && coverage.total > 0 && coverage.known !== 0) parts.push(TIME_NOT_RECORDED);
   if (coverage && typeof coverage.known === "number" && coverage.total > 0 && coverage.known < coverage.total) {
     parts.push(
       `${coverage.what ? `${coverage.what} ` : ""}known for ${coverage.known} of ${coverage.total} ${plural(coverage.total, coverage.noun ?? "post")}`,

@@ -24,9 +24,14 @@ describe("asOfCaption", () => {
   });
 
   it("says the time was not recorded rather than borrowing one", () => {
-    expect(asOfCaption(null, { known: 0, total: 3, what: "views" })).toBe(
-      `${TIME_NOT_RECORDED} · views known for 0 of 3 posts`,
+    expect(asOfCaption(null, { known: 2, total: 3, what: "views" })).toBe(
+      `${TIME_NOT_RECORDED} · views known for 2 of 3 posts`,
     );
+    expect(asOfCaption(null, { known: 3, total: 3 })).toBe(TIME_NOT_RECORDED);
+  });
+
+  it("states only the coverage when nothing is known", () => {
+    expect(asOfCaption(null, { known: 0, total: 7, what: "views" })).toBe("views known for 0 of 7 posts");
   });
 
   it("says nothing about an empty set, or with nothing to say", () => {
