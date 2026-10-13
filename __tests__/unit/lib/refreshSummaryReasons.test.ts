@@ -52,33 +52,85 @@ describe("describeReasons", () => {
 });
 
 describe("summariseRefresh with reasons", () => {
-  /* The reasons are back in the toolbar sentence (walkthrough 2026-10-13, F5),
-     failure reasons only and biggest first, in describeReasons' wording. */
-  it("names the causes of what could not be read, biggest first", () => {
+  /* The breakdown is collected, counted and logged -- and deliberately not
+     shown. Owner's call, 2026-09-03.
+
+     This assertion has moved twice in a day, so it is worth pinning why it
+     ended up here: the reasons are not missing, they are addressed to someone
+     else. A person watching a refresh is told it happened; a person debugging a
+     bad run reads CampaignRefreshRun.reasons, Post.platformMetrics.__lastFetch,
+     or the "campaign refresh finished" log line, and describeReasons() --
+     tested above -- is where the wording for those lives. */
+  it("never names the cause, however bad the run was", () => {
     const text = summariseRefresh({
       total: 88,
       measured: 22,
       noMetrics: 62,
       unfetchable: 4,
-      reasons: { "post-deleted": 4, "platform-challenged": 62 },
+      reasons: { "platform-challenged": 62, "post-deleted": 4 },
     });
 
-    expect(text).toBe("22 of 88 updated · 66 couldn't be read: 62 blocked by the platform, 4 no longer exist.");
+    expect(text).toBe("Posts updated.");
+    expect(text).not.toMatch(/blocked|no longer exist|refused|platform/i);
   });
 
   it("stays a single clean sentence when everything landed", () => {
-    expect(summariseRefresh({ total: 40, measured: 40, reasons: {} })).toBe("All 40 posts updated.");
+    const text = summariseRefresh({
+      total: 40,
+      measured: 40,
+      reasons: {},
+    });
+
+    expect(text).toBe("Posts updated.");
   });
 
-  it("keeps a partial reading out of the failure list and says it after", () => {
-    expect(summariseRefresh({ total: 3, measured: 2, reasons: { "views-unavailable": 1, "post-hidden": 1 } })).toBe(
-      "2 of 3 updated · 1 couldn't be read: 1 was hidden by their creator · 1 without new views.",
-    );
+  it("reads the same whether or not the run recorded reasons", () => {
+    const withReasons = summariseRefresh({
+      total: 10,
+      measured: 3,
+      noMetrics: 7,
+      reasons: { "platform-challenged": 7 },
+    });
+    const without = summariseRefresh({ total: 10, measured: 3, noMetrics: 7 });
+
+    expect(withReasons).toBe("Posts updated.");
+    expect(withReasons).toBe(without);
   });
 
+  it("does not announce the batch the next run will pick up", () => {
+    const text = summariseRefresh({
+      total: 88,
+      measured: 20,
+      noMetrics: 5,
+      remaining: 63,
+      reasons: { "platform-challenged": 5 },
+    });
+
+    expect(text).toBe("Posts updated.");
+    expect(text).not.toMatch(/63|remaining/);
+  });
+
+  /* Withholding the cause must not become claiming a success that did not
+     happen. A run where every post was blocked says so -- in the reader's
+     terms, not the platform's -- and the reasons still stay out of it. */
+  it("does not read as a success when every post was blocked", () => {
+    const text = summariseRefresh({
+      total: 88,
+      measured: 0,
+      noMetrics: 88,
+      reasons: { "platform-challenged": 88 },
+    });
+
+    expect(text).toBe("No new data yet.");
+    expect(text).not.toMatch(/blocked|platform/i);
+  });
+
+  /* The audio half is not a failure reason and is not covered by the rule
+     above: a campaign built around a sound needs to know the sound was missed,
+     and that is a fact about the run, not an apology for a platform. */
   it("still reports the campaign audio", () => {
     expect(summariseRefresh({ total: 4, measured: 1, reasons: { "post-deleted": 3 }, sound: { failed: 1 } }))
-      .toBe("1 of 4 updated · 3 couldn't be read: 3 no longer exist. The campaign audio could not be reached.");
+      .toBe("Post updated. The campaign audio could not be reached.");
   });
 });
 

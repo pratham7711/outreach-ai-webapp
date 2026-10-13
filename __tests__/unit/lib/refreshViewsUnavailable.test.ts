@@ -98,11 +98,10 @@ describe("the run's reasons", () => {
     expect(runRow.measured).toBe(4);
   });
 
-  it("has wording in the debug breakdown and is said as a partial in the toolbar", () => {
+  it("has wording in the debug breakdown and none in the toolbar sentence", () => {
     expect(describeReasons({ [VIEWS_UNAVAILABLE]: 9 })).toBe("9 updated without new views");
-    // Measured, so all nine count as updated; the partial is said after the ratio.
-    expect(summariseRefresh({ total: 9, measured: 9, reasons: { [VIEWS_UNAVAILABLE]: 9 } })).toBe(
-      "All 9 posts updated · 9 without new views.",
-    );
+    /* Owner's call, 2026-09-03: the toolbar says a refresh happened and no more.
+       The per-post "Views as of" label carries this instead. */
+    expect(summariseRefresh({ total: 9, measured: 9, reasons: { [VIEWS_UNAVAILABLE]: 9 } })).toBe("Posts updated.");
   });
 });
