@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { withoutImportCopy } from "@/lib/serialization/importCopy";
 import { getCreatorSession } from "@/lib/creator-auth";
 import { z } from "zod";
 import { moneyParam, pageParam, pageSizeParam, parseQuery } from "@/lib/http/queryParams";
@@ -82,6 +83,7 @@ export async function GET(request: NextRequest) {
 
     const enriched = campaigns.map(c => ({
       ...c,
+      typeConfig: withoutImportCopy(c.typeConfig),
       alreadyProposed: proposedCampaignIds.has(c.id),
     }));
 
