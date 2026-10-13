@@ -18,6 +18,7 @@ import { shareImgSrc } from "@/lib/postMedia";
 import { campaignStatusLabel } from "@/lib/statusColors";
 import SharedPostList from "./SharedPostList";
 import { viewsCoverageNote } from "@/lib/metricDisplay";
+import { asOfCaption } from "@/lib/dataAge";
 
 /**
  * The chart's series come from the campaign, not from a fixed triple.
@@ -171,7 +172,16 @@ export default function SharedPerformanceReport({
   const boardCols = { "--spr-board-cols": rowCols, "--spr-board-cols-phone": rowColsPhone } as React.CSSProperties;
 
   const isEmpty = kpis.views === 0 && leaderboard.length === 0 && timeSeries.length === 0;
-  const viewsNote = viewsCoverageNote(kpis.viewsKnownPosts, kpis.posts);
+  /* When the total was read, and how many posts it covers -- the line the
+     agency's Performance tab carries under the same tile. A report cached
+     before kpis.asOf existed keeps the coverage note alone. */
+  const viewsNote =
+    kpis.asOf !== undefined
+      ? asOfCaption(kpis.asOf, { known: kpis.viewsKnownPosts, total: kpis.posts, what: "views" })
+      : viewsCoverageNote(kpis.viewsKnownPosts, kpis.posts);
+  /* A sum over no read post is unknown, not 0 -- e.g. a campaign of Instagram
+     photos, which publish no view count. */
+  const viewsUnknown = kpis.viewsKnownPosts === 0 && kpis.posts > 0;
   const coverSources = !hydrated
     ? []
     : [...new Set([data.audio?.coverUrl, artworkUrl].map((u) => shareImgSrc(token, u ?? null, 302)))].filter(
@@ -268,7 +278,7 @@ export default function SharedPerformanceReport({
                       page, three screens down on a phone, so a client reading
                       the summary saw views with no idea how many posts made them. */}
                   <StatTile value={formatExact(kpis.posts)} label="Total Posts" />
-                  <StatTile value={formatCompact(kpis.views)} label="Total Views" note={viewsNote} />
+                  <StatTile value={viewsUnknown ? "\u2014" : formatCompact(kpis.views)} label="Total Views" note={viewsNote} />
                   {kpis.engagementRate !== null && (
                     <StatTile value={`${(kpis.engagementRate * 100).toFixed(2)}%`} label="Eng. Rate" />
                   )}
@@ -448,7 +458,7 @@ export default function SharedPerformanceReport({
                             <span className="spr-board-cell-strong">{row.views === null ? "—" : formatNumber(row.views)}</span>
                             {anyEngagementMeasured && (
                               <span className="spr-board-cell">
-                                {row.engagementRate !== null ? `${(row.engagementRate * 100).toFixed(1)}%` : "—"}
+                                {row.engagementRate !== null ? `${(row.engagementRate * 100).toFixed(2)}%` : "—"}
                               </span>
                             )}
                           </div>
@@ -466,7 +476,7 @@ export default function SharedPerformanceReport({
                   grid, in this order, and omits any counter nothing measured. */}
               <div className="spr-tiles spr-tiles-compact">
                 <StatTile value={formatExact(kpis.posts)} label="Total Posts" />
-                <StatTile value={formatExact(kpis.views)} label="Total Views" note={viewsNote} />
+                <StatTile value={viewsUnknown ? "\u2014" : formatExact(kpis.views)} label="Total Views" note={viewsNote} />
                 {kpis.likes !== null && <StatTile value={formatExact(kpis.likes)} label="Total Likes" />}
                 {kpis.comments !== null && <StatTile value={formatExact(kpis.comments)} label="Total Comments" />}
                 {kpis.shares !== null && <StatTile value={formatExact(kpis.shares)} label="Total Shares" />}

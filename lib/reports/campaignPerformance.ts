@@ -1,13 +1,10 @@
 import { unstable_cache } from "next/cache";
 import { db } from "@/lib/db";
-import {
-  computeEngagementRate,
-  sumEngagements,
-} from "@/lib/metrics";
-import { unwrittenMetricValue, fieldMetricValue, rollupEngagement, snapshotViewsKnownSql } from "@/lib/metricDisplay";
+import { unwrittenMetricValue, fieldMetricValue, rollupEngagement, snapshotViewsKnownSql, postEngagementPercent } from "@/lib/metricDisplay";
 import type { MetricField } from "@/lib/metricDisplay";
 import { isPostRemoved } from "@/lib/postRemoval";
-import { postStatus, type PostStatusKind } from "@/lib/posts/postStatus";
+import { postStatus, postMeasuredAt, type PostStatusKind } from "@/lib/posts/postStatus";
+import { dataAsOf } from "@/lib/dataAge";
 import { isUnattributedCreator } from "@/lib/posts/unattributedName";
 import { carryForwardViewsByDay } from "@/lib/analytics/viewsSeries";
 import { soundSeries, videosAddedSinceLast } from "@/lib/sounds/usageSeries";
@@ -73,6 +70,15 @@ export type CampaignPerformance = {
      * worse than no tile.
      */
     livePosts: number | null;
+    /**
+     * The newest reading behind these totals, as ISO: our own read where there
+     * is one, else the import's refresh time (postMeasuredAt). Null when no post
+     * carries either. Optional because a cached payload written before this
+     * field existed lacks it, and a reader must treat that as "not recorded".
+     */
+    asOf?: string | null;
+    /** Posts we read ourselves (lastSyncedAt set), for "N of M read by us". */
+    readPosts?: number;
     likes: number | null;
     comments: number | null;
     shares: number | null;
@@ -466,6 +472,7 @@ async function computeCampaignPerformanceUncached(
       savesCount: true,
       downloadsCount: true,
       lastSyncedAt: true,
+      lastFreshAt: true,
       platformMetrics: true,
       fetchState: true,
       creator: { select: { id: true, name: true, handle: true, avatarUrl: true } },
@@ -560,7 +567,7 @@ async function computeCampaignPerformanceUncached(
      per-field test an Instagram-only campaign totalled its unreported shares as
      a measured "Total Shares 0". */
   const totalOf = (field: MetricField, pick: (p: (typeof posts)[number]) => number | null | undefined) =>
-    sumWhere(pick, (p) => fieldMetricValue(pick(p), p.lastSyncedAt, p.platformMetrics, field));
+    sumWhere(pick, (p) => fieldMetricValue(pick(p), p.lastSyncedAt, p.platformMetrics, field, p.platform));
   /* Saves and downloads have no writer in this repo at all, so only a value
      vouches for them -- see unwrittenMetricValue. */
   const unwritten = (pick: (p: (typeof posts)[number]) => number | null | undefined) =>
@@ -583,6 +590,8 @@ async function computeCampaignPerformanceUncached(
     engagementRate,
     posts: posts.length,
     livePosts,
+    asOf: dataAsOf(posts.map((p) => postMeasuredAt(p).at))?.toISOString() ?? null,
+    readPosts: posts.filter((p) => p.lastSyncedAt !== null).length,
     likes: totalOf("likes", (p) => p.likesCount),
     comments: totalOf("comments", (p) => p.commentsCount),
     shares: totalOf("shares", (p) => p.sharesCount),
@@ -688,19 +697,15 @@ async function computeCampaignPerformanceUncached(
       /* Per field, not per row: Instagram reports no shares at all, so a shares
          row on an Instagram post would be a zero we invented. */
       const at = (field: MetricField, value: number | null) =>
-        fieldMetricValue(value, p.lastSyncedAt, p.platformMetrics, field);
+        fieldMetricValue(value, p.lastSyncedAt, p.platformMetrics, field, p.platform);
       const likes = at("likes", p.likesCount);
       const comments = at("comments", p.commentsCount);
       const views = at("views", p.viewsCount);
-      const engagements =
-        likes === null && comments === null
-          ? null
-          : sumEngagements({
-              likes: p.likesCount,
-              comments: p.commentsCount,
-              shares: p.sharesCount,
-              saves: p.savesCount,
-            });
+      /* postEngagementPercent, the per-post rate the Posts tab, the post page and
+         the exports print. This row rated likes-or-comments over views, so a post
+         whose likes were hidden got a comments-only rate here and none anywhere
+         else -- the share link and the agency's own screens disagreed. */
+      const ratePct = postEngagementPercent(p);
       return {
         id: p.id,
         platform: p.platform,
@@ -726,10 +731,7 @@ async function computeCampaignPerformanceUncached(
         // Nothing in this repo writes these two -- see unwrittenMetricValue.
         saves: unwrittenMetricValue(p.savesCount),
         downloads: unwrittenMetricValue(p.downloadsCount),
-        engagementRate:
-          engagements !== null && views !== null && views > 0
-            ? computeEngagementRate({ views, likes: engagements })
-            : null,
+        engagementRate: ratePct === null ? null : ratePct / 100,
         /* Computed for every report and stripped in redactForShare, not the
            other way round: the dashboard reads this same shape, and a flag that
            only exists on marked links would be missing where it is always

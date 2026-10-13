@@ -14,6 +14,7 @@ import type { CampaignAudio, CampaignPerformance } from "@/lib/reports/campaignP
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import CreatorName from "@/components/creators/CreatorName";
 import { viewsCoverageNote } from "@/lib/metricDisplay";
+import { asOfCaption } from "@/lib/dataAge";
 
 /* Taken from the report seam rather than restated here. It was restated, and the
    two drifted the moment the seam grew the per-counter totals. */
@@ -265,11 +266,19 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
         {kpis.livePosts !== null && (
           <MetricTile fitTo={tileFit} metric="livePosts" value={formatNumber(kpis.livePosts)} />
         )}
+        {/* The total says when it was read and, when some posts' views are
+            missing, how many it covers (lib/dataAge asOfCaption -- the same line
+            the Overview tile and the Posts strip carry). A sum over no read post
+            is a dash, not a measured 0. */}
         <MetricTile
           fitTo={tileFit}
           metric="views"
-          value={formatNumber(kpis.views)}
-          footer={viewsCoverageNote(kpis.viewsKnownPosts, kpis.posts)}
+          value={kpis.viewsKnownPosts === 0 && kpis.posts > 0 ? "\u2014" : formatNumber(kpis.views)}
+          footer={
+            kpis.asOf !== undefined
+              ? asOfCaption(kpis.asOf, { known: kpis.viewsKnownPosts, total: kpis.posts, what: "views" })
+              : viewsCoverageNote(kpis.viewsKnownPosts, kpis.posts)
+          }
         />
         {kpis.likes !== null && (
           <MetricTile fitTo={tileFit} metric="totalLikes" value={formatNumber(kpis.likes)} />
@@ -418,7 +427,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
                   {anyEngagementMeasured && (
                     <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
                       {row.engagementRate !== null ? (
-                        <Badge variant="neutral" size="sm">{(row.engagementRate * 100).toFixed(1)}%</Badge>
+                        <Badge variant="neutral" size="sm">{(row.engagementRate * 100).toFixed(2)}%</Badge>
                       ) : (
                         "—"
                       )}

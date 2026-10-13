@@ -6,10 +6,11 @@ import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
 import { campaignScopeWhereFor } from "@/lib/campaignScope";
 import { computeCampaignPerformance } from "@/lib/reports/campaignPerformance";
+import { viewTotals } from "@/lib/posts/viewTotals";
 import { CampaignPerformancePDF } from "@/lib/reports/CampaignPerformancePDF";
 import {
-  engagementRateValue,
   fieldMetricValue,
+  postEngagementPercent,
   rollupEngagement,
   unwrittenMetricValue,
 } from "@/lib/metricDisplay";
@@ -139,6 +140,9 @@ export async function GET(
            when the file was made; this is how fresh what is in it is. Each
            post row carries its own As of. */
         ["Data as of", asOfCell(dataAsOf(posts.map((p) => postMeasuredAt(p).at)))],
+        /* How many posts that time speaks for (R5): the newest reading alone
+           read as the whole campaign's age. */
+        ["Posts read by us", `${posts.filter((p) => p.lastSyncedAt).length} of ${posts.length}`],
         [],
         ["Field", "Value"],
         ["Campaign", campaign.title],
@@ -199,11 +203,11 @@ export async function GET(
           );
           /* No fallback to the stored column: it holds CreatorCore's fraction on
              imported rows and a percent on synced ones (see postEngagementPercent),
-             so a post with no views to divide by has no rate, not that one. */
-          const rate =
-            likes === null
-              ? null
-              : engagementRateValue(p.likesCount, p.commentsCount, p.viewsCount, p.lastSyncedAt);
+             so a post with no views to divide by has no rate, not that one.
+             postEngagementPercent itself, the four-term rate the Creators sheet,
+             the PDF and every screen print -- this sheet used (likes + comments)
+             / views, 8.59 against the same post's 9.91 one sheet over. */
+          const rate = postEngagementPercent(p);
           const measured = postMeasuredAt(p);
           return [
             day(p.postedAt),
@@ -218,7 +222,7 @@ export async function GET(
             fieldMetricValue(p.viewsCount, p.lastSyncedAt, p.platformMetrics, "views") ?? UNKNOWN,
             likes ?? UNKNOWN,
             comments ?? UNKNOWN,
-            fieldMetricValue(p.sharesCount, p.lastSyncedAt, p.platformMetrics, "shares") ?? UNKNOWN,
+            fieldMetricValue(p.sharesCount, p.lastSyncedAt, p.platformMetrics, "shares", p.platform) ?? UNKNOWN,
             // Nothing here writes saves, so a sync stamp does not vouch for a 0.
             unwrittenMetricValue(p.savesCount) ?? UNKNOWN,
             rate === null ? UNKNOWN : +rate.toFixed(2),
@@ -234,7 +238,9 @@ export async function GET(
       const activation = activations.find((a) => a.creator.id === creatorId);
       const creatorPosts = posts.filter((p) => p.creator.id === creatorId);
       const meta = activation?.creator ?? creatorPosts[0].creator;
-      const views = creatorPosts.reduce((s, p) => s + p.viewsCount, 0);
+      /* Over the posts whose views were read; "—" when none were, the way the
+         Performance tab's Top Creators prints it, never a 0. */
+      const views = viewTotals(creatorPosts).views;
       /* rollupEngagement, not a bare sum: it is the product's one definition of
          the rate and it drops posts nobody measured from both the numerator and
          the denominator. Summing every post's counters here rated an imported
@@ -247,7 +253,7 @@ export async function GET(
         activation?.status ?? "",
         day(activation?.deliverableDueDate),
         creatorPosts.length,
-        views,
+        views ?? UNKNOWN,
         engagements ?? UNKNOWN,
         rate !== null ? +(rate * 100).toFixed(2) : UNKNOWN,
         // The newest read among their posts, and what their posts' statuses are.
@@ -256,7 +262,9 @@ export async function GET(
         postStatusSummary(creatorPosts.map((p) => postStatus(p))),
       ] as Cell[];
     });
-    creatorRows.sort((a, b) => Number(b[6]) - Number(a[6]));
+    // Known views first, most first; an unknown sinks below every measured one.
+    const viewsKey = (row: Cell[]) => (typeof row[6] === "number" ? row[6] : -1);
+    creatorRows.sort((a, b) => viewsKey(b) - viewsKey(a));
 
     const creatorSection: Section = {
       name: "Creators",

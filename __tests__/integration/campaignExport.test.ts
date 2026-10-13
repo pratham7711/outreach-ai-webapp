@@ -100,10 +100,12 @@ it('writes the stored engagement rate as a percent, not a percent x 100', async 
   const csv = await (await call()).text();
   const posts = section(csv, 'Posts');
 
-  // 40 likes + 2 comments over 1000 views is 4.20%, not 420%. The rate is
-  // followed by the appended As of / Source / Post status columns.
-  expect(posts).toContain(',4.2,');
-  expect(posts).not.toContain(',420');
+  // 40 likes + 2 comments + 1 share + 0 saves over 1000 views is 4.30%, not
+  // 430%: the four-term rate every screen prints (this sheet used to leave
+  // shares and saves out and say 4.2). The rate is followed by the appended
+  // As of / Source / Post status columns.
+  expect(posts).toContain(',4.3,');
+  expect(posts).not.toContain(',430');
 });
 
 it('counts creators the same way in the Summary and the Creators sheet', async () => {
@@ -197,7 +199,7 @@ describe('age, source and post status', () => {
     const csv = await (await call()).text();
     const [postHeader, postRow] = section(csv, 'Posts').trim().split('\n');
     expect(postHeader).toBe(`${POST_HEADER},As of,Source,Post status`);
-    expect(postRow.endsWith(',4.2,2026-08-02T00:00:00.000Z,Platform read,Live')).toBe(true);
+    expect(postRow.endsWith(',4.3,2026-08-02T00:00:00.000Z,Platform read,Live')).toBe(true);
 
     const [creatorHeader, creatorRow] = section(csv, 'Creators').trim().split('\n');
     expect(creatorHeader).toBe(`${CREATOR_HEADER},As of,Source,Post status`);

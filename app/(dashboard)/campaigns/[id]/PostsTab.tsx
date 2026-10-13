@@ -10,7 +10,8 @@ import { CreatorSelect } from "@/components/CreatorSelect";
 import { stripAt, formatDateAbs, formatFull } from "@/lib/format";
 import type { ComplianceFlag } from "@/lib/compliance/postCompliance";
 import PostMedia from "@/components/PostMedia";
-import { unwrittenMetricValue, fieldMetricValue, engagementRateValue, summarizePostMetrics, sharesUnknownReason, type MetricField } from "@/lib/metricDisplay";
+import { unwrittenMetricValue, fieldMetricValue, summarizePostMetrics, sharesUnknownReason, type MetricField } from "@/lib/metricDisplay";
+import { asOfCaption, dataAsOf } from "@/lib/dataAge";
 import { postAgeContext, postMeasuredAt, postStatus } from "@/lib/posts/postStatus";
 import { viewsAsOf } from "@/lib/posts/fieldFreshness";
 import PostStatusChip from "@/components/posts/PostStatusChip";
@@ -1297,7 +1298,7 @@ export default function PostsTab({
        every measured one in either direction -- "Lowest" must not open on the
        posts we know nothing about. */
     const metric = (p: PostData, value: number, field: MetricField) =>
-      fieldMetricValue(value, p.lastSyncedAt, p.platformMetrics, field);
+      fieldMetricValue(value, p.lastSyncedAt, p.platformMetrics, field, p.platform);
     const valueOf = (p: PostData): number | null => {
       switch (sortKey) {
         case "posted": return new Date(p.postedAt).getTime() || 0;
@@ -1339,7 +1340,7 @@ export default function PostsTab({
     [posts]
   );
   const anyShares = useMemo(
-    () => posts.some((p) => fieldMetricValue(p.sharesCount, p.lastSyncedAt, p.platformMetrics, "shares") !== null),
+    () => posts.some((p) => fieldMetricValue(p.sharesCount, p.lastSyncedAt, p.platformMetrics, "shares", p.platform) !== null),
     [posts]
   );
   const anySaves = useMemo(
@@ -1350,15 +1351,7 @@ export default function PostsTab({
     () => posts.some((p) => unwrittenMetricValue(p.downloadsCount) !== null),
     [posts]
   );
-  const anyEngRate = useMemo(
-    () =>
-      posts.some(
-        (p) =>
-          fieldMetricValue(p.likesCount, p.lastSyncedAt, p.platformMetrics, "likes") !== null &&
-          engagementRateValue(p.likesCount, p.commentsCount, p.viewsCount, p.lastSyncedAt) !== null
-      ),
-    [posts]
-  );
+  const anyEngRate = useMemo(() => posts.some((p) => engRatePct(p) !== null), [posts]);
   const listCols = useMemo(
     () =>
       [
@@ -1384,11 +1377,27 @@ export default function PostsTab({
 
   /* Over the filtered set, so the row answers for what is on screen. */
   const kpis = useMemo(() => summarizePostMetrics(filteredSorted), [filteredSorted]);
+  /* When the strip's figures were read, and how many posts its views cover --
+     the caveat Overview and Performance already print under Total Views. */
+  const viewsKnown = useMemo(
+    () => filteredSorted.filter((p) => fieldMetricValue(p.viewsCount, p.lastSyncedAt, p.platformMetrics, "views") !== null).length,
+    [filteredSorted]
+  );
+  const kpiAsOf = useMemo(
+    () =>
+      asOfCaption(dataAsOf(filteredSorted.map((p) => postMeasuredAt(p).at)), {
+        known: viewsKnown,
+        total: filteredSorted.length,
+        what: "views",
+      }),
+    [filteredSorted, viewsKnown]
+  );
 
   const kpiChips: { label: string; value: string }[] = useMemo(() => {
     const chips: { label: string; value: string }[] = [
       { label: "Total Posts", value: kpis.posts.toLocaleString() },
-      { label: "Total Views", value: formatNumber(kpis.views) },
+      // A dash, not 0, when no post in view has a view count at all.
+      { label: "Total Views", value: viewsKnown === 0 && kpis.posts > 0 ? "\u2014" : formatNumber(kpis.views) },
     ];
     const pct = (v: number | null) => (v === null ? null : `${v.toFixed(2)}%`);
     const add = (label: string, value: string | null) => {
@@ -1409,7 +1418,7 @@ export default function PostsTab({
     add("Total Saves", !anySaves || kpis.saves === null ? null : formatNumber(kpis.saves));
     add("Total Downloads", !anyDownloads || kpis.downloads === null ? null : formatNumber(kpis.downloads));
     return chips;
-  }, [kpis, anySaves, anyDownloads]);
+  }, [kpis, anySaves, anyDownloads, viewsKnown]);
 
   const accruedMinor = useMemo(() => {
     if (!marketplace) return 0;
@@ -1417,28 +1426,6 @@ export default function PostsTab({
       .filter((p) => p.status === "APPROVED")
       .reduce((sum, p) => sum + earnedMinorForPost(p.viewsCount, p.platform, marketplace.ratePerThousand), 0);
   }, [posts, marketplace]);
-
-  // Campaign roll-up, derived from the synced posts — nothing here is stored or
-  // typed in, so it can never disagree with the per-post numbers below it.
-  const totals = useMemo(() => {
-    const views = posts.reduce((s, p) => s + p.viewsCount, 0);
-    const likes = posts.reduce((s, p) => s + p.likesCount, 0);
-    const comments = posts.reduce((s, p) => s + p.commentsCount, 0);
-    const shares = posts.reduce((s, p) => s + (p.sharesCount ?? 0), 0);
-    const engagement = likes + comments + shares;
-    const perPost = posts.map((p) => engRatePct(p)).filter((r): r is number => r !== null);
-    return {
-      posts: posts.length,
-      views,
-      likes,
-      comments,
-      engagement,
-      // Average of each post's rate — what a creator-level report quotes.
-      avgPostEng: perPost.length ? perPost.reduce((s, r) => s + r, 0) / perPost.length : null,
-      // Campaign-wide rate — total engagement over total views.
-      campaignEng: views > 0 ? (engagement / views) * 100 : null,
-    };
-  }, [posts]);
 
   const pendingCount = useMemo(() => posts.filter((p) => p.status === "PENDING_REVIEW").length, [posts]);
   const mixedStatuses = useMemo(() => new Set(posts.map((p) => p.status)).size > 1, [posts]);
@@ -1748,6 +1735,7 @@ export default function PostsTab({
            293,134 99x32 and only then the strip at 180 -- ours led with the
            strip and put the pills under it, so the whole page ran a row out of
            step with theirs. */
+        <>
         <div className="cc-kpi-strip">
           {kpiChips.map((chip) => (
             <div key={chip.label} className="cc-kpi-chip">
@@ -1756,6 +1744,15 @@ export default function PostsTab({
             </div>
           ))}
         </div>
+        {kpiAsOf && (
+          <p
+            data-kpi-asof
+            style={{ margin: "6px 0 0", fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}
+          >
+            {kpiAsOf}
+          </p>
+        )}
+        </>
       )}
       <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
         <div className="cc-posts-filters">
@@ -2090,15 +2087,14 @@ export default function PostsTab({
               // Per field: Instagram reports no shares, so a 0 there is ours, not theirs.
               const likes = fieldMetricValue(post.likesCount, post.lastSyncedAt, post.platformMetrics, "likes");
               const comments = fieldMetricValue(post.commentsCount, post.lastSyncedAt, post.platformMetrics, "comments");
-              const shares = fieldMetricValue(post.sharesCount, post.lastSyncedAt, post.platformMetrics, "shares");
+              const shares = fieldMetricValue(post.sharesCount, post.lastSyncedAt, post.platformMetrics, "shares", post.platform);
               // A sync stamp cannot vouch for a zero in these two -- most rows carry one
               // with no saves or downloads reading behind it. See unwrittenMetricValue.
               const saves = unwrittenMetricValue(post.savesCount);
               const downloads = unwrittenMetricValue(post.downloadsCount);
-              const erShown =
-                likes === null
-                  ? null
-                  : engagementRateValue(post.likesCount, post.commentsCount, post.viewsCount, post.lastSyncedAt) ?? er;
+              /* The canonical rate (engRatePct), the one the post page, the
+                 share link and the exports print -- to the same 2 places. */
+              const erShown = er;
               return (
                 <div
                   key={post.id}
@@ -2198,7 +2194,7 @@ export default function PostsTab({
                   )}
                   {anyEngRate && (
                     <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-primary)", textAlign: "right" }}>
-                      {erShown === null ? "" : `${erShown.toFixed(1)}%`}
+                      {erShown === null ? "" : `${erShown.toFixed(2)}%`}
                     </span>
                   )}
                   {anyDelta && (
