@@ -207,7 +207,7 @@ describe("POST /api/mcp entitlement gate", () => {
     const res = await callRequest();
 
     expect(res.status).toBe(200);
-    expect(mockExecuteMcpTool).toHaveBeenCalledWith(ORG_ID, "get_campaign", { id: "c1" });
+    expect(mockExecuteMcpTool).toHaveBeenCalledWith(expect.objectContaining({ orgId: ORG_ID }), "get_campaign", { id: "c1" });
   });
 });
 

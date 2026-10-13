@@ -57,7 +57,7 @@ function makeJsonRpcRequest(method: string, params: Record<string, unknown> = {}
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockAuth.mockResolvedValue({ user: { id: "user-1", orgId: "org-1" } });
+  mockAuth.mockResolvedValue({ user: { id: "user-1", orgId: "org-1", role: "OWNER" } });
   mockGetEntitlements.mockResolvedValue({ featureMap: { [API_ACCESS_FEATURE]: true } });
   mockDb.campaign.findMany.mockResolvedValue([]);
   mockDb.campaign.findFirst.mockResolvedValue(null);
@@ -552,7 +552,7 @@ describe("POST /api/mcp", () => {
     }
 
     it("denies a real campaign id belonging to another org, and leaks none of its fields", async () => {
-      mockAuth.mockResolvedValue({ user: { id: "user-2", orgId: "org-2" } });
+      mockAuth.mockResolvedValue({ user: { id: "user-2", orgId: "org-2", role: "OWNER" } });
 
       const res = await POST(requestOwnedCampaign());
       expect(res.status).toBe(200);
@@ -573,7 +573,7 @@ describe("POST /api/mcp", () => {
     });
 
     it("serves the identical request to the owning org, so the denial above is tenancy and not a missing row", async () => {
-      mockAuth.mockResolvedValue({ user: { id: "user-1", orgId: "org-1" } });
+      mockAuth.mockResolvedValue({ user: { id: "user-1", orgId: "org-1", role: "OWNER" } });
   mockGetEntitlements.mockResolvedValue({ featureMap: { [API_ACCESS_FEATURE]: true } });
 
       const res = await POST(requestOwnedCampaign());
@@ -593,5 +593,92 @@ describe("POST /api/mcp", () => {
         }),
       );
     });
+  });
+});
+
+/* The tools used to receive the org id alone, so role and row scope stopped at
+   the MCP door: an "assigned only" member read every campaign in the org, and a
+   VIEWER could spend a campaign's refresh allowance. */
+describe("POST /api/mcp applies the caller's role and row scope", () => {
+  const ASSIGNED = { user: { id: "user-9", orgId: "org-1", role: "MEMBER", campaignScope: "ASSIGNED" } };
+  const scopeClause = {
+    OR: [{ teamMembers: { some: { userId: "user-9" } } }, { createdById: "user-9" }],
+  };
+
+  it("narrows list_campaigns to an assigned-only member's campaigns", async () => {
+    mockAuth.mockResolvedValue(ASSIGNED);
+    await POST(makeJsonRpcRequest("tools/call", { name: "list_campaigns", arguments: {} }));
+    expect(mockDb.campaign.findMany.mock.calls[0][0].where).toMatchObject({ orgId: "org-1", ...scopeClause });
+  });
+
+  it("answers get_campaign for an unassigned campaign as not found", async () => {
+    mockAuth.mockResolvedValue(ASSIGNED);
+    const res = await POST(
+      makeJsonRpcRequest("tools/call", { name: "get_campaign", arguments: { id: "camp-unassigned" } }),
+    );
+    const body = await res.json();
+    expect(body.result.isError).toBe(true);
+    expect(mockDb.campaign.findFirst.mock.calls[0][0].where).toMatchObject({
+      id: "camp-unassigned",
+      orgId: "org-1",
+      ...scopeClause,
+    });
+  });
+
+  it("narrows post reads through the campaign relation", async () => {
+    mockAuth.mockResolvedValue(ASSIGNED);
+    await POST(makeJsonRpcRequest("tools/call", { name: "list_posts", arguments: {} }));
+    expect(mockDb.post.findMany.mock.calls[0][0].where.campaign).toMatchObject({ orgId: "org-1", ...scopeClause });
+  });
+
+  it("leaves an OWNER's reads unscoped", async () => {
+    await POST(makeJsonRpcRequest("tools/call", { name: "list_campaigns", arguments: {} }));
+    expect(mockDb.campaign.findMany.mock.calls[0][0].where).not.toHaveProperty("OR");
+  });
+
+  it("refuses refresh_campaign to a VIEWER without touching the refresh machinery", async () => {
+    mockAuth.mockResolvedValue({ user: { id: "user-3", orgId: "org-1", role: "VIEWER" } });
+    mockDb.campaign.findFirst.mockResolvedValue({ id: "camp-1", song: null });
+    const res = await POST(
+      makeJsonRpcRequest("tools/call", { name: "refresh_campaign", arguments: { id: "camp-1" } }),
+    );
+    const body = await res.json();
+    expect(body.result.isError).toBe(true);
+    expect(body.result.structuredContent.error).toMatch(/cannot refresh/i);
+    expect(mockDb.campaignRefreshRun.findFirst).not.toHaveBeenCalled();
+    expect(mockDb.campaignRefreshRun.create).not.toHaveBeenCalled();
+  });
+
+  it("still lets a VIEWER read", async () => {
+    mockAuth.mockResolvedValue({ user: { id: "user-3", orgId: "org-1", role: "VIEWER" } });
+    const res = await POST(makeJsonRpcRequest("tools/call", { name: "list_campaigns", arguments: {} }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).result.isError).toBeFalsy();
+  });
+});
+
+describe("POST /api/mcp batches", () => {
+  const batch = (n: number) =>
+    new NextRequest("http://localhost/api/mcp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(
+        Array.from({ length: n }, (_, i) => ({ jsonrpc: "2.0", method: "tools/call", params: { name: "list_campaigns", arguments: {} }, id: i + 1 })),
+      ),
+    });
+
+  it("answers a batch of ten", async () => {
+    const res = await POST(batch(10));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toHaveLength(10);
+  });
+
+  it("refuses a batch of eleven with a clear error and runs none of it", async () => {
+    const res = await POST(batch(11));
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.code).toBe(-32600);
+    expect(body.error.message).toMatch(/at most 10/);
+    expect(mockDb.campaign.findMany).not.toHaveBeenCalled();
   });
 });

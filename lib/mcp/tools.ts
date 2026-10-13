@@ -7,6 +7,7 @@ import {
 } from "@/lib/metricDisplay";
 import { getRefreshCooldown, refreshCampaign } from "@/lib/sync/refreshCampaign";
 import { duplicatePostIds, excludingDuplicates } from "@/lib/posts/duplicates";
+import type { McpCaller } from "@/lib/mcp/caller";
 import {
   iso,
   num,
@@ -38,7 +39,12 @@ export type ToolDef = {
   annotations: ToolAnnotations;
 };
 
-type Handler = (orgId: string, args: Record<string, any>) => Promise<ToolResult>;
+/** A campaign relation filter: this org, not deleted, and inside the caller's row scope. */
+function campaignFilter(caller: McpCaller) {
+  return { orgId: caller.orgId, deletedAt: null, ...caller.campaignWhere };
+}
+
+type Handler = (orgId: string, args: Record<string, any>, caller: McpCaller) => Promise<ToolResult>;
 type Tool = { def: ToolDef; run: Handler };
 
 /** Reads. Nothing they do can be observed from outside this product. */
@@ -68,10 +74,10 @@ const NULL_NOTE =
 
 const PLATFORM_ENUM = ["TIKTOK", "INSTAGRAM", "YOUTUBE", "TWITTER"];
 
-async function campaignInOrg(orgId: string, campaignId: string) {
+async function campaignInOrg(caller: McpCaller, campaignId: string) {
   if (!campaignId) return null;
   return db.campaign.findFirst({
-    where: { id: campaignId, orgId, deletedAt: null },
+    where: { id: campaignId, ...campaignFilter(caller) },
     select: { id: true, title: true, status: true, campaignType: true, budget: true, currency: true },
   });
 }
@@ -95,11 +101,10 @@ const TOOLS: Tool[] = [
       },
       annotations: read("List campaigns"),
     },
-    run: async (orgId, args) => {
+    run: async (orgId, args, caller) => {
       const page = pageArgs(args);
       const where = {
-        orgId,
-        deletedAt: null,
+        ...campaignFilter(caller),
         ...(args.status && { status: args.status }),
         ...(args.search && { title: { contains: args.search, mode: "insensitive" as const } }),
       };
@@ -136,10 +141,10 @@ const TOOLS: Tool[] = [
       },
       annotations: read("Get campaign"),
     },
-    run: async (orgId, args) => {
+    run: async (orgId, args, caller) => {
       if (!args.id) return toolFailure("id is required");
       const campaign = await db.campaign.findFirst({
-        where: { id: args.id, orgId, deletedAt: null },
+        where: { id: args.id, ...campaignFilter(caller) },
         include: { tags: true, _count: { select: { activations: true, posts: true } } },
       });
       if (!campaign) {
@@ -164,8 +169,8 @@ const TOOLS: Tool[] = [
       },
       annotations: read("Campaign performance"),
     },
-    run: async (orgId, args) => {
-      const campaign = await campaignInOrg(orgId, args.id);
+    run: async (orgId, args, caller) => {
+      const campaign = await campaignInOrg(caller, args.id);
       if (!campaign) {
         return toolFailure("Campaign not found", "Call list_campaigns to see the ids this key can read.");
       }
@@ -298,11 +303,11 @@ const TOOLS: Tool[] = [
       },
       annotations: read("List posts"),
     },
-    run: async (orgId, args) => {
+    run: async (orgId, args, caller) => {
       const page = pageArgs(args);
 
       if (args.campaignId) {
-        const campaign = await campaignInOrg(orgId, args.campaignId);
+        const campaign = await campaignInOrg(caller, args.campaignId);
         if (!campaign) {
           return toolFailure("Campaign not found", "Call list_campaigns to see the ids this key can read.");
         }
@@ -323,7 +328,7 @@ const TOOLS: Tool[] = [
       /* Tenancy rides on the campaign relation, because Post has no orgId of
          its own. Every filter below narrows this; none replaces it. */
       const where: Record<string, any> = {
-        campaign: { orgId, deletedAt: null },
+        campaign: campaignFilter(caller),
         ...(args.campaignId && { campaignId: args.campaignId }),
         ...(args.creatorId && { creatorId: args.creatorId }),
         ...(args.platform && { platform: args.platform }),
@@ -379,11 +384,11 @@ const TOOLS: Tool[] = [
       },
       annotations: read("Get post"),
     },
-    run: async (orgId, args) => {
+    run: async (orgId, args, caller) => {
       if (!args.id && !args.postUrl) return toolFailure("Pass either id or postUrl");
       const post = await db.post.findFirst({
         where: {
-          campaign: { orgId, deletedAt: null },
+          campaign: campaignFilter(caller),
           ...(args.id ? { id: args.id } : { postUrl: args.postUrl }),
         },
         select: {
@@ -429,10 +434,10 @@ const TOOLS: Tool[] = [
       },
       annotations: read("Post history"),
     },
-    run: async (orgId, args) => {
+    run: async (orgId, args, caller) => {
       if (!args.id) return toolFailure("id is required");
       const post = await db.post.findFirst({
-        where: { id: args.id, campaign: { orgId, deletedAt: null } },
+        where: { id: args.id, campaign: campaignFilter(caller) },
         select: { id: true, postUrl: true, platform: true, viewsCount: true, lastSyncedAt: true },
       });
       if (!post) {
@@ -608,7 +613,7 @@ const TOOLS: Tool[] = [
       },
       annotations: read("Creator performance"),
     },
-    run: async (orgId, args) => {
+    run: async (orgId, args, caller) => {
       if (!args.id) return toolFailure("id is required");
       const creator = await db.creator.findFirst({
         where: { id: args.id, orgId, deletedAt: null },
@@ -633,7 +638,7 @@ const TOOLS: Tool[] = [
       const topCount = Math.min(Math.max(Number(args.topPosts ?? 5) || 0, 0), 25);
       const scope: Record<string, any> = {
         creatorId: creator.id,
-        campaign: { orgId, deletedAt: null },
+        campaign: campaignFilter(caller),
         ...(args.campaignId && { campaignId: args.campaignId }),
       };
 
@@ -731,11 +736,11 @@ const TOOLS: Tool[] = [
       },
       annotations: read("List activations"),
     },
-    run: async (orgId, args) => {
+    run: async (orgId, args, caller) => {
       const page = pageArgs(args);
       const where: Record<string, any> = {
         deletedAt: null,
-        campaign: { orgId, deletedAt: null },
+        campaign: campaignFilter(caller),
         ...(args.campaignId && { campaignId: args.campaignId }),
         ...(args.creatorId && { creatorId: args.creatorId }),
         ...(args.status && { status: args.status }),
@@ -965,7 +970,10 @@ const TOOLS: Tool[] = [
       },
       annotations: read("Refresh status"),
     },
-    run: async (orgId, args) => {
+    run: async (orgId, args, caller) => {
+      if (!(await campaignInOrg(caller, args.id))) {
+        return toolFailure("Campaign not found", "Call list_campaigns to see the ids this key can read.");
+      }
       const state = await getRefreshCooldown(orgId, args.id);
       if (!state) {
         return toolFailure("Campaign not found", "Call list_campaigns to see the ids this key can read.");
@@ -996,7 +1004,16 @@ const TOOLS: Tool[] = [
         openWorldHint: true,
       },
     },
-    run: async (orgId, args) => {
+    run: async (orgId, args, caller) => {
+      if (!caller.canRefresh) {
+        return toolFailure(
+          "Your role cannot refresh campaigns",
+          "Refreshing takes the same permission as the Refresh Data button. Ask a workspace admin, or use get_refresh_status to read the last refresh."
+        );
+      }
+      if (!(await campaignInOrg(caller, args.id))) {
+        return toolFailure("Campaign not found", "Call list_campaigns to see the ids this key can read.");
+      }
       /* The same call the Refresh Data button makes, under the same gate. The
          limit is enforced inside refreshCampaign rather than here, so an agent
          cannot spend a campaign's allowance out from under the person clicking
@@ -1028,11 +1045,11 @@ export function getMcpToolDefinitions(): ToolDef[] {
 }
 
 export async function executeMcpTool(
-  orgId: string,
+  caller: McpCaller,
   toolName: string,
   args: Record<string, any>
 ): Promise<ToolResult> {
   const tool = BY_NAME.get(toolName);
   if (!tool) throw new Error(`Unknown tool: ${toolName}`);
-  return tool.run(orgId, args ?? {});
+  return tool.run(caller.orgId, args ?? {}, caller);
 }
