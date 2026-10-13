@@ -1,5 +1,6 @@
 import path from "node:path";
 import type { NextConfig } from "next";
+import { PAYOUTS_ENABLED } from "./lib/payouts/switch";
 
 const securityHeaders = [
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
@@ -16,9 +17,6 @@ const PARKED_PAGE_REDIRECTS: ReadonlyArray<readonly [string, string]> = [
   ["/clients/:id", "/campaigns"],
   ["/discovery", "/creators"],
   ["/connections", "/settings"],
-  ["/payouts", "/campaigns"],
-  ["/requests", "/campaigns"],
-  ["/recipients", "/campaigns"],
   ["/financial-reports", "/campaigns"],
   ["/campaigns/self-serve", "/campaigns"],
   ["/settings/billing", "/settings"],
@@ -35,11 +33,24 @@ const PARKED_PAGE_REDIRECTS: ReadonlyArray<readonly [string, string]> = [
   ["/portal/messages", "/portal/dashboard"],
   ["/portal/offers", "/portal/dashboard"],
   ["/portal/proposals", "/portal/dashboard"],
-  ["/portal/earnings", "/portal/dashboard"],
   ["/portal/reviews", "/portal/dashboard"],
-  ["/portal/payout-requests", "/portal/dashboard"],
   ["/portal/discover", "/portal/campaigns?tab=open"],
   ["/portal/settings", "/portal/accounts"],
+];
+
+/* The payout pages, agency and creator side. Parked with the rest of the
+   money in October 2026 like the list above, but behind the payouts switch
+   (lib/payouts/switch.ts) rather than unconditionally: switching payouts back
+   on drops these redirects, and the sidebar and creator nav list the pages
+   again, so the switch is the whole change. /financial-reports stays in the
+   list above -- it mixes payouts with campaign budgets, so it is not the
+   switch's to bring back. */
+const PAYOUT_PAGE_REDIRECTS: ReadonlyArray<readonly [string, string]> = [
+  ["/payouts", "/campaigns"],
+  ["/requests", "/campaigns"],
+  ["/recipients", "/campaigns"],
+  ["/portal/earnings", "/portal/dashboard"],
+  ["/portal/payout-requests", "/portal/dashboard"],
 ];
 
 const nextConfig: NextConfig = {
@@ -124,7 +135,11 @@ const nextConfig: NextConfig = {
      is a 307, which browsers do not cache, so bringing a page back is this
      list and a deploy -- nobody's browser keeps sending them away. */
   async redirects() {
-    return PARKED_PAGE_REDIRECTS.map(([source, destination]) => ({ source, destination, permanent: false }));
+    return [...PARKED_PAGE_REDIRECTS, ...(PAYOUTS_ENABLED ? [] : PAYOUT_PAGE_REDIRECTS)].map(([source, destination]) => ({
+      source,
+      destination,
+      permanent: false,
+    }));
   },
 };
 

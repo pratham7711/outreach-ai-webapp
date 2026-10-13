@@ -8,6 +8,7 @@ jest.mock("@pratham7711/ui", () => ({}), { virtual: true });
 
 import { NAV_SECTIONS } from "@/components/NewSidebar";
 import { DASHBOARD_NAV_RULES } from "@/lib/dashboardPolicy";
+import { PAYOUTS_ENABLED } from "@/lib/payouts/switch";
 
 /**
  * The sidebar renders NAV_SECTIONS filtered by the allowlist that
@@ -34,9 +35,8 @@ describe("every sidebar item has a nav rule", () => {
   const PARKED = [
     "/inbox",
     "/fan-pages",
-    "/payouts",
-    "/requests",
-    "/recipients",
+    // In the sidebar's Payments section only while payouts are switched on.
+    ...(PAYOUTS_ENABLED ? [] : ["/payouts", "/requests", "/recipients"]),
     "/financial-reports",
     "/reports",
     "/media-kits",
