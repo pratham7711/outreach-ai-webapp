@@ -26,7 +26,8 @@ const call = () =>
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (auth as jest.Mock).mockResolvedValue({ user: { id: "u1", orgId: "org-1" } });
+  // A role that may create campaigns: the route checks campaigns:create first.
+  (auth as jest.Mock).mockResolvedValue({ user: { id: "u1", orgId: "org-1", role: "MANAGER" } });
 });
 
 it("marks a TikTok sound TikTok did not answer for as unverified and sends no slug title", async () => {
