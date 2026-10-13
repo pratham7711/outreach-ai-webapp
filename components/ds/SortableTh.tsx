@@ -66,6 +66,7 @@ export function SortableTh({
   sort,
   onToggle,
   align = "left",
+  padX,
 }: {
   label: string;
   /** Omit to render a plain, non-sortable header. */
@@ -73,9 +74,16 @@ export function SortableTh({
   sort?: SortState | null;
   onToggle?: (key: string) => void;
   align?: "left" | "right";
+  /** Horizontal cell padding, for a table that has to give width back (the
+   *  roster fits a 1440 window only at 12). Defaults to the house 24. */
+  padX?: number;
 }) {
   const active = !!sortKey && sort?.key === sortKey;
-  const style: React.CSSProperties = { ...thBase, textAlign: align };
+  const style: React.CSSProperties = {
+    ...thBase,
+    textAlign: align,
+    ...(padX === undefined ? null : { paddingLeft: padX, paddingRight: padX }),
+  };
 
   if (!sortKey || !onToggle) return <th style={style}>{label}</th>;
 

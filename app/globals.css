@@ -10287,7 +10287,7 @@ a.cc-platform-chip[data-problem]:hover {
   background: var(--cc-primary-light);
 }
 .cc-roster-td-text {
-  padding: 14px 24px;
+  padding: 14px 12px; /* matches ROSTER_CELL_PAD in CreatorsClient */
   max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;

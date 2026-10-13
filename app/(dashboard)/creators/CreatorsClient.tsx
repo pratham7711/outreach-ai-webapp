@@ -228,6 +228,13 @@ const CreatorCard = memo(function CreatorCard({
   );
 });
 
+/* 12 a side, not the house 24. MEASURED 2026-10-13: at 24 the roster table
+   was 1264px inside the 1110px card a 1440 window leaves it, so it scrolled
+   sideways on every desktop; nine columns of 24px padding were 432px of it.
+   The card still scrolls the table (never the page) below that width. */
+const ROSTER_PAD_X = 12;
+const ROSTER_CELL_PAD = `14px ${ROSTER_PAD_X}px`;
+
 const CreatorRow = memo(function CreatorRow({
   c,
   on,
@@ -248,7 +255,7 @@ const CreatorRow = memo(function CreatorRow({
       <td className="cc-roster-td-check">
         <input type="checkbox" checked={on} onChange={() => onToggle(c.id)} aria-label={`Select ${c.name}`} />
       </td>
-      <td style={{ padding: "14px 24px" }}>
+      <td style={{ padding: ROSTER_CELL_PAD }}>
         <Link prefetch={false} href={`/creators/${c.id}`} style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 12 }}>
           <CreatorAvatar id={c.id} name={c.name} size="sm" version={c.avatarVersion} />
           <div>
@@ -257,16 +264,16 @@ const CreatorRow = memo(function CreatorRow({
           </div>
         </Link>
       </td>
-      <td style={{ padding: "14px 24px" }}>
+      <td style={{ padding: ROSTER_CELL_PAD }}>
         <PlatformChips links={accountsOf(c)} max={3} compact />
       </td>
-      <td style={{ padding: "14px 24px" }}>
+      <td style={{ padding: ROSTER_CELL_PAD }}>
         {c.tags.length ? <TagList tags={c.tags} max={2} /> : <span style={{ color: "var(--cc-text-muted)" }}>—</span>}
       </td>
       {optionalStats.map((stat) => {
         const value = stat.read(c);
         return (
-          <td key={stat.key} style={{ padding: "14px 24px", fontSize: "var(--cc-t-14)", fontWeight: 500, color: isUnknownMetric(value) ? "var(--cc-text-muted)" : "var(--cc-text)" }}>
+          <td key={stat.key} style={{ padding: ROSTER_CELL_PAD, fontSize: "var(--cc-t-14)", fontWeight: 500, color: isUnknownMetric(value) ? "var(--cc-text-muted)" : "var(--cc-text)" }}>
             <MetricFigure value={value} format={formatNumber} />
             <FigureAge value={value} time={stat.at(c)} />
           </td>
@@ -278,12 +285,12 @@ const CreatorRow = memo(function CreatorRow({
         </td>
       )}
       {hasPrice && (
-        <td style={{ padding: "14px 24px", fontSize: "var(--cc-t-14)", fontWeight: 500, color: c.rate ? "var(--cc-text)" : "var(--cc-text-muted)" }}>
+        <td style={{ padding: ROSTER_CELL_PAD, fontSize: "var(--cc-t-14)", fontWeight: 500, color: c.rate ? "var(--cc-text)" : "var(--cc-text-muted)" }}>
           {c.rate ? formatFullCurrency(c.rate) : "—"}
         </td>
       )}
-      <td style={{ padding: "14px 24px", fontSize: "var(--cc-t-14)", fontWeight: 500, color: "var(--cc-text)" }}>{c.campaignCount}</td>
-      <td style={{ padding: "14px 24px", fontSize: "var(--cc-t-14)", fontWeight: 500, color: "var(--cc-text)" }}>{c._count.posts}</td>
+      <td style={{ padding: ROSTER_CELL_PAD, fontSize: "var(--cc-t-14)", fontWeight: 500, color: "var(--cc-text)" }}>{c.campaignCount}</td>
+      <td style={{ padding: ROSTER_CELL_PAD, fontSize: "var(--cc-t-14)", fontWeight: 500, color: "var(--cc-text)" }}>{c._count.posts}</td>
     </tr>
   );
 });
@@ -736,20 +743,20 @@ export default function CreatorsClient({
                     aria-label="Select every creator on this page"
                   />
                 </th>
-                <SortableTh label="Creator" sortKey="name" sort={sort} onToggle={toggleSort} />
-                <SortableTh label="Accounts" />
-                <SortableTh label="Tags" />
+                <SortableTh label="Creator" sortKey="name" sort={sort} onToggle={toggleSort} padX={ROSTER_PAD_X} />
+                <SortableTh label="Accounts" padX={ROSTER_PAD_X} />
+                <SortableTh label="Tags" padX={ROSTER_PAD_X} />
                 {/* Neither of these can be ordered truthfully: Avg. Views is
                     measured from posts after this page was fetched, and an
                     unfetched follower count is a 0 that means unknown. See
                     CREATOR_SORT_KEYS. */}
                 {optionalStats.map((stat) => (
-                  <SortableTh key={stat.key} label={stat.label} />
+                  <SortableTh key={stat.key} label={stat.label} padX={ROSTER_PAD_X} />
                 ))}
-                {hasAudience && <SortableTh label="Audience" />}
-                {hasPrice && <SortableTh label="Price" sortKey="price" sort={sort} onToggle={toggleSort} />}
-                <SortableTh label="Campaigns" />
-                <SortableTh label="Posts" sortKey="posts" sort={sort} onToggle={toggleSort} />
+                {hasAudience && <SortableTh label="Audience" padX={ROSTER_PAD_X} />}
+                {hasPrice && <SortableTh label="Price" sortKey="price" sort={sort} onToggle={toggleSort} padX={ROSTER_PAD_X} />}
+                <SortableTh label="Campaigns" padX={ROSTER_PAD_X} />
+                <SortableTh label="Posts" sortKey="posts" sort={sort} onToggle={toggleSort} padX={ROSTER_PAD_X} />
               </tr>
             </thead>
             <tbody>
