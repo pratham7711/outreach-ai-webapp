@@ -14,12 +14,15 @@ import {
   fieldMetricValue,
   isMetaPlatform,
   measuredFields,
+  postEngagementPercent,
+  sharesPublished,
   unwrittenMetricValue,
   readableSnapshots,
   snapshotMetric,
   type MetricField,
 } from "@/lib/metricDisplay";
 import { postAgeContext, postMeasuredAt, postStatus } from "@/lib/posts/postStatus";
+import { TIME_NOT_RECORDED } from "@/lib/dataAge";
 import { viewsAsOf, viewsReadAt } from "@/lib/posts/fieldFreshness";
 import PostStatusChip from "@/components/posts/PostStatusChip";
 import { AgeLabel } from "@/components/ds/AgeLabel";
@@ -441,16 +444,11 @@ export default function PostDetailPage() {
   // Not the raw CDN URL: TikTok's thumbnail hosts are blocked on some networks.
   const thumb = imgSrc(postThumbnailUrl(post), 240, 160);
 
-  const engRate =
-    fieldMetricValue(post.likesCount, post.lastSyncedAt, post.platformMetrics, "likes") === null
-      ? null
-      : computeEngagementRate({
-          views: post.viewsCount,
-          likes: post.likesCount,
-          comments: post.commentsCount,
-          shares: post.sharesCount,
-          saves: post.savesCount,
-        });
+  /* postEngagementPercent, the one per-post rate: the same number the Posts
+     tab card and list, Performance, the share link and the exports print. As a
+     fraction here because the tile and the table below multiply by 100. */
+  const engRatePct = postEngagementPercent(post);
+  const engRate = engRatePct === null ? null : engRatePct / 100;
   const allMetricCards = [...BASE_METRIC_CARDS] as { key: string; field: MetricField; label: string; icon: typeof Eye; color: string }[];
   if (post.platform === "INSTAGRAM") {
     allMetricCards.push({ key: "savesCount", field: "saves", label: "Saves", icon: Bookmark, color: "var(--chart-2)" });
@@ -596,9 +594,17 @@ export default function PostDetailPage() {
               <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)", margin: "4px 0 0" }}>
                 Not read by us yet. The figures below are the CreatorCore import&apos;s, as of {formatDateTimeAbs(measured.at)}.
               </p>
+            ) : [post.viewsCount, post.likesCount, post.commentsCount, post.sharesCount, post.savesCount].some((n) => (n ?? 0) > 0) ? (
+              /* Figures on file that no read of ours produced and no import
+                 dated: say where they came from, as the creator page does
+                 ("Unverified · not read by us yet"), rather than "never synced"
+                 above real counts. */
+              <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)", margin: "4px 0 0" }}>
+                Imported figures · not read by us yet · {TIME_NOT_RECORDED}
+              </p>
             ) : (
               <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)", margin: "4px 0 0" }}>
-                Never synced — the counts below are unknown, not zero.
+                Not read by us yet — the counts below are unknown, not zero.
               </p>
             )}
             {syncNote && (
@@ -943,7 +949,9 @@ export default function PostDetailPage() {
               <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{snapshotCell(s.viewsCount, s.platformMetrics, "views")}</span>
               <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{snapshotCell(s.likesCount, s.platformMetrics, "likes")}</span>
               <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{snapshotCell(s.commentsCount, s.platformMetrics, "comments")}</span>
-              <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{snapshotCell(s.sharesCount, s.platformMetrics, "shares")}</span>
+              {/* A YouTube (or non-connected Instagram) reading's 0 shares is a
+                  count the platform never published -- see sharesPublished. */}
+              <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{(s.sharesCount ?? 0) <= 0 && !sharesPublished(post.platform, s.platformMetrics) ? "\u2014" : snapshotCell(s.sharesCount, s.platformMetrics, "shares")}</span>
               {snapshotSaves && (
                 <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{formatNumber(s.savesCount ?? 0)}</span>
               )}
@@ -959,7 +967,7 @@ export default function PostDetailPage() {
                       shares: snapshotMetric(s.sharesCount, s.platformMetrics, "shares"),
                       saves: s.savesCount,
                     });
-                    return r === null ? "—" : `${(r * 100).toFixed(1)}%`;
+                    return r === null ? "—" : `${(r * 100).toFixed(2)}%`;
                   })()}
                 </span>
               )}
