@@ -39,7 +39,10 @@ export type RosterRow = {
   activationStatus: string | null;
   deliverableDueDate: string | null;
   posts: number;
-  views: number;
+  /** Null when none of the creator's posts has a view count we read. */
+  views: number | null;
+  /** How many of `posts` the views sum covers. */
+  viewsKnown: number;
 };
 
 type Col = {
@@ -83,6 +86,26 @@ function unwritten(v: number | null | undefined): number | null {
   return v === null || v === undefined || v === 0 ? null : v;
 }
 
+/* Average over the posts whose views were read, not over every post: dividing a
+   partial sum by all of them would understate the creator. Null when none. */
+function avgViewsOf(r: RosterRow): number | null {
+  return r.views === null || r.viewsKnown <= 0 ? null : Math.round(r.views / r.viewsKnown);
+}
+
+/* Why a views cell is a dash, or what a partial sum covers. The Creators tab
+   showed "0" for a creator whose posts were never read -- the same creator that
+   Performance › Top Creators already showed as unknown. */
+function viewsReason(r: RosterRow): string | undefined {
+  if (r.posts === 0) return "No posts on this campaign yet, so there are no views to count";
+  if (r.views === null) {
+    return r.posts === 1
+      ? "Their post has no view count read yet, so its views are not known"
+      : `None of their ${r.posts} posts has a view count read yet, so their views are not known`;
+  }
+  if (r.viewsKnown < r.posts) return `Views known for ${r.viewsKnown} of ${r.posts} posts`;
+  return undefined;
+}
+
 function currencyOf(n: number, currency: string): string {
   return formatMoney(n, currency);
 }
@@ -93,7 +116,7 @@ const ACCESSORS: SortAccessors<RosterRow> = {
   followers: (r) => unwritten(r.creator.followersCount),
   posts: (r) => r.posts,
   views: (r) => r.views,
-  avgViews: (r) => (r.posts > 0 ? Math.round(r.views / r.posts) : null),
+  avgViews: (r) => avgViewsOf(r),
   rate: (r) => (r.creator.rate && r.creator.rate > 0 ? r.creator.rate : null),
   due: (r) => r.deliverableDueDate,
   status: (r) => r.activationStatus ?? "POSTED",
@@ -257,9 +280,15 @@ export default function RosterTable({
       case "posts":
         return <span style={CELL}>{r.posts}</span>;
       case "views":
-        return <span style={CELL}>{formatFull(r.views)}</span>;
-      case "avgViews":
-        return <span style={CELL}>{r.posts > 0 ? formatFull(Math.round(r.views / r.posts)) : "—"}</span>;
+        return (
+          <span style={CELL} title={viewsReason(r)}>
+            {r.views === null ? "—" : formatFull(r.views)}
+          </span>
+        );
+      case "avgViews": {
+        const avg = avgViewsOf(r);
+        return <span style={CELL} title={viewsReason(r)}>{avg === null ? "—" : formatFull(avg)}</span>;
+      }
       case "rate":
         // Null means no rate agreed, which is not a rate of nothing.
         return (

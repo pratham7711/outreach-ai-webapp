@@ -26,7 +26,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateAbs, formatFull, formatFullCurrency, fitFigureSize } from "@/lib/format";
-import { fieldMetricValue, rollupEngagement, viewsCoverageNote } from "@/lib/metricDisplay";
+import { fieldMetricValue, rollupEngagement } from "@/lib/metricDisplay";
+import { asOfCaption, dataAsOf } from "@/lib/dataAge";
+import { postMeasuredAt } from "@/lib/posts/postStatus";
 import { CreatorSelect } from "@/components/CreatorSelect";
 import { isUnattributedCreator } from "@/lib/posts/unattributedName";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
@@ -127,7 +129,11 @@ type RosterEntry = {
   activationStatus: string | null;
   deliverableDueDate: string | null;
   posts: number;
-  views: number;
+  /* Null when none of this creator's posts has a view count we read -- a
+     creator whose Instagram posts were never read is not a creator with 0
+     views. viewsKnown counts the posts the sum covers, for the cell's reason. */
+  views: number | null;
+  viewsKnown: number;
 };
 
 function buildRoster(activations: Activation[], posts: Post[]): RosterEntry[] {
@@ -140,7 +146,8 @@ function buildRoster(activations: Activation[], posts: Post[]): RosterEntry[] {
       // the activation and then dropped.
       deliverableDueDate: act.deliverableDueDate,
       posts: 0,
-      views: 0,
+      views: null,
+      viewsKnown: 0,
     });
   }
   for (const post of posts) {
@@ -153,13 +160,21 @@ function buildRoster(activations: Activation[], posts: Post[]): RosterEntry[] {
       activationStatus: null,
       deliverableDueDate: null,
       posts: 0,
-      views: 0,
+      views: null,
+      viewsKnown: 0,
     };
     entry.posts += 1;
-    entry.views += post.viewsCount ?? 0;
+    const views = fieldMetricValue(post.viewsCount, post.lastSyncedAt, (post as { platformMetrics?: unknown }).platformMetrics, "views");
+    if (views !== null) {
+      entry.views = (entry.views ?? 0) + views;
+      entry.viewsKnown += 1;
+    }
     byCreator.set(post.creator.id, entry);
   }
-  return [...byCreator.values()].sort((a, b) => b.views - a.views || b.posts - a.posts);
+  // Known views first, largest first; a creator with none read sits last.
+  return [...byCreator.values()].sort(
+    (a, b) => (b.views ?? -1) - (a.views ?? -1) || b.posts - a.posts,
+  );
 }
 
 type Activation = {
@@ -695,12 +710,19 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   );
 
   const totalViews = campaign.posts.reduce((s, p) => s + p.viewsCount, 0);
-  const viewsNote = viewsCoverageNote(
-    campaign.posts.filter(
-      (p) => fieldMetricValue(p.viewsCount, p.lastSyncedAt, (p as { platformMetrics?: unknown }).platformMetrics, "views") !== null,
-    ).length,
-    campaign.posts.length,
+  const viewsKnownPosts = campaign.posts.filter(
+    (p) => fieldMetricValue(p.viewsCount, p.lastSyncedAt, (p as { platformMetrics?: unknown }).platformMetrics, "views") !== null,
+  ).length;
+  /* When the total was read (our read, else the import's refresh -- see
+     postMeasuredAt) and how many posts it covers: the same caption the
+     Performance tab and the Posts strip carry, so the tile keeps the "views
+     known for N of M posts" it had and gains the time. */
+  const viewsNote = asOfCaption(
+    dataAsOf(campaign.posts.map((p) => postMeasuredAt(p as { lastSyncedAt: string | null; lastFreshAt?: string | null }).at)),
+    { known: viewsKnownPosts, total: campaign.posts.length, what: "views" },
   );
+  /* A sum over no read post is unknown, not a measured 0. */
+  const totalViewsText = viewsKnownPosts === 0 && campaign.posts.length > 0 ? "\u2014" : formatNumber(totalViews);
   const totalLikes = campaign.posts.reduce((s, p) => s + p.likesCount, 0);
   // Likes are summed straight off the column, whose default is 0, so a campaign
   // whose likes were never read showed "Total Likes 0". Shown only when at
@@ -718,7 +740,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const avgEngagement = engagement.rate === null ? null : engagement.rate * 100;
   /* The Overview tiles share one figure size, set by the longest of them. */
   const overviewFit = Math.max(
-    formatNumber(totalViews).length,
+    totalViewsText.length,
     avgEngagement === null ? 0 : (avgEngagement.toFixed(2) + "%").length,
     String(roster.length).length,
     campaign.budget == null ? 0 : formatFullCurrency(campaign.budget, campaign.currency).length,
@@ -878,7 +900,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 enter, and engagement is absent on most imported posts. Neither
                 gets a zero or a dash standing in for the real number. */}
             <div className="cc-tiles-balanced">
-              <MetricTile fitTo={overviewFit} metric="totalViews" value={formatNumber(totalViews)} footer={viewsNote} />
+              <MetricTile fitTo={overviewFit} metric="totalViews" value={totalViewsText} footer={viewsNote} />
               {/* "Engagement rate", not "Avg engagement": the label described the
                   old mean-of-means and would now misname the figure below it. */}
               {avgEngagement !== null && (
@@ -1003,9 +1025,9 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
               <Card variant="outlined" className="cc-analytics-summary" style={{ gridColumn: "1 / -1" }}>
                 <span className="cc-panel-title cc-analytics-summary-title" style={{ display: "block" }}>Performance Summary</span>
                 <div className="cc-kpi-strip cc-kpi-quiet">
-                  <div className="cc-kpi-chip" style={{ "--cc-kpi-fit": fitFigureSize(formatNumber(totalViews), 22) } as CSSProperties}>
+                  <div className="cc-kpi-chip" style={{ "--cc-kpi-fit": fitFigureSize(totalViewsText, 22) } as CSSProperties}>
                     <span className="cc-kpi-chip-label">Total Views</span>
-                    <span className="cc-kpi-chip-value" title={formatNumber(totalViews)}>{formatNumber(totalViews)}</span>
+                    <span className="cc-kpi-chip-value" title={viewsNote ?? totalViewsText}>{totalViewsText}</span>
                   </div>
                   {likesMeasured && (
                     <div className="cc-kpi-chip cc-kpi-chip-extra" style={{ "--cc-kpi-fit": fitFigureSize(formatNumber(totalLikes), 22) } as CSSProperties}>
