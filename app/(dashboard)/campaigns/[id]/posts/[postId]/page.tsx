@@ -25,7 +25,7 @@ import PostStatusChip from "@/components/posts/PostStatusChip";
 import { AgeLabel } from "@/components/ds/AgeLabel";
 import { isUnknownMetric, metricReason, metricText, postCounterValue, unknownMetric, type MetricValue } from "@/lib/creators/metricValue";
 import { imgSrc, embedSrcFor, postThumbnailUrl } from "@/lib/postMedia";
-import { stripAt, formatDateAbs, formatDateTimeAbs, formatFull, fitFigureSize } from "@/lib/format";
+import { stripAt, formatDateAbs, formatDateTimeAbs, formatFull, fitFigureSize, platformLabel } from "@/lib/format";
 import { MIN_SNAPSHOTS } from "@/lib/fraud/botSignals";
 import { loadCharts } from "@/components/charts/lazyCharts";
 import { readCadenceLabel, DEFAULT_POST_TRACKING } from "@/lib/trackers/granularity";
@@ -817,7 +817,10 @@ export default function PostDetailPage() {
                     readCadenceLabel(timeseries?.readCadence ?? DEFAULT_POST_TRACKING.readCadence),
                     formatRemaining(timeseries?.hoursRemaining ?? null),
                   )
-                : "Tracking off. Meta and IG only return lifetime totals, so enable tracking to record a real time series."}
+                : /* Named for this post's own platform: the line said "Meta and IG"
+                     on TikTok and YouTube posts too. Every platform we read
+                     answers with today's lifetime totals only. */
+                  `Tracking off. ${platformLabel(post.platform) || "The platform"} only reports a post's lifetime totals, not their history, so turn tracking on to record how they change over time.`}
             </p>
             {trackingEnabled && timeseries?.trackingExpiresAt && (timeseries.trackingSource ?? "tracker") === "tracker" && (
               <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)", margin: "4px 0 0" }}>
