@@ -5,8 +5,10 @@ jest.mock("@/lib/db", () => ({
   db: {
     creatorProfileLink: { findMany: jest.fn(), update: jest.fn() },
     creator: { update: jest.fn(), updateMany: jest.fn() },
+    creatorPlatformAccountId: { findMany: jest.fn(), upsert: jest.fn() },
   },
 }));
+jest.mock("@/lib/creators/accountIdTables", () => ({ accountIdTablesReady: jest.fn().mockResolvedValue(true) }));
 jest.mock("@/lib/creators/followerWriter", () => ({ protectedCreatorFollowers: jest.fn() }));
 jest.mock("@/lib/platforms/creatorProfile", () => ({ readCreatorProfile: jest.fn() }));
 jest.mock("@/lib/creators/avatarStore", () => ({ captureLatestAvatar: jest.fn() }));
@@ -227,6 +229,83 @@ describe("refreshRosterProfiles", () => {
       const counts = await refreshRosterProfiles({ nowMs: NOW });
       expect(mockEmbed).toHaveBeenCalledTimes(links.length);
       expect(counts.embedViews).toBe(1);
+    });
+  });
+});
+
+/**
+ * The shared validation gate (plan A3). Rules are tested in
+ * __tests__/unit/lib/acquisition/validate.test.ts; these pin what the roster
+ * refresh does when one fires.
+ */
+describe("refreshRosterProfiles — the validation gate", () => {
+  beforeEach(() => {
+    mockDb.creatorPlatformAccountId.findMany.mockResolvedValue([]);
+    mockDb.creatorPlatformAccountId.upsert.mockResolvedValue({});
+  });
+
+  it("refuses a 0 over the account's real figure, stamps why, and writes nothing else", async () => {
+    mockDb.creatorProfileLink.findMany.mockResolvedValue([link({ followersCount: 51_000, averageViews: 9_000 })]);
+    mockRead.mockResolvedValue(profile({ followersCount: 0, postsCount: 0, sampledPosts: 0, avgViews: 0 }));
+    const counts = await refreshRosterProfiles({ nowMs: NOW });
+    expect(mockDb.creatorProfileLink.update).toHaveBeenCalledTimes(1);
+    expect(mockDb.creatorProfileLink.update).toHaveBeenCalledWith({
+      where: { id: "l1" },
+      data: { refreshedAt: new Date(NOW), refreshError: "reading-rejected: fell-to-zero: followers fell to 0 from 51000" },
+    });
+    expect(mockDb.creator.update).not.toHaveBeenCalled();
+    expect(mockDb.creator.updateMany).not.toHaveBeenCalled();
+    expect(mockCapture).not.toHaveBeenCalled();
+    expect(counts).toMatchObject({ rejected: 1, refreshed: 0, failed: 0 });
+  });
+
+  it("judges a primary account never read against the creator's own figure", async () => {
+    mockDb.creatorProfileLink.findMany.mockResolvedValue([
+      link({ followersCount: null, creator: { trackedSince: null, followersCount: 51_000, averageViews: 9_000 } }),
+    ]);
+    mockRead.mockResolvedValue(profile({ followersCount: 0 }));
+    expect(await refreshRosterProfiles({ nowMs: NOW })).toMatchObject({ rejected: 1 });
+  });
+
+  it("takes a first reading of an account nothing was ever held for", async () => {
+    mockDb.creatorProfileLink.findMany.mockResolvedValue([
+      link({ isPrimary: false, platform: "INSTAGRAM", followersCount: null, creator: { trackedSince: null, followersCount: 51_000 } }),
+    ]);
+    mockRead.mockResolvedValue(profile({ followersCount: 0, sampledPosts: 0, avgViews: 0 }));
+    expect(await refreshRosterProfiles({ nowMs: NOW })).toMatchObject({ rejected: 0, refreshed: 1 });
+  });
+
+  it("refuses a different account answering to a handle bound to another", async () => {
+    mockDb.creatorProfileLink.findMany.mockResolvedValue([link({ followersCount: 51_000 })]);
+    mockDb.creatorPlatformAccountId.findMany.mockResolvedValue([{ platformAccountId: "6800000000000000001", handle: "synthpage" }]);
+    mockRead.mockResolvedValue(profile({ followersCount: 120, accountId: "7300000000000000002" }));
+    const counts = await refreshRosterProfiles({ nowMs: NOW });
+    expect(mockDb.creatorProfileLink.update.mock.calls[0][0].data.refreshError).toMatch(/^reading-rejected: account-mismatch: /);
+    expect(mockDb.creator.update).not.toHaveBeenCalled();
+    // And the stranger's id is not kept as this creator's.
+    expect(mockDb.creatorPlatformAccountId.upsert).not.toHaveBeenCalled();
+    expect(counts.rejected).toBe(1);
+  });
+
+  it("keeps the held average when a read's average over real samples fell to 0, and still writes followers", async () => {
+    mockDb.creatorProfileLink.findMany.mockResolvedValue([link({ followersCount: 51_000, averageViews: 9_000 })]);
+    mockRead.mockResolvedValue(profile({ followersCount: 51_200, avgViews: 0, sampledPosts: 12 }));
+    await refreshRosterProfiles({ nowMs: NOW });
+    expect(mockDb.creatorProfileLink.update.mock.calls[0][0].data).toEqual({
+      followersCount: 51_200,
+      refreshedAt: new Date(NOW),
+      refreshError: null,
+    });
+    expect(mockDb.creator.update).toHaveBeenCalledWith({ where: { id: "c1", orgId: "org-1" }, data: { followersCount: 51_200 } });
+  });
+
+  it("writes a real drop that is not to 0", async () => {
+    mockDb.creatorProfileLink.findMany.mockResolvedValue([link({ followersCount: 51_000, averageViews: 9_000 })]);
+    mockRead.mockResolvedValue(profile({ followersCount: 30_100, avgViews: 2_200, sampledPosts: 12 }));
+    expect(await refreshRosterProfiles({ nowMs: NOW })).toMatchObject({ rejected: 0, refreshed: 1 });
+    expect(mockDb.creator.update).toHaveBeenCalledWith({
+      where: { id: "c1", orgId: "org-1" },
+      data: { followersCount: 30_100, averageViews: 2_200 },
     });
   });
 });
