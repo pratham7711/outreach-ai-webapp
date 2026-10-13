@@ -1,6 +1,5 @@
 import { PrismaClient } from "@/lib/generated/prisma";
 import { PrismaPg } from "@prisma/adapter-pg";
-import pg from "pg";
 import { explicitSslMode } from "@/lib/dbUrl";
 
 const globalForPrisma = globalThis as unknown as {
@@ -34,15 +33,14 @@ export const DB_POOL_OPTIONS = {
 } as const;
 
 function createPrismaClient() {
-  const pool = new pg.Pool({
+  /* A pool config rather than a pg.Pool instance: the adapter builds the pool
+     from exactly these options (and attaches its idle-error listener), and an
+     instance would have to satisfy the adapter's own nested, older @types/pg,
+     which tsc refuses. Same pool at runtime either way. */
+  const adapter = new PrismaPg({
     connectionString: explicitSslMode(process.env.DATABASE_URL)!,
     ...DB_POOL_OPTIONS,
   });
-  /* Handed over as a Pool rather than a config, so the limits above are the
-     ones in force. The adapter recognises it as external (pg is a Next server
-     external, so this is the same module it checks against) and attaches its
-     own idle-error listener when it connects, as it does for a pool it builds. */
-  const adapter = new PrismaPg(pool);
   return new PrismaClient({ adapter });
 }
 
