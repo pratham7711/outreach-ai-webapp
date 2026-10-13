@@ -89,6 +89,9 @@ export function describeTrackerSweep(result: {
  * of the sentence rather than printed raw -- a slug in the UI is worse than a
  * slightly shorter summary.
  */
+/* These now reach the toolbar sentence, where "1 no longer exist" read badly. */
+const agree = (n: number, one: string, many: string) => (n === 1 ? one : many);
+
 const REASON_LABEL: Record<RefreshFailReason, (n: number) => string> = {
   "platform-challenged": (n) => `${n} blocked by the platform`,
   /* Says "we", not "the platform". This is the one failure on the list that is
@@ -100,24 +103,24 @@ const REASON_LABEL: Record<RefreshFailReason, (n: number) => string> = {
      is the same misdirection this reason was added to end. */
   "reader-timeout": (n) => `${n} timed out on our side, retrying`,
   "backing-off": (n) => `${n} skipped while backing off`,
-  "post-deleted": (n) => `${n} no longer exist`,
-  "post-hidden": (n) => `${n} were hidden by their creator`,
+  "post-deleted": (n) => `${n} ${agree(n, "no longer exists", "no longer exist")}`,
+  "post-hidden": (n) => `${n} ${agree(n, "was", "were")} hidden by their creator`,
   "platform-refused": (n) => `${n} refused by the platform`,
-  "no-counts-published": (n) => `${n} publish no counts`,
+  "no-counts-published": (n) => `${n} ${agree(n, "publishes", "publish")} no counts`,
   unknown: (n) => `${n} could not be read`,
-  "unrecognised-url": (n) => `${n} have an unrecognised link`,
-  "not-configured": (n) => `${n} need an API key`,
+  "unrecognised-url": (n) => `${n} ${agree(n, "has", "have")} an unrecognised link`,
+  "not-configured": (n) => `${n} ${agree(n, "needs", "need")} an API key`,
   /* The only reason on this list with a remedy belonging to a person, so it
      says whose: a creator reconnects, or an operator replaces the business
      token. "refused by the platform" -- which is where this used to land --
      reads as nothing anyone can do. */
-  "credentials-rejected": (n) => `${n} need Instagram reconnected`,
-  "not-a-professional-account": (n) => `${n} are on Instagram accounts that share no numbers`,
-  "page-not-connected": (n) => `${n} are on Facebook Pages that are not connected`,
-  "author-unknown": (n) => `${n} have no creator yet; we keep looking automatically`,
-  "not-on-account": (n) => `${n} were not found on their creator's Instagram`,
-  "not-in-newest-media": (n) => `${n} were not among their creator's newest 500 Instagram posts`,
-  "not-public": (n) => `${n} are not public on Instagram: age-limited by the creator, private or deleted`,
+  "credentials-rejected": (n) => `${n} ${agree(n, "needs", "need")} Instagram reconnected`,
+  "not-a-professional-account": (n) => `${n} ${agree(n, "is on an Instagram account", "are on Instagram accounts")} that share${agree(n, "s", "")} no numbers`,
+  "page-not-connected": (n) => `${n} ${agree(n, "is on a Facebook Page that is", "are on Facebook Pages that are")} not connected`,
+  "author-unknown": (n) => `${n} ${agree(n, "has", "have")} no creator yet; we keep looking automatically`,
+  "not-on-account": (n) => `${n} ${agree(n, "was", "were")} not found on their creator's Instagram`,
+  "not-in-newest-media": (n) => `${n} ${agree(n, "was", "were")} not among their creator's newest 500 Instagram posts`,
+  "not-public": (n) => `${n} ${agree(n, "is", "are")} not public on Instagram: age-limited by the creator, private or deleted`,
   "counts-inconsistent": (n) => `${n} came back with numbers that could not be right, kept their last good numbers`,
   error: (n) => `${n} errored`,
 };
@@ -143,9 +146,8 @@ function labelFor(key: string): ((n: number) => string) | undefined {
 }
 
 /**
- * No longer part of the sentence the user reads -- see summariseRefresh. Kept
- * because the breakdown is still the right thing to put in front of whoever is
- * debugging a bad run, and it is the only place these slugs have wording.
+ * The whole breakdown, partials included, for whoever is debugging a run
+ * record. summariseRefresh shows the failure half of it (failureReasons below).
  */
 export function describeReasons(reasons?: Record<string, number>): string | null {
   if (!reasons) return null;
@@ -158,28 +160,37 @@ export function describeReasons(reasons?: Record<string, number>): string | null
   return parts.join(", ");
 }
 
+/** The failure reasons only, biggest first, in the same words as describeReasons. */
+function failureReasons(reasons?: Record<string, number>): string | null {
+  if (!reasons) return null;
+  const parts = Object.entries(reasons)
+    .sort((a, b) => b[1] - a[1])
+    .filter(([key, n]) => n > 0 && (REASON_LABEL as Record<string, (n: number) => string>)[key])
+    .map(([key, n]) => (REASON_LABEL as Record<string, (n: number) => string>)[key](n));
+  return parts.length ? parts.join(", ") : null;
+}
+
 /**
- * What the user is told after a refresh: that it happened, and nothing else.
+ * What the user is told after a refresh: how many posts updated out of how
+ * many, and why the rest did not.
  *
- * The breakdown this used to append -- "15 blocked by the platform, 13 publish
- * no counts, 3 no longer exist" -- was accurate and was the wrong audience. It
- * described OUR delivery problem in the platform's terms, in the middle of
- * somebody's campaign screen, and there is no action for the reader in any of
- * it: they cannot un-wall a TikTok WAF or make a deleted post exist. It read as
- * the product blaming itself in public.
+ * History, because this has moved three times. On 2026-09-03 the owner cut it
+ * to a bare "Posts updated." (no ratio, no reasons), on the grounds that the
+ * breakdown read as the product apologising. The 2026-10-13 walkthrough showed
+ * the cost: a run that updated 1 post of 3 said "Post updated." and gave no
+ * reason for the other two, which is a success claim the run did not earn.
+ * Pratham's brief for that round asks for the accurate version, e.g.
+ * "1 of 3 updated · 2 couldn't be read: …", so the ratio and the failure
+ * reasons are back, in the plain wording REASON_LABEL already has.
  *
- * The reasons have not stopped being collected. Every one is still counted onto
- * CampaignRefreshRun.reasons and still logged per post, so the diagnostic
- * question is answered from the run record instead of from the toolbar --
- * describeReasons() below stays exported for exactly that. This is a change of
- * audience, not a loss of data.
- *
- * Reduced twice on the same day (2026-09-03): first to drop the breakdown and
- * keep "41 of 62", then to drop the ratio too. The end state is a single
- * sentence that a refresh happened, because everything more specific was either
- * an unactionable apology (the reasons) or an invitation to ask for one (the
- * ratio). Per-post freshness still lives on each post's own row, where the
- * reader can do something about it.
+ *   - Every post landed: "All 3 posts updated." (one post: "Post updated.")
+ *   - Some did not: "1 of 3 updated · 2 couldn't be read: 1 blocked by the
+ *     platform, 1 no longer exist."
+ *   - The time budget ran out first: "· 5 not reached this time; press
+ *     Refresh Data again".
+ *   - A reading that came back without views is a partial, said after.
+ * The audio sentence follows, as before. Every reason is still recorded on
+ * CampaignRefreshRun.reasons and per post, so nothing here is the only copy.
  */
 export function summariseRefresh(r: RefreshResult): string {
   const total = r.total ?? 0;
@@ -189,29 +200,25 @@ export function summariseRefresh(r: RefreshResult): string {
     return audio ? `No posts to refresh yet. ${audio}` : "No posts to refresh yet.";
   }
 
-  /* No count either, owner's call 2026-09-03. The earlier version said
-     "41 of 62 posts updated." on the grounds that "n of m" is the one part a
-     reader can act on -- press it again later for the rest. Overruled: the
-     ratio invited exactly the question the breakdown used to answer badly, and
-     the freshness of any single post is already on that post's own row.
+  const measured = Math.min(Math.max(r.measured ?? 0, 0), total);
+  const remaining = Math.min(Math.max(r.remaining ?? 0, 0), total - measured);
+  const unread = total - measured - remaining;
 
-     The one thing this must not become is a false claim. A run that measured
-     nothing has not updated anything, and "Posts updated." there would be a
-     lie told by the toolbar -- so that case says so, still without naming a
-     cause. Everything about why remains in the run record and the log. */
-  const measured = r.measured ?? 0;
-  const sentence =
-    measured === 0
-      ? "No new data yet."
-      : `Post${measured === 1 ? "" : "s"} updated.`;
+  const parts: string[] = [];
+  if (measured === total) {
+    parts.push(total === 1 ? "Post updated" : `All ${total} posts updated`);
+  } else {
+    parts.push(`${measured} of ${total} updated`);
+    if (unread > 0) {
+      const why = failureReasons(r.reasons);
+      parts.push(`${unread} couldn't be read${why ? `: ${why}` : ""}`);
+    }
+    if (remaining > 0) parts.push(`${remaining} not reached this time; press Refresh Data again`);
+  }
+  /* Measured, so counted as updated above, but the reading had no views in it
+     (see VIEWS_UNAVAILABLE). Said after the ratio so the ratio stays true. */
+  const noViews = Math.min(r.reasons?.[VIEWS_UNAVAILABLE] ?? 0, measured);
+  if (noViews > 0) parts.push(`${noViews} without new views`);
 
-  /* Do not re-append the breakdown here. Nothing is lost by its absence, and
-     that is the condition of having removed it -- every reason is still
-     recorded in three places, none of which is this string:
-       - CampaignRefreshRun.reasons, the whole tally, one row per run
-       - Post.platformMetrics.__lastFetch, per post, with a timestamp
-       - the "campaign refresh finished" log line
-     describeReasons() above is where the wording for those lives. */
-  const parts = [sentence, audio].filter(Boolean);
-  return parts.join(" ");
+  return [`${parts.join(" · ")}.`, audio].filter(Boolean).join(" ");
 }

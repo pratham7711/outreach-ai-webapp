@@ -39,6 +39,7 @@ import {
   wantsProtobuf,
   POST_LIST_CONTENT_TYPE,
 } from "@/lib/serialization/postList";
+import { removablePostIds } from "@/lib/posts/bulkActions";
 
 const PLATFORMS = PLATFORM_VALUES;
 // One list, shared with the detector -- two copies would be free to disagree
@@ -540,5 +541,133 @@ export async function POST(
   } catch (error) {
     console.error("Failed to create post:", error);
     return NextResponse.json({ error: "Failed to create post" }, { status: 500 });
+  }
+}
+
+/**
+ * DELETE /api/campaigns/[id]/posts — remove posts from this campaign.
+ * Body: { postIds: string[] } (1..MAX_BULK_ACTION_POSTS).
+ *
+ * A hard delete, because a post in a campaign is a claim that it belongs to
+ * the campaign: a mis-pasted link otherwise stays in the post count and the
+ * totals forever, and there is no deletedAt on Post to hide it with (adding
+ * one is a schema change every Post query would then have to honour).
+ *
+ * What hangs off a Post, and what happens to it:
+ *   - PostMetricSnapshot: FK, ON DELETE CASCADE -- the readings go with it.
+ *   - SyncSlot.postId: FK, ON DELETE SET NULL -- the slot survives, unbound.
+ *   - ViewFraudFlag.postId: no FK. Deleted here in the same transaction, so a
+ *     flag never points at a post that is gone.
+ *   - ViewLedger.postId: no FK, and it is money -- CPM earnings already
+ *     recorded against the post. Removal is REFUSED when any exist: deleting
+ *     the post would leave earnings for a post nobody can see, and deleting
+ *     the ledger would rewrite what a creator was paid for.
+ *   - Creator.topPosts JSON holds platform ids, not ours; nothing to do.
+ * Campaign totals and reports are derived from Post rows at read time, and the
+ * cached performance report is keyed on a stamp that moves when the post
+ * count does (lib/reports/campaignPerformance).
+ *
+ * All or nothing: if any id is not a post of this campaign the call is
+ * refused rather than removing the rest, so the count the operator confirmed
+ * is the count that goes.
+ */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await auth();
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // The same gate as adding a post: a VIEWER can do neither.
+    const denied = permissionDenial(session.user, "campaigns:edit_own");
+    if (denied) return denied;
+    const orgId = (session.user as any).orgId;
+    const { id: campaignId } = await params;
+
+    const scope = scopeSubjectFromSession(session.user);
+    const campaign = await db.campaign.findFirst({
+      where: { id: campaignId, orgId, deletedAt: null, ...(scope ? campaignScopeWhere(scope) : {}) },
+      select: { id: true, title: true },
+    });
+    if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+
+    const body = await request.json().catch(() => null);
+    const ids = removablePostIds(body?.postIds);
+    if (!ids) {
+      return NextResponse.json({ error: "Pick between 1 and 50 posts to remove." }, { status: 400 });
+    }
+
+    const posts = await db.post.findMany({
+      where: { id: { in: ids }, campaignId },
+      select: {
+        id: true,
+        postUrl: true,
+        platform: true,
+        platformPostId: true,
+        creatorId: true,
+        status: true,
+        viewsCount: true,
+        creator: { select: { handle: true } },
+      },
+    });
+    if (posts.length !== ids.length) {
+      return NextResponse.json(
+        { error: "Some of those posts are no longer in this campaign. Reload and try again." },
+        { status: 404 },
+      );
+    }
+
+    const billed = await db.viewLedger.findMany({
+      where: { orgId, campaignId, postId: { in: ids } },
+      select: { postId: true },
+      distinct: ["postId"],
+    });
+    if (billed.length > 0) {
+      return NextResponse.json(
+        {
+          error:
+            billed.length === 1
+              ? "1 of these posts has earnings recorded against it, so it can't be removed."
+              : `${billed.length} of these posts have earnings recorded against them, so they can't be removed.`,
+          code: "has_earnings",
+          postIds: billed.map((b) => b.postId),
+        },
+        { status: 409 },
+      );
+    }
+
+    const [, removed] = await db.$transaction([
+      db.viewFraudFlag.deleteMany({ where: { orgId, campaignId, postId: { in: ids } } }),
+      db.post.deleteMany({ where: { id: { in: ids }, campaignId } }),
+    ]);
+
+    /* One line per post, like post.create, so each post's history ends with
+       who removed it -- and the URL is kept, since the row that held it is gone. */
+    for (const post of posts) {
+      await logAudit({
+        orgId,
+        userId: session.user.id ?? undefined,
+        actorEmail: session.user.email ?? undefined,
+        action: "post.delete",
+        entityType: "post",
+        entityId: post.id,
+        entityLabel: post.creator?.handle ?? post.postUrl,
+        ipAddress: getRequestIp(request),
+        metadata: { campaignId, batch: ids.length },
+        before: {
+          postUrl: post.postUrl,
+          platform: post.platform,
+          platformPostId: post.platformPostId,
+          creatorId: post.creatorId,
+          status: post.status,
+          viewsCount: post.viewsCount,
+        },
+      });
+    }
+
+    return NextResponse.json({ removed: removed.count });
+  } catch (error) {
+    console.error("Failed to remove posts:", error);
+    return NextResponse.json({ error: "Failed to remove posts" }, { status: 500 });
   }
 }

@@ -300,29 +300,21 @@ describe('PATCH /api/creators/[id]', () => {
     expect(mockDb.creatorDetail.upsert).not.toHaveBeenCalled();
   });
 
-  it('sets the follower and average-view counts of a record no refresh reads', async () => {
-    mockDb.creator.findFirst.mockResolvedValue({ id: 'cr-1', orgId: 'org-1', followersCount: 1100000, averageViews: 0 });
-    mockDb.creator.update.mockResolvedValue({ id: 'cr-1', name: 'B', followersCount: 276169, averageViews: 3200 });
-    const req = makeRequest('http://localhost/api/creators/cr-1', {
-      method: 'PATCH',
-      body: JSON.stringify({ followersCount: 276169, averageViews: 3200 }),
-      headers: { 'Content-Type': 'application/json' },
-    });
-    expect((await PATCH(req, makeParams('cr-1'))).status).toBe(200);
-    expect(mockDb.creator.update).toHaveBeenCalledWith({ where: { id: 'cr-1' }, data: { followersCount: 276169, averageViews: 3200 } });
-  });
-
-  it('refuses a count that cannot be one', async () => {
-    mockDb.creator.findFirst.mockResolvedValue({ id: 'cr-1', orgId: 'org-1' });
-    for (const followersCount of [-1, '17.3k', null]) {
+  it('drops follower and average-view counts: figures come from the platforms, never typed in', async () => {
+    mockDb.creator.findFirst.mockResolvedValue({ id: 'cr-1', orgId: 'org-1', name: 'B', followersCount: 1100000, averageViews: 0 });
+    mockDb.creator.update.mockResolvedValue({ id: 'cr-1', name: 'B', followersCount: 1100000, averageViews: 0 });
+    for (const body of [{ followersCount: 276169, averageViews: 3200 }, { name: 'B', followersCount: -1 }]) {
       const req = makeRequest('http://localhost/api/creators/cr-1', {
         method: 'PATCH',
-        body: JSON.stringify({ followersCount }),
+        body: JSON.stringify(body),
         headers: { 'Content-Type': 'application/json' },
       });
-      expect((await PATCH(req, makeParams('cr-1'))).status).toBe(400);
+      expect((await PATCH(req, makeParams('cr-1'))).status).toBe(200);
     }
-    expect(mockDb.creator.update).not.toHaveBeenCalled();
+    for (const [args] of mockDb.creator.update.mock.calls) {
+      expect(args.data).not.toHaveProperty('followersCount');
+      expect(args.data).not.toHaveProperty('averageViews');
+    }
   });
 
   it('returns 500 on database error', async () => {

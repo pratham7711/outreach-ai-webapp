@@ -124,3 +124,38 @@ export function bulkActionSummary(action: BulkAction, count: number, ttlDays?: n
       return `Stopped tracking ${posts}.`;
   }
 }
+
+/* ─── Remove from campaign ───────────────────────────────────────────────────
+
+   Not one of BULK_ACTIONS: those are column writes the bulk route applies with
+   one updateMany, and a removal is a delete with its own route (DELETE
+   .../posts), its own confirmation and its own refusal. What the two share is
+   the cap and the wording, which live here so the dialog, the toast and the
+   route cannot disagree about what was asked for. */
+
+/** The ids a remove call may act on: trimmed, de-duplicated, capped. Null when unusable. */
+export function removablePostIds(raw: unknown): string[] | null {
+  if (!Array.isArray(raw)) return null;
+  const ids = [...new Set(raw.filter((v): v is string => typeof v === "string").map((v) => v.trim()).filter(Boolean))];
+  if (ids.length === 0 || ids.length > MAX_BULK_ACTION_POSTS || ids.some((id) => id.length > 100)) return null;
+  return ids;
+}
+
+/** The confirmation, naming how many posts go and what happens to their
+ *  numbers. Shaped as ConfirmOptions (components/ds/ConfirmDialog). */
+export function removeConfirmText(count: number): { title: string; description: string; confirmLabel: string } {
+  const posts = `${count} post${count === 1 ? "" : "s"}`;
+  return {
+    title: `Remove ${posts} from this campaign?`,
+    description:
+      count === 1
+        ? "The post, its readings and its views come out of this campaign's totals. This can't be undone; add the link again to bring it back."
+        : `These ${posts}, their readings and their views come out of this campaign's totals. This can't be undone; add the links again to bring them back.`,
+    confirmLabel: `Remove ${posts}`,
+  };
+}
+
+/** What the operator is told afterwards. */
+export function removePostsSummary(removed: number): string {
+  return `Removed ${removed} post${removed === 1 ? "" : "s"} from this campaign.`;
+}

@@ -6,7 +6,6 @@ import { useState, useEffect, useMemo, useCallback, useDeferredValue, useRef } f
 import { Card, Badge, Input, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
 import { Dropdown, StatusTabs, Pagination, Button } from "@/components/ds";
 import { Grid3X3, List, Plus, Check, X, TrendingUp, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Flag, Video, AlertTriangle, RefreshCw, Info, Radio, ExternalLink } from "lucide-react";
-import { CreatorSelect } from "@/components/CreatorSelect";
 import { stripAt, formatDateAbs, formatFull } from "@/lib/format";
 import type { ComplianceFlag } from "@/lib/compliance/postCompliance";
 import PostMedia from "@/components/PostMedia";
@@ -25,12 +24,12 @@ import { action } from "@/lib/ui/actions";
 import { detectPlatform } from "@/lib/platforms/postUrl";
 import { MAX_BULK_POSTS, mergePastedEntries, parsePastedPostEntries, pastedUrlLabel } from "@/lib/posts/pastedUrls";
 import {
-  ADD_GROUP_PAUSE_MS,
   SETTLE_POLL_DELAYS_MS,
   addProgressText,
   addRunReasonsText,
   addRunSummaryText,
-  groupIndices,
+  platformLanes,
+  runInLanes,
   settleVerdict,
   summariseAddRun,
   unansweredRowMessage,
@@ -41,7 +40,9 @@ import {
   type SaveVerdict,
   type UnansweredKind,
 } from "@/lib/posts/bulkAdd";
-import { MAX_BULK_ACTION_POSTS, type BulkAction } from "@/lib/posts/bulkActions";
+import { MAX_BULK_ACTION_POSTS, removeConfirmText, removePostsSummary, type BulkAction } from "@/lib/posts/bulkActions";
+import { useConfirm } from "@/components/ds/ConfirmDialog";
+import { Trash2 } from "lucide-react";
 import PostActionMenu, { type PostMenuItem } from "@/components/posts/PostActionMenu";
 import { PlatformGlyph } from "@/components/ui/PlatformGlyph";
 import { platformFromHost, detectPlatformFromUrl, platformLabel } from "@/lib/platforms/registry";
@@ -137,23 +138,10 @@ type AddRow = {
   key: string;
   /** An earlier row in this same paste is the same post. */
   repeatOfPaste: boolean;
-  /** Blank means "let the server read the creator off the link". */
-  creatorId: string;
-  /** The chosen creator's own platform, kept so a mismatch with the link's
-   *  platform can be pointed out. Undefined until somebody picks one. */
-  creatorPlatform?: string;
-  /** The chosen creator's handle, for the same reason: it is what the author
-   *  the platform named is compared against. Undefined until somebody picks. */
-  creatorHandle?: string;
-  /** The operator has seen the author warning and said file it there anyway. */
-  allowMismatch?: boolean;
-  /** The operator asked to choose the creator, on a row the server had
-   *  already filed without asking. */
-  pickCreator?: boolean;
-  /** The author the server said posted this, when it refused the add over it.
-   *  Set from the 409, so a row the precheck could not judge still offers the
-   *  same two ways out. */
-  mismatchHandle?: string;
+  /* No creator field: who posted it is always the server's to detect -- from
+     the link, the platform, or the org's own copy of the post -- and never
+     taken from the operator. Pratham: "creators should be automatically
+     detected and added never taken from the user". */
   /** Blank means auto-detect. */
   mediaType: string;
   /** "checking": the add got no answer, and the server is being asked whether
@@ -177,7 +165,7 @@ type AddRow = {
  */
 function addRowProblem(
   row: AddRow,
-): { blocking: boolean; message: string; kind?: "author_mismatch"; handle?: string } | null {
+): { blocking: boolean; message: string } | null {
   if (row.state === "done") return null;
   /* Marked, not blocking. The submit loop skips it, so a messy paste with one
      line doubled still goes through -- holding the whole batch hostage to a
@@ -194,21 +182,28 @@ function addRowProblem(
      registry knows about platforms the Add Post path cannot track yet, so
      detectPlatformFromUrl matches a real tweet that detectPlatform returns
      null for — and telling somebody their valid X link has no post id in it
-     would be a lie. */
-  if (row.check && !row.check.platform) {
+     would be a lie.
+
+     Decided here from the link itself, not only once the precheck answers:
+     the add route runs the same detectPlatform and refuses whatever it cannot
+     place, so a row it would refuse is skipped from the start rather than
+     sent, refused, and offered a creator picker on the way (walkthrough R2).
+     Every such row leads with the same words so a skipped link reads the same
+     whatever was wrong with it. */
+  if (!detectPlatform(row.url) || (row.check && !row.check.platform)) {
     const namesAPost = detectPlatformFromUrl(row.url);
     if (namesAPost) {
       return {
         blocking: true,
-        message: `${platformLabel(namesAPost.platform)} posts can\u2019t be tracked yet — this link can\u2019t be added.`,
+        message: `Not a supported post link — ${platformLabel(namesAPost.platform)} posts can\u2019t be tracked yet.`,
       };
     }
     const known = platformFromHost(row.url);
     return {
       blocking: true,
       message: known
-        ? `That\u2019s a ${known.label} link, but there is no post id in it — check the URL.`
-        : "Not a post link we recognise — this platform isn\u2019t supported yet.",
+        ? `Not a supported post link — that\u2019s a ${known.label} link with no post id in it.`
+        : "Not a supported post link.",
     };
   }
   if (row.check?.inThisCampaign) {
@@ -217,42 +212,6 @@ function addRowProblem(
   /* A post another campaign already tracks is not a problem at all -- it is
      added, and the row says so in a note rather than a refusal. Only the same
      post twice in THIS campaign double-counts anything. */
-  /* The chosen creator is not who posted it.
-     Checked BEFORE the early return below, which used to let any chosen creator
-     skip every question about the link. That is how ten Instagram reels by
-     @ispeedsworld came to be filed against @ispeedsword: the operator picked a
-     creator, so nothing compared that choice with the post, and every later
-     metrics read went out under a username Instagram does not have.
-
-     Two signals have to disagree, not one. The handles are compared because a
-     handle is the thing the platform actually names, and the ids because the
-     roster holds 12 duplicated handles from the CreatorCore import -- picking
-     the second of two rows spelled the same is not a mis-attribution, and
-     comparing ids alone would call it one. The other way round, a creator whose
-     Instagram is connected under a different spelling resolves to the same id,
-     which is why the id agreeing is enough to stay quiet.
-
-     Only a handle the LINK or the PLATFORM named. "record" is the creator an
-     older copy of this post was filed against, which is a previous operator's
-     answer to this same question -- and if that answer was wrong, believing it
-     here would spread it. */
-  const chosenHandle = row.creatorHandle?.replace(/^@/, "").toLowerCase();
-  const authored = row.check?.handle?.replace(/^@/, "").toLowerCase();
-  if (
-    row.creatorId &&
-    !row.allowMismatch &&
-    authored &&
-    (row.check?.handleSource === "url" || row.check?.handleSource === "platform") &&
-    row.check?.creator?.id !== row.creatorId &&
-    chosenHandle !== authored
-  ) {
-    return {
-      blocking: true,
-      kind: "author_mismatch",
-      handle: authored,
-      message: `Posted by @${authored}, not the creator picked.`,
-    };
-  }
   /* Not knowing who posted it no longer holds a row back. Adding a post is a
      request to track it; a link nobody can attribute is added under the org's
      Unattributed row for its platform, and the row says so in a note rather
@@ -541,7 +500,7 @@ export default function PostsTab({
       return merged.map((entry, i) => {
         const kept = prev[i]?.url === entry.url ? prev[i] : undefined;
         return {
-          ...(kept ?? { creatorId: "", mediaType: "", state: "idle" as const }),
+          ...(kept ?? { mediaType: "", state: "idle" as const }),
           url: entry.url,
           key: entry.key,
           repeatOfPaste: entry.duplicate,
@@ -747,20 +706,23 @@ export default function PostsTab({
         toSend.push(i);
       });
 
-      /* Sequential on purpose, and grouped. Each add triggers a first metrics
-         read server side, and firing several at once is what trips the
-         platform rate limits the sync path spends its life working around.
-         Groups of ten with a pause between are what the operator watches go
-         by; inside a group it is still one link per request, one request at a
-         time -- see groupIndices for why there is no batch request. */
-      const groups = groupIndices(toSend);
-      let sent = 0;
-      for (let g = 0; g < groups.length; g++) {
-        if (g > 0) await sleep(ADD_GROUP_PAUSE_MS);
-        for (const i of groups[g]) {
-          sent += 1;
-          const progress = { current: sent, total: toSend.length, group: g + 1, groups: groups.length };
-          setAddProgress({ ...progress, checking: false });
+      /* Sequential per platform, and grouped. Each add triggers a first
+         metrics read server side, and firing several at one platform is what
+         trips the rate limits the sync path spends its life working around.
+         Different platforms run side by side, at most three at once: a TikTok
+         read spends none of Instagram's budget, and one after another a mixed
+         paste of three took 22.7s where its slowest link took 10s
+         (walkthrough A1#4; see runInLanes). Inside a platform it is still one
+         link per request, one request at a time, groups of ten with a pause
+         between -- see groupIndices for why there is no batch request. */
+      const lanes = platformLanes(toSend, (i) => detectPlatform(results[i].url)?.platform);
+      let finished = 0;
+      let checking = 0;
+      const showProgress = () => setAddProgress({ done: finished, total: toSend.length, checking: checking > 0 });
+      showProgress();
+      await runInLanes(
+        lanes,
+        async (i) => {
           results[i] = { ...results[i], state: "saving", error: undefined, doneAs: undefined };
           setAddRows([...results]);
 
@@ -771,8 +733,8 @@ export default function PostsTab({
           /* Absent keys, not nulls. mediaType is z.enum().optional(), which accepts
              undefined and rejects null, so sending `mediaType: null` for the
              "Auto-detect" option -- the default -- failed validation before it could
-             reach the detector. Same for creatorId, whose absence is now what asks
-             the server to read the creator off the URL. */
+             reach the detector. No creatorId is ever sent: its absence is what
+             asks the server to detect the creator. */
           try {
             const res = await fetch(`/api/campaigns/${campaignId}/posts`, {
               method: "POST",
@@ -780,9 +742,7 @@ export default function PostsTab({
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 postUrl: results[i].url,
-                ...(results[i].creatorId ? { creatorId: results[i].creatorId } : {}),
                 ...(results[i].mediaType ? { mediaType: results[i].mediaType } : {}),
-                ...(results[i].allowMismatch ? { allowHandleMismatch: true } : {}),
               }),
             });
             if (res.ok) {
@@ -804,20 +764,7 @@ export default function PostsTab({
                    audit lines, and either of those throwing answers 500. */
                 unanswered = { kind: "server", serverMessage: message };
               } else {
-                results[i] = {
-                  ...results[i],
-                  state: "failed",
-                  error: message,
-                  /* The server asks the platform on every add, so it refuses rows
-                     the precheck never judged -- one whose precheck had not come
-                     back, or whose creator came off an older copy of the post.
-                     Carrying the handle over means the row offers the same two
-                     buttons either way instead of a dead end. */
-                  mismatchHandle:
-                    body?.error === "author_mismatch" && typeof body?.detectedHandle === "string"
-                      ? body.detectedHandle
-                      : undefined,
-                };
+                results[i] = { ...results[i], state: "failed", error: message };
                 outcomes.set(i, { kind: "failed", reason: message });
               }
             }
@@ -833,11 +780,12 @@ export default function PostsTab({
             /* Ask before answering. A server error has finished, so one ask
                settles it; an add with no reply may still be inside its platform
                read, so it is asked about until it could no longer be running --
-               and the next link waits, so the server is never working two adds
-               of this batch at once. */
+               and the next link on its platform waits, so the server is never
+               working two adds of this batch on one platform at once. */
             results[i] = { ...results[i], state: "checking" };
             setAddRows([...results]);
-            setAddProgress({ ...progress, checking: true });
+            checking += 1;
+            showProgress();
             const url = results[i].url;
             const verdict = await settleVerdict(() => askPrecheck(url), {
               delays: unanswered.kind === "server" ? [0] : SETTLE_POLL_DELAYS_MS,
@@ -855,10 +803,14 @@ export default function PostsTab({
               results[i] = { ...results[i], state: "failed", error };
               outcomes.set(i, { kind: "failed", reason: error });
             }
+            checking -= 1;
           }
+          finished += 1;
+          showProgress();
           setAddRows([...results]);
-        }
-      }
+        },
+        { sleep },
+      );
       setAddProgress(null);
 
       const summary = summariseAddRun([...outcomes.values()]);
@@ -866,10 +818,16 @@ export default function PostsTab({
       /* The campaign's own totals live on the page above this tab -- the
          Posts tab counter among them -- so adding posts has to tell it,
          the same way Refresh Data does. Ten at once made the stale 0
-         impossible to miss. */
+         impossible to miss.
+
+         The list is re-read BEFORE the dialog closes. It used to be fired and
+         left, so the dialog shut at once and the tab went on saying "No posts
+         yet" for the ~3s the list took to come back -- long enough to read as
+         the add having failed (walkthrough F1). */
       if (summary.added > 0) {
-        fetchPosts();
+        setAddSummary({ text: "Added — updating the post list…", reasons: "" });
         onRefreshed?.();
+        await fetchPosts();
       }
 
       /* A partial batch keeps the dialog open showing only what failed, so the
@@ -1044,6 +1002,43 @@ export default function PostsTab({
       fetchPosts();
     } catch {
       toast.error("Could not apply that to the selection.");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  /* Remove from campaign, for one post or the selection: a mis-pasted link
+     used to stay in the post count for good, because nothing could take a
+     post out (walkthrough F2). Confirmed first, naming how many, since it
+     cannot be undone -- the server deletes the posts and their readings in one
+     transaction (DELETE /api/campaigns/[id]/posts). The page above is told
+     too, so the header count and the totals move with the list. */
+  const confirm = useConfirm();
+  const removePosts = async (ids: string[]) => {
+    if (ids.length === 0) return;
+    if (!(await confirm({ ...removeConfirmText(ids.length), tone: "danger" }))) return;
+    setBulkBusy(true);
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}/posts`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postIds: ids }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(body.error ?? "Could not remove those posts.");
+        return;
+      }
+      toast.success(removePostsSummary(typeof body.removed === "number" ? body.removed : ids.length));
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        for (const id of ids) next.delete(id);
+        return next;
+      });
+      fetchPosts();
+      onRefreshed?.();
+    } catch {
+      toast.error("Could not remove those posts.");
     } finally {
       setBulkBusy(false);
     }
@@ -1663,6 +1658,15 @@ export default function PostsTab({
                 external: true,
               },
             ]),
+        { kind: "sep" as const },
+        {
+          kind: "action" as const,
+          label: menuOnSelection ? `Remove ${selectedOnPage.length} posts from campaign…` : "Remove from campaign…",
+          icon: <Trash2 size={14} />,
+          danger: true,
+          disabled: bulkBusy,
+          onSelect: () => removePosts(menuOnSelection ? selectedOnPage : [menuPost.id]),
+        },
       ];
 
   return (
@@ -1901,14 +1905,19 @@ export default function PostsTab({
             the theme's `order` rule moves. Hand-building the row here would
             have put the icon on the right in all three themes instead of the
             one that asked for it. */}
+        {/* Not `loading`: the ds Button lays its spinner over the children
+            and hides them, so the button read as two icons and no words for
+            the whole run. A fixed "Refreshing…" beside the turning glyph is
+            nearly the width of "Refresh Data" and does not change per tick;
+            the count stays in the note card below. */}
         <Button
           variant="secondary"
-          iconLeft={<RefreshCw size={16} />}
+          iconLeft={<RefreshCw size={16} style={{ animation: refreshingAll ? "cc-spin 1s linear infinite" : undefined }} />}
           onClick={handleRefreshAll}
-          loading={refreshingAll}
-          disabled={posts.length === 0}
+          aria-busy={refreshingAll}
+          disabled={posts.length === 0 || refreshingAll}
         >
-          Refresh Data
+          {refreshingAll ? "Refreshing\u2026" : "Refresh Data"}
         </Button>
 
         <Button variant="primary" iconLeft={<Plus size={16} />} onClick={openAddPost} {...action("add-posts")}>
@@ -2018,6 +2027,9 @@ export default function PostsTab({
                 single-post path already uses rather than acting immediately. */}
             <Button variant="secondary" onClick={() => setShowRejectModal(BULK_REJECT)} loading={bulkBusy}>
               Reject
+            </Button>
+            <Button variant="secondary" onClick={() => removePosts(selectedOnPage)} loading={bulkBusy} style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--cc-danger)" }}>
+              <Trash2 size={14} aria-hidden="true" />Remove
             </Button>
           </div>
         </div>
@@ -2337,7 +2349,11 @@ export default function PostsTab({
         <Modal
           open={true}
           onClose={() => setShowAddPost(false)}
-          title={addRows.length > 1 ? `Add ${addRows.length} Posts` : "Add Post"}
+          /* No count in the title. It counted every link pasted while the
+             button counts the ones that will be sent, so a paste with one bad
+             link read "Add 4 Posts" over "Submit 3 Posts" (walkthrough A1#25);
+             the button and the skipped line beside it carry the numbers. */
+          title={addRows.length > 1 ? "Add Posts" : "Add Post"}
           size="lg"
           footer={
             <div className="cc-modal-footer" data-align="center">
@@ -2519,27 +2535,7 @@ export default function PostsTab({
             {addRows.map((row, i) => {
               const det = addDetections[i];
               const problem = addProblems[i];
-              /* Both sources of "somebody else posted this": the precheck, which
-                 knows before anything is sent, and the server's own refusal,
-                 which is the only one a row the precheck could not judge gets. */
-              const authorSaid =
-                row.mismatchHandle ?? (problem?.kind === "author_mismatch" ? problem.handle : undefined);
               const otherCampaigns = row.check?.inOtherCampaigns ?? [];
-              /* Who posted it is the server's to answer, and it does for every
-                 link it recognises: a creator on the roster, one it will add, or
-                 the platform's Unattributed row. The roster list stays shut on
-                 those rows until somebody asks for it. It opens on its own only
-                 where the answer did not come -- the check failed, the row was
-                 refused, or the add came back disputed. */
-              const resolvedByServer = Boolean(
-                row.check && (row.check.creator || row.check.creatorWillBeAdded || row.check.willBeUnattributed)
-              );
-              const showPicker =
-                Boolean(row.creatorId) ||
-                Boolean(row.pickCreator) ||
-                Boolean(authorSaid) ||
-                Boolean(problem?.blocking) ||
-                !(resolvedByServer || (!row.check && precheckSettledKey !== addUrlsKey));
               /* Said, not asked. The post is going in either way; what is worth
                  knowing is that its views are also counted somewhere else. Not
                  shown for a link pasted twice or one this campaign already
@@ -2572,7 +2568,9 @@ export default function PostsTab({
                     opacity: row.state === "done" ? 0.7 : 1,
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "space-between" }}>
+                  {/* Wraps, so a skipped row's reason drops under its link on a
+                      phone instead of running off the dialog's edge. */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "space-between", flexWrap: "wrap" }}>
                     {/* The same chip as the one in the field above, so the row
                         and its token read as one object. The URL itself stays
                         on the title, because the label is a summary and the
@@ -2631,50 +2629,42 @@ export default function PostsTab({
                     </p>
                   )}
 
-                  {row.state !== "done" && !row.repeatOfPaste && (
+                  {/* Nothing to choose on a row that is skipped: its reason is on
+                      the badge above, and it is not sent. */}
+                  {row.state !== "done" && !row.repeatOfPaste && !problem?.blocking && (
                     <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                       <div style={{ flex: "1 1 220px", minWidth: 200 }}>
-                        {showPicker && (
-                        <CreatorSelect
-                          value={row.creatorId}
-                          onChange={(id, creator) =>
-                            setAddRows((prev) =>
-                              prev.map((r, j) =>
-                                j === i
-                                  ? {
-                                      ...r,
-                                      creatorId: id,
-                                      creatorPlatform: creator?.platform,
-                                      creatorHandle: creator?.handle,
-                                      /* A different creator is a different
-                                         answer to the question the last one was
-                                         waved through on. */
-                                      allowMismatch: false,
-                                      mismatchHandle: undefined,
-                                    }
-                                  : r
-                              )
-                            )
-                          }
-                        />
-                        )}
-                        {!showPicker && !row.check && (
+                        {/* Who posted it is detected, never asked: the link, the
+                            platform or the org's own copy of the post names the
+                            creator, and one nobody can name is filed under the
+                            platform's Unattributed row and filled in on a later
+                            refresh. The roster picker and "Pick someone else"
+                            that used to sit here are gone (walkthrough R2). */}
+                        {!row.check && (
                           <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: 0 }}>
-                            Checking who posted it…
+                            {precheckSettledKey !== addUrlsKey ? (
+                              "Checking who posted it…"
+                            ) : det?.handle ? (
+                              <>
+                                Detected <strong style={{ color: "var(--cc-text)" }}>@{det.handle}</strong> from the link.
+                              </>
+                            ) : (
+                              "Who posted it is read from the platform when it is added."
+                            )}
                           </p>
                         )}
-                        {row.check?.creator && !row.creatorId && (
-                          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: showPicker ? "6px 0 0" : 0 }}>
+                        {row.check?.creator && (
+                          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: 0 }}>
                             Matched <strong style={{ color: "var(--cc-text)" }}>{creatorNameText(row.check.creator.name, row.check.creator.handle)}</strong>
                             {row.check.handleSource === "platform"
                               ? " from the post itself"
                               : row.check.handleSource === "record"
                                 ? " from the copy already on record"
                                 : " from the link"}
-                            {showPicker ? " — leave blank to use them." : "."}
+                            .
                           </p>
                         )}
-                        {row.check?.handleSource === "platform" && !row.check.creator && !row.check.creatorWillBeAdded && !row.creatorId && (
+                        {row.check?.handleSource === "platform" && !row.check.creator && !row.check.creatorWillBeAdded && (
                           <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
                             This link names no creator; the platform says{" "}
                             <strong style={{ color: "var(--cc-text)" }}>
@@ -2683,138 +2673,18 @@ export default function PostsTab({
                             .
                           </p>
                         )}
-                        {row.check?.willBeUnattributed && !row.creatorId && (
-                          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: showPicker ? "6px 0 0" : 0 }}>
+                        {row.check?.willBeUnattributed && (
+                          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: 0 }}>
                             <strong style={{ color: "var(--cc-text)" }}>{unknownCreatorReason(row.check.platform)}.</strong>{" "}
                             It is added and tracked anyway. We look for the creator automatically on every refresh and fill
                             them in, with the post’s views, as soon as we find them.
                           </p>
                         )}
-                        {row.check?.creatorWillBeAdded && !row.creatorId && (
-                          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: showPicker ? "6px 0 0" : 0 }}>
+                        {row.check?.creatorWillBeAdded && (
+                          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: 0 }}>
                             <strong style={{ color: "var(--cc-text)" }}>@{row.check.handle}</strong>
                             {row.check.handleSource === "platform" ? " — read off the post itself — " : " "}
                             is not on the roster yet, and will be added with this post.
-                            {showPicker ? " Pick someone else to attribute it differently." : ""}
-                          </p>
-                        )}
-                        {det?.handle && !row.check && !row.creatorId && showPicker && (
-                          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
-                            Detected <strong style={{ color: "var(--cc-text)" }}>@{det.handle}</strong> — leave blank to use them.
-                          </p>
-                        )}
-                        {!showPicker && row.check && !row.check.willBeUnattributed && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setAddRows((prev) => prev.map((r, j) => (j === i ? { ...r, pickCreator: true } : r)))
-                            }
-                            style={{
-                              marginTop: 6,
-                              border: "1px solid var(--cc-border)",
-                              background: "var(--cc-card)",
-                              color: "var(--cc-text)",
-                              borderRadius: 6,
-                              padding: "4px 10px",
-                              fontSize: "var(--cc-t-12)",
-                              cursor: "pointer",
-                            }}
-                          >
-                            Pick someone else
-                          </button>
-                        )}
-                        {/* The picker lists the whole roster whatever the link is, and every
-                            creator is labelled with its own platform -- so the operator can
-                            attribute a YouTube post to a TikTok creator with nothing said.
-                            Flagged rather than filtered on purpose: in an org whose roster is
-                            all one platform, filtering would empty the picker and strand the
-                            post with no way forward. */}
-                        {row.creatorId && row.creatorPlatform && det?.platform && row.creatorPlatform !== det.platform && (
-                          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-warning)", margin: "6px 0 0" }}>
-                            That is a {platformLabel(row.creatorPlatform)} creator on a{" "}
-                            {platformLabel(det.platform)} link — it will still be added, but check it is
-                            the right person.
-                          </p>
-                        )}
-                        {problem && !row.check?.inThisCampaign && otherCampaigns.length === 0 && (
-                          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-danger)", margin: "6px 0 0" }}>
-                            {problem.message}
-                          </p>
-                        )}
-                        {/* Refusing the row is only half an answer -- the operator
-                            still has a post to file. The first button is the one
-                            that is almost always right: hand the link back to the
-                            server with no creator on it, which attributes it to the
-                            account the platform named and adds that creator if the
-                            roster has never seen them. The second is for a collab,
-                            where one account published a post two creators made. */}
-                        {authorSaid && !row.allowMismatch && row.state !== "saving" && row.state !== "checking" && (
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: "6px 0 0" }}>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setAddRows((prev) =>
-                                  prev.map((r, j) =>
-                                    j === i
-                                      ? {
-                                          ...r,
-                                          creatorId: "",
-                                          creatorPlatform: undefined,
-                                          creatorHandle: undefined,
-                                          mismatchHandle: undefined,
-                                          state: "idle",
-                                          error: undefined,
-                                        }
-                                      : r
-                                  )
-                                )
-                              }
-                              style={{
-                                border: "1px solid var(--cc-border)",
-                                background: "var(--cc-card)",
-                                color: "var(--cc-text)",
-                                borderRadius: 6,
-                                padding: "4px 10px",
-                                fontSize: "var(--cc-t-12)",
-                                cursor: "pointer",
-                              }}
-                            >
-                              Attribute to @{authorSaid}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setAddRows((prev) =>
-                                  prev.map((r, j) =>
-                                    j === i
-                                      ? {
-                                          ...r,
-                                          allowMismatch: true,
-                                          mismatchHandle: undefined,
-                                          state: "idle",
-                                          error: undefined,
-                                        }
-                                      : r
-                                  )
-                                )
-                              }
-                              style={{
-                                border: "none",
-                                background: "none",
-                                color: "var(--cc-text-muted)",
-                                padding: "4px 2px",
-                                fontSize: "var(--cc-t-12)",
-                                textDecoration: "underline",
-                                cursor: "pointer",
-                              }}
-                            >
-                              Add anyway
-                            </button>
-                          </div>
-                        )}
-                        {row.allowMismatch && row.creatorId && (
-                          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-warning)", margin: "6px 0 0" }}>
-                            Filed against the creator picked, not the account that posted it.
                           </p>
                         )}
                       </div>

@@ -56,14 +56,24 @@ export async function POST(req: Request) {
       ? await readOneTikTokAudioUsage(result.audio.tiktokSoundId).catch(() => null)
       : null;
   const reading = stats?.ok ? stats.stats : null;
+  /* Whether the platform confirmed the sound exists: true when TikTok's own
+     page answered, false when it was asked and nothing came back, null when
+     there is nothing to ask (an Instagram audio id). A link with a made-up id
+     resolves just as well as a real one -- the id is only digits in a URL --
+     so without this the wizard "found" a sound that does not exist and named
+     it from the slug (walkthrough 2026-10-13, A1#11). */
+  const verified = result.audio.platform === "TIKTOK" ? reading !== null : null;
 
   return NextResponse.json({
     platform: result.audio.platform,
     soundId: result.audio.tiktokSoundId,
+    verified,
     /* Whatever the URL slug spells out. The embed carries the artist and the
        cover but never the track title, so this stays the label to confirm
-       against. */
-    provisionalTitle: result.audio.provisionalTitle ?? null,
+       against -- but only for a sound the platform answered for. An
+       unverified one gets no title: the slug is whatever was typed, and
+       showing it as the sound's name is inventing one. */
+    provisionalTitle: verified === false ? null : (result.audio.provisionalTitle ?? null),
     artist: reading?.artist ?? null,
     coverImageUrl: reading?.coverImageUrl ?? null,
     usesCount: reading?.usesCount ?? null,

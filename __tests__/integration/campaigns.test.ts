@@ -398,3 +398,42 @@ describe('POST /api/campaigns', () => {
  * of that block; the two drifted apart in strictness rather than in behaviour,
  * so the weaker copy is gone.
  */
+
+/* Walkthrough 2026-10-13 A1#22: a negative budget is refused with a message
+   that names the field, and 0 -- "no budget" -- is stored as null. */
+describe('POST /api/campaigns — budget', () => {
+  const post = (budget: unknown) =>
+    POST(
+      makeRequest('http://localhost/api/campaigns', {
+        method: 'POST',
+        body: JSON.stringify({ title: 'Budgeted', budget }),
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+
+  beforeEach(() => {
+    mockAuth.mockResolvedValue(authedSession);
+    mockDb.campaign.create.mockReset().mockResolvedValue({ id: 'camp-b', title: 'Budgeted' });
+  });
+
+  it('refuses a negative budget and writes nothing', async () => {
+    const res = await post(-500);
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(await res.json())).toContain("Budget can't be negative");
+    expect(mockDb.campaign.create).not.toHaveBeenCalled();
+  });
+
+  it('stores a budget of 0 as no budget', async () => {
+    expect((await post(0)).status).toBe(201);
+    expect(mockDb.campaign.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ budget: null }) })
+    );
+  });
+
+  it('keeps a positive budget', async () => {
+    expect((await post(5000)).status).toBe(201);
+    expect(mockDb.campaign.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ budget: 5000 }) })
+    );
+  });
+});

@@ -23,6 +23,9 @@ type ResolvedSound = {
   platform: string;
   soundId: string;
   provisionalTitle: string | null;
+  /* false when TikTok was asked and did not confirm the sound; the route then
+     sends no title rather than one spelled out of the URL slug. */
+  verified?: boolean | null;
   /* Read off the sound's own page by the resolve route, before anything is
      attached -- so the confirm step shows the artwork it is about to make this
      campaign's thumbnail rather than promising it for later. */
@@ -345,6 +348,12 @@ export function CampaignAudioSetup({ campaignId }: { campaignId: string }) {
           <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>
             This is the sound we will track. Nothing has been attached yet.
           </p>
+          {resolved.verified === false && (
+            <p role="status" style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-danger)", margin: 0 }}>
+              We couldn&apos;t find or verify this sound on TikTok. Check the link; if it is right, its title and
+              cover fill in once TikTok answers.
+            </p>
+          )}
           <div style={{ background: "var(--cc-bg)", borderRadius: 10, padding: 14, display: "flex", alignItems: "center", gap: 12 }}>
             {resolved.coverImageUrl && (
               /* eslint-disable-next-line @next/next/no-img-element -- a signed
@@ -359,7 +368,7 @@ export function CampaignAudioSetup({ campaignId }: { campaignId: string }) {
             )}
             <div style={{ minWidth: 0 }}>
               <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}>
-                {resolved.provisionalTitle ?? "Untitled sound"}
+                {resolved.provisionalTitle ?? (resolved.verified === false ? "Sound not verified" : "Untitled sound")}
               </p>
               <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "4px 0 0" }}>
                 {[

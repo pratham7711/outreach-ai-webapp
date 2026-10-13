@@ -74,34 +74,24 @@ describe("AddCreatorModal", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it("sends a pasted '2.4m' as the integer the route expects", async () => {
+  /* Walkthrough 2026-10-13 R1: the form took "2.4m" followers and the roster
+     then showed it as a measured 2,400,000. Figures are read from the
+     platforms only, so the form has no field for them and sends none. */
+  it("asks for no follower or view figure and sends none", async () => {
     const fetchMock = jest.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
     global.fetch = fetchMock as any;
 
     render(<AddCreatorModal onClose={jest.fn()} />);
+    expect(screen.queryByLabelText("Follower Count")).toBeNull();
+    expect(screen.queryByLabelText("Avg Views")).toBeNull();
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Jane" } });
     fireEvent.change(screen.getByLabelText("Handle"), { target: { value: "@jane" } });
-    fireEvent.change(screen.getByLabelText("Follower Count"), { target: { value: "2.4m" } });
-    fireEvent.change(screen.getByLabelText("Avg Views"), { target: { value: "890k" } });
     submit("add-creator-form");
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body.followersCount).toBe(2_400_000);
-    expect(body.averageViews).toBe(890_000);
-  });
-
-  it("refuses an unparseable count in the form instead of posting a null", async () => {
-    const fetchMock = jest.fn();
-    global.fetch = fetchMock as any;
-
-    render(<AddCreatorModal onClose={jest.fn()} />);
-    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Jane" } });
-    fireEvent.change(screen.getByLabelText("Follower Count"), { target: { value: "loads" } });
-    submit("add-creator-form");
-
-    expect(await screen.findByRole("alert")).toHaveTextContent(/whole number/i);
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(body).not.toHaveProperty("followersCount");
+    expect(body).not.toHaveProperty("averageViews");
   });
 });
 

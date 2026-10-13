@@ -28,13 +28,17 @@ import PostStatusChip from "@/components/posts/PostStatusChip";
 import { AgeLabel } from "@/components/ds/AgeLabel";
 import { isUnknownMetric, metricReason, metricText, postCounterValue, unknownMetric, type MetricValue } from "@/lib/creators/metricValue";
 import { imgSrc, embedSrcFor, postThumbnailUrl } from "@/lib/postMedia";
-import { stripAt, formatDateAbs, formatDateTimeAbs, formatFull, fitFigureSize } from "@/lib/format";
+import { stripAt, formatDateAbs, formatDateTimeAbs, formatFull, fitFigureSize, platformLabel } from "@/lib/format";
 import { MIN_SNAPSHOTS } from "@/lib/fraud/botSignals";
 import { loadCharts } from "@/components/charts/lazyCharts";
 import { readCadenceLabel, DEFAULT_POST_TRACKING } from "@/lib/trackers/granularity";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import { useCampaignNav } from "@/components/providers/CampaignNavProvider";
 import { CampaignShareButton } from "@/components/campaigns/CampaignShareButton";
+import { useConfirm } from "@/components/ds/ConfirmDialog";
+import { removeConfirmText, removePostsSummary } from "@/lib/posts/bulkActions";
+import { toast } from "sonner";
+import { Trash2 } from "lucide-react";
 
 const PerformanceOverTimeArea = dynamic(() => loadCharts().then((m) => m.PerformanceOverTimeArea), {
   ssr: false,
@@ -359,6 +363,35 @@ export default function PostDetailPage() {
     }
   };
 
+  /* Remove from campaign (walkthrough F2): the same confirmed DELETE the Posts
+     tab's menu and bulk bar use, then back to the campaign's posts -- this
+     page's post no longer exists once it succeeds. */
+  const confirm = useConfirm();
+  const [removing, setRemoving] = useState(false);
+  const handleRemove = async () => {
+    if (!(await confirm({ ...removeConfirmText(1), tone: "danger" }))) return;
+    setRemoving(true);
+    setSyncNote(null);
+    try {
+      const res = await fetch(`/api/campaigns/${params.id}/posts`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postIds: [params.postId] }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSyncNote(body.error ?? "Could not remove this post.");
+        return;
+      }
+      toast.success(removePostsSummary(1));
+      router.push(`/campaigns/${params.id}?section=posts`);
+    } catch {
+      setSyncNote("Could not remove this post.");
+    } finally {
+      setRemoving(false);
+    }
+  };
+
   const handleFlag = async () => {
     setFlagging(true);
     try {
@@ -624,6 +657,9 @@ export default function PostDetailPage() {
             <Button variant="secondary" onClick={handleSync} loading={syncing}>
               <span style={{ display: "flex", alignItems: "center", gap: 4 }}><RefreshCw size={14} /> Sync Now</span>
             </Button>
+            <Button variant="secondary" onClick={handleRemove} loading={removing}>
+              <span style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--cc-danger)" }}><Trash2 size={14} /> Remove</span>
+            </Button>
             <a href={post.postUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
               <Button variant="primary">
                 <span style={{ display: "flex", alignItems: "center", gap: 4 }}><ExternalLink size={14} /> View Post</span>
@@ -817,7 +853,10 @@ export default function PostDetailPage() {
                     readCadenceLabel(timeseries?.readCadence ?? DEFAULT_POST_TRACKING.readCadence),
                     formatRemaining(timeseries?.hoursRemaining ?? null),
                   )
-                : "Tracking off. Meta and IG only return lifetime totals, so enable tracking to record a real time series."}
+                : /* Named for this post's own platform: the line said "Meta and IG"
+                     on TikTok and YouTube posts too. Every platform we read
+                     answers with today's lifetime totals only. */
+                  `Tracking off. ${platformLabel(post.platform) || "The platform"} only reports a post's lifetime totals, not their history, so turn tracking on to record how they change over time.`}
             </p>
             {trackingEnabled && timeseries?.trackingExpiresAt && (timeseries.trackingSource ?? "tracker") === "tracker" && (
               <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)", margin: "4px 0 0" }}>

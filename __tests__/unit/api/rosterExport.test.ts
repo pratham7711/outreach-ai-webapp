@@ -81,6 +81,14 @@ describe("GET /api/creators/export", () => {
     expect(cell.v).toBe(evil.name);
   });
 
+  it("writes an account held on the creator row as a profile URL, never a bare @handle", async () => {
+    const typed = { ...plain, id: "t", platform: "TIKTOK", handle: "@Walk_Typed" };
+    mdb.creator.findMany.mockResolvedValueOnce([{ id: "t" }]).mockResolvedValueOnce([typed]);
+    const lines = (await (await exportRoster(get("/api/creators/export?format=csv&ids=t"))).text()).split("\n");
+    expect(lines[1]).toContain('"https://www.tiktok.com/@walk_typed"');
+    expect(lines[1]).not.toContain(`"'@`);
+  });
+
   it("resolves a filter query in the caller's org", async () => {
     mdb.creator.count.mockResolvedValue(1);
     mdb.creator.findMany.mockResolvedValueOnce([{ id: "b" }]).mockResolvedValueOnce([plain]);

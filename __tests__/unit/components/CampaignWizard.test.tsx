@@ -177,3 +177,79 @@ describe("CampaignWizard — post approval mode is a radio group", () => {
     expect(radios()[0]).toHaveAttribute("aria-checked", "true");
   });
 });
+
+/**
+ * Walkthrough 2026-10-13 A1#22: the Budget field took "-500" and the only
+ * answer was the server's bare "Invalid input". It is refused beside the field
+ * now, and 0 means "no budget", sent as null like an empty field.
+ */
+describe("CampaignWizard — budget", () => {
+  const budget = (value: string) => fireEvent.change(screen.getByLabelText("Budget"), { target: { value } });
+
+  it("refuses a negative budget beside the field and holds Create Campaign", () => {
+    openWizard();
+    name("Summer Drop");
+    budget("-500");
+    expect(screen.getByRole("alert")).toHaveTextContent("Budget can't be negative.");
+    expect(create()).toBeDisabled();
+    budget("500");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(create()).not.toBeDisabled();
+  });
+
+  it("sends a budget of 0 as no budget", async () => {
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ id: "c-1" }) });
+    (global as { fetch: unknown }).fetch = fetchMock;
+    openWizard();
+    name("Summer Drop");
+    budget("0");
+    await act(async () => {
+      fireEvent.click(create());
+    });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).budget).toBeNull();
+  });
+});
+
+/**
+ * Walkthrough 2026-10-13 A1#11: Import on a TikTok link whose id TikTok does
+ * not know showed a sound card titled from the URL slug ("WALK Test Sound").
+ * The route now says whether the platform confirmed the sound, and an
+ * unconfirmed one gets no card and no name.
+ */
+describe("CampaignWizard — importing a sound TikTok cannot confirm", () => {
+  function importLink(response: Record<string, unknown>) {
+    (global as { fetch: unknown }).fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => response });
+    openWizard();
+    fireEvent.click(screen.getByText("This campaign promotes a sound"));
+    fireEvent.change(screen.getByLabelText("Sound link"), {
+      target: { value: "https://www.tiktok.com/music/WALK-Test-Sound-7400000000000000009" },
+    });
+  }
+
+  it("says it could not find or verify the sound and shows no made-up title", async () => {
+    importLink({ platform: "TIKTOK", soundId: "7400000000000000009", verified: false, provisionalTitle: null });
+    await act(async () => {
+      fireEvent.click(screen.getByText("Import"));
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent("We couldn't find or verify this sound on TikTok.");
+    expect(screen.queryByText(/WALK Test Sound/)).toBeNull();
+    expect(screen.queryByText(/^Sound 7400000000000000009$/)).toBeNull();
+  });
+
+  it("still shows the card for a sound TikTok answered for", async () => {
+    importLink({
+      platform: "TIKTOK",
+      soundId: "7400000000000000009",
+      verified: true,
+      provisionalTitle: "Real Sound",
+      artist: "Real Artist",
+      coverImageUrl: "https://example.com/cover.jpg",
+      usesCount: 12,
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("Import"));
+    });
+    expect(screen.getByText("Real Sound")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+});

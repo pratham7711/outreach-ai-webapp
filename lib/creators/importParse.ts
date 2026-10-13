@@ -511,6 +511,40 @@ export const IMPORT_FIELDS = [
 ] as const;
 export type ImportField = (typeof IMPORT_FIELDS)[number];
 
+/**
+ * Follower and view columns are never imported (Pratham, 2026-10-13: figures
+ * come from the platforms, never typed in). The names stay in IMPORT_FIELDS so
+ * a mapping an older client or the roster-audit route still sends validates,
+ * but nothing reads those columns: readRow takes accounts only, and the modal
+ * offers only MAPPABLE_FIELDS and shows a metric column as not imported.
+ */
+export const METRIC_FIELDS: ReadonlySet<ImportField> = new Set<ImportField>([
+  "tiktokFollowers",
+  "tiktokAvgViews",
+  "instagramFollowers",
+  "instagramAvgViews",
+  "youtubeFollowers",
+  "youtubeAvgViews",
+  "twitterFollowers",
+  "followers",
+  "avgViews",
+]);
+
+/** The fields a column can be mapped to in the import modal. */
+export const MAPPABLE_FIELDS: readonly ImportField[] = IMPORT_FIELDS.filter((f) => !METRIC_FIELDS.has(f));
+
+/**
+ * A column of figures about an account: followers, views, likes, engagement.
+ * Shown as not imported rather than left looking unmatched, and kept away from
+ * every other field, so "Engagement rate" is not read as a price.
+ */
+export function isMetricHeader(h: ImportCell): boolean {
+  const k = headerKey(h);
+  // Deliberately narrow: "Any comments?", "How can we reach you?" and "What
+  // do you like?" are form questions, not figures.
+  return /follower|subscriber|\bsubs\b|\bviews?\b|\blikes\b|engagement|impressions/.test(k);
+}
+
 export const FIELD_LABELS: Record<ImportField, string> = {
   name: "Name",
   email: "Email",
@@ -557,20 +591,20 @@ function headerPlatform(h: string): "tiktok" | "instagram" | "youtube" | "twitte
 export function detectMapping(headers: ImportCell[]): ColumnMapping {
   const keys = headers.map(headerKey);
   const mapping: ColumnMapping = keys.map(() => null);
+  // Metric columns are left unmapped, and no other field may claim one.
+  const metric = headers.map(isMetricHeader);
   const claim = (field: ImportField, test: (h: string) => boolean) => {
     if (mapping.includes(field)) return;
-    const i = keys.findIndex((h, idx) => mapping[idx] === null && test(h));
+    const i = keys.findIndex((h, idx) => mapping[idx] === null && !metric[idx] && test(h));
     if (i >= 0) mapping[i] = field;
   };
 
   for (let i = 0; i < keys.length; i++) {
     const h = keys[i];
     const p = headerPlatform(h);
-    if (!p) continue;
+    if (!p || metric[i]) continue;
     const isLink = /link|url|profile|handle|username|account/.test(h);
-    const isFollowers = /follower|subscriber|\bsubs\b/.test(h);
-    const isViews = /view/.test(h);
-    const field = (isLink ? `${p}Link` : isFollowers ? `${p}Followers` : isViews ? `${p}AvgViews` : null) as ImportField | null;
+    const field = (isLink ? `${p}Link` : null) as ImportField | null;
     if (field && (IMPORT_FIELDS as readonly string[]).includes(field) && !mapping.includes(field)) mapping[i] = field;
   }
 
@@ -584,8 +618,6 @@ export function detectMapping(headers: ImportCell[]): ColumnMapping {
   claim("niche", (h) => /niche|category|genre|content type|^anime$/.test(h.trim()));
   claim("price", (h) => /price|rate|fee|cost/.test(h));
   claim("signedUpAt", (h) => /^time(stamp)?$|submitted|date/.test(h.trim()));
-  claim("followers", (h) => /^followers$/.test(h.trim()));
-  claim("avgViews", (h) => /^average views$|^avg views$/.test(h.trim()));
   return mapping;
 }
 
@@ -597,7 +629,8 @@ export function isSignupFormMapping(mapping: ColumnMapping): boolean {
 
 // ─── Rows → people ──────────────────────────────────────────────────────────
 
-export type ImportLink = ParsedLink & { followersCount: number | null; averageViews: number | null };
+/** An account from the sheet. No counts: those come from the platform's read. */
+export type ImportLink = ParsedLink;
 
 export type ImportPerson = {
   /** 1-based sheet rows this person came from, header included. */
@@ -615,11 +648,11 @@ export type ImportPerson = {
 
 export type RejectedRow = { row: number; name: string; reason: string };
 
-const LINK_FIELDS: Record<ImportPlatform, { link: ImportField; followers: ImportField; views?: ImportField }> = {
-  TIKTOK: { link: "tiktokLink", followers: "tiktokFollowers", views: "tiktokAvgViews" },
-  INSTAGRAM: { link: "instagramLink", followers: "instagramFollowers", views: "instagramAvgViews" },
-  YOUTUBE: { link: "youtubeLink", followers: "youtubeFollowers", views: "youtubeAvgViews" },
-  TWITTER: { link: "twitterLink", followers: "twitterFollowers" },
+const LINK_FIELDS: Record<ImportPlatform, { link: ImportField }> = {
+  TIKTOK: { link: "tiktokLink" },
+  INSTAGRAM: { link: "instagramLink" },
+  YOUTUBE: { link: "youtubeLink" },
+  TWITTER: { link: "twitterLink" },
 };
 
 export function text(v: ImportCell): string | null {
@@ -694,13 +727,9 @@ export function readRow(
     const parsed = parseProfileLink(get(f.link), platform);
     if (parsed.ok) {
       // The column says TikTok, the link can still be an Instagram one; the
-      // link wins, and the column's numbers go with it.
+      // link wins. No follower or view cell is read alongside it.
       if (links.some((l) => l.platform === parsed.link.platform && l.handle === parsed.link.handle)) continue;
-      links.push({
-        ...parsed.link,
-        followersCount: rules.count(get(f.followers)),
-        averageViews: f.views ? rules.count(get(f.views)) : null,
-      });
+      links.push(parsed.link);
     } else if ("reason" in parsed) {
       problems.push(parsed.reason);
     }
@@ -718,10 +747,6 @@ export function readRow(
   }
 
   const primary = primaryLink(links)!;
-  // "Followers" and "Average Views" with no platform in the header describe
-  // the primary account (the sign-up sheet's cleaned "Creator Directory" tab).
-  if (primary.followersCount === null) primary.followersCount = rules.count(get("followers"));
-  if (primary.averageViews === null) primary.averageViews = rules.count(get("avgViews"));
 
   const email = text(get("email"));
   const niche = text(get("niche"));
@@ -791,14 +816,7 @@ export function mergePeople(people: ImportPerson[]): ImportPerson[] {
         if (p[k] !== null) (out as Record<string, unknown>)[k] = p[k];
       }
       for (const t of p.tags) tags.add(t);
-      for (const l of p.links) {
-        const prev = links.get(linkKey(l));
-        links.set(linkKey(l), {
-          ...l,
-          followersCount: l.followersCount ?? prev?.followersCount ?? null,
-          averageViews: l.averageViews ?? prev?.averageViews ?? null,
-        });
-      }
+      for (const l of p.links) links.set(linkKey(l), l);
     }
     out.rows.sort((a, b) => a - b);
     out.links = PRIMARY_ORDER.flatMap((p) => [...links.values()].filter((l) => l.platform === p));

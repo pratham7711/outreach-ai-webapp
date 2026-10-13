@@ -244,6 +244,17 @@ export default function CampaignWizard({
         setImportError(body?.message ?? "Could not read that sound.");
         return;
       }
+      /* The link parsed, but TikTok had no sound under that id -- or would not
+         say. Either way nothing was found, so no card and no name: the slug in
+         the URL is not the sound's title. The link is still kept: creating
+         the campaign primes a read of the sound, and the daily sound snapshot
+         keeps trying, so the details fill in if it turns out to be real. */
+      if (body?.verified === false) {
+        setImportError(
+          "We couldn't find or verify this sound on TikTok. Check the link; if it is right, you can still create the campaign and the sound's details fill in once TikTok answers.",
+        );
+        return;
+      }
       setImported({
         soundId: body.soundId,
         platform: body.platform,
@@ -287,7 +298,8 @@ export default function CampaignWizard({
           /* BUDGET_BASED is what a negotiated campaign has always been stored
              as; VIEW_BASED belonged to per-view. */
           campaignType: "BUDGET_BASED",
-          budget: form.budget ? Number(form.budget) : null,
+          // 0 is "no budget", stored as null like an empty field.
+          budget: budgetValue ? budgetValue : null,
           currency: form.currency,
           postApprovalMode: form.postApprovalMode,
           /* paymentMode, paymentRelease and enrollmentOpen are not sent -- the
@@ -316,7 +328,15 @@ export default function CampaignWizard({
     }
   };
 
-  const canCreate = form.title.trim().length > 0 && !audioError;
+  /* A budget is money set aside, so it cannot be negative. The number input
+     took "-500" and the server's refusal came back as a bare "Invalid input";
+     it is caught here, beside the field, before anything is sent. The route
+     refuses it too (app/api/campaigns). */
+  const budgetValue = form.budget.trim() === "" ? null : Number(form.budget);
+  const budgetError =
+    budgetValue !== null && (!Number.isFinite(budgetValue) || budgetValue < 0) ? "Budget can't be negative." : null;
+
+  const canCreate = form.title.trim().length > 0 && !audioError && !budgetError;
 
   return (
     <Modal
@@ -496,10 +516,17 @@ export default function CampaignWizard({
             <Input
               label="Budget"
               type="number"
+              min={0}
               value={form.budget}
               onChange={(e) => set({ budget: e.target.value })}
               placeholder="e.g. 10000"
+              aria-invalid={Boolean(budgetError)}
             />
+            {budgetError && (
+              <p role="alert" style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-danger)", margin: "6px 0 0" }}>
+                {budgetError}
+              </p>
+            )}
           </div>
           <div style={{ width: 110 }}>
             <label htmlFor="wz-currency" style={labelStyle}>Currency</label>

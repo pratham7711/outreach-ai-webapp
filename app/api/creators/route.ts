@@ -24,8 +24,10 @@ const createCreatorSchema = z.object({
   contactEmail: z.string().email().optional(),
   bio: z.string().optional(),
   rate: z.number().positive().optional(),
-  followersCount: z.number().int().nonnegative().optional(),
-  averageViews: z.number().int().nonnegative().optional(),
+  // No followersCount / averageViews. Figures come from the platforms, never
+  // from whoever is adding the creator: z.object strips unknown keys, so an
+  // older client or an API caller that still sends them is accepted and the
+  // numbers are dropped rather than stored beside measured ones.
 });
 
 // GET /api/creators
@@ -94,7 +96,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { name, handle, platform, contactEmail, bio, rate, followersCount, averageViews } = parsed.data;
+    const { name, handle, platform, contactEmail, bio, rate } = parsed.data;
 
     // A handle is how a creator is identified everywhere else in this app: the
     // portal matches its CreatorUser to an org Creator by handle, and so does
@@ -137,8 +139,6 @@ export async function POST(request: NextRequest) {
         contactEmail: contactEmail ?? null,
         bio: bio ?? null,
         rate: rate ?? null,
-        followersCount: followersCount ?? 0,
-        averageViews: averageViews ?? 0,
         orgId,
       },
     });
@@ -167,8 +167,6 @@ export async function POST(request: NextRequest) {
       creatorId: creator.id,
       platform: creator.platform,
       handle: creator.handle,
-      typedFollowers: followersCount,
-      typedViews: averageViews,
     }).catch(() => null);
 
     return NextResponse.json(lookup ? { ...creator, lookup } : creator, { status: 201 });

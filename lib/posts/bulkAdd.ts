@@ -18,9 +18,16 @@
  *  - A link with no answer is reconciled before it is called anything: the
  *    server is asked whether the post is now in the campaign, and keeps being
  *    asked for as long as an unanswered add could still be running. The next
- *    link is not sent until then, so nothing overlaps on the server either.
+ *    link on the same platform is not sent until then, so no platform's reads
+ *    overlap on the server either.
  *  - Only a link the server confirms is absent reads "not added". One it could
  *    not be asked about says so, rather than guessing in either direction.
+ *
+ * Platforms run side by side, though (runInLanes). Strictly one link at a time
+ * made a paste of one TikTok, one reel and one YouTube video wait for each
+ * platform's read in turn -- 6.5s + 10.3s + 5.8s, 22.7s in all on the demo
+ * database (walkthrough 2026-10-13, A1#4) -- when the pacer and the rate limits
+ * that rule protects are each per platform.
  */
 import { detectPlatform } from "@/lib/platforms/postUrl";
 
@@ -56,6 +63,57 @@ export function groupIndices<T>(items: readonly T[], size: number = ADD_GROUP_SI
   const groups: T[][] = [];
   for (let i = 0; i < items.length; i += step) groups.push(items.slice(i, i + step));
   return groups;
+}
+
+/**
+ * How many platforms are added to at once.
+ *
+ * The one-at-a-time rule above guards the TikTok pacer and each platform's own
+ * rate limit, and a TikTok read spends none of Instagram's or YouTube's. So
+ * links on different platforms go in parallel lanes while each lane stays one
+ * link at a time with its group pause -- a mixed paste now takes about as long
+ * as its slowest platform rather than the sum of all of them. Three, not one
+ * per platform, so a paste across every platform still puts at most three adds
+ * on the server at once.
+ */
+export const ADD_PLATFORM_LANES = 3;
+
+/** The submit order split by platform, keeping each link's order within its lane. */
+export function platformLanes<T>(items: readonly T[], platformOf: (item: T) => string | null | undefined): T[][] {
+  const lanes = new Map<string, T[]>();
+  for (const item of items) {
+    const key = platformOf(item) ?? "";
+    const lane = lanes.get(key);
+    if (lane) lane.push(item);
+    else lanes.set(key, [item]);
+  }
+  return [...lanes.values()];
+}
+
+/**
+ * Works through the lanes with at most `limit` going at once. Inside a lane,
+ * one item at a time, and a pause after every group of `groupSize` -- the same
+ * groups and pause the batch always had, now kept per platform. A lane that
+ * finishes hands its slot to the next one waiting.
+ */
+export async function runInLanes<T>(
+  lanes: readonly (readonly T[])[],
+  work: (item: T) => Promise<void>,
+  opts: { sleep: (ms: number) => Promise<void>; limit?: number; groupSize?: number; groupPauseMs?: number },
+): Promise<void> {
+  const limit = Math.max(1, Math.floor(opts.limit ?? ADD_PLATFORM_LANES));
+  const groupPauseMs = opts.groupPauseMs ?? ADD_GROUP_PAUSE_MS;
+  let next = 0;
+  const worker = async () => {
+    while (next < lanes.length) {
+      const groups = groupIndices(lanes[next++], opts.groupSize);
+      for (let g = 0; g < groups.length; g++) {
+        if (g > 0) await opts.sleep(groupPauseMs);
+        for (const item of groups[g]) await work(item);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, lanes.length) }, worker));
 }
 
 /** What asking the server about one link established. */
@@ -235,19 +293,20 @@ export function addRunReasonsText(s: AddRunSummary): string {
 }
 
 export type AddProgress = {
-  /** 1-based position of the link being sent, among those being sent. */
-  current: number;
+  /** Links that have finished, whichever way, among those being sent. */
+  done: number;
   total: number;
-  group: number;
-  groups: number;
-  /** The add got no answer and the server is being asked whether it saved. */
+  /** An add got no answer and the server is being asked whether it saved. */
   checking: boolean;
 };
 
-/** "Adding 14 of 37… · group 2 of 4". */
+/**
+ * "Adding 37 posts… 14 done". Counted by what has finished, not by which link
+ * is being sent: with platforms running side by side several are in flight at
+ * once, so "Adding 3 of 3" would have been on screen from the first second.
+ */
 export function addProgressText(p: AddProgress): string {
-  const head = `Adding ${p.current} of ${p.total}…`;
-  const group = p.groups > 1 ? ` · group ${p.group} of ${p.groups}` : "";
+  const head = p.total === 1 ? "Adding 1 post…" : `Adding ${p.total} posts… ${p.done} done`;
   const tail = p.checking ? " · no answer yet, checking whether it was saved" : "";
-  return `${head}${group}${tail}`;
+  return `${head}${tail}`;
 }

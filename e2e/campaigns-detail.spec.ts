@@ -44,8 +44,11 @@ test.describe('Campaign Detail', () => {
     await expect(page.locator('#add-post-urls')).toHaveCount(0);
 
     await paste('main');
-    // The title counts the dialog's rows, so it says both links arrived.
-    await expect(page.getByRole('dialog', { name: 'Add 2 Posts' })).toBeVisible({ timeout: 10000 });
+    // Both links arrived. The title no longer carries a count (it disagreed
+    // with the submit button's), so the field's own count is what says so.
+    const dialog = page.getByRole('dialog', { name: 'Add Posts' });
+    await expect(dialog).toBeVisible({ timeout: 10000 });
+    await expect(dialog.getByText(/^2 links found\./)).toBeVisible();
     await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click();
   });
 

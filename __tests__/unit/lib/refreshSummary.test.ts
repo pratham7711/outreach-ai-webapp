@@ -1,47 +1,39 @@
 import { summariseRefresh, describeAudioRefresh, describeTrackerSweep } from "@/lib/refreshSummary";
 
 describe("summariseRefresh", () => {
-  it("says a refresh happened and nothing more", () => {
-    expect(summariseRefresh({ total: 17, measured: 3, noMetrics: 14 })).toBe("Posts updated.");
+  /* Accurate, not merely reassuring (walkthrough 2026-10-13, F5): a run that
+     updated 1 post of 3 said "Post updated." and named no reason for the
+     other two. */
+  it("gives the ratio and why the rest could not be read", () => {
+    expect(
+      summariseRefresh({ total: 3, measured: 1, noMetrics: 1, unfetchable: 1, reasons: { "platform-challenged": 1, "post-deleted": 1 } }),
+    ).toBe("1 of 3 updated · 2 couldn't be read: 1 blocked by the platform, 1 no longer exists.");
   });
 
-  it("does not give the ratio either", () => {
-    /* The count went the same way as the reasons, and for the same reason:
-       "3 of 17" invited the question the breakdown used to answer badly. How
-       fresh any single post is already sits on that post's own row, which is
-       where the reader can act on it. */
-    const text = summariseRefresh({ total: 17, measured: 3, noMetrics: 14 });
-    expect(text).not.toMatch(/\d/);
-    expect(text).not.toMatch(/of 17|3 of/);
+  it("still gives the count when no reason was recorded", () => {
+    expect(summariseRefresh({ total: 17, measured: 3, noMetrics: 14 })).toBe("3 of 17 updated · 14 couldn't be read.");
   });
 
-  it("says nothing about the posts that came back empty", () => {
-    /* Deliberate. The reader cannot act on "14 returned no metrics" and it read
-       as the product apologising in the middle of their campaign; the numbers
-       are still on CampaignRefreshRun for whoever is debugging the run. */
-    const text = summariseRefresh({ total: 5, measured: 1, noMetrics: 2, unfetchable: 2 });
-    expect(text).toBe("Post updated.");
-    expect(text).not.toMatch(/no metrics|unfetchable/i);
-  });
-
-  it("says post, not posts, when exactly one landed", () => {
+  it("says all of them when every post landed", () => {
+    expect(summariseRefresh({ total: 40, measured: 40 })).toBe("All 40 posts updated.");
     expect(summariseRefresh({ total: 1, measured: 1 })).toBe("Post updated.");
-    expect(summariseRefresh({ total: 40, measured: 1 })).toBe("Post updated.");
   });
 
   it("does not claim an update when nothing was measured", () => {
-    /* The one line the shortened wording must not cross. A run that read no new
-       numbers has not updated anything, and "Posts updated." there would be the
-       toolbar telling the user something false. Still no cause named -- that
-       stays in the run record -- but not a false claim either. */
-    expect(summariseRefresh({ total: 62, measured: 0, noMetrics: 62 })).toBe("No new data yet.");
-    expect(summariseRefresh({ total: 62 })).toBe("No new data yet.");
+    expect(summariseRefresh({ total: 62, measured: 0, noMetrics: 62, reasons: { "platform-challenged": 62 } })).toBe(
+      "0 of 62 updated · 62 couldn't be read: 62 blocked by the platform.",
+    );
+    expect(summariseRefresh({ total: 62 })).toBe("0 of 62 updated · 62 couldn't be read.");
   });
 
-  it("does not mention failures or a deferred batch either", () => {
-    expect(summariseRefresh({ total: 40, measured: 20, failed: 2, remaining: 18 })).toBe(
-      "Posts updated."
+  it("separates posts the time budget never reached from posts that failed", () => {
+    expect(summariseRefresh({ total: 40, measured: 20, failed: 2, remaining: 18, reasons: { error: 2 } })).toBe(
+      "20 of 40 updated · 2 couldn't be read: 2 errored · 18 not reached this time; press Refresh Data again.",
     );
+  });
+
+  it("leaves a reason it has no wording for out rather than printing a slug", () => {
+    expect(summariseRefresh({ total: 2, measured: 1, reasons: { "some-new-slug": 1 } })).toBe("1 of 2 updated · 1 couldn't be read.");
   });
 
   it("has its own wording for a campaign with no posts yet", () => {
@@ -53,19 +45,19 @@ describe("summariseRefresh", () => {
 describe("summariseRefresh audio", () => {
   it("reports an unreachable sound, which used to pass as a clean success", () => {
     expect(summariseRefresh({ total: 17, measured: 3, noMetrics: 14, sound: { failed: 1 } })).toBe(
-      "Posts updated. The campaign audio could not be reached."
+      "3 of 17 updated · 14 couldn't be read. The campaign audio could not be reached."
     );
   });
 
   it("reports a snapshot that landed", () => {
     expect(summariseRefresh({ total: 2, measured: 2, sound: { snapshots: 1 } })).toBe(
-      "Posts updated. Campaign audio updated."
+      "All 2 posts updated. Campaign audio updated."
     );
   });
 
   it("still reports the audio when no post data landed", () => {
     expect(summariseRefresh({ total: 4, measured: 0, sound: { failed: 1 } })).toBe(
-      "No new data yet. The campaign audio could not be reached."
+      "0 of 4 updated · 4 couldn't be read. The campaign audio could not be reached."
     );
   });
 
@@ -83,7 +75,7 @@ describe("summariseRefresh audio", () => {
 
   it("says nothing about a sound that was too fresh to re-fetch", () => {
     expect(summariseRefresh({ total: 4, measured: 4, sound: { skipped: 1 } })).toBe(
-      "Posts updated."
+      "All 4 posts updated."
     );
   });
 

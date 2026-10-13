@@ -8,9 +8,10 @@ import { Button } from "@/components/ds";
 import PlatformChips, { type PlatformChipLink } from "@/components/creators/PlatformChips";
 import {
   FIELD_LABELS,
-  IMPORT_FIELDS,
+  MAPPABLE_FIELDS,
   MAX_IMPORT_ROWS,
   detectMapping,
+  isMetricHeader,
   isSignupFormMapping,
   parseTimestamp,
   type ColumnMapping,
@@ -25,7 +26,8 @@ import { formatFull, formatFullCurrency } from "@/lib/format";
  * it again and decides, so the review shows exactly what will be written.
  */
 
-type Sheet = { name: string; rows: ImportCell[][]; dataRows: number };
+/** `csv`: the one "sheet" of a CSV file, which has no tab name of its own. */
+type Sheet = { name: string; rows: ImportCell[][]; dataRows: number; csv?: boolean };
 
 type PreviewPerson = {
   index: number;
@@ -62,13 +64,17 @@ function hasValue(c: ImportCell) {
 async function readWorkbook(file: File): Promise<Sheet[]> {
   const XLSX = await import("xlsx");
   // Text for a CSV, so a UTF-8 file without a BOM keeps its accents.
-  const wb = /\.csv$/i.test(file.name)
+  const csv = /\.csv$/i.test(file.name);
+  const wb = csv
     ? XLSX.read(await file.text(), { type: "string" })
     : XLSX.read(await file.arrayBuffer(), { type: "array" });
   return wb.SheetNames.map((name) => {
     const raw = XLSX.utils.sheet_to_json<ImportCell[]>(wb.Sheets[name], { header: 1, raw: true, defval: null, blankrows: false });
     const rows = raw.map((r) => r.map((c) => (typeof c === "string" ? c.slice(0, 4000) : c)));
-    return { name, rows, dataRows: rows.slice(1).filter((r) => r.some(hasValue)).length };
+    // A CSV has no tabs; the "Sheet1" the reader names it is not the user's
+    // word, so it never becomes a tag or a source label. The file name is.
+    const label = csv ? file.name.replace(/\.csv$/i, "") : name;
+    return { name: label, rows, dataRows: rows.slice(1).filter((r) => r.some(hasValue)).length, csv };
   });
 }
 
@@ -111,7 +117,9 @@ export default function ImportCreatorsModal({ onClose }: { onClose: () => void }
 
   const recognised = mapping.length > 0 && isSignupFormMapping(mapping);
   const extraTags = splitTags(tagText);
-  const source = (recognised ? `Sign-up form · ${sheet?.name ?? ""}` : `${fileName} · ${sheet?.name ?? ""}`).slice(0, 120);
+  const source = (
+    recognised ? `Sign-up form · ${sheet?.name ?? ""}` : sheet?.csv ? sheet.name : `${fileName} · ${sheet?.name ?? ""}`
+  ).slice(0, 120);
 
   // Leaving mid-save loses nothing already written, but the rest never arrives.
   useEffect(() => {
@@ -149,7 +157,8 @@ export default function ImportCreatorsModal({ onClose }: { onClose: () => void }
     const detected = detectMapping(s.rows[0] ?? []);
     setSheet(s);
     setMapping(detected);
-    setTagText(s.name);
+    // An xlsx tab name is often the group ("Anime", "Sign-ups"); a CSV has none.
+    setTagText(s.csv ? "" : s.name);
     setDry(null);
     setStep(isSignupFormMapping(detected) ? "review" : "map");
   }
@@ -363,6 +372,7 @@ export default function ImportCreatorsModal({ onClose }: { onClose: () => void }
           <>
             <p className="cc-import-lead">
               Match each column to what it holds. Columns set to “Don’t import” are ignored; at least one profile link is needed.
+              Follower and view columns are never imported: those figures come from the platforms.
             </p>
             <ul className="cc-import-map">
               {(sheet.rows[0] ?? []).map((header, i) => {
@@ -370,10 +380,24 @@ export default function ImportCreatorsModal({ onClose }: { onClose: () => void }
                 // A form timestamp arrives as an Excel serial day; show it as the date it is.
                 const when = mapping[i] === "signedUpAt" ? parseTimestamp(raw) : null;
                 const sample = when ? when.toISOString().slice(0, 10) : raw;
+                const title = hasValue(header) ? String(header) : `Column ${i + 1}`;
+                /* Followers, views, engagement: not imported whatever the user
+                   picks (the server reads no count), so no picker is offered. */
+                if (isMetricHeader(header)) {
+                  return (
+                    <li key={i} className="cc-import-map-row">
+                      <span className="cc-import-map-label">
+                        <span className="cc-import-tab-name">{title}</span>
+                        {hasValue(sample) && <span className="cc-import-hint">e.g. {String(sample).slice(0, 48)}</span>}
+                      </span>
+                      <span className="cc-import-hint">Not imported: figures come from the platforms</span>
+                    </li>
+                  );
+                }
                 return (
                   <li key={i} className="cc-import-map-row">
                     <label htmlFor={`import-col-${i}`} className="cc-import-map-label">
-                      <span className="cc-import-tab-name">{hasValue(header) ? String(header) : `Column ${i + 1}`}</span>
+                      <span className="cc-import-tab-name">{title}</span>
                       {hasValue(sample) && <span className="cc-import-hint">e.g. {String(sample).slice(0, 48)}</span>}
                     </label>
                     <select
@@ -392,7 +416,7 @@ export default function ImportCreatorsModal({ onClose }: { onClose: () => void }
                       }}
                     >
                       <option value="">Don’t import</option>
-                      {IMPORT_FIELDS.map((f) => (
+                      {MAPPABLE_FIELDS.map((f) => (
                         <option key={f} value={f}>
                           {FIELD_LABELS[f]}
                         </option>
@@ -577,7 +601,10 @@ export default function ImportCreatorsModal({ onClose }: { onClose: () => void }
                 {formatFull(dry.counts.rejected)} row{dry.counts.rejected === 1 ? "" : "s"} skipped (needs attention).
               </p>
             )}
-            <p className="cc-import-hint">Follower counts and profile pictures fill in in the background within a day.</p>
+            <p className="cc-import-hint">
+              Follower and view figures are read from the platforms, not the sheet; they and profile pictures fill in
+              in the background within a day.
+            </p>
           </div>
         )}
       </div>

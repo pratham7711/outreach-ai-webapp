@@ -76,11 +76,15 @@ describe("POST /api/creators/import", () => {
   });
 
   it("hands the planner each person as the first import read the same rows", async () => {
-    const rows = [HEADERS, ["Page 0", "p0@example.com", "https://www.tiktok.com/@page0", 17.3, ""], ["Page 1", "p1@example.com", "https://www.tiktok.com/@page1", "31,2 mil", ""]];
+    // The name is a cell the two parsers still read differently: the first
+    // kept "(@page1)", the current one drops it. The follower column is
+    // ignored by both now, so no typed figure reaches the planner either way.
+    const rows = [HEADERS, ["Page 0", "p0@example.com", "https://www.tiktok.com/@page0", 17.3, ""], ["Page 1 (@page1)", "p1@example.com", "https://www.tiktok.com/@page1", "31,2 mil", ""]];
     await post({ rows, mode: "commit", offset: 1, limit: 1 });
     const [, people, , earlier] = mockPlan.mock.calls[0];
-    expect(people.map((p: any) => [p.rows, p.links[0].followersCount])).toEqual([[[3], 31200]]);
-    expect(earlier.map((p: any) => [p.rows, p.links[0].followersCount])).toEqual([[[3], 31200000]]);
+    expect(people.map((p: any) => [p.rows, p.name])).toEqual([[[3], "Page 1"]]);
+    expect(earlier.map((p: any) => [p.rows, p.name])).toEqual([[[3], "Page 1 (@page1)"]]);
+    expect([...people, ...earlier].map((p: any) => p.links[0].followersCount)).toEqual([undefined, undefined]);
   });
 
   it("commits one slice at a time and says where to resume", async () => {

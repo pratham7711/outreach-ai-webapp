@@ -9,6 +9,7 @@ import { creatorAvgViewsTime, creatorFollowersTime, type FigureTime } from "@/li
 import { latestTrackerReadings } from "@/lib/creators/latestReadings";
 import { metricExportCell, unknownNotes, type MetricValue } from "@/lib/creators/metricValue";
 import { linkFollowers, rosterAvgViews, rosterFollowers } from "@/lib/creators/rosterMetrics";
+import { normalizeHandle, profileUrl, type ImportPlatform } from "@/lib/creators/importParse";
 
 /**
  * The roster as a spreadsheet: one row per creator, one column pair per
@@ -127,7 +128,12 @@ export async function rosterExportRows(orgId: string, ids: string[], opts: Roste
       }
       // A creator from before profile links holds one account on the row
       // itself, so its count is the primary one and its note is that one's.
-      if (c.platform === platform) return [`@${c.handle.replace(/^@/, "")}`, metricExportCell(followers)];
+      // Written as the profile URL, the same shape every linked account gets:
+      // a bare "@handle" both read differently from the rows around it and,
+      // starting with "@", was escaped by the CSV writer into "'@handle".
+      if (c.platform === platform) {
+        return [profileUrl(platform as ImportPlatform, normalizeHandle(platform as ImportPlatform, c.handle)), metricExportCell(followers)];
+      }
       return [null, null];
     };
     const accounts = PLATFORM_COLUMNS.flatMap(accountFor);
