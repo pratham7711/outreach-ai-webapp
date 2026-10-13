@@ -6,7 +6,7 @@ import { Input, Badge, Card, EmptyState } from "@pratham7711/ui";
 import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, Check, Search, Users, Info } from "lucide-react";
 import { computeSelfServeBudget } from "@/lib/campaigns/selfServeBudget";
-import { stripAt, formatFull } from "@/lib/format";
+import { stripAt, formatFull, platformLabel } from "@/lib/format";
 import { PageHeader, Dropdown, Button } from "@/components/ds";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
@@ -414,7 +414,7 @@ export default function SelfServeWizard({
                           {c.name}
                         </span>
                         <span style={{ display: "block", fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
-                          @{stripAt(c.handle)} · {c.platform} · {formatFollowers(c.followersCount)} followers
+                          @{stripAt(c.handle)} · {platformLabel(c.platform)} · {formatFollowers(c.followersCount)} followers
                         </span>
                       </span>
                       <span style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", flexShrink: 0 }}>
@@ -467,7 +467,7 @@ export default function SelfServeWizard({
                     <CreatorAvatar id={c.id} name={c.name} size="sm" />
                     <div style={{ minWidth: 0 }}>
                       <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{c.name}</p>
-                      <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>@{stripAt(c.handle)} · {c.platform}</p>
+                      <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>@{stripAt(c.handle)} · {platformLabel(c.platform)}</p>
                     </div>
                     </div>
                     <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{rate > 0 ? money(currency, rate) : "No rate"}</p>

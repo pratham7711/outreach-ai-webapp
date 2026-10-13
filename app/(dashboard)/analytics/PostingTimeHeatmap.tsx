@@ -13,6 +13,7 @@ import {
   type TimedPost,
 } from "@/lib/analytics/postingTime";
 import { formatNumber } from "./shared";
+import { noun } from "@/lib/ui/noun";
 
 const HOUR_TICKS = [0, 3, 6, 9, 12, 15, 18, 21];
 
@@ -100,7 +101,7 @@ export function PostingTimeHeatmap({
                   }}
                 >
                   {formatSlot(b)} · {formatNumber(b.medianViews)} median
-                  <span style={{ opacity: 0.7, fontWeight: 500 }}> · {b.count} posts</span>
+                  <span style={{ opacity: 0.7, fontWeight: 500 }}> · {b.count} {noun(b.count, "post")}</span>
                 </span>
               ))}
             </div>

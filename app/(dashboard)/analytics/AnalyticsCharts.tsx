@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import { formatCompact } from "@/lib/format";
+import { formatCompact, platformLabel } from "@/lib/format";
 import {
   AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar,
 } from "recharts";
@@ -81,6 +81,7 @@ export function PlatformBreakdownBar({ data }: { data: PlatformBreakdown[] }) {
           type="category"
           dataKey="platform"
           tick={axisTickSm}
+          tickFormatter={(v) => platformLabel(String(v))}
           width={70}
           axisLine={false}
           tickLine={false}

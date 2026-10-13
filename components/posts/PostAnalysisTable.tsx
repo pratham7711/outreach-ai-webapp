@@ -8,6 +8,7 @@ import { UNKNOWN, formatDateTimeAbs, platformLabel, stripAt, timeAgo, formatFull
 import { metricValue } from "@/lib/metricDisplay";
 import { PLATFORM_FILTER_OPTIONS } from "@/lib/platforms/constants";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
+import { noun } from "@/lib/ui/noun";
 
 export type AnalysisPost = {
   id: string;
@@ -151,7 +152,7 @@ export function PostAnalysisTable({
           />
         )}
         <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", fontVariantNumeric: "tabular-nums" }}>
-          {totals.posts} posts · {formatFull(totals.views)} views
+          {totals.posts} {noun(totals.posts, "post")} · {formatFull(totals.views)} views
         </span>
       </div>
 
@@ -181,9 +182,12 @@ export function PostAnalysisTable({
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <CreatorAvatar id={p.creatorId} name={p.creatorName ?? "Unknown"} size="sm" />
                     <div style={{ minWidth: 0 }}>
+                    {/* Padded to a 25px target and handed back by the margin, so
+                        the row keeps its height; the bare 17px line was the
+                        whole target (WCAG 2.5.8 asks for 24). */}
                     <Link
                       href={`/campaigns/${p.campaignId}/posts/${p.id}`}
-                      style={{ textDecoration: "none", color: "var(--cc-text)", fontWeight: "var(--cc-fw-strong)", fontSize: "var(--cc-t-14)"}}
+                      style={{ display: "inline-block", padding: "4px 0", margin: "-4px 0", textDecoration: "none", color: "var(--cc-text)", fontWeight: "var(--cc-fw-strong)", fontSize: "var(--cc-t-14)"}}
                     >
                       {p.creatorName ?? "Unknown"}
                     </Link>

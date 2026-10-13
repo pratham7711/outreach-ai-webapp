@@ -20,6 +20,8 @@ import {
 } from "./shared";
 import { loadCharts } from "@/components/charts/lazyCharts";
 import { asOfCaption } from "@/lib/dataAge";
+import { noun } from "@/lib/ui/noun";
+import { platformLabel } from "@/lib/format";
 
 const MonthlyTrendArea = dynamic(() => loadCharts().then((m) => m.MonthlyTrendArea), {
   ssr: false,
@@ -314,10 +316,10 @@ export default function AnalyticsPage() {
                               className="size-2 shrink-0 rounded-full"
                               style={{ background: platformColor(p.platform) }}
                             />
-                            <span className="text-xs text-muted-foreground">{p.platform}</span>
+                            <span className="text-xs text-muted-foreground">{platformLabel(p.platform)}</span>
                           </span>
                           <span className="text-xs font-semibold text-foreground tabular-nums">
-                            {p.posts} posts
+                            {p.posts} {noun(p.posts, "post")}
                           </span>
                         </li>
                       ))}

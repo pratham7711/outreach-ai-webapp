@@ -15,7 +15,7 @@ describe("readCreatorSort", () => {
 
   it("ignores a column the database cannot order by", () => {
     // ?sort=avgViews would otherwise sort one page and look like it worked.
-    for (const key of ["avgViews", "campaigns", "followers", "; drop table", ""]) {
+    for (const key of ["avgViews", "campaigns", "; drop table", ""]) {
       expect(readCreatorSort({ sort: key })).toEqual(DEFAULT_CREATOR_SORT);
     }
   });
@@ -56,9 +56,10 @@ describe("creatorOrderBy", () => {
     expect(creatorOrderBy({ key: "added", dir: "desc" })[0]).toEqual({ addedAt: "desc" });
   });
 
-  it("does not offer followers, whose zeros are unknowns", () => {
+  it("orders followers by the stored count, for callers that pin the unknown zeros last", () => {
     // followersCount is Float @default(0), so 1,823 unimported counts are 0 and
-    // not NULL. Ascending would rank them all as the least-followed creator.
-    expect(CREATOR_SORT_KEYS).not.toContain("followers");
+    // not NULL. This order applies only within the known segment; the zeros are
+    // read separately (lib/creators/rosterSort), never sorted in with them.
+    expect(creatorOrderBy({ key: "followers", dir: "asc" })[0]).toEqual({ followersCount: "asc" });
   });
 });

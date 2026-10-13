@@ -8,6 +8,7 @@ import { formatDistanceToNow } from "date-fns";
 import type { CampaignWithRelations } from "@/types";
 import { imgSrc } from "@/lib/postMedia";
 import { campaignStatusLabel } from "@/lib/statusColors";
+import { noun } from "@/lib/ui/noun";
 
 const statusColors: Record<string, string> = {
   DRAFT: "bg-gray-100 text-gray-700",
@@ -106,11 +107,11 @@ export function CampaignCard({ campaign }: { campaign: CampaignWithRelations }) 
           <div className="mt-3 flex items-center gap-5 text-sm text-muted-foreground">
             <span className="flex items-center gap-1.5">
               <Users className="h-4 w-4" />
-              {campaign._count.activations} creators
+              {campaign._count.activations} {noun(campaign._count.activations, "creator")}
             </span>
             <span className="flex items-center gap-1.5">
               <FileText className="h-4 w-4" />
-              {campaign._count.posts} posts
+              {campaign._count.posts} {noun(campaign._count.posts, "post")}
             </span>
             <span className="flex items-center gap-1.5">
               <Clock className="h-4 w-4" />

@@ -581,12 +581,22 @@ export default function TeamClient({
 
       {/* Invite Modal */}
       <Modal open={canManage && showModal} onClose={() => { setShowModal(false); setError(null); }} title="Invite Team Member">
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {/* A form, so Enter in the address field sends the invite, and a
+            label tied to the input by id, so the field has a name. Both were
+            missing: the label was free-standing text and Enter did nothing. */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!loading && inviteEmail) void handleInvite();
+          }}
+          style={{ display: "flex", flexDirection: "column", gap: 16 }}
+        >
           <div>
-            <label style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6, display: "block" }}>
+            <label htmlFor="cc-invite-email" style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6, display: "block" }}>
               Email Address
             </label>
             <Input
+              id="cc-invite-email"
               type="email"
               placeholder="colleague@company.com"
               value={inviteEmail}
@@ -595,9 +605,11 @@ export default function TeamClient({
             />
           </div>
           <div>
-            <label style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6, display: "block" }}>
+            {/* Not a <label>: the Dropdown is a button named by its own
+                ariaLabel, and a label pointing at nothing names nothing. */}
+            <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6, display: "block" }}>
               Role
-            </label>
+            </span>
             <Dropdown
               ariaLabel="Role"
               align="left"
@@ -616,20 +628,20 @@ export default function TeamClient({
             </div>
           )}
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
-            <Button variant="ghost" size="sm" onClick={() => { setShowModal(false); setError(null); }}>
+            <Button type="button" variant="ghost" size="sm" onClick={() => { setShowModal(false); setError(null); }}>
               Cancel
             </Button>
             <Button
+              type="submit"
               variant="primary"
               size="sm"
-              onClick={handleInvite}
               disabled={loading || !inviteEmail}
               iconLeft={<Mail size={14} />}
             >
               {loading ? "Sending..." : "Send Invite"}
             </Button>
           </div>
-        </div>
+        </form>
       </Modal>
     </div>
   );

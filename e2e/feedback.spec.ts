@@ -3,8 +3,8 @@ import { waitForMain } from './helpers';
 
 /**
  * The Feedback button, from both ends: the person who presses it (an agency
- * user on a dashboard page, and a client on a share link with no session) and
- * the platform operator who reads it at /platform/feedback.
+ * user on a dashboard page) and the platform operator who reads it at
+ * /platform/feedback. Signed-out pages do not offer it.
  *
  * Every report must arrive with a screenshot -- that is the feature -- so each
  * test fetches the stored image back and checks it is a real JPEG, not just
@@ -85,7 +85,11 @@ test.describe('Feedback', () => {
     await expect(page.getByTestId('feedback-row').filter({ hasText: marker })).toHaveCount(0, { timeout: 15000 });
   });
 
-  test('a client on a share link sends feedback without signing in', async ({ browser, page }) => {
+  /* The button left the signed-out pages on purpose (2026-10-13): a brand
+     opening a report link is not who it asks, and as a floating pill it sat
+     over the report's own controls. The API still accepts a link-token report,
+     which the next test covers from the refusing side. */
+  test('a signed-out visitor on a share link is not offered Feedback', async ({ browser, page }) => {
     const share = await page.request.post('/api/campaigns/camp-1/share');
     let token: string | null = share.ok() ? ((await share.json())?.link?.token ?? null) : null;
     if (!token) {
@@ -94,27 +98,17 @@ test.describe('Feedback', () => {
     }
     expect(token, 'a public share link for camp-1').toBeTruthy();
 
-    const marker = `e2e feedback share ${Date.now()}`;
     const client = await browser.newContext({ storageState: { cookies: [], origins: [] } });
     try {
       const clientPage = await client.newPage();
       await clientPage.goto(`/share/${token}`);
       await clientPage.waitForLoadState('networkidle');
-      await sendFeedback(clientPage, marker);
+      // The report itself rendered, so an absent button is not an absent page.
+      await expect(clientPage.getByRole('heading').first()).toBeVisible({ timeout: 20000 });
+      await expect(clientPage.getByRole('button', { name: 'Send feedback about this page' })).toHaveCount(0);
     } finally {
       await client.close();
     }
-
-    const row = await findInInbox(page, marker);
-    expect(row.surface).toBe('share');
-    expect(row.fromLink).toBe(true);
-    expect(row.userEmail).toBeNull();
-    expect(row.orgName).toBeTruthy();
-    expect(row.hasScreenshot).toBe(true);
-    await expectStoredJpeg(page, row.id);
-
-    const done = await page.request.patch('/api/platform/feedback', { data: { id: row.id, resolved: true } });
-    expect(done.status()).toBe(200);
   });
 
   test('no session and no live link is refused', async ({ browser }) => {

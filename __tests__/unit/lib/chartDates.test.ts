@@ -5,6 +5,7 @@
  */
 import { chartDateAxis, evenTicks, sortByDate } from "@/lib/reports/chartDates";
 import { platformSeriesColor } from "@/lib/reports/platformSeriesColor";
+import { platformColor } from "@/app/(dashboard)/analytics/shared";
 
 const days = (from: string, n: number) => {
   const start = new Date(`${from}T00:00:00Z`).getTime();
@@ -55,17 +56,17 @@ describe("chartDateAxis", () => {
 });
 
 describe("platformSeriesColor", () => {
-  it("gives TikTok, Instagram and YouTube three different colours", () => {
-    const colors = ["TIKTOK", "INSTAGRAM", "YOUTUBE"].map((p) => platformSeriesColor(p, "var(--chart-1)").color);
+  it("gives TikTok, Instagram and YouTube three different colours, the app palette's own", () => {
+    const colors = ["TIKTOK", "INSTAGRAM", "YOUTUBE"].map((p) => platformSeriesColor(p, platformColor(p)).color);
     expect(new Set(colors).size).toBe(3);
-    for (const c of colors) expect(c).toMatch(/^var\(--cc-/);
+    for (const c of colors) expect(c).toMatch(/^var\(--cc-cat-/);
   });
 
   it("draws them solid, since the colour alone tells them apart", () => {
-    expect(platformSeriesColor("instagram", "var(--chart-2)").solid).toBe(true);
+    expect(platformSeriesColor("instagram", platformColor("instagram")).solid).toBe(true);
   });
 
-  it("keeps the caller's series token for a platform with no colour of its own", () => {
-    expect(platformSeriesColor("THREADS", "var(--chart-4)")).toEqual({ color: "var(--chart-4)", solid: false });
+  it("keeps the theme's dashes for a platform with no colour of its own", () => {
+    expect(platformSeriesColor("THREADS", "var(--cc-cat-4)")).toEqual({ color: "var(--cc-cat-4)", solid: false });
   });
 });

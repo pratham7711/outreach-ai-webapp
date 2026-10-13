@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import { formatCompact, formatCompactCurrency } from "@/lib/format";
+import { formatCompact, formatCompactCurrency, platformLabel } from "@/lib/format";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, BarChart, Bar, LabelList, ReferenceLine,
 } from "recharts";
@@ -150,7 +150,7 @@ export function PlatformBreakdownPie({
         </Pie>
         <Tooltip
           contentStyle={chartTooltipStyle}
-          formatter={(v, name) => [`${formatNumber(Number(v))} views`, String(name)]}
+          formatter={(v, name) => [`${formatNumber(Number(v))} views`, platformLabel(String(name))]}
         />
       </PieChart>
     </ChartFrame>

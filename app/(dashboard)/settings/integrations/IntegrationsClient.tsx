@@ -256,6 +256,8 @@ export function IntegrationsClient() {
                           }}
                           size="sm"
                           disabled={busy}
+                          label={def.label}
+                          className="cc-toggle-named"
                         />
                       </div>
                     ))}

@@ -13,6 +13,7 @@ import { rosterAvgViews, rosterFollowers } from "@/lib/creators/rosterMetrics";
 import { creatorAvgViewsTime, creatorFollowersTime, figureTimeDto, linkFollowersTime } from "@/lib/creators/figureTime";
 import { latestTrackerReadings } from "@/lib/creators/latestReadings";
 import { CREATOR_PLATFORM_TABS } from "@/lib/creators/platformTabs";
+import { pinsUnknownLast, splitByKnownFollowers, unknownLastWindow, UNKNOWN_FOLLOWERS_ORDER } from "@/lib/creators/rosterSort";
 
 /** "United States, Brazil" rows counted per country, most common first. */
 function countryOptions(groups: { value: string | null; _count: number }[]) {
@@ -56,23 +57,38 @@ export default async function CreatorsPage({
     ),
   );
 
-  /* The page's rows are wanted twice: on their own, and for the ids every
-     per-row read below needs. Promise.resolve turns the lazy Prisma query into
-     one ordinary promise, so it runs once. The per-row reads start the moment
-     the rows arrive rather than after the slowest of the counts beside them,
-     and the reads that need no ids start with everything else. */
-  const pageRows = Promise.resolve(
+  const findPage = (w: typeof where, orderBy: ReturnType<typeof creatorOrderBy>, skip: number, take: number) =>
     db.creator.findMany({
-      where,
+      where: w,
       include: {
         _count: { select: { activations: true, posts: true } },
         tagLinks: { select: { tag: { select: { name: true } } } },
       },
-      orderBy: creatorOrderBy(sort),
-      take: CREATORS_PAGE_SIZE,
-      skip: (page - 1) * CREATORS_PAGE_SIZE,
-    }),
-  );
+      orderBy,
+      take,
+      skip,
+    });
+  // Followers is read as two segments, known counts then the unknown zeros,
+  // so a creator nobody has read never ranks as the least-followed one
+  // (lib/creators/rosterSort). Every other order is the single query it was.
+  const listPage = async () => {
+    const skip = (page - 1) * CREATORS_PAGE_SIZE;
+    if (!pinsUnknownLast(sort)) return findPage(where, creatorOrderBy(sort), skip, CREATORS_PAGE_SIZE);
+    const split = splitByKnownFollowers(where);
+    const window = unknownLastWindow(await db.creator.count({ where: split.known }), skip, CREATORS_PAGE_SIZE);
+    const [known, unknown] = await Promise.all([
+      window.known.take > 0 ? findPage(split.known, creatorOrderBy(sort), window.known.skip, window.known.take) : [],
+      window.unknown.take > 0 ? findPage(split.unknown, UNKNOWN_FOLLOWERS_ORDER, window.unknown.skip, window.unknown.take) : [],
+    ]);
+    return [...known, ...unknown];
+  };
+
+  /* The page's rows are wanted twice: on their own, and for the ids every
+     per-row read below needs. listPage() is one ordinary promise, so it runs
+     once. The per-row reads start the moment the rows arrive rather than after
+     the slowest of the counts beside them, and the reads that need no ids
+     start with everything else. */
+  const pageRows = listPage();
   const detailWhere = { orgId, creator: { deletedAt: null } };
   const rosterWide = Promise.all([
     roster ? db.creatorDetail.groupBy({ by: ["audienceCountry"], where: detailWhere, _count: true }) : [],

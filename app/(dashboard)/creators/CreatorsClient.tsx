@@ -3,7 +3,7 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, LayoutGrid, List as ListIcon, Users, Upload, X, Globe2, ChevronRight, AlertTriangle } from "lucide-react";
 import { Badge, Card, Input, EmptyState } from "@pratham7711/ui";
-import { PageHeader, StatusTabs, Pagination, FilterDrawer, FilterButton, SortableTh, Button } from "@/components/ds";
+import { PageHeader, StatusTabs, Pagination, FilterDrawer, FilterButton, SortableTh, Button, Dropdown } from "@/components/ds";
 import type { FilterDef, FilterValues } from "@/components/ds";
 import { Loader2, Search } from "lucide-react";
 import AddCreatorModal from "@/components/modals/AddCreatorModal";
@@ -230,6 +230,13 @@ const CreatorCard = memo(function CreatorCard({
   );
 });
 
+/* 12 a side, not the house 24. MEASURED 2026-10-13: at 24 the roster table
+   was 1264px inside the 1110px card a 1440 window leaves it, so it scrolled
+   sideways on every desktop; nine columns of 24px padding were 432px of it.
+   The card still scrolls the table (never the page) below that width. */
+const ROSTER_PAD_X = 12;
+const ROSTER_CELL_PAD = `14px ${ROSTER_PAD_X}px`;
+
 const CreatorRow = memo(function CreatorRow({
   c,
   on,
@@ -248,9 +255,11 @@ const CreatorRow = memo(function CreatorRow({
   return (
     <tr className="cc-table-row" data-selected={on || undefined} style={{ borderTop: "1px solid var(--cc-border)" }}>
       <td className="cc-roster-td-check">
-        <input type="checkbox" checked={on} onChange={() => onToggle(c.id)} aria-label={`Select ${c.name}`} />
+        <label className="cc-roster-check-hit">
+          <input type="checkbox" checked={on} onChange={() => onToggle(c.id)} aria-label={`Select ${c.name}`} />
+        </label>
       </td>
-      <td style={{ padding: "14px 24px" }}>
+      <td style={{ padding: ROSTER_CELL_PAD }}>
         <Link prefetch={false} href={`/creators/${c.id}`} style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 12 }}>
           <CreatorAvatar id={c.id} name={c.name} size="sm" version={c.avatarVersion} />
           <div>
@@ -259,16 +268,16 @@ const CreatorRow = memo(function CreatorRow({
           </div>
         </Link>
       </td>
-      <td style={{ padding: "14px 24px" }}>
+      <td style={{ padding: ROSTER_CELL_PAD }}>
         <PlatformChips links={accountsOf(c)} max={3} compact />
       </td>
-      <td style={{ padding: "14px 24px" }}>
+      <td style={{ padding: ROSTER_CELL_PAD }}>
         {c.tags.length ? <TagList tags={c.tags} max={2} /> : <span style={{ color: "var(--cc-text-muted)" }}>—</span>}
       </td>
       {optionalStats.map((stat) => {
         const value = stat.read(c);
         return (
-          <td key={stat.key} style={{ padding: "14px 24px", fontSize: "var(--cc-t-14)", fontWeight: 500, color: isUnknownMetric(value) ? "var(--cc-text-muted)" : "var(--cc-text)" }}>
+          <td key={stat.key} style={{ padding: ROSTER_CELL_PAD, fontSize: "var(--cc-t-14)", fontWeight: 500, color: isUnknownMetric(value) ? "var(--cc-text-muted)" : "var(--cc-text)" }}>
             <MetricFigure value={value} format={formatNumber} />
             <FigureAge value={value} time={stat.at(c)} />
           </td>
@@ -280,12 +289,12 @@ const CreatorRow = memo(function CreatorRow({
         </td>
       )}
       {hasPrice && (
-        <td style={{ padding: "14px 24px", fontSize: "var(--cc-t-14)", fontWeight: 500, color: c.rate ? "var(--cc-text)" : "var(--cc-text-muted)" }}>
+        <td style={{ padding: ROSTER_CELL_PAD, fontSize: "var(--cc-t-14)", fontWeight: 500, color: c.rate ? "var(--cc-text)" : "var(--cc-text-muted)" }}>
           {c.rate ? formatFullCurrency(c.rate) : "—"}
         </td>
       )}
-      <td style={{ padding: "14px 24px", fontSize: "var(--cc-t-14)", fontWeight: 500, color: "var(--cc-text)" }}>{c.campaignCount}</td>
-      <td style={{ padding: "14px 24px", fontSize: "var(--cc-t-14)", fontWeight: 500, color: "var(--cc-text)" }}>{c._count.posts}</td>
+      <td style={{ padding: ROSTER_CELL_PAD, fontSize: "var(--cc-t-14)", fontWeight: 500, color: "var(--cc-text)" }}>{c.campaignCount}</td>
+      <td style={{ padding: ROSTER_CELL_PAD, fontSize: "var(--cc-t-14)", fontWeight: 500, color: "var(--cc-text)" }}>{c._count.posts}</td>
     </tr>
   );
 });
@@ -375,6 +384,23 @@ export default function CreatorsClient({
     shown.platform === null ? "All" : typeof shown.platform === "string" ? shown.platform : platform;
   const shownPage = shown.page === null ? 1 : Number(shown.page ?? page);
   const searching = pending && (shown.q ?? "") !== q;
+  /* The grid has no column headers to click, so it had no way to sort at all.
+     The same orders the table offers, as one menu that serves both views.
+     Followers puts the unread creators last in both directions (the server
+     reads it in two segments); Avg. views is not offered because it is
+     measured after a page is fetched and cannot be ordered across pages. */
+  const sortOptions = [
+    { value: "added:desc", label: "Newest added" },
+    { value: "added:asc", label: "Oldest added" },
+    { value: "name:asc", label: "Name, A to Z" },
+    { value: "name:desc", label: "Name, Z to A" },
+    { value: "followers:desc", label: "Most followers" },
+    { value: "followers:asc", label: "Fewest followers" },
+    { value: "posts:desc", label: "Most posts" },
+    { value: "posts:asc", label: "Fewest posts" },
+    { value: "price:desc", label: "Highest price" },
+    { value: "price:asc", label: "Lowest price" },
+  ];
 
   const FILTERS: FilterDef[] = [
     // Offered only once the org has defined a tag, the way the campaigns drawer
@@ -571,7 +597,7 @@ export default function CreatorsClient({
         key: stat.key,
         label: stat.label,
         empty: (c: Creator) => isUnknownMetric(stat.read(c)),
-        render: (c: Creator) => <MetricFigure value={stat.read(c)} format={formatNumber} />,
+        render: (c: Creator) => <MetricFigure value={stat.read(c)} format={formatNumber} breakable />,
         age: (c: Creator) => <FigureAge value={stat.read(c)} time={stat.at(c)} />,
       })),
       ...(hasPrice
@@ -617,6 +643,18 @@ export default function CreatorsClient({
           />
         </div>
         <FilterButton count={filterCount} onClick={() => setShowFilters(true)} />
+        <Dropdown
+          ariaLabel="Sort creators"
+          /* From `shown`, like the tabs and the pager, so the picked order
+             shows at once rather than when the server's page lands. */
+          value={`${typeof shown.sort === "string" ? shown.sort : sort.key}:${typeof shown.dir === "string" ? shown.dir : sort.dir}`}
+          onChange={(v) => {
+            const [key, dir] = v.split(":");
+            push({ sort: key, dir, page: null });
+          }}
+          options={sortOptions}
+          minWidth={170}
+        />
         <div style={{ display: "flex", alignItems: "center", gap: 4, background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 10, padding: 4 }}>
           <Button variant={view === "grid" ? "primary" : "ghost"} size="sm" onClick={() => setView("grid")} aria-label="Grid view">
             <LayoutGrid size={16} />
@@ -737,30 +775,39 @@ export default function CreatorsClient({
             <thead>
               <tr style={{ background: "var(--cc-hover-bg)" }}>
                 <th className="cc-roster-th-check">
-                  <input
-                    type="checkbox"
-                    checked={allMatching || allOnPage}
-                    ref={(el) => {
-                      if (el) el.indeterminate = !allMatching && pickedOnPage > 0 && !allOnPage;
-                    }}
-                    onChange={togglePage}
-                    aria-label="Select every creator on this page"
-                  />
+                  <label className="cc-roster-check-hit">
+                    <input
+                      type="checkbox"
+                      checked={allMatching || allOnPage}
+                      ref={(el) => {
+                        if (el) el.indeterminate = !allMatching && pickedOnPage > 0 && !allOnPage;
+                      }}
+                      onChange={togglePage}
+                      aria-label="Select every creator on this page"
+                    />
+                  </label>
                 </th>
-                <SortableTh label="Creator" sortKey="name" sort={sort} onToggle={toggleSort} />
-                <SortableTh label="Accounts" />
-                <SortableTh label="Tags" />
-                {/* Neither of these can be ordered truthfully: Avg. Views is
-                    measured from posts after this page was fetched, and an
-                    unfetched follower count is a 0 that means unknown. See
-                    CREATOR_SORT_KEYS. */}
+                <SortableTh label="Creator" sortKey="name" sort={sort} onToggle={toggleSort} padX={ROSTER_PAD_X} />
+                <SortableTh label="Accounts" padX={ROSTER_PAD_X} />
+                <SortableTh label="Tags" padX={ROSTER_PAD_X} />
+                {/* Followers sorts with the unknown zeros pinned last either way
+                    (lib/creators/rosterSort). Avg. Views still cannot be ordered
+                    truthfully: it is measured from posts after this page was
+                    fetched. See CREATOR_SORT_KEYS. */}
                 {optionalStats.map((stat) => (
-                  <SortableTh key={stat.key} label={stat.label} />
+                  <SortableTh
+                    key={stat.key}
+                    label={stat.label}
+                    sortKey={stat.key === "followers" ? "followers" : undefined}
+                    sort={sort}
+                    onToggle={toggleSort}
+                    padX={ROSTER_PAD_X}
+                  />
                 ))}
-                {hasAudience && <SortableTh label="Audience" />}
-                {hasPrice && <SortableTh label="Price" sortKey="price" sort={sort} onToggle={toggleSort} />}
-                <SortableTh label="Campaigns" />
-                <SortableTh label="Posts" sortKey="posts" sort={sort} onToggle={toggleSort} />
+                {hasAudience && <SortableTh label="Audience" padX={ROSTER_PAD_X} />}
+                {hasPrice && <SortableTh label="Price" sortKey="price" sort={sort} onToggle={toggleSort} padX={ROSTER_PAD_X} />}
+                <SortableTh label="Campaigns" padX={ROSTER_PAD_X} />
+                <SortableTh label="Posts" sortKey="posts" sort={sort} onToggle={toggleSort} padX={ROSTER_PAD_X} />
               </tr>
             </thead>
             <tbody>

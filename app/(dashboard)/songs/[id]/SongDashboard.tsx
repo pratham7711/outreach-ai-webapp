@@ -9,6 +9,7 @@ import { platformLabel, formatFull, fitFigureSize } from "@/lib/format";
 import { asOfCaption } from "@/lib/dataAge";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import AttachCampaigns, { type AttachableCampaign } from "./AttachCampaigns";
+import { noun } from "@/lib/ui/noun";
 
 type Summary = {
   campaignCount: number;
@@ -178,7 +179,7 @@ export default function SongDashboard({
         <HeroStat
           value={summary.totalViews === null ? "—" : formatFull(summary.totalViews)}
           label="Total views"
-          sub={`across ${summary.postCount} posts`}
+          sub={`across ${summary.postCount} ${noun(summary.postCount, "post")}`}
           note={viewsNote}
           valueTitle={summary.totalViews === null && summary.postCount > 0 ? "None of this song's posts has a view count read yet" : undefined}
         />
@@ -262,7 +263,7 @@ export default function SongDashboard({
                   </span>
                 )}
                 <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", fontVariantNumeric: "tabular-nums" }}>
-                  {c.postCount} posts
+                  {c.postCount} {noun(c.postCount, "post")}
                 </span>
                 <span
                   title={c.views === null ? (c.postCount === 0 ? "No posts yet" : "None of this campaign's posts has a view count read yet") : undefined}

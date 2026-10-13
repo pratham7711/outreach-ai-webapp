@@ -8,6 +8,7 @@ import { Button } from "@/components/ds";
 import { FEATURES, type FeatureKey, clientHasFeature } from "@/lib/features";
 import ClientFeatureModal from "@/components/modals/ClientFeatureModal";
 import { formatDateAbs } from "@/lib/format";
+import { campaignStatusLabel } from "@/lib/statusColors";
 import { toast } from "sonner";
 
 type Plan = { id: string; name: string; features: Record<string, boolean> };
@@ -216,7 +217,7 @@ export default function ClientDetailClient({ client, plans }: Props) {
                     {campaigns.map((c, i) => (
                       <Link prefetch={false} key={c.id} href={`/campaigns/${c.id}`} style={{ textDecoration: "none", display: "grid", gridTemplateColumns: cols, gap: 12, padding: "14px 24px", alignItems: "center", borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }} className="cc-table-row">
                         <span style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{c.title}</span>
-                        <Badge variant={STATUS_BADGE[c.status] ?? "neutral"} dot>{c.status.replace(/_/g, " ")}</Badge>
+                        <Badge variant={STATUS_BADGE[c.status] ?? "neutral"} dot>{campaignStatusLabel(c.status)}</Badge>
                         {showBudget && (
                           <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text)" }}>{c.budget ? formatCurrency(Number(c.budget), c.currency) : ""}</span>
                         )}

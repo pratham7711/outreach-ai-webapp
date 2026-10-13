@@ -6,7 +6,6 @@ import { computeCampaignPerformance, redactForShare } from "@/lib/reports/campai
 import { parseShareVisibility } from "@/lib/reports/shareVisibility";
 import { CAMPAIGN_ARTWORK_INCLUDE, campaignArtwork } from "@/lib/campaignArtwork";
 import SharedPerformanceReport from "./SharedPerformanceReport";
-import { FeedbackButton } from "@/components/feedback/FeedbackButton";
 import { BRAND } from "@/lib/brand";
 
 const SHARE_KIND = "campaign-performance";
@@ -143,7 +142,6 @@ export default async function SharedReportPage({
         // hidden budget is absent from the payload rather than merely unrendered.
         budget={visibility.showBudget ? link.campaign.budget : null}
       />
-      <FeedbackButton surface="share" linkToken={token} />
     </>
   );
 }

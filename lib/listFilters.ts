@@ -422,6 +422,11 @@ export function creatorOrderBy(sort: CreatorSort): Prisma.CreatorOrderByWithRela
     case "price":
       // Unpriced creators are unknown, not free, so they sit at the end either way.
       return [{ rate: { sort: dir, nulls: "last" } }, tiebreak];
+    case "followers":
+      // The order WITHIN the known counts. Their zeros are unknowns, not NULLs,
+      // so `nulls: "last"` cannot reach them: callers read the known and unknown
+      // rows as two segments (lib/creators/rosterSort).
+      return [{ followersCount: dir }, tiebreak];
     case "added":
     default:
       return [{ addedAt: dir }, tiebreak];

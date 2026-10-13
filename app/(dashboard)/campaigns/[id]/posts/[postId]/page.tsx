@@ -29,8 +29,10 @@ import { AgeLabel } from "@/components/ds/AgeLabel";
 import { isUnknownMetric, metricReason, metricText, postCounterValue, unknownMetric, type MetricValue } from "@/lib/creators/metricValue";
 import { imgSrc, embedSrcFor, postThumbnailUrl } from "@/lib/postMedia";
 import { stripAt, formatDateAbs, formatDateTimeAbs, formatFull, fitFigureSize, platformLabel } from "@/lib/format";
+import { enumLabel } from "@/lib/ui/enumLabel";
 import { MIN_SNAPSHOTS } from "@/lib/fraud/botSignals";
 import { loadCharts } from "@/components/charts/lazyCharts";
+import { breakableFigure } from "@/components/ds/BreakableFigure";
 import { readCadenceLabel, DEFAULT_POST_TRACKING } from "@/lib/trackers/granularity";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import { useCampaignNav } from "@/components/providers/CampaignNavProvider";
@@ -187,7 +189,9 @@ const STATUS_BADGE: Record<string, "warning" | "success" | "danger" | "neutral">
   REJECTED: "danger",
 };
 
-/** A metric-card figure that shrinks to fit rather than running off the card. */
+/** A metric-card figure that shrinks to fit, and wraps between digit groups
+    when shrinking is not enough -- never an ellipsis: "340,…" on a phone tile
+    read as a different number (MEASURED 2026-10-13 at 390). */
 function FigureValue({ text, color = "var(--cc-text)" }: { text: string; color?: string }) {
   return (
     <span
@@ -196,14 +200,12 @@ function FigureValue({ text, color = "var(--cc-text)" }: { text: string; color?:
         fontSize: fitFigureSize(text, 24),
         fontWeight: 700,
         color,
-        whiteSpace: "nowrap",
         fontVariantNumeric: "tabular-nums",
         display: "block",
-        overflow: "hidden",
-        textOverflow: "ellipsis",
+        overflowWrap: "break-word",
       }}
     >
-      {text}
+      {breakableFigure(text)}
     </span>
   );
 }
@@ -608,7 +610,7 @@ export default function PostDetailPage() {
               <h1 className="cc-page-title" data-mb="0" data-wrap="anywhere">
                 {post.caption?.slice(0, 80) ?? "Untitled Post"}
               </h1>
-              <Badge variant={STATUS_BADGE[post.status] ?? "neutral"}>{post.status.replace(/_/g, " ")}</Badge>
+              <Badge variant={STATUS_BADGE[post.status] ?? "neutral"}>{enumLabel(post.status)}</Badge>
               {/* Beside the status rather than over the 120x80 thumbnail: the
                   pill is wider than the image. Every metric card below stays
                   put — they are the post's last real numbers. */}
@@ -685,7 +687,10 @@ export default function PostDetailPage() {
 
       <div className="cc-tiles-balanced" style={{ marginBottom: 24 }}>
         {metricCards.map(({ key, field, label, icon: Icon, color }) => (
-          <Card key={key} variant="outlined" style={{ padding: "16px 20px" }}>
+          /* noPadding: the library's .ui-card-body added 24 a side inside
+             this card's own 16/20, leaving an 85px box for the figure in a
+             173px phone tile -- why "340,000" was cut to "340,…". */
+          <Card key={key} variant="outlined" noPadding style={{ padding: "16px 20px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
               <Icon size={16} color={color} />
               <span className="cc-microlabel">{label}</span>

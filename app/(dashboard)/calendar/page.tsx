@@ -7,7 +7,9 @@ import {
   startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval,
   format, isSameMonth, isSameDay, isToday, addMonths, subMonths,
 } from "date-fns";
-import { campaignStatusDot } from "@/lib/statusColors";
+import { campaignStatusDot, campaignStatusLabel } from "@/lib/statusColors";
+import { ACTIVATION_STATUS_LABEL } from "@/lib/activationQueues";
+import { enumLabel } from "@/lib/ui/enumLabel";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import CreatorName from "@/components/creators/CreatorName";
 
@@ -41,6 +43,12 @@ type CalendarActivation = {
   creator: { id: string; name: string; handle?: string | null };
   campaign: { id: string; title: string };
 };
+
+/* The activation board's own wording ("Awaiting Draft"), and sentence case for
+   a status that map has not caught up with -- never the raw enum. */
+function activationStatusLabel(status: string): string {
+  return ACTIVATION_STATUS_LABEL[status] ?? enumLabel(status);
+}
 
 type DayDetail = {
   campaigns: CalendarCampaign[];
@@ -105,11 +113,28 @@ export default function CalendarPage() {
 
   return (
     <div className="rsp-page cc-bleed-page cc-cal-page">
+      {/* On a phone a day cell is about 50px wide, so a chip could show two
+          letters of its title -- MEASURED 2026-10-13 at 390: "WA..." in a 35px
+          chip whose title needed 151 -- and a deliverable was a bare 6px dot.
+          Below 768 the cell only marks that something is on (a dot per item,
+          in its status colour) and the month is written out underneath as an
+          agenda, where a title has the full width to wrap in. */}
       <style>{`
-        .cal-more { display: none; }
+        .cal-more, .cal-marks, .cal-agenda { display: none; }
+        .cal-dots { display: flex; }
+        .cal-mark { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+        .cal-agenda ol, .cal-agenda ul { list-style: none; margin: 0; padding: 0; }
+        .cal-agenda-day + .cal-agenda-day { margin-top: 16px; }
+        .cal-agenda-date { margin: 0 0 8px; font-size: var(--cc-t-13); font-weight: var(--cc-fw-strong); color: var(--cc-text); }
+        .cal-agenda-item { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 8px; background: var(--cc-card); border: 1px solid var(--cc-border); border-left-width: 3px; }
+        .cal-agenda-item + .cal-agenda-item { margin-top: 8px; }
+        .cal-agenda-title { font-size: var(--cc-t-14); font-weight: var(--cc-fw-strong); color: var(--cc-text); overflow-wrap: anywhere; }
+        .cal-agenda-meta { font-size: var(--cc-t-12); color: var(--cc-text-muted); overflow-wrap: anywhere; }
         @media (max-width: 767px) {
-          .cal-chip-extra { display: none; }
-          .cal-more { display: block; }
+          .cal-day-cell { --cal-cell-min-h: 56px; }
+          .cal-chip, .cal-dots { display: none; }
+          .cal-marks { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+          .cal-agenda { display: block; margin-top: 16px; }
         }
       `}</style>
       <PageHeader
@@ -141,7 +166,7 @@ export default function CalendarPage() {
         {STATUS_ORDER.map((status) => (
           <div key={status} style={{ display: "flex", alignItems: "center", gap: 4 }}>
             <div style={{ width: 8, height: 8, borderRadius: "50%", background: campaignStatusDot(status) }} />
-            {status.replace(/_/g, " ")}
+            {campaignStatusLabel(status)}
           </div>
         ))}
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -192,7 +217,7 @@ export default function CalendarPage() {
                       className="cal-day-cell"
                       style={{
                         minWidth: 0, overflow: "hidden",
-                        minHeight: 90, padding: 6,
+                        minHeight: "var(--cal-cell-min-h, 90px)", padding: 6,
                         borderBottom: "1px solid var(--cc-border)",
                         borderRight: "1px solid var(--cc-border)",
                         background: isSelected ? "var(--cc-bg)" : today ? "var(--cc-primary-light)" : inMonth ? "transparent" : "var(--cc-cal-outside-bg)",
@@ -214,7 +239,12 @@ export default function CalendarPage() {
                         <div key={c.id} title={c.title} className={ci >= 2 ? "cal-chip cal-chip-extra" : "cal-chip"} style={{
                           minWidth: 0,
                           marginTop: 2, padding: "1px 4px", borderRadius: 3, fontSize: "var(--cc-t-11)", fontWeight: 500,
-                          background: `color-mix(in srgb, ${campaignStatusDot(c.status)} 14%, transparent)`,
+                          /* Mixed into the card rather than into transparent: a
+                             translucent chip over today's translucent cell is
+                             two layers the contrast sweep composites as if the
+                             lower one were opaque, scoring the title at 1.13:1
+                             on a ground that is really near-white. */
+                          background: `color-mix(in srgb, ${campaignStatusDot(c.status)} 14%, var(--cc-card))`,
                           borderLeft: `3px solid ${campaignStatusDot(c.status)}`,
                           color: "var(--cc-text)",
                           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
@@ -231,9 +261,21 @@ export default function CalendarPage() {
                       )}
                       {/* Deliverable dots */}
                       {deliverables.length > 0 && (
-                        <div style={{ display: "flex", gap: 3, marginTop: 3 }}>
+                        <div className="cal-dots" style={{ gap: 3, marginTop: 3 }}>
                           {deliverables.map(d => (
                             <div key={d.id} style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--cc-deliverable)" }} title={`${d.creator.name} - ${d.campaign.title}`} />
+                          ))}
+                        </div>
+                      )}
+                      {/* Phone only: what is on, not what it is -- the agenda
+                          under the grid says that. */}
+                      {(campaignCreated.length > 0 || deliverables.length > 0) && (
+                        <div className="cal-marks" aria-hidden="true">
+                          {campaignCreated.map((c) => (
+                            <span key={c.id} className="cal-mark" style={{ background: campaignStatusDot(c.status) }} />
+                          ))}
+                          {deliverables.map((d) => (
+                            <span key={d.id} className="cal-mark" style={{ background: "var(--cc-deliverable)" }} />
                           ))}
                         </div>
                       )}
@@ -243,6 +285,38 @@ export default function CalendarPage() {
               </div>
               )}
             </Card>
+          )}
+          {!loading && !loadFailed && !monthEmpty && (
+            <section className="cal-agenda" aria-label={`Scheduled in ${format(currentMonth, "MMMM yyyy")}`}>
+              <ol>
+                {days.map((day) => {
+                  const created = campaigns.filter((c) => isSameDay(new Date(c.createdAt), day));
+                  const due = getDeliverables(day);
+                  if (created.length === 0 && due.length === 0) return null;
+                  return (
+                    <li key={day.toISOString()} className="cal-agenda-day">
+                      <h3 className="cal-agenda-date">{format(day, "EEE d MMM")}</h3>
+                      <ul>
+                        {created.map((c) => (
+                          <li key={c.id} className="cal-agenda-item" style={{ borderLeftColor: campaignStatusDot(c.status) }}>
+                            <span className="cal-agenda-title">{c.title}</span>
+                            <span className="cal-agenda-meta">Campaign created · {campaignStatusLabel(c.status)}</span>
+                          </li>
+                        ))}
+                        {due.map((a) => (
+                          <li key={a.id} className="cal-agenda-item" style={{ borderLeftColor: "var(--cc-deliverable)" }}>
+                            <CreatorName name={a.creator.name} handle={a.creator.handle} layout="inline" size="sm" />
+                            <span className="cal-agenda-meta">
+                              Deliverable due · {a.campaign.title} · {activationStatusLabel(a.status)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </li>
+                  );
+                })}
+              </ol>
+            </section>
           )}
         </div>
 
@@ -266,7 +340,7 @@ export default function CalendarPage() {
                       {selectedDetail!.campaigns.map(c => (
                         <div key={c.id} style={{ marginTop: 8, padding: 10, borderRadius: 8, background: "var(--cc-bg)" }}>
                           <p style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}>{c.title}</p>
-                          <Badge variant="neutral" style={{ marginTop: 4, fontSize: "var(--cc-t-10)"}}>{c.status}</Badge>
+                          <Badge variant="neutral" style={{ marginTop: 4, fontSize: "var(--cc-t-10)"}}>{campaignStatusLabel(c.status)}</Badge>
                         </div>
                       ))}
                     </div>
@@ -282,7 +356,7 @@ export default function CalendarPage() {
                             <CreatorName name={a.creator.name} handle={a.creator.handle} layout="inline" size="sm" />
                           </div>
                           <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "2px 0 0" }}>{a.campaign.title}</p>
-                          <Badge variant="neutral" style={{ marginTop: 4, fontSize: "var(--cc-t-10)"}}>{a.status.replace(/_/g, " ")}</Badge>
+                          <Badge variant="neutral" style={{ marginTop: 4, fontSize: "var(--cc-t-10)"}}>{activationStatusLabel(a.status)}</Badge>
                         </div>
                       ))}
                     </div>

@@ -6,6 +6,8 @@ import { Badge, Card, EmptyState, Input } from "@pratham7711/ui";
 import { Columns3, Search, UserPlus, Users } from "lucide-react";
 import { Button, useTableSort, type SortAccessors, type SortState } from "@/components/ds";
 import { formatDateAbs, stripAt, formatFull } from "@/lib/format";
+import { ACTIVATION_STATUS_LABEL } from "@/lib/activationQueues";
+import { enumLabel } from "@/lib/ui/enumLabel";
 import { formatMoney } from "@/lib/money";
 import { CampaignHeaderActions } from "@/components/campaigns/CampaignHeaderActions";
 import { action } from "@/lib/ui/actions";
@@ -301,10 +303,10 @@ export default function RosterTable({
       case "status":
         return r.activationStatus ? (
           <Badge variant={ACTIVATION_STATUS[r.activationStatus] ?? "neutral"} dot>
-            {r.activationStatus.replace(/_/g, " ")}
+            {ACTIVATION_STATUS_LABEL[r.activationStatus] ?? enumLabel(r.activationStatus)}
           </Badge>
         ) : (
-          <Badge variant="success" dot>POSTED</Badge>
+          <Badge variant="success" dot>Posted</Badge>
         );
       default:
         return null;

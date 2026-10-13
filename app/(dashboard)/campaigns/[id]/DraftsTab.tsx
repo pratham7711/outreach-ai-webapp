@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { CampaignHeaderActions } from "@/components/campaigns/CampaignHeaderActions";
 import { action } from "@/lib/ui/actions";
 import { stripAt, formatDateAbs } from "@/lib/format";
+import { enumLabel } from "@/lib/ui/enumLabel";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import { creatorNameText } from "@/lib/creators/creatorName";
 
@@ -286,7 +287,7 @@ export default function DraftsTab({
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{d.creator.name}</p>
-                      <Badge variant={STATUS_BADGE[d.status] ?? "neutral"} dot>{d.status.replace(/_/g, " ")}</Badge>
+                      <Badge variant={STATUS_BADGE[d.status] ?? "neutral"} dot>{enumLabel(d.status)}</Badge>
                       {d.draftMediaType && <Badge variant="neutral">{d.draftMediaType}</Badge>}
                     </div>
                     <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>@{stripAt(d.creator.handle)}</p>

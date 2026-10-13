@@ -78,6 +78,18 @@
   --chart-4: #eda100;
   --chart-5: #e87ba4;
 
+  /* Platform hues: the colour that names a platform wherever platforms sit
+     side by side (the dashboard's views-by-platform donut and its legend, a
+     campaign's platform split). Here and in creatorcore they are the chart
+     ramp; the black-and-white themes give them their own values below, because
+     their ramp is five greys -- the donut's three slices were #0a0a0a, #3d3d3d
+     and #5e5e5e (MEASURED 2026-10-13), which read as one dark ring. */
+  --cc-cat-1: var(--chart-1);
+  --cc-cat-2: var(--chart-2);
+  --cc-cat-3: var(--chart-3);
+  --cc-cat-4: var(--chart-4);
+  --cc-cat-5: var(--chart-5);
+
   /* Status is RESERVED — never reused as a series colour, always with icon + label */
   /* Darkened from #0CA30C / #FAB219 (2026-09-10). These are status colours,
      and a status is nearly always rendered as TEXT on a tint of itself, so the
@@ -1436,6 +1448,16 @@
   --chart-4: #858585;
   --chart-5: #6e6e6e;
 
+  /* Platform hues (see :root). The first is the theme's own ink, so TikTok --
+     the platform most posts are on -- keeps the black-and-white look; the
+     rest are Okabe-Ito hues, which stay apart under the common colour-vision
+     deficiencies. Each is over 4.4:1 on the card (#1A1A19). */
+  --cc-cat-1: #f5f5f5;
+  --cc-cat-2: #cc79a7;
+  --cc-cat-3: #d55e00;
+  --cc-cat-4: #56b4e9;
+  --cc-cat-5: #009e73;
+
   --chart-grid: #2C2C2A;
   --chart-axis: #383835;
 
@@ -1577,6 +1599,14 @@
   --chart-3: #5e5e5e;
   --chart-4: #7a7a7a;
   --chart-5: #949494;
+
+  /* Platform hues (see :root and :root.dark). Okabe-Ito after the ink; each is
+     at least 3:1 on the white card, the floor for a graphic (WCAG 1.4.11). */
+  --cc-cat-1: #0a0a0a;
+  --cc-cat-2: #cc79a7;
+  --cc-cat-3: #d55e00;
+  --cc-cat-4: #0072b2;
+  --cc-cat-5: #009e73;
 
   --chart-grid: #EBEBEB;
   --chart-axis: #C4C4C4;
@@ -1753,7 +1783,9 @@
      text on their own tints they scored 1.95:1 and 1.93:1. --chart-3/--chart-4
      above keep the vivid Apple-system hues for graphs. */
   --status-good: #1F7735;
-  --status-warning: #995900;
+  /* #995900 measured 4.43:1 as the Stale and Unverified chips' ink on their
+     own 16% tint. #8F5300 is 4.88 there and the same amber. */
+  --status-warning: #8F5300;
   --status-serious: #FF6B35;
   --status-critical: #FF3B30;
 
@@ -1778,7 +1810,11 @@
      theirs, and rgba(255,255,255,0.5) is an enumerated entry in that spec's
      allowlist. */
   --cc-camp-rail-bg: var(--cc-primary);
-  --cc-camp-rail-fg: rgba(255, 255, 255, 0.5);
+  /* Raised for WCAG AA on 2026-10-13: the theme keeps their layout and hues,
+     but its text now has to clear 4.5:1. Their 0.5 composites to 2.82:1 on
+     the rail blue; 0.8 is 5.07:1 and still reads as the resting state against
+     the hover's full white. */
+  --cc-camp-rail-fg: rgba(255, 255, 255, 0.8);
   --cc-camp-rail-hover-bg: rgba(255, 255, 255, 0.12);
   --cc-camp-rail-hover-fg: #FFFFFF;
   --cc-camp-rail-active-bg: var(--card);
@@ -1803,12 +1839,19 @@
      0.36, and so is the Financials card label and the Documents empty line.
      It is deliberately NOT --cc-text-subtle, which sits at 0.85 because it also
      paints sidebar group labels and empty-state copy and had to clear AA. */
-  --cc-text-faint: rgba(31, 60, 239, 0.36);
+  /* Raised for WCAG AA on 2026-10-13 (see --cc-camp-rail-fg). Their 0.36 was
+     1.89:1 on white and painted every sidebar group label, KPI label and list
+     caption in the theme; the 0.85 of --cc-text-subtle is 5.34:1 on white and
+     4.52:1 on the lavender tab strip, the palest ground it lands on. */
+  --cc-text-faint: var(--cc-text-subtle);
   /* Their muted grey is blue-cast, not neutral: 'Role' on Team, the section
      caption on Notifications and the Slack line on Integrations all measure
      rgb(152, 162, 179), and their row descriptions rgb(158, 170, 182) -- within
      8 of it. Ours was #484848 on all of them. */
-  --cc-text-muted: #98A2B3;
+  /* Raised for WCAG AA on 2026-10-13 (see --cc-camp-rail-fg). #98A2B3 was
+     2.58:1 on white (189 findings in the contrast sweep). #5B6476 keeps the
+     blue cast and is 5.95:1 on white, 4.85:1 on the tab strip. */
+  --cc-text-muted: #5B6476;
   --cc-hover-bg: #EBEEFE;
   --cc-row-hover: rgba(31, 60, 239, 0.04);
 
@@ -2118,7 +2161,8 @@
   --cc-cal-weekday-pad: 6px 0;
   /* Their weekday heads are a shade darker than the rest of their muted grey
      -- rgb(138, 141, 158) against rgb(152, 162, 179), MEASURED on all seven. */
-  --cc-cal-weekday-fg: #8A8D9E;
+  /* Their #8A8D9E was 3.29:1; raised for AA with the muted grey above. */
+  --cc-cal-weekday-fg: #5C6072;
   --cc-cal-daynum-fs: 1.25rem;
   --cc-cal-daynum-fw: 600;
   --cc-cal-daynum-fw-today: 600;
@@ -2909,8 +2953,12 @@
   --cc-page-caption-mb: 5px;
   --cc-page-caption-fg: var(--cc-text-faint);
   /* Their strip uses the palette raw -- Pending rgb(231,173,0), Complete
-     rgb(86,186,87), Canceled rgb(255,0,0) all measured undarkened. */
-  --cc-status-ink-strength: 100%;
+     rgb(86,186,87), Canceled rgb(255,0,0) all measured undarkened -- and on
+     the lavender strip those read at 1.65, 2.00 and 3.26:1. Half-way toward
+     --cc-text keeps each hue and puts Pending, the palest, at 5.55:1. The selected
+     pill is filled with the same darkened ink, so it carries a white label
+     (see the creatorcore .cc-tab[aria-selected] rule). */
+  --cc-status-ink-strength: 50%;
   --cc-payout-banner-display: flex;
   --cc-act-dash-display: flex;
   --cc-queue-head-fs: 0.875rem;
@@ -2938,7 +2986,8 @@
   --cc-listpage-tiles-order: 2;
   --cc-payout-head-display: block;
   --cc-paypage-search-h: 40px;
-  --cc-status-neutral-ink: #8E8E8E;
+  /* Their All tab grey, #8E8E8E, was 2.66:1 on the strip; #616161 is 5.05. */
+  --cc-status-neutral-ink: #616161;
   --cc-stage-label-fs: var(--cc-t-14);
   --cc-stage-label-fg: var(--cc-primary);
   --cc-taxonomy-empty-fg: var(--cc-text);
@@ -2948,7 +2997,8 @@
      .ui-card-body inside the padded card, which is where our 49 came from. */
   --cc-activity-pad: 18px;
   --cc-activity-body-pad: 0px;
-  --cc-activity-tab-off: rgba(0, 0, 0, 0.5);
+  /* Their 0.5 black was 3.98:1 on the Overview's activity tabs; 0.6 is 5.74. */
+  --cc-activity-tab-off: rgba(0, 0, 0, 0.6);
   /* 1px border + 19 = the 20px inset their Post Performance panel MEASURED at
      243 against a card edge of 223, which also puts the first KPI label on
      their 258. */
@@ -3129,7 +3179,10 @@
   --cc-titleblock-gap: 10px;
   --cc-camp-status-fs: 0.875rem;
   --cc-camp-status-fw: 400;
-  --cc-camp-status-fg: #ACB9F6;
+  /* Their #ACB9F6 was 1.90:1 -- the pale lavender "In Progress" and "Budget
+     Based" badges under a campaign title. The primary is 4.63:1 on the
+     badge's own accent tint. */
+  --cc-camp-status-fg: var(--cc-primary);
   /* The primary paints LAST here, unlike the dashboard.
      MEASURED at desktop-1600: their campaign header cluster reads
      [Share Campaign x=896, Refresh Data x=1117, Add Posts x=1332, close x=1544],
@@ -3683,6 +3736,16 @@ h1, h2, h3, h4, h5, h6 {
   outline-offset: 2px;
 }
 
+/* The ring appears at once rather than fading in. The library's .ui-btn
+   declares `transition: all`, which animates the outline in from the button's
+   own text colour: MEASURED 2026-10-13 on /login, a keyboard-focused "Sign in"
+   first paints its ring rgb(245,245,245) on white (1.09:1) and only reaches
+   rgb(10,10,10) (19.8:1) after the 220ms transition. Naming what may animate
+   leaves the outline out of it. */
+.ui-btn {
+  transition-property: background-color, border-color, color, box-shadow, filter, transform, opacity;
+}
+
 /* ── Animations ── */
 @keyframes cc-fade-in {
   from { opacity: 0; }
@@ -4181,6 +4244,17 @@ h1, h2, h3, h4, h5, h6 {
 
 .cc-linkfield:focus-within {
   border-color: var(--cc-primary);
+}
+
+/* The analytics comparison's search field (CampaignComparison). The ring goes
+   round the whole field, icon included, rather than round the bare input
+   inside it, where the global ring drew a second box within the border. */
+.cc-picker-field:focus-within {
+  outline: 2px solid var(--cc-primary);
+  outline-offset: 2px;
+}
+.cc-picker-field input:focus-visible {
+  outline: none;
 }
 
 .cc-linkfield-input {
@@ -4770,14 +4844,15 @@ h1, h2, h3, h4, h5, h6 {
   margin-bottom: var(--cc-kpi-label-mb);
 }
 
+/* Wraps between digit groups (the figure carries a <wbr> after each comma)
+   rather than ending in an ellipsis -- a cut figure reads as a different
+   number. */
 .cc-kpi-chip-value {
   font-size: var(--cc-kpi-value-fs);
   font-weight: var(--cc-kpi-value-fw);
   font-variant-numeric: tabular-nums;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: break-word;
 }
 
 /* Equal columns that wrap, rather than equal flex children that never do. The
@@ -7081,9 +7156,23 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 .cc-sidebar-head {
   padding: var(--cc-rail-head-pad);
 }
+/* Wraps at word boundaries, up to three lines, rather than one line and an
+   ellipsis. MEASURED 2026-10-13 in creatorcore: "Made Boring Campaigns" is
+   184px at 15/800, and the campaign rail gives it 146 at 1440 and 80 at 1024,
+   so the workspace's own name read "Made Boring Ca…" on every campaign page.
+   At 80 each word needs its own line; "Campaigns" alone is 72. Two lines still
+   cut it to "Made / Boring…" there, so the clamp is three, a backstop for a
+   longer org name rather than the normal case. */
 .cc-rail-brand {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: var(--cc-rail-brand-fs);
   font-weight: var(--cc-rail-brand-fw);
+  line-height: 1.2;
   color: var(--cc-text);
   letter-spacing: var(--cc-rail-brand-tk);
 }
@@ -7763,6 +7852,24 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   scrollbar-color: var(--cc-border) transparent;
 }
 
+
+/* A Toggle whose row already shows its title: the library's <label htmlFor>
+   still names the switch for a screen reader, but is not painted twice. The
+   wrapper is the containing block, so the hidden label cannot escape a
+   scrolling card the way AgeLabel's did. */
+.cc-toggle-named {
+  position: relative;
+}
+.cc-toggle-named > .ui-toggle-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 
 /* Skip-to-content helper */
 .sr-only {
@@ -8998,10 +9105,14 @@ html:has(.lp-page) { scroll-behavior: smooth; }
    it picks black, which is a colour key we currently match with white. The
    fallback keeps today's value for a tab whose colour is already a variable,
    and this sits after both rules it corrects so it wins on order. */
-.cc-tabs[data-variant="solid"] .cc-tab[aria-selected="true"],
-:root.creatorcore .cc-tabs .cc-tab[aria-selected="true"] {
+.cc-tabs[data-variant="solid"] .cc-tab[aria-selected="true"] {
   --cc-tab-fg: var(--cc-tab-on-ink, var(--cc-on-primary));
 }
+/* creatorcore is not in that rule any more: its status inks are mixed half-way
+   toward --cc-text (--cc-status-ink-strength), so every filled pill is dark and the
+   white of the theme's own selected rule above reads on all of them. Judged on
+   the raw literal, --cc-tab-on-ink chose black for Pending and Complete, which
+   on the darkened fill computes to about 3:1. */
 
 /* The Posts tab's own filter strip. MEASURED 2026-09-14 on their
    campaign-busy-posts and campaign-busy-drafts: selected is a solid
@@ -9621,11 +9732,24 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   :root:not(.creatorcore) .cc-shell-root[data-shell="campaign"] .cc-page-meta {
     --cc-page-meta-gap: 8px;
   }
-  /* Two equal columns: at three each chip is ~112px, and the demo campaign's
-     "1,823,228,537" needed a 144px chip at these themes' figure size. */
+  /* One row that scrolls sideways rather than four rows of two. MEASURED
+     2026-10-13 at 390x844, light, Posts tab: the eight chips in two columns
+     stood 258px tall, and with the filters under them the first post began
+     at y=978 -- not one post on the first screen. Each chip keeps the 148px
+     the demo campaign's "1,823,228,537" needs at these themes' figure size
+     (144 measured), and at 42% the third chip is cut at the edge, which is the
+     cue that the row scrolls. Snap so a flick stops on a chip, not between. */
   :root:not(.creatorcore) .cc-kpi-strip:not(.cc-kpi-quiet) {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(148px, 42%);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+  :root:not(.creatorcore) .cc-kpi-strip:not(.cc-kpi-quiet) > .cc-kpi-chip {
+    scroll-snap-align: start;
   }
 
   /* Share Campaign leads every section's actions (components/campaigns/
@@ -10167,6 +10291,9 @@ a.cc-platform-chip[data-problem]:hover {
   flex: 1;
   min-width: 0;
 }
+/* line-height 1.5 makes the link's own box 24px (WCAG 2.5.8); at 1.35 it was
+   22. Its ::after covers the card, so the real target was always larger, but
+   the element a checker or a screen reader's focus box reports is this one. */
 .cc-roster-card-link {
   display: block;
   overflow: hidden;
@@ -10174,7 +10301,7 @@ a.cc-platform-chip[data-problem]:hover {
   white-space: nowrap;
   font-size: var(--cc-t-16);
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.5;
   color: var(--cc-text);
   text-decoration: none;
 }
@@ -10282,11 +10409,31 @@ a.cc-platform-chip[data-problem]:hover {
   padding: 14px 0 14px 20px;
   text-align: left;
 }
+/* The table's checkbox was a bare 16px box -- the whole target (WCAG 2.5.8
+   asks for 24). The label makes a 32px square around it that toggles it too;
+   the negative margins give the 16px back on every side, so the box stays
+   where it was and neither the row nor the column grows. The cell has no
+   right padding, so the square's right 8px lie over the next cell, which
+   paints later and took those clicks; position: relative lifts the square
+   above it. */
+.cc-roster-check-hit {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin: -8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.cc-roster-check-hit:hover {
+  background: var(--cc-hover-bg);
+}
 .cc-table-row[data-selected] {
   background: var(--cc-primary-light);
 }
 .cc-roster-td-text {
-  padding: 14px 24px;
+  padding: 14px 12px; /* matches ROSTER_CELL_PAD in CreatorsClient */
   max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -10314,11 +10461,12 @@ a.cc-platform-chip[data-problem]:hover {
 .cc-roster-card-stats dt {
   margin-bottom: 2px;
 }
+/* Wraps between digit groups (MetricFigure puts a <wbr> after each comma)
+   instead of an ellipsis: three stats to a card left "1,826,153…" at 1440 and
+   at 390, which reads as a different number. MEASURED 2026-10-13. */
 .cc-roster-card-stats dd {
   margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: break-word;
   font-size: var(--cc-t-16);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -11126,34 +11274,43 @@ a.cc-platform-chip[data-problem]:hover {
 .cc-tracker-ops-log { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-direction: column; gap: 6px; font-size: var(--cc-t-13); color: var(--cc-text); }
 
 /* ── Feedback button (components/feedback/FeedbackButton) ──────────────────
-   Bottom-right on every client and creator page: above the page and the rail,
-   under scrims, drawers and dialogs, so an open menu or modal covers it. */
-.cc-feedback-fab {
-  position: fixed;
-  right: 16px;
-  bottom: calc(16px + env(safe-area-inset-bottom));
-  z-index: 50;
+   A control in the page's chrome -- the top bar, the creatorcore rail's utility
+   row, the creator app's header -- never a layer over the page. As a fixed pill
+   in the bottom-right corner it sat on whatever a page put there: MEASURED
+   2026-10-13 at 1440x900 it took the click meant for "Next page" and covered
+   the roster's "Track selected"; at 390 the bulk bar's third button and the
+   "Posted to" field. Same height and ground as the top bar's search box, so the
+   bar reads as one row of tools. */
+.cc-feedback-trigger {
+  position: relative;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 8px 14px;
+  flex-shrink: 0;
+  height: var(--cc-topbar-search-h);
+  margin: 0;
+  padding: 0 12px;
   border: 1px solid var(--cc-border);
-  border-radius: var(--cc-r-pill);
+  border-radius: var(--cc-topbar-search-r);
   background: var(--cc-card);
   color: var(--cc-text);
+  font: inherit;
   font-size: var(--cc-t-13);
   font-weight: var(--cc-fw-label);
   line-height: 1.2;
-  box-shadow: var(--cc-popover-shadow);
+  white-space: nowrap;
   cursor: pointer;
 }
-.cc-feedback-fab:hover { border-color: var(--cc-primary); color: var(--cc-primary); }
-/* On a phone the labelled pill sat over the right-hand column of whatever was
-   under it -- a creator's views on the client report. Once the page is
-   scrolled it drops to its icon; back at the top the label returns. */
+.cc-feedback-trigger:hover { border-color: var(--cc-primary); color: var(--cc-primary); }
+.cc-feedback-trigger:disabled,
+.cc-feedback-trigger-icon:disabled { cursor: progress; opacity: 0.8; }
+/* A phone's bar is a hamburger, a breadcrumb, the bell and the avatar; the
+   word goes and the glyph stays, named by its aria-label. The 44px floor for
+   top-bar buttons below 768 is what sizes it. */
 @media (max-width: 767.98px) {
-  .cc-feedback-fab-compact { padding: 10px; gap: 0; }
-  .cc-feedback-fab-compact .cc-feedback-fab-label {
+  .cc-feedback-trigger { padding: 0; width: var(--cc-topbar-search-h); }
+  .cc-feedback-trigger-label {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -11161,14 +11318,6 @@ a.cc-platform-chip[data-problem]:hover {
     clip-path: inset(50%);
     white-space: nowrap;
   }
-}
-.cc-feedback-fab:disabled { cursor: progress; opacity: 0.8; }
-/* The creator portal's phone tab bar is ~57px plus the safe area. */
-@media (max-width: 1023.98px) {
-  .cc-feedback-fab-raised { bottom: calc(72px + env(safe-area-inset-bottom)); }
-}
-@media print {
-  .cc-feedback-fab { display: none; }
 }
 .cc-feedback-panel { display: flex; flex-direction: column; gap: 10px; }
 .cc-feedback-shot { margin: 0; display: flex; flex-direction: column; gap: 6px; }

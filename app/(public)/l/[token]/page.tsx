@@ -5,7 +5,6 @@ import { POWERED_BY } from "@/lib/brand";
 import { loadListShare, sharedListCreators } from "@/lib/lists/listShare";
 import { applyShareReview } from "@/lib/lists/listReview";
 import SharedListView from "./SharedListView";
-import { FeedbackButton } from "@/components/feedback/FeedbackButton";
 
 /** generateMetadata and the page both need the share; cache() makes it one query per request. */
 const loadShare = cache((token: string) => loadListShare(token));
@@ -57,7 +56,6 @@ export default async function SharedListPage({ params }: { params: Promise<{ tok
         review={review}
         poweredBy={POWERED_BY}
       />
-      <FeedbackButton surface="list" linkToken={token} />
     </>
   );
 }

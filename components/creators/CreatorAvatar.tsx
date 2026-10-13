@@ -9,7 +9,10 @@ const REQUEST_PX: Record<Size, number> = { sm: 64, md: 96, lg: 128 };
 
 export const avatarRequestPx = (size: Size) => REQUEST_PX[size];
 
-/** The picture for a creator id, served from CreatorAvatar. */
+/** The picture for a creator id, served from CreatorAvatar. `miss=empty` asks
+ *  for a 204 rather than a 404 when there is none (lib/creators/avatarResponse):
+ *  the <img> still errors over to initials, without a console error per
+ *  picture-less creator. */
 export function creatorAvatarSrc(
   creatorId: string | null | undefined,
   size: Size = "sm",
@@ -17,7 +20,7 @@ export function creatorAvatarSrc(
 ): string | undefined {
   if (!creatorId) return undefined;
   const v = version ? `&v=${encodeURIComponent(version)}` : "";
-  return `/api/creators/${encodeURIComponent(creatorId)}/avatar?w=${REQUEST_PX[size]}${v}`;
+  return `/api/creators/${encodeURIComponent(creatorId)}/avatar?w=${REQUEST_PX[size]}&miss=empty${v}`;
 }
 
 /**

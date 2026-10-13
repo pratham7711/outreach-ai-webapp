@@ -149,11 +149,11 @@ export function statusInk(style: StatusStyle): string {
  * and black scores fractionally better there (4.96 against 4.24). 3.5 keeps
  * their pill and still rejects every pale fill.
  *
- * Judged on the RAW literal, which is right for the only themes that fill a
- * pill solid: creatorcore leaves the ink at --cc-status-ink-strength 100%, so
- * the literal IS what gets painted. Elsewhere the ink is mixed toward
- * --cc-text, which in a light theme only darkens it -- so a literal that
- * carries white keeps carrying it.
+ * Judged on the RAW literal. Every theme mixes the ink toward --cc-text
+ * (--cc-status-ink-strength), which in a light theme only darkens it -- so a
+ * literal that carries white keeps carrying it. creatorcore no longer reads
+ * this at all: its inks are mixed half-way, every filled pill is dark, and its
+ * own selected-tab rule gives them all a white label (globals.css).
  */
 export function whiteReadsOnInk(ink: string): boolean {
   return contrastRatio(ink, SURFACE) >= 3.5;

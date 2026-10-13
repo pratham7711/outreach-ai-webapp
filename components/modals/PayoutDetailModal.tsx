@@ -4,7 +4,7 @@ import { Modal, Badge } from "@pratham7711/ui";
 import { Button } from "@/components/ds";
 import { ArrowRight, CheckCircle2, ExternalLink } from "lucide-react";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
-import { formatHandle } from "@/lib/format";
+import { formatHandle, platformLabel } from "@/lib/format";
 
 type Payout = {
   id: string;
@@ -76,7 +76,7 @@ export default function PayoutDetailModal({
         <CreatorAvatar id={payout.creator.id} name={payout.creator.name} size="md" />
         <div style={{ flex: 1 }}>
           <p style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)" }}>{payout.creator.name}</p>
-          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{formatHandle(payout.creator.handle)} · {payout.creator.platform}</p>
+          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{formatHandle(payout.creator.handle)} · {platformLabel(payout.creator.platform)}</p>
         </div>
         <div style={{ textAlign: "right" }}>
           <p style={{ fontSize: "var(--cc-t-20)", fontWeight: "var(--cc-fw-black)", color: "var(--cc-text)" }}>{formatCurrency(payout.amount, payout.currency)}</p>

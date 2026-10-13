@@ -17,6 +17,7 @@ import { mediaUrl } from "@/lib/postMedia";
 import { useSidebar } from "@/components/providers/SidebarProvider";
 import { ThemeRadioGroup } from "@/components/ThemeChoices";
 import { NotificationBell } from "@/components/layout/NotificationBell";
+import { FeedbackButton } from "@/components/feedback/FeedbackButton";
 
 /*
   The money side of the product is parked, not deleted: we are not offering
@@ -99,7 +100,10 @@ const PLATFORM_SECTION = {
   label: "Platform",
   items: [
     { href: "/platform", icon: Globe, label: "All Organizations" },
-    { href: "/platform/feedback", icon: MessageSquareWarning, label: "Feedback" },
+    /* "inbox", not "Feedback": in creatorcore the rail also carries the
+       Feedback button itself, and two rail controls with one name read as a
+       duplicate. This is where reports are read, not sent. */
+    { href: "/platform/feedback", icon: MessageSquareWarning, label: "Feedback inbox" },
   ],
 };
 
@@ -235,7 +239,7 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
                   />
                 ) : (
                   <span
-                    className="cc-rail-brand truncate"
+                    className="cc-rail-brand"
                     title={brandName ?? BRAND.name}
                   >
                     {brandName ?? BRAND.name}
@@ -338,6 +342,10 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
               copy is seen. The theme choice is not here: it is in the account
               menu below, which every theme shows. */}
           <div className="cc-rail-utility" aria-hidden={false}>
+            {/* Feedback follows the bell for the same reason: a second copy of
+                the top bar's, painted only where the top bar is not, so each
+                theme shows exactly one. */}
+            <FeedbackButton surface="dashboard" iconOnly />
             <NotificationBell />
           </div>
           {/* User menu dropdown */}

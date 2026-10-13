@@ -9,7 +9,7 @@ import { installClientSignals, recentClientErrors, recentFailedRequests } from "
 import { MAX_MESSAGE_CHARS, type FeedbackSurface } from "@/lib/feedback/limits";
 
 /**
- * The Feedback button on every page a client or creator uses.
+ * The Feedback button on every signed-in page a client or creator uses.
  *
  * One press takes a screenshot of exactly what they are looking at -- before
  * the dialog opens, so the dialog is not in it -- and then asks what went wrong.
@@ -17,11 +17,19 @@ import { MAX_MESSAGE_CHARS, type FeedbackSurface } from "@/lib/feedback/limits";
  * address, the browser and window size, and the page's own recent errors and
  * failed requests, so a report of "this is broken" can be acted on without a
  * round of questions.
+ *
+ * It sits in the page's own chrome -- the top bar, the creatorcore rail's
+ * utility row, the creator app's header -- and never floats over the page. It
+ * used to be a fixed pill in the bottom-right corner, and that corner is where
+ * pages put their last control: MEASURED 2026-10-13 at 1440x900 it covered
+ * "Next page" on the posts list (a real click timed out because the pill took
+ * it) and the roster's "Track selected", and at 390 the bulk bar's third button
+ * and the "Posted to" field. No offset fixes that for every page, so it left
+ * the page. It is also no longer on the signed-out share and list pages: a
+ * brand opening a report link is not who this asks.
  */
 
 const WIDGET_ATTR = "data-feedback-widget";
-/* Scrolled this far, a phone shows the button as its icon alone. */
-const COMPACT_AFTER_PX = 160;
 
 type Phase =
   | { kind: "idle" }
@@ -60,32 +68,18 @@ function pageContext() {
 export function FeedbackButton({
   surface,
   linkToken,
-  raiseOnPhone = false,
+  iconOnly = false,
 }: {
   surface: FeedbackSurface;
   /** The share or list link's token: on those pages it is who the feedback is from. */
   linkToken?: string;
-  /** Lift the button above a phone tab bar (the creator portal's). */
-  raiseOnPhone?: boolean;
+  /** The glyph alone, as an icon button beside the bell -- the creatorcore rail has no room for a label. */
+  iconOnly?: boolean;
 }) {
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [scrolled, setScrolled] = useState(false);
-
-  /* The dashboard scrolls inside <main> and the public pages scroll the window,
-     so listen in the capture phase for either. Scrollers too short to matter --
-     a table sliding sideways, a dropdown -- are ignored. */
-  useEffect(() => {
-    const onScroll = (e: Event) => {
-      const el = e.target instanceof Element ? e.target : document.scrollingElement;
-      if (!el || el.scrollHeight - el.clientHeight < 400) return;
-      setScrolled(el.scrollTop > COMPACT_AFTER_PX);
-    };
-    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
-    return () => document.removeEventListener("scroll", onScroll, { capture: true });
-  }, []);
 
   useEffect(() => {
     installClientSignals();
@@ -164,14 +158,15 @@ export function FeedbackButton({
       <button
         type="button"
         {...{ [WIDGET_ATTR]: "" }}
-        className={["cc-feedback-fab", raiseOnPhone && "cc-feedback-fab-raised", scrolled && !busy && "cc-feedback-fab-compact"].filter(Boolean).join(" ")}
+        className={iconOnly ? "cc-icon-btn cc-feedback-trigger-icon" : "cc-feedback-trigger"}
         onClick={start}
         disabled={busy}
         aria-busy={busy || undefined}
         aria-label={busy ? "Capturing the page for feedback" : "Send feedback about this page"}
+        title={iconOnly ? "Send feedback about this page" : undefined}
       >
-        <MessageSquareWarning size={15} aria-hidden="true" />
-        <span className="cc-feedback-fab-label">{busy ? "Capturing…" : "Feedback"}</span>
+        <MessageSquareWarning size={iconOnly ? 17 : 15} aria-hidden="true" />
+        {!iconOnly && <span className="cc-feedback-trigger-label">{busy ? "Capturing…" : "Feedback"}</span>}
       </button>
 
       {open && (

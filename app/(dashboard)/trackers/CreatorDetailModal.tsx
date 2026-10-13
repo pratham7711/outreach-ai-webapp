@@ -2,7 +2,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Modal, Badge, Skeleton } from "@pratham7711/ui";
 import { RefreshCw } from "lucide-react";
-import { timeAgo, formatFull, formatHandle } from "@/lib/format";
+import { timeAgo, formatFull, formatHandle, platformLabel } from "@/lib/format";
 import { AgeLabel } from "@/components/ds/AgeLabel";
 import { apiFetch } from "@/lib/api/client";
 import { AudioUsesChart, type SeriesPoint } from "./SoundCharts";
@@ -135,7 +135,7 @@ export function CreatorDetailModal({
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: "var(--cc-t-20)", fontWeight: 700, color: "var(--cc-text)" }}>{creator.name}</div>
           <div style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
-            {formatHandle(creator.handle)} · {creator.platform}
+            {formatHandle(creator.handle)} · {platformLabel(creator.platform)}
           </div>
         </div>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>

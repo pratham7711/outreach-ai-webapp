@@ -44,6 +44,11 @@ export function AgeLabel({ at, field, ctx, source, never = "not read yet", prefi
   const age = formatAge(at, clock);
 
   const base: React.CSSProperties = {
+    /* Anchors the .sr-only description below. Without it that absolutely
+       positioned span resolves against the viewport, escapes every scrolling
+       card, and widened the whole page: MEASURED 2026-10-13, the Posts list
+       view's last-synced cell put html.scrollWidth at 1443 in a 1440 window. */
+    position: "relative",
     display: "inline-flex",
     alignItems: "center",
     gap: 4,

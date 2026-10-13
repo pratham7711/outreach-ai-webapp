@@ -8,6 +8,7 @@ import { MenuButton } from "@/components/ds/MenuButton";
 import { signOut } from "next-auth/react";
 import { THEME_CHOICES, useThemeChoice } from "@/components/ThemeChoices";
 import { NotificationBell } from "@/components/layout/NotificationBell";
+import { FeedbackButton } from "@/components/feedback/FeedbackButton";
 import { NAV_SECTIONS } from "@/components/NewSidebar";
 
 const PAGE_TITLES: Record<string, string> = {
@@ -208,6 +209,10 @@ export function TopBar({ user, navHrefs }: { user?: TopBarUser; navHrefs?: strin
             </ul>
           )}
         </div>
+
+        {/* Feedback lives in the bar, not over the page: as a floating pill it
+            sat on whatever control a page put in its bottom-right corner. */}
+        <FeedbackButton surface="dashboard" />
 
         {/* Notifications */}
         <NotificationBell />

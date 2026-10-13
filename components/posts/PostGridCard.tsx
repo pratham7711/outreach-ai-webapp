@@ -3,7 +3,8 @@
 import { memo, type ReactNode } from "react";
 import { Badge } from "@pratham7711/ui";
 import { Eye, Heart, MessageCircle, TrendingUp, Share2, Bookmark, Check } from "lucide-react";
-import { formatDateAbs, formatFull } from "@/lib/format";
+import { formatDateAbs, formatFull, platformLabel } from "@/lib/format";
+import { enumLabel } from "@/lib/ui/enumLabel";
 import { fieldMetricValue, unwrittenMetricValue, sharesUnknownReason } from "@/lib/metricDisplay";
 import { postAgeContext, postMeasuredAt, postStatus } from "@/lib/posts/postStatus";
 import { viewsAsOf } from "@/lib/posts/fieldFreshness";
@@ -164,12 +165,12 @@ function PostGridCardImpl({
           1440) the two corners overlapped by up to 17px. See
           .cc-posttile-chips for how the row gives way when it is short. */}
       <span className="cc-posttile-chips">
-        <span className="cc-posttile-platform" title={post.platform}>
+        <span className="cc-posttile-platform" title={platformLabel(post.platform)}>
           <PlatformGlyph platform={post.platform} size="1.2em" />
-          <span className="cc-posttile-platform-name" aria-hidden="true">{post.platform}</span>
+          <span className="cc-posttile-platform-name" aria-hidden="true">{platformLabel(post.platform)}</span>
         </span>
         <Badge variant={STATUS_BADGE[post.status] ?? "neutral"} style={{ fontSize: "var(--cc-t-9)"}}>
-          {post.status.replace(/_/g, " ")}
+          {enumLabel(post.status)}
         </Badge>
       </span>
       {/* Across the frame, under the platform and status chips —

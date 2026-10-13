@@ -9,6 +9,7 @@ import { errorMessage } from "@/lib/api/errorMessage";
 import { formatFull } from "@/lib/format";
 import { action } from "@/lib/ui/actions";
 import { bulkTrackSummary, type BulkTrackResult, type TrackStatus } from "@/lib/trackers/bulkTrackCopy";
+import { noun } from "@/lib/ui/noun";
 
 /**
  * The three ways to track many creators at once (plan §04 "Track creators"):
@@ -125,7 +126,7 @@ export function TrackSelectedButton({ selection, count }: { selection: TrackSele
     // A handful is one click; hundreds get the same pause Track all does.
     if (status && count > status.ungatedMax) {
       const ok = await confirm({
-        title: `Track ${formatFull(count)} creators?`,
+        title: `Track ${formatFull(count)} ${noun(count, "creator")}?`,
         description: `Any already tracked are left as they are${
           status.roomLeft !== null ? `, and at most ${formatFull(status.roomLeft)} more fit on your plan` : ""
         }. ${QUEUE_NOTE}`,

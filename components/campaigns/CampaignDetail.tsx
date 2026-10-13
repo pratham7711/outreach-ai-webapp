@@ -3,6 +3,7 @@
 import { Badge } from "@/components/ui/badge";
 import type { CampaignWithRelations } from "@/types";
 import { campaignStatusLabel } from "@/lib/statusColors";
+import { noun } from "@/lib/ui/noun";
 
 export function CampaignDetail({ campaign }: { campaign: CampaignWithRelations }) {
   return (
@@ -12,7 +13,7 @@ export function CampaignDetail({ campaign }: { campaign: CampaignWithRelations }
         <Badge variant="secondary">{campaignStatusLabel(campaign.status)}</Badge>
       </div>
       <p className="mt-2 text-sm text-muted-foreground">
-        {campaign._count.activations} creators &middot; {campaign._count.posts} posts
+        {campaign._count.activations} {noun(campaign._count.activations, "creator")} &middot; {campaign._count.posts} {noun(campaign._count.posts, "post")}
       </p>
     </div>
   );

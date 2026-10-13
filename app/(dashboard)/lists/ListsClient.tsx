@@ -10,6 +10,7 @@ import { formatDateAbs } from "@/lib/format";
 import { toast } from "sonner";
 import Link from "next/link";
 import { action } from "@/lib/ui/actions";
+import { noun } from "@/lib/ui/noun";
 
 type List = {
   id: string;
@@ -147,7 +148,7 @@ export default function ListsClient({ lists, review = false }: { lists: List[]; 
                   )}
                   {list.description && <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginBottom: 8 }}>{list.description}</p>}
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
-                    <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Users size={13} /> {list._count.items} creators</span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Users size={13} /> {list._count.items} {noun(list._count.items, "creator")}</span>
                     <span>{formatDateAbs(list.createdAt)}</span>
                   </div>
                 </div>

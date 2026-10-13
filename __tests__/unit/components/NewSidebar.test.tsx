@@ -15,6 +15,11 @@ jest.mock('next-themes', () => ({
 jest.mock("@/components/layout/NotificationBell", () => ({
   NotificationBell: () => <button aria-label="Notifications" />,
 }));
+/* Same for the Feedback icon the rail utility row now carries: it pulls
+   @pratham7711/ui through its dialog. Stubbed at its own boundary. */
+jest.mock("@/components/feedback/FeedbackButton", () => ({
+  FeedbackButton: () => <button aria-label="Send feedback about this page" />,
+}));
 
 import NewSidebar from '@/components/NewSidebar';
 import { BRAND } from '@/lib/brand';

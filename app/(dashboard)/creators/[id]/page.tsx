@@ -11,6 +11,9 @@ import { Card, Badge, EmptyState, Skeleton, Modal, Input, Tooltip } from "@prath
 import { NotFoundState } from "@/components/errors/NotFoundState";
 import { Dropdown, MetricTile } from "@/components/ds";
 import { formatDateAbs, platformLabel, formatFull, formatFullCurrency } from "@/lib/format";
+import { campaignStatusLabel } from "@/lib/statusColors";
+import { ACTIVATION_STATUS_LABEL } from "@/lib/activationQueues";
+import { enumLabel } from "@/lib/ui/enumLabel";
 import { toast } from "sonner";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import PlatformChips from "@/components/creators/PlatformChips";
@@ -1213,7 +1216,9 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                       {/* The activation status when there is one; otherwise the
                           campaign's own, rather than a blank where a pill was. */}
                       <Badge variant={STATUS_VARIANT[c.activation?.status ?? c.status] ?? "neutral"} dot>
-                        {(c.activation?.status ?? c.status).replace(/_/g, " ")}
+                        {c.activation?.status
+                          ? ACTIVATION_STATUS_LABEL[c.activation.status] ?? enumLabel(c.activation.status)
+                          : campaignStatusLabel(c.status)}
                       </Badge>
                       {c.budget && (
                         <span className="cd-campaign-row-budget" style={{ fontWeight: 700, fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>

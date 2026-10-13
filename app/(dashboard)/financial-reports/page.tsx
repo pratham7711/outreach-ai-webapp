@@ -6,7 +6,7 @@ import { PageHeader, MetricTile, Button } from "@/components/ds";
 import { TrendingUp, TrendingDown, Minus, DollarSign, Wallet, BarChart2, Clock, Download, FileText, Table, TriangleAlert } from "lucide-react";
 import { loadCharts } from "@/components/charts/lazyCharts";
 import { downloadCsv } from "@/lib/csv";
-import { campaignStatusCss, STATUS_PILL_RADIUS } from "@/lib/statusColors";
+import { campaignStatusCss, campaignStatusLabel, STATUS_PILL_RADIUS } from "@/lib/statusColors";
 import { toast } from "sonner";
 import { action } from "@/lib/ui/actions";
 
@@ -393,7 +393,7 @@ export default function FinancialReportsPage() {
                           borderRadius: STATUS_PILL_RADIUS,
                           ...campaignStatusCss(c.status),
                         }}>
-                          {c.status.replace(/_/g, " ")}
+                          {campaignStatusLabel(c.status)}
                         </span>
                       </td>
                       <td style={{ padding: "14px 20px", fontSize: "var(--cc-t-13)", color: "var(--cc-text)" }}>{fmt(c.budget, c.currency)}</td>

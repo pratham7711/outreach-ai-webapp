@@ -15,6 +15,8 @@ import { postAgeContext, postMeasuredAt, postStatus } from "@/lib/posts/postStat
 import { viewsAsOf } from "@/lib/posts/fieldFreshness";
 import PostStatusChip from "@/components/posts/PostStatusChip";
 import { AgeLabel } from "@/components/ds/AgeLabel";
+import { breakableFigure } from "@/components/ds/BreakableFigure";
+import { enumLabel } from "@/lib/ui/enumLabel";
 import PostGridCard from "@/components/posts/PostGridCard";
 import { STATUS_BADGE, engRatePct, trackingLabel } from "@/lib/posts/postDisplay";
 import { summariseRefresh, type RefreshResult } from "@/lib/refreshSummary";
@@ -53,6 +55,7 @@ import { UNKNOWN_CREATOR_LABEL, isUnattributedCreator, unknownCreatorReason } fr
 import { isPostNotPublic, mayBeAgeLimited } from "@/lib/postRemoval";
 import UnknownCreator from "@/components/posts/UnknownCreator";
 import { SHOW_MONEY } from "@/lib/moneyUi";
+import { noun } from "@/lib/ui/noun";
 
 type SnapshotLite = { id: string; viewsCount: number; recordedAt: string };
 
@@ -348,25 +351,32 @@ function deltaViews(post: PostData): number | null {
 /* Keyed rather than positional: the engagement columns are dropped whenever no
    post in the campaign has been fetched, and a fixed template would leave their
    tracks behind as dead space. */
+/* Sized to fit the 1110px card a 1440 window gives this tab. MEASURED
+   2026-10-13: the old ladder summed to a 1446px row, so the card scrolled and
+   Status was cut off at the edge on every desktop. Status now carries the
+   last-read age under its badge rather than a column of its own, the badges
+   are sentence case ("Pending review", not "PENDING REVIEW"), and the gaps are
+   8. Narrower windows still scroll inside the card. */
+const CREATOR_MIN_PX = 150;
 const COL_WIDTHS = {
-  select: "32px",
-  creator: "minmax(240px, 1.6fr)",
-  platform: "92px",
-  posted: "88px",
-  views: "82px",
-  likes: "78px",
-  comments: "88px",
-  shares: "82px",
-  saves: "78px",
-  downloads: "96px",
-  engRate: "84px",
-  delta: "148px",
-  status: "136px", // "PENDING REVIEW" is ~130px at this type size; 104 ran into Last synced
-  lastSynced: "140px",
-  actions: "172px", // was 140; the tracking toggle is the fourth control here
+  select: "28px",
+  creator: `minmax(${CREATOR_MIN_PX}px, 1.6fr)`,
+  platform: "80px", // the "Instagram" badge is 78
+  posted: "80px",
+  views: "96px", // "1,822,665,537" in bold is 86
+  likes: "76px",
+  comments: "92px", // the "COMMENTS" sort header with its icon
+  shares: "68px",
+  saves: "64px",
+  downloads: "92px",
+  engRate: "64px",
+  delta: "112px",
+  status: "116px", // the "Pending review" badge is 112
+  actions: "100px", // three 30px controls a line; approve and reject wrap under
 } as const;
 
-const COL_GAP = 12;
+const COL_GAP = 8;
+const LIST_PAD_X = 16;
 
 /* The same ladder the post page offers, so the two controls cannot disagree
    about what a tracking window may be. 30 is the default because it is also
@@ -388,7 +398,8 @@ function gridTemplate(cols: readonly (keyof typeof COL_WIDTHS)[]) {
     .reduce((sum, w) => sum + parseInt(w, 10), 0);
   return {
     gridTemplateColumns: widths.join(" "),
-    minWidth: fixed + 240 + COL_GAP * (cols.length - 1),
+    // The rows are border-box, so their side padding is part of the minimum.
+    minWidth: fixed + CREATOR_MIN_PX + COL_GAP * (cols.length - 1) + 2 * LIST_PAD_X,
   };
 }
 
@@ -1363,7 +1374,6 @@ export default function PostsTab({
         ...(anyEngRate ? (["engRate"] as const) : []),
         ...(anyDelta ? (["delta"] as const) : []),
         "status",
-        "lastSynced",
         "actions",
       ] as const,
     [anyLikes, anyComments, anyShares, anySaves, anyDownloads, anyEngRate, anyDelta]
@@ -1588,7 +1598,7 @@ export default function PostsTab({
         {
           kind: "head" as const,
           label: menuOnSelection
-            ? `${selectedOnPage.length} posts selected`
+            ? `${selectedOnPage.length} ${noun(selectedOnPage.length, "post")} selected`
             : isUnattributedCreator(menuPost.creator)
               ? UNKNOWN_CREATOR_LABEL
               : creatorNameText(menuPost.creator.name, menuPost.creator.handle),
@@ -1744,7 +1754,7 @@ export default function PostsTab({
           {kpiChips.map((chip) => (
             <div key={chip.label} className="cc-kpi-chip">
               <span className="cc-kpi-chip-label">{chip.label}</span>
-              <span className="cc-kpi-chip-value" title={chip.value}>{chip.value}</span>
+              <span className="cc-kpi-chip-value" title={chip.value}>{breakableFigure(chip.value)}</span>
             </div>
           ))}
         </div>
@@ -2046,7 +2056,7 @@ export default function PostsTab({
           <Card variant="solid" noPadding style={{ overflowX: "auto", maxWidth: "100%" }}>
             <div style={{
               display: "grid", ...listGrid,
-              gap: COL_GAP, padding: "12px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)", alignItems: "center",
+              gap: COL_GAP, padding: `12px ${LIST_PAD_X}px`, borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)", alignItems: "center",
             }}>
               {/* Indeterminate is set through the DOM node because React has
                   no prop for it -- it is a property, not an attribute, and a
@@ -2075,7 +2085,6 @@ export default function PostsTab({
               {anyEngRate && <SortHeader label="Eng %" sk="engRate" align="right" {...sortProps} />}
               {anyDelta && <SortHeader label="Δ Views" sk="delta" align="right" {...sortProps} />}
               <PlainHeader label="Status" />
-              <PlainHeader label="Last Synced" />
               <PlainHeader label="Actions" />
             </div>
             {pageRows.map((post, i) => {
@@ -2118,7 +2127,7 @@ export default function PostsTab({
                   style={{
                     display: "grid",
                     ...listGrid,
-                    gap: COL_GAP, padding: "14px 24px", alignItems: "center",
+                    gap: COL_GAP, padding: `14px ${LIST_PAD_X}px`, alignItems: "center",
                     borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
                   }}
                 >
@@ -2162,7 +2171,7 @@ export default function PostsTab({
                       </a>
                     )}
                   </div>
-                  <Badge variant={PLATFORM_BADGE[post.platform] ?? "neutral"} style={{ fontSize: "var(--cc-t-11)"}}>{post.platform}</Badge>
+                  <Badge variant={PLATFORM_BADGE[post.platform] ?? "neutral"} style={{ fontSize: "var(--cc-t-11)"}}>{platformLabel(post.platform)}</Badge>
                   <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{formatDateAbs(post.postedAt)}</span>
                   <span
                     title={viewsNote?.title}
@@ -2215,7 +2224,7 @@ export default function PostsTab({
                     </span>
                   )}
                   <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
-                    <Badge variant={STATUS_BADGE[post.status] ?? "neutral"}>{post.status.replace(/_/g, " ")}</Badge>
+                    <Badge variant={STATUS_BADGE[post.status] ?? "neutral"}>{enumLabel(post.status)}</Badge>
                     {/* The counters in this row stay exactly as stored: the post
                         is gone, the reach it earned while it was up is not. */}
                     <PostStatusChip status={status} compact showLive />
@@ -2235,17 +2244,18 @@ export default function PostsTab({
                         auto in {timeRemaining(post.createdAt, marketplace.autoApproveHours)}
                       </span>
                     )}
-                  </div>
                   {/* The counters' age, with a Stale chip once a tracked post
-                      has missed two of its reads (lib/dataAge). */}
+                      has missed two of its reads (lib/dataAge). Inside the
+                      Status cell now, so the list fits a 1440 window. */}
                   <AgeLabel
                     at={measured.at}
                     field="post"
                     ctx={postAgeContext(post, status)}
                     source={measured.source}
-                    never="Never"
+                    never="Never read"
                     style={{ fontSize: "var(--cc-t-12)", whiteSpace: "normal", flexWrap: "wrap" }}
                   />
+                  </div>
                   <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                     {/* Tracking, first and stateful. It used to be reachable only
                         by opening the post's own page, which is why almost
