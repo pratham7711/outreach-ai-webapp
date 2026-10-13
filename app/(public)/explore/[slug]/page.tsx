@@ -103,17 +103,23 @@ export default async function CampaignLandingPage({
     if (Number.isNaN(ms) || ms <= 0) return null;
     return Math.ceil(ms / 86_400_000);
   })();
-  const showDaysLeft = daysLeft != null && daysLeft <= 7;
+  /* Closed is the portal's own test -- running, and before the deadline -- so
+     this page cannot invite a creator into a campaign the portal then refuses.
+     See isMarketplaceCampaignOpen. */
+  const open = campaign.open;
+  const deadlinePassed =
+    !!campaign.submissionDeadline && new Date(campaign.submissionDeadline).getTime() < Date.now();
+  const showDaysLeft = open && daysLeft != null && daysLeft <= 7;
   /* Money is hidden while SHOW_MONEY is off (lib/moneyUi.ts): the pool, the
      rates and what each creator earned. Hidden, never cleared -- the figures
      are still loaded and come back with the switch. */
-  const showClaimed = SHOW_MONEY && pct != null && pct >= 60;
+  const showClaimed = open && SHOW_MONEY && pct != null && pct >= 60;
 
   const joinRegisterHref = `/portal/register?join=${encodeURIComponent(campaign.slug)}`;
   const joinLoginHref = `/portal/login?join=${encodeURIComponent(campaign.slug)}`;
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--cc-bg)", paddingBottom: 96 }}>
+    <div style={{ minHeight: "100vh", background: "var(--cc-bg)", paddingBottom: open ? 96 : 40 }}>
       {/* Hero / org branding */}
       <div
         style={{
@@ -192,8 +198,11 @@ export default async function CampaignLandingPage({
             {showClaimed && (
               <span style={claimedChipStyle}>{pct}% of pool claimed</span>
             )}
-            {deadline && (
-              <span style={chipStyle}>Submit by {deadline}</span>
+            {!open && <span style={closedChipStyle}>Closed</span>}
+            {/* A campaign stopped before its deadline shows no date: "Submit
+                by" would invite a post the portal refuses. */}
+            {deadline && (open || deadlinePassed) && (
+              <span style={chipStyle}>{open ? `Submit by ${deadline}` : `Submissions closed ${deadline}`}</span>
             )}
             <span style={chipStyle}>{formatCount(campaign.creatorCount)} {campaign.creatorCount === 1 ? "creator" : "creators"} joined</span>
             <span style={chipStyle}>Auto-approves in {campaign.autoApproveHours}h</span>
@@ -203,6 +212,37 @@ export default async function CampaignLandingPage({
 
       {/* Body */}
       <div style={{ maxWidth: 880, margin: "0 auto", padding: "28px 20px 0" }}>
+        {!open && (
+          <div
+            role="status"
+            style={{
+              background: "var(--cc-card)",
+              border: "1px solid var(--cc-border)",
+              borderRadius: 16,
+              padding: 24,
+              marginBottom: 16,
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              gap: 16,
+            }}
+          >
+            <div style={{ flex: "1 1 260px", minWidth: 0 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", margin: "0 0 4px" }}>
+                This campaign is closed
+              </h2>
+              <p style={{ fontSize: 14, color: "var(--cc-text-muted)", margin: 0, lineHeight: 1.5 }}>
+                {deadlinePassed
+                  ? `Submissions closed on ${deadline}, so ${campaign.orgName} isn't taking new creators or posts for it.`
+                  : `${campaign.orgName} isn't taking new creators or posts for it.`}{" "}
+                The brief is still here for reference.
+              </p>
+            </div>
+            <Link href="/explore" style={primaryCtaStyle}>
+              Browse open campaigns
+            </Link>
+          </div>
+        )}
         {/* Budget bar */}
         {SHOW_MONEY && (budget.capMajor != null || budget.earnedMajor > 0) && (
           <Section title="Reward pool">
@@ -463,7 +503,8 @@ export default async function CampaignLandingPage({
         )}
       </div>
 
-      {/* Sticky CTA */}
+      {/* Sticky CTA -- only while there is something to join. */}
+      {open && (
       <div
         style={{
           position: "fixed",
@@ -503,6 +544,7 @@ export default async function CampaignLandingPage({
           </Link>
         </div>
       </div>
+      )}
     </div>
   );
 }
@@ -551,6 +593,16 @@ const urgentChipStyle: React.CSSProperties = {
   color: "var(--cc-warning-fg)",
   background: "var(--cc-warning-bg)",
   border: "1px solid color-mix(in srgb, var(--cc-warning-solid) 30%, transparent)",
+  borderRadius: 20,
+  padding: "5px 12px",
+};
+
+const closedChipStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 700,
+  color: "var(--cc-neutral-fg)",
+  background: "var(--cc-neutral-bg)",
+  border: "1px solid var(--cc-border)",
   borderRadius: 20,
   padding: "5px 12px",
 };
