@@ -7,6 +7,7 @@ import { parseShareVisibility } from "@/lib/reports/shareVisibility";
 import { CAMPAIGN_ARTWORK_INCLUDE, campaignArtwork } from "@/lib/campaignArtwork";
 import SharedPerformanceReport from "./SharedPerformanceReport";
 import { BRAND } from "@/lib/brand";
+import { withStoredShareThumbnails } from "@/lib/posts/thumbnailStore";
 
 const SHARE_KIND = "campaign-performance";
 
@@ -132,7 +133,11 @@ export default async function SharedReportPage({
         // Redacted here rather than in the component: props cross into the RSC
         // payload, so a conditionally-rendered leaderboard still publishes every
         // creator name to anyone who reads the HTML.
-        data={redactForShare(performance, visibility)}
+        data={await withStoredShareThumbnails(redactForShare(performance, visibility), {
+          token,
+          orgId: link.campaign.orgId,
+          showCreators: visibility.showCreators,
+        })}
         campaignStatus={link.campaign.status}
         // The audio's cover leads the header; this is what stands in when the
         // campaign has no tracked sound, the same picture the campaigns list shows.

@@ -1,4 +1,4 @@
-import { mediaUrl, embedSrcFor, imgSrc, shareImgSrc, youtubeVideoId, postThumbnailUrl } from "@/lib/postMedia";
+import { mediaUrl, embedSrcFor, imgSrc, shareImgSrc, youtubeVideoId, postThumbnailUrl, postThumbnailPath, sharePostThumbnailPath } from "@/lib/postMedia";
 import { metricValue, engagementRateValue } from "@/lib/metricDisplay";
 
 /**
@@ -197,5 +197,37 @@ describe("postThumbnailUrl", () => {
   it("does not invent one for other platforms or an unreadable YouTube link", () => {
     expect(postThumbnailUrl({ platform: "TIKTOK", platformPostId: "7300000000000000000", thumbnailUrl: null })).toBeNull();
     expect(postThumbnailUrl({ platform: "YOUTUBE", platformPostId: null, postUrl: "https://www.youtube.com/@someone", thumbnailUrl: null })).toBeNull();
+  });
+});
+
+/* Our own copy of a post's cover goes where the CDN link went (PostDto,
+   the share report's rows), so the same imgSrc/shareImgSrc calls the cards
+   already make have to pass it through with the box added -- not wrap it in
+   the CDN proxy, which would refuse a relative path. */
+describe("stored post pictures", () => {
+  it("names the copy by post and version", () => {
+    expect(postThumbnailPath("p 1", 1000)).toBe("/api/posts/p%201/thumbnail?v=1000");
+    expect(sharePostThumbnailPath("tok", "p 1", 1000)).toBe("/api/share/tok/thumbnail/p%201?v=1000");
+  });
+
+  it("adds the box a surface asks for, snapped the way the proxy snaps it", () => {
+    expect(imgSrc(postThumbnailPath("p1", 7), 320, 568)).toBe("/api/posts/p1/thumbnail?v=7&w=320&h=568");
+    expect(imgSrc(postThumbnailPath("p1", 7), 240, 160)).toBe("/api/posts/p1/thumbnail?v=7&w=240&h=160");
+    expect(imgSrc(postThumbnailPath("p1", 7), 112)).toBe("/api/posts/p1/thumbnail?v=7&w=128");
+    expect(shareImgSrc("tok", sharePostThumbnailPath("tok", "p1", 7), 478, 490)).toBe(
+      "/api/share/tok/thumbnail/p1?v=7&w=478&h=490"
+    );
+  });
+
+  it("lets each family through only its own door", () => {
+    // A signed-in path on the public report would be a 401 to a viewer with no
+    // session; a share path on the dashboard answers for one campaign only.
+    expect(shareImgSrc("tok", postThumbnailPath("p1", 7), 320)).toBeNull();
+    expect(imgSrc(sharePostThumbnailPath("tok", "p1", 7), 320)).toBeNull();
+  });
+
+  it("still sends every CDN link through the proxy", () => {
+    expect(imgSrc("https://scontent.cdninstagram.com/v/t51/1_n.jpg?oe=6A000000", 320, 568)).toMatch(/^\/api\/img\?u=/);
+    expect(shareImgSrc("tok", "https://p16-sign.tiktokcdn.com/obj/a.jpeg", 478, 490)).toMatch(/^\/api\/share\/tok\/img\?u=/);
   });
 });

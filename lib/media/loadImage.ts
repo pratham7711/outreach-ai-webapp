@@ -54,7 +54,12 @@ export async function loadImage(
   rawUrl: string | null,
   width: number,
   height: number,
-  logContext: string
+  logContext: string,
+  /* Both optional, so every existing caller keeps the proxy's behaviour. The
+     post thumbnail store needs the whole picture shrunk into a box, not cropped
+     to one -- each surface crops it differently -- and a shorter clock, since it
+     runs inside a post sync (lib/posts/thumbnailStore). */
+  options: { fit?: ResizeFit; timeoutMs?: number } = {}
 ): Promise<LoadedImage> {
   const log = createLogger({ context: { route: logContext } });
 
@@ -71,7 +76,7 @@ export async function loadImage(
 
   let upstream: Response;
   try {
-    upstream = await fetch(target.toString(), { signal: AbortSignal.timeout(15_000) });
+    upstream = await fetch(target.toString(), { signal: AbortSignal.timeout(options.timeoutMs ?? 15_000) });
   } catch (err) {
     log.warn("img.upstream_failed", { host: target.host, error: err instanceof Error ? err.message : String(err) });
     return { ok: false, status: 502, message: "upstream failed" };
@@ -99,7 +104,7 @@ export async function loadImage(
   const isHeic = /image\/(heic|heif)/i.test(type);
 
   try {
-    const out = await resizeImage(buf, isHeic, width, height);
+    const out = await resizeImage(buf, isHeic, width, height, options.fit);
     if (await isEntirelyTransparent(out)) return { ok: false, status: 404, message: "empty image" };
     return { ok: true, body: out, contentType: "image/webp" };
   } catch (err) {
@@ -111,8 +116,21 @@ export async function loadImage(
   }
 }
 
+/**
+ * "cover" fills the box and crops the overflow, which is what every painted
+ * box wants. "inside" keeps the whole picture and fits it within the box, for
+ * a copy that will be cropped later, per surface.
+ */
+export type ResizeFit = "cover" | "inside";
+
 /** Decode (HEIC included) and re-encode to a WebP of the given box. */
-export async function resizeImage(buf: Buffer, isHeic: boolean, width: number, height: number): Promise<Buffer> {
+export async function resizeImage(
+  buf: Buffer,
+  isHeic: boolean,
+  width: number,
+  height: number,
+  fit: ResizeFit = "cover"
+): Promise<Buffer> {
   let pipeline: sharp.Sharp;
   if (isHeic) {
     // sharp's libvips recognises the HEIC container but ships without the HEVC
@@ -127,7 +145,7 @@ export async function resizeImage(buf: Buffer, isHeic: boolean, width: number, h
   // full capture size, so a 48px circle was pulling 650 KB of PNG. WebP keeps
   // the alpha channel that a JPEG would flatten to black.
   return pipeline
-    .resize(width, height, { fit: "cover", withoutEnlargement: true })
+    .resize(width, height, { fit, withoutEnlargement: true })
     .webp({ quality: 80 })
     .toBuffer();
 }

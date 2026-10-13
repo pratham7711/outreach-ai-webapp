@@ -179,6 +179,7 @@ export function imgSrc(
   width = 96,
   height?: number
 ): string | null {
+  if (raw && OWN_POST_THUMBNAIL.test(raw)) return withBox(raw, width, height);
   const url = mediaUrl(raw);
   if (!url) return null;
 
@@ -216,6 +217,7 @@ export function shareImgSrc(
   width = 96,
   height?: number
 ): string | null {
+  if (raw && SHARE_POST_THUMBNAIL.test(raw)) return withBox(raw, width, height);
   const url = mediaUrl(raw);
   if (!url) return null;
 
@@ -232,4 +234,37 @@ export function shareImgSrc(
   const box = proxyBox(width, height);
   const h = box.h ? `&h=${box.h}` : "";
   return `/api/share/${encodeURIComponent(token)}/img?u=${encodeURIComponent(url)}&w=${box.w}${h}`;
+}
+
+/**
+ * Our own copy of a post's picture (lib/posts/thumbnailStore), as the path a
+ * screen paints.
+ *
+ * The server puts this path where the picture's URL goes -- PostDto's
+ * thumbnailUrl, the share report's row -- whenever a copy exists, so the
+ * components that draw a post (PostCover, PostMedia, the share card) take it
+ * exactly as they take a CDN link: through imgSrc or shareImgSrc, which add
+ * the box they are painting. The version is the copy's fetchedAt, so a newer
+ * copy is a new URL rather than a day-old cache hit.
+ *
+ * Each helper recognises only its own family. A signed-in path on the public
+ * report would be a 401, and a share path on the dashboard would answer for
+ * one campaign only, so neither is let through the other's door.
+ */
+const OWN_POST_THUMBNAIL = /^\/api\/posts\/[^/?#]+\/thumbnail(\?|$)/;
+const SHARE_POST_THUMBNAIL = /^\/api\/share\/[^/?#]+\/thumbnail\/[^/?#]+(\?|$)/;
+
+export function postThumbnailPath(postId: string, version: number): string {
+  return `/api/posts/${encodeURIComponent(postId)}/thumbnail?v=${version}`;
+}
+
+export function sharePostThumbnailPath(token: string, postId: string, version: number): string {
+  return `/api/share/${encodeURIComponent(token)}/thumbnail/${encodeURIComponent(postId)}?v=${version}`;
+}
+
+/** The box, in the proxy's own snapped widths, appended to one of our paths. */
+function withBox(path: string, width: number, height?: number): string {
+  const box = proxyBox(width, height);
+  const h = box.h ? `&h=${box.h}` : "";
+  return `${path}${path.includes("?") ? "&" : "?"}w=${box.w}${h}`;
 }

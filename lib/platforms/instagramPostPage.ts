@@ -199,7 +199,14 @@ function verdict(html: string, shortcode: string, mediaStatus: number | null, me
  * from here is asked about from other regions, and the first that sees it
  * wins; not public is the answer only when none does.
  */
-export async function readInstagramPostPage(postUrl: string, timeoutMs = TIMEOUT_MS): Promise<InstagramPostPage> {
+export async function readInstagramPostPage(
+  postUrl: string,
+  timeoutMs = TIMEOUT_MS,
+  /* False skips the other regions: the cover backfill
+     (lib/posts/thumbnailBackfill) takes "not public from here" as its answer
+     rather than booting two sandboxes per deleted post. */
+  options: { askElsewhere?: boolean } = {},
+): Promise<InstagramPostPage> {
   const shortcode = shortcodeFromUrl(postUrl);
   if (!shortcode) return { kind: "unreadable", thumbnailUrl: null };
 
@@ -209,7 +216,7 @@ export async function readInstagramPostPage(postUrl: string, timeoutMs = TIMEOUT
   const status = media?.status ?? null;
   const location = status !== null && status >= 300 && status < 400 ? (media?.headers?.get("location") ?? null) : null;
   const here = verdict(html, shortcode, status, location);
-  if (here.kind !== "not-public") return here;
+  if (here.kind !== "not-public" || options.askElsewhere === false) return here;
 
   /* Regions that could not answer are left out, so a sandbox that will not
      boot keeps the verdict made here rather than inventing a doubt. */

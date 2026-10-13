@@ -6,6 +6,8 @@ import { withoutImportCopy } from "@/lib/serialization/importCopy";
 import { z } from "zod";
 import type { PostStatus } from "@/lib/generated/prisma/client";
 import { sessionCampaignScopeDenial } from "@/lib/campaignAccess";
+import { storedThumbnailVersions } from "@/lib/posts/thumbnailStore";
+import { postThumbnailPath } from "@/lib/postMedia";
 
 const updateStatusSchema = z.object({
   status: z.enum(["APPROVED", "REJECTED"]),
@@ -37,6 +39,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       },
     });
     if (!post) return NextResponse.json({ error: "Post not found" }, { status: 404 });
+    /* Our own copy of the picture, when there is one (lib/posts/thumbnailStore).
+       Beside thumbnailUrl rather than in it: this response is the row itself,
+       and thumbnailUrl stays the column. */
+    const storedThumb = (await storedThumbnailVersions([post.id], orgId)).get(post.id);
 
     /* The campaign's title rides along for the rail, which otherwise headed a
        post opened by its own link with the placeholder "Campaign". */
@@ -46,6 +52,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       platformMetrics: withoutImportCopy(post.platformMetrics),
       snapshots: post.snapshots.map((s) => ({ ...s, platformMetrics: withoutImportCopy(s.platformMetrics) })),
       campaignTitle: campaign.title,
+      storedThumbnail: storedThumb === undefined ? null : postThumbnailPath(post.id, storedThumb),
     });
   } catch (error) {
     console.error("Failed to fetch post:", error);

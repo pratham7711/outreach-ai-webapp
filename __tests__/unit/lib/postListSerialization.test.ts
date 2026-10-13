@@ -194,3 +194,35 @@ describe('wantsProtobuf', () => {
     expect(wantsProtobuf('*/*')).toBe(false);
   });
 });
+
+/* A post's picture, in the order the card should try it: our stored copy
+   (signed CDN links expire), then the stored link, then YouTube's fixed
+   address, then nothing -- and the card shows its placeholder. */
+describe('toPostDto thumbnail', () => {
+  const ig = 'https://scontent.cdninstagram.com/v/t51/1_n.jpg?oe=6A000000';
+
+  it('prefers our stored copy, versioned so a newer copy is a new URL', () => {
+    const dto = toPostDto(row({ platform: 'INSTAGRAM', thumbnailUrl: ig, storedThumbnailAt: 1791918536923 }), false, []);
+    expect(dto.thumbnailUrl).toBe('/api/posts/post-1/thumbnail?v=1791918536923');
+  });
+
+  it('keeps the stored link for a post with no copy', () => {
+    expect(toPostDto(row({ platform: 'INSTAGRAM', thumbnailUrl: ig }), false, []).thumbnailUrl).toBe(ig);
+    expect(toPostDto(row({ platform: 'INSTAGRAM', thumbnailUrl: ig, storedThumbnailAt: undefined }), false, []).thumbnailUrl).toBe(ig);
+  });
+
+  it("falls back to YouTube's own address, then to nothing", () => {
+    const yt = toPostDto(
+      row({ platform: 'YOUTUBE', platformPostId: '9bZkp7q19f0', postUrl: 'https://youtu.be/9bZkp7q19f0', thumbnailUrl: null }),
+      false,
+      [],
+    );
+    expect(yt.thumbnailUrl).toBe('https://i.ytimg.com/vi/9bZkp7q19f0/hqdefault.jpg');
+    expect(toPostDto(row({ platform: 'TIKTOK', thumbnailUrl: null }), false, []).thumbnailUrl).toBeNull();
+  });
+
+  it('carries the version only inside the URL, not as a field of its own', () => {
+    const dto = toPostDto(row({ storedThumbnailAt: 5 }), false, []);
+    expect(dto).not.toHaveProperty('storedThumbnailAt');
+  });
+});
