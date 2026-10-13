@@ -16,6 +16,7 @@ import { primeSongAudio } from "@/lib/sounds/snapshot";
 import { ensureSongForAudio, identifyAudioLink } from "@/lib/campaigns/audioLink";
 import { ROSTER_CREATOR_SELECT, buildRoster, summarizeCampaignPosts } from "@/lib/campaigns/detailSummary";
 import { withoutImportCopy } from "@/lib/serialization/importCopy";
+import { followersTimesFor } from "@/lib/creators/followersTimes";
 
 const CAMPAIGN_TYPES = ["BUDGET_BASED", "VIEW_BASED", "OPEN_COMMUNITY", "PRIVATE_INVITE"] as const;
 
@@ -184,11 +185,19 @@ export async function GET(
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
 
+    const roster = buildRoster(campaign.activations, posts);
+    /* Each follower count goes out with when it was measured (plan A6), dated
+       the way the Creators list dates it. Absent when it cannot be dated. */
+    const followersAt = await followersTimesFor(orgId, roster.map((r) => r.creator));
+
     return NextResponse.json({
       ...campaign,
       // The importer's `__cc` copy stays server-side (lib/serialization/importCopy).
       typeConfig: withoutImportCopy(campaign.typeConfig),
-      roster: buildRoster(campaign.activations, posts),
+      roster: roster.map((r) => {
+        const at = followersAt.get(r.creator.id);
+        return at ? { ...r, followersAt: at } : r;
+      }),
       summary: summarizeCampaignPosts(posts),
     });
   } catch (error) {

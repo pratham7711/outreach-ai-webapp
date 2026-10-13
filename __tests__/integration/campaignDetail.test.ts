@@ -15,6 +15,8 @@ jest.mock('@/lib/db', () => {
       update: jest.fn(),
     },
     post: { findMany: jest.fn() },
+    creatorProfileLink: { findMany: jest.fn() },
+    creatorTrackerSnapshot: { groupBy: jest.fn(), findMany: jest.fn() },
     campaignStatusDef: { findMany: jest.fn(), findFirst: jest.fn() },
     tikTokSound: { findFirst: jest.fn(), create: jest.fn() },
     song: { findFirst: jest.fn(), create: jest.fn() },
@@ -81,6 +83,9 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockAuth.mockResolvedValue(authedSession);
   mockDb.post.findMany.mockResolvedValue(mockPosts);
+  mockDb.creatorProfileLink.findMany.mockResolvedValue([]);
+  mockDb.creatorTrackerSnapshot.groupBy.mockResolvedValue([]);
+  mockDb.creatorTrackerSnapshot.findMany.mockResolvedValue([]);
   mockDb.campaignStatusDef.findMany.mockResolvedValue(STATUS_DEFS);
   // findForeignRef proves a statusDefId in the body belongs to this org.
   mockDb.campaignStatusDef.findFirst.mockImplementation(({ where }: any) =>
@@ -121,6 +126,43 @@ describe('GET /api/campaigns/[id] detail', () => {
       platforms: [{ platform: 'TIKTOK', views: 50000, likes: 3000, posts: 1 }],
       topCreators: [{ name: 'Test Creator', views: 50000, likes: 3000 }],
     }));
+  });
+
+  it('dates each roster follower count by the read that produced it (plan A6)', async () => {
+    mockDb.campaign.findFirst.mockResolvedValue(mockCampaign);
+    mockDb.creatorProfileLink.findMany.mockResolvedValue([
+      { creatorId: 'c1', followersCount: 100000, refreshedAt: new Date('2026-10-12T06:00:00Z'), refreshError: null },
+    ]);
+
+    const body = await (await GET(makeRequest('http://localhost/api/campaigns/camp-1'), makeParams('camp-1'))).json();
+
+    expect(body.roster[0].followersAt).toEqual({
+      at: '2026-10-12T06:00:00.000Z', source: 'Profile read', field: 'profile', missing: 'time not recorded',
+    });
+    const linkArgs = mockDb.creatorProfileLink.findMany.mock.calls[0][0];
+    expect(linkArgs.where).toEqual({ orgId: 'org-1', creatorId: { in: ['c1'] }, isPrimary: true });
+  });
+
+  it('says "time not recorded" for a count no stamped read produced, never a borrowed time', async () => {
+    mockDb.campaign.findFirst.mockResolvedValue(mockCampaign);
+    // The last read saw a different count: the 100,000 on the row came from an import or a hand edit.
+    mockDb.creatorProfileLink.findMany.mockResolvedValue([
+      { creatorId: 'c1', followersCount: 98000, refreshedAt: new Date('2026-10-12T06:00:00Z'), refreshError: null },
+    ]);
+
+    const body = await (await GET(makeRequest('http://localhost/api/campaigns/camp-1'), makeParams('camp-1'))).json();
+    expect(body.roster[0].followersAt).toMatchObject({ at: null, missing: 'time not recorded' });
+  });
+
+  it('still answers, undated, when the ages cannot be read', async () => {
+    mockDb.campaign.findFirst.mockResolvedValue(mockCampaign);
+    mockDb.creatorProfileLink.findMany.mockRejectedValue(new Error('connection reset'));
+
+    const res = await GET(makeRequest('http://localhost/api/campaigns/camp-1'), makeParams('camp-1'));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.roster[0].followersAt).toBeUndefined();
+    expect(body.roster[0].creator.followersCount).toBe(100000);
   });
 
   it('reads the posts through the caller\'s org and names every creator field it sends', async () => {

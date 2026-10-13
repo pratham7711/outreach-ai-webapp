@@ -14,6 +14,9 @@ import { action } from "@/lib/ui/actions";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import CreatorName from "@/components/creators/CreatorName";
 import { TrackCampaignCreatorsButton } from "@/components/creators/TrackCreators";
+import { AgeLabel } from "@/components/ds/AgeLabel";
+import { TIME_NOT_RECORDED } from "@/lib/dataAge";
+import type { FigureTimeDto } from "@/lib/creators/figureTime";
 
 /**
  * The campaign roster, with the toolbar the reference puts above it.
@@ -45,6 +48,9 @@ export type RosterRow = {
   views: number | null;
   /** How many of `posts` the views sum covers. */
   viewsKnown: number;
+  /** When the follower count was measured, and by what (plan A6). Absent when
+   *  the route could not date it; the cell then shows no age. */
+  followersAt?: FigureTimeDto;
 };
 
 type Col = {
@@ -277,7 +283,24 @@ export default function RosterTable({
         return <Badge variant="neutral">{r.creator.platform}</Badge>;
       case "followers": {
         const f = unwritten(r.creator.followersCount);
-        return <span style={CELL}>{f === null ? "—" : formatFull(f)}</span>;
+        if (f === null) return <span style={CELL}>—</span>;
+        /* The figure's age on its own line, as on the Creators list: a Stale
+           chip past twice its cadence, or "time not recorded" when no read can
+           be shown to have produced it. */
+        return (
+          <span style={{ ...CELL, display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
+            {formatFull(f)}
+            {r.followersAt ? (
+              <AgeLabel
+                at={r.followersAt.at}
+                field={r.followersAt.field}
+                source={r.followersAt.at ? r.followersAt.source : r.followersAt.missing}
+                never={TIME_NOT_RECORDED}
+                style={{ display: "flex", maxWidth: "100%", overflow: "hidden", marginTop: 2 }}
+              />
+            ) : null}
+          </span>
+        );
       }
       case "posts":
         return <span style={CELL}>{r.posts}</span>;
