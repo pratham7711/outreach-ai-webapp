@@ -361,7 +361,7 @@ describe('POST /api/invites/accept', () => {
 
     expect(res.status).toBe(410);
     const body = await res.json();
-    expect(body.error).toContain('already been accepted');
+    expect(body.error).toContain('already been used');
   });
 
   /* 8 characters, the same as /signup and /reset-password. This endpoint took
