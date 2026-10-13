@@ -17,7 +17,7 @@ jest.mock("@/lib/db", () => ({
     campaign: { findMany: jest.fn(), count: jest.fn() },
     payout: { findMany: jest.fn(), count: jest.fn(), aggregate: jest.fn() },
     auditLog: { findMany: jest.fn(), count: jest.fn() },
-    post: { findMany: jest.fn(), groupBy: jest.fn() },
+    post: { findMany: jest.fn(), groupBy: jest.fn(), aggregate: jest.fn() },
     activation: { findMany: jest.fn() },
     campaignDeposit: { findMany: jest.fn() },
     proposal: { findMany: jest.fn() },
@@ -95,6 +95,8 @@ beforeEach(() => {
   mockDb.campaignProposal.count.mockResolvedValue(0);
   // The delivery rollup aggregates in the database now.
   mockDb.post.groupBy.mockResolvedValue([]);
+  // financials counts the posts whose views are known, for the tile's caption.
+  mockDb.post.aggregate.mockResolvedValue({ _count: { _all: 0 }, _max: { lastSyncedAt: null, lastFreshAt: null } });
   mockDb.$queryRawUnsafe.mockResolvedValue([]);
 });
 
