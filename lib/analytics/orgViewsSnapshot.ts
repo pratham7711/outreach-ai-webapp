@@ -1,5 +1,4 @@
 import { db } from "@/lib/db";
-import { notRemovedSql } from "@/lib/posts/removed";
 import { createLogger } from "@/lib/observability/logger";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { postVideoKeySql } from "@/lib/posts/duplicates";
@@ -71,7 +70,7 @@ export async function readOrgViewTotals(): Promise<Totals[]> {
           FROM "Post" p
           JOIN "Campaign" c ON c.id = p."campaignId"
          WHERE c."deletedAt" IS NULL
-           AND ${Prisma.raw(notRemovedSql("p"))}
+           AND p."removedAt" IS NULL
       ) videos
      WHERE copy = 1
      GROUP BY 1

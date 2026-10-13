@@ -4,7 +4,6 @@ import { unwrittenMetricValue, fieldMetricValue, rollupEngagement, snapshotViews
 import type { MetricField } from "@/lib/metricDisplay";
 import { isPostRemoved } from "@/lib/postRemoval";
 import { NOT_REMOVED, notRemovedSql } from "@/lib/posts/removed";
-import { Prisma } from "@/lib/generated/prisma/client";
 import { postStatus, postMeasuredAt, type PostStatusKind } from "@/lib/posts/postStatus";
 import { dataAsOf } from "@/lib/dataAge";
 import { isUnattributedCreator } from "@/lib/posts/unattributedName";
@@ -371,14 +370,20 @@ async function campaignReportStamp(campaignId: string): Promise<string> {
      running them in series cost two round trips on every view to answer a
      question none of them needed the others for. */
   const [[row], [act], [audio]] = await Promise.all([
+    /* The removed filter is written out ("removedAt" IS NULL is
+       notRemovedSql()) rather than interpolated with Prisma.raw(): Prisma
+       inlines a raw fragment only when its Sql class is the client's own, and
+       under next dev the client is cached on globalThis across route bundles,
+       so the fragment was bound as a parameter and the query failed (measured
+       2026-10-14). A unit test pins the text to notRemovedSql(). */
     db.$queryRaw<{ posts: bigint; synced: Date | null; views: string | null; added: Date | null; removed: Date | null }[]>`
-      SELECT COUNT(*) FILTER (WHERE ${Prisma.raw(notRemovedSql())}) AS posts,
-             MAX("lastSyncedAt") FILTER (WHERE ${Prisma.raw(notRemovedSql())}) AS synced,
+      SELECT COUNT(*) FILTER (WHERE "removedAt" IS NULL) AS posts,
+             MAX("lastSyncedAt") FILTER (WHERE "removedAt" IS NULL) AS synced,
              /* Posts can be removed (DELETE .../posts). Removing one and
                 adding an unread one in its place leaves the count, the newest
                 sync and the view sum where they were; the newest createdAt
                 still moves, so the report is not served for the old set. */
-             MAX("createdAt") FILTER (WHERE ${Prisma.raw(notRemovedSql())}) AS added,
+             MAX("createdAt") FILTER (WHERE "removedAt" IS NULL) AS added,
              /* Over every row, removed included: each remove stamps a new
                 newest removedAt, so a remove paired with a restore or an add
                 that happens to leave the live count where it was still moves
@@ -386,7 +391,7 @@ async function campaignReportStamp(campaignId: string): Promise<string> {
              MAX("removedAt") AS removed,
              /* Text, because SUM over a Float comes back as a JS number that
                 loses precision long before the view counts here would. */
-             (SUM("viewsCount") FILTER (WHERE ${Prisma.raw(notRemovedSql())}))::text AS views
+             (SUM("viewsCount") FILTER (WHERE "removedAt" IS NULL))::text AS views
         FROM "Post" WHERE "campaignId" = ${campaignId}
     `,
     db.$queryRaw<{ activations: Date | null }[]>`

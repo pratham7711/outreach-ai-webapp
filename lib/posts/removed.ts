@@ -33,9 +33,12 @@ export const ONLY_REMOVED = { removedAt: { not: null } } satisfies Prisma.PostWh
 /**
  * NOT_REMOVED for raw SQL. `alias` is the Post table's alias in the query
  * (`p`), or omitted when the query reads "Post" unaliased. Returns a plain
- * string: interpolate it with Prisma.raw() in a tagged $queryRaw, or directly
- * into a $queryRawUnsafe string. It carries no user input, so neither is an
- * injection path.
+ * string to interpolate into a $queryRawUnsafe string; it carries no user
+ * input, so that is not an injection path. In a tagged $queryRaw write the
+ * same text out instead of wrapping this in Prisma.raw(): under next dev the
+ * fragment was bound as a parameter and the query failed (2026-10-14; see
+ * lib/reports/campaignPerformance#campaignReportStamp). Tests pin those
+ * written-out copies to this function.
  */
 export function notRemovedSql(alias?: string): string {
   return `${alias ? `${alias}.` : ""}"removedAt" IS NULL`;
