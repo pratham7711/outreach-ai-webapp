@@ -19,7 +19,16 @@
 export const AREAS = {
   auth: {
     specs: ["auth.spec.ts", "signup-org-types.spec.ts", "portal-auth.spec.ts", "auth-pages.spec.ts"],
-    sources: ["app/(auth)/", "app/api/auth/", "lib/auth"],
+    sources: [
+      "app/(auth)/",
+      "app/api/auth/",
+      "lib/auth",
+      // Signing up, confirming the address, accepting a team invitation.
+      "app/api/signup/",
+      "app/api/invites/accept/",
+      "lib/emailVerification.ts",
+      "lib/loginRateLimit.ts",
+    ],
   },
   campaigns: {
     specs: [
@@ -38,6 +47,24 @@ export const AREAS = {
       // Track this campaign's creators, on the campaign's Creators tab.
       "components/creators/TrackCreators.tsx",
       "lib/sync/",
+      /* Mapped 2026-10-13 from the import graph: every route that imports these
+         is a campaigns route (or a cron that writes campaign posts, which no
+         spec calls -- a full run would not exercise it either, so the campaigns
+         specs are the sanity check for it). */
+      "app/api/activations/",
+      "app/api/calendar/",
+      "app/api/deadlines/",
+      "app/api/folders/",
+      "app/api/fraud-flags/",
+      "app/api/posts/",
+      "app/api/cron/sync-posts/",
+      "app/api/cron/sync-instagram-posts/",
+      "app/api/admin/cc-sync/",
+      "app/api/admin/repair-dead-letters/",
+      "app/api/admin/unseal-live-posts/",
+      "app/api/platform/unseal-misfired-ttl/",
+      // The MCP server: no spec drives it; campaigns and their posts are what it reads.
+      "app/api/mcp/",
     ],
   },
   analytics: {
@@ -51,6 +78,11 @@ export const AREAS = {
       "app/api/analytics/",
       "app/api/share/",
       "components/charts/",
+      // Mapped 2026-10-13 from the import graph (see campaigns above).
+      "app/api/dashboard/",
+      "app/api/financial-reports/",
+      "app/api/reports/",
+      "app/api/cron/snapshot-org-views/",
     ],
   },
   creators: {
@@ -110,6 +142,15 @@ export const AREAS = {
       "lib/creators/rosterSchemaDdl.ts",
       "lib/creators/rosterSelection.ts",
       "lib/creators/rosterTables.ts",
+      // Mapped 2026-10-13 from the import graph (see campaigns above).
+      "app/(public)/c/",
+      "app/api/media-kits/",
+      "app/api/kit/",
+      "app/api/diagnostics/",
+      "app/api/cron/refresh-creator-avatars/",
+      "app/api/admin/migrate-creator-avatars/",
+      "app/api/admin/migrate-creator-accounts/",
+      "app/api/admin/migrate-account-identity/",
     ],
   },
   portal: {
@@ -132,6 +173,14 @@ export const AREAS = {
       "lib/oauth/",
       "app/(public)/invite/",
       "app/(public)/data-deletion/",
+      // Mapped 2026-10-13 from the import graph (see campaigns above).
+      "app/api/campaign-invites/",
+      "app/api/cron/auto-approve-submissions/",
+      "app/api/cron/refresh-platform-tokens/",
+      // The legal pages the connect and portal flows link to.
+      "app/(public)/privacy/",
+      "app/(public)/terms/",
+      "app/(public)/about/",
     ],
   },
   marketplace: {
@@ -141,6 +190,12 @@ export const AREAS = {
       "app/(dashboard)/plans/",
       "app/api/marketplace/",
       "app/api/proposals/",
+      // Mapped 2026-10-13 from the import graph (see campaigns above).
+      "app/(public)/explore/",
+      "app/api/public/marketplace/",
+      "app/api/negotiations/",
+      "app/api/plans/",
+      "app/api/payout-requests/",
     ],
   },
   settings: {
@@ -181,6 +236,33 @@ export const AREAS = {
       // scheduler polls, and the DDL route for the API quota counter.
       "app/api/ops/",
       "app/api/admin/migrate-ops-quota/",
+      // Mapped 2026-10-13 from the import graph (see campaigns above).
+      "app/api/audit-logs/",
+      "app/api/clients/",
+      "app/api/connections/",
+      "app/api/email-logs/",
+      "app/api/ingestion/",
+      "app/api/keys/",
+      "app/api/org/",
+      "app/api/payouts/",
+      "app/api/recipients/",
+      "app/(dashboard)/recipients/",
+      "app/api/team/",
+      "app/api/invites/",
+      "app/api/notifications/",
+      "app/api/cron/snapshot-sounds/",
+      "app/api/cron/sync-trackers/",
+      "app/api/admin/migrate-tracker-indexes/",
+      "app/api/admin/instagram-access/",
+      "app/api/admin/integration-health/",
+      // The operator's own pages; platform/trackers, /ops and /feedback are mapped above and below.
+      "app/(dashboard)/platform/page.tsx",
+      "app/(dashboard)/platform/PlatformDashboardClient.tsx",
+      "app/api/platform/orgs/",
+      "app/api/platform/stats/",
+      "app/api/platform/act-as/",
+      "app/api/platform/canary/",
+      "app/api/platform/instagram-token/",
     ],
   },
   /* The Feedback button (every client and creator page) and the operator's
@@ -198,7 +280,14 @@ export const AREAS = {
   },
   nav: {
     specs: ["navigation.spec.ts"],
-    sources: ["components/layout/", "components/NewSidebar.tsx"],
+    sources: [
+      "components/layout/",
+      "components/NewSidebar.tsx",
+      // /inbox is parked behind a redirect that navigation.spec.ts asserts; the bell in the top bar reads notifications.
+      "app/(dashboard)/inbox/",
+      "app/api/messages/",
+      "app/api/notifications/",
+    ],
   },
   responsive: {
     specs: ["responsive-a.spec.ts", "responsive-b.spec.ts", "responsive-c.spec.ts", "responsive-d.spec.ts"],
@@ -233,6 +322,141 @@ export const AREAS = {
 };
 
 /**
+ * Shared lib/ and components/ files, keyed by path, with the areas whose
+ * routes import them. Merged into AREAS[area].sources below, so every reader
+ * of the map sees ordinary sources.
+ *
+ * Derived 2026-10-13 from the import graph, not by name: for each file, every
+ * page, layout and route handler that reaches it through imports, and the
+ * areas those entry points belong to. A file is listed only when
+ *   - every entry point that reaches it is itself mapped (nothing through
+ *     app/(dashboard)/layout.tsx, app/layout.tsx, app/api/img, app/api/sdui or
+ *     app/api/tenant, which render on or serve every screen), and
+ *   - it reaches at most three areas.
+ * Past three it is shared infrastructure in practice -- lib/metrics/numbers
+ * and lib/metrics/costs reach six, lib/creators/connectionGate four, lib/brand
+ * every one -- and stays unmapped, which means the full suite. That also keeps
+ * contrast and responsive in play for anything wide: those two specs open
+ * screens in every area but own no sources, so an area run never includes
+ * them.
+ *
+ * A file imported by nothing (lib/ai/* apart from the two below,
+ * components/ai/*, lib/payments/*) is not listed either; touching it runs
+ * everything, which costs time and never coverage.
+ *
+ * When a new importer pulls one of these into another area, add the area
+ * here. Nothing checks this automatically: the cost of a stale row is an area
+ * run that misses the new screen, so re-derive it when moving code between
+ * areas.
+ */
+const IMPORTED_BY = {
+  "components/CreatorSelect.tsx": ["campaigns"],
+  "components/PostMedia.tsx": ["campaigns"],
+  "components/RichTextEditor.tsx": ["campaigns"],
+  "components/modals/CampaignWizard.tsx": ["campaigns"],
+  "components/modals/AddCreatorModal.tsx": ["creators"],
+  "components/modals/AddClientModal.tsx": ["settings"],
+  "components/modals/AddPayoutModal.tsx": ["settings"],
+  "components/modals/ClientFeatureModal.tsx": ["settings"],
+  "components/modals/PayoutDetailModal.tsx": ["settings"],
+  "components/integrations/": ["settings"],
+  "components/creators/MetricFigure.tsx": ["creators", "settings"],
+  "components/LegalLinks.tsx": ["portal"],
+  "components/LegalShell.tsx": ["portal"],
+
+  "lib/activationQueues.ts": ["analytics", "campaigns"],
+  "lib/ai/models.ts": ["campaigns"],
+  "lib/ai/outreach/": ["campaigns"],
+  "lib/analytics/": ["analytics", "campaigns", "songs"],
+  "lib/api/errorMessage.ts": ["campaigns", "creators", "settings"],
+  "lib/campaignActivity.ts": ["campaigns"],
+  "lib/campaignArtwork.ts": ["analytics", "campaigns"],
+  "lib/campaignScope.ts": ["campaigns", "settings"],
+  "lib/campaigns/": ["campaigns", "settings"],
+  "lib/capabilities.ts": ["portal"],
+  "lib/compliance/": ["campaigns"],
+  "lib/creatorcore/": ["campaigns"],
+  "lib/creatorMetrics.ts": ["analytics", "creators"],
+  "lib/features.ts": ["marketplace", "settings"],
+  "lib/fraud-detection.ts": ["campaigns"],
+  "lib/fraud/": ["campaigns"],
+  "lib/health/": ["settings"],
+  "lib/http/readCache.ts": ["analytics"],
+  "lib/integrations/": ["campaigns", "settings"],
+  "lib/inviteEmail.ts": ["settings"],
+  "lib/listFilters.ts": ["campaigns", "creators", "settings"],
+  "lib/listPageSize.ts": ["campaigns", "creators"],
+  "lib/listParams.ts": ["campaigns", "creators", "settings"],
+  "lib/useListQuery.ts": ["campaigns", "creators"],
+  // lib/marketplace.ts and lib/marketplace/ both.
+  "lib/marketplace": ["campaigns", "marketplace", "portal"],
+  "lib/mcp/": ["campaigns"],
+  "lib/messaging/": ["nav", "portal"],
+  "lib/metrics/benchmarks.ts": ["analytics", "campaigns", "songs"],
+  "lib/metrics/index.ts": ["analytics", "campaigns", "songs"],
+  "lib/metrics/trend.ts": ["analytics", "campaigns", "songs"],
+  "lib/negotiation/": ["marketplace", "portal"],
+  "lib/payouts/": ["settings"],
+  "lib/platform/stats.ts": ["settings"],
+  "lib/postRemoval.ts": ["analytics", "campaigns", "creators"],
+  "lib/recipients/": ["settings"],
+  "lib/refreshCooldown.ts": ["campaigns", "settings"],
+  "lib/refreshSummary.ts": ["campaigns", "settings"],
+  "lib/reports/": ["analytics", "campaigns"],
+  "lib/serialization/": ["campaigns"],
+  "lib/sounds/": ["analytics", "campaigns", "settings"],
+  "lib/syncSlot/": ["campaigns"],
+  "lib/taxonomy.ts": ["settings"],
+  "lib/team/": ["settings"],
+  "lib/tenantRefs.ts": ["analytics", "campaigns"],
+
+  // lib/creators/: the files no hand-written entry above already covers.
+  "lib/creators/accountIds.ts": ["creators", "settings"],
+  "lib/creators/accountIdSchemaDdl.ts": ["creators", "settings"],
+  "lib/creators/accountIdTables.ts": ["creators", "settings"],
+  "lib/creators/agencyLookup.ts": ["creators"],
+  "lib/creators/avatarResponse.ts": ["analytics", "creators"],
+  "lib/creators/avatarSchemaDdl.ts": ["creators"],
+  "lib/creators/avatarStore.ts": ["analytics", "creators", "settings"],
+  "lib/creators/connectedReading.ts": ["settings"],
+  "lib/creators/connectSchemaDdl.ts": ["creators", "portal", "settings"],
+  "lib/creators/connectTables.ts": ["creators", "portal", "settings"],
+  "lib/creators/connectToken.ts": ["creators", "portal"],
+  "lib/creators/figureTime.ts": ["creators"],
+  "lib/creators/forgetConnectedReadings.ts": ["portal"],
+  "lib/creators/grantAccess.ts": ["creators"],
+  "lib/creators/grantBackfill.ts": ["creators"],
+  "lib/creators/grants.ts": ["creators", "portal"],
+  "lib/creators/latestReadings.ts": ["creators"],
+  "lib/creators/metricValue.ts": ["campaigns", "creators", "settings"],
+  "lib/creators/platformTabs.ts": ["creators"],
+  "lib/creators/rosterMetrics.ts": ["creators"],
+  "lib/creators/snapshot.ts": ["settings"],
+  "lib/creators/topPosts.ts": ["settings"],
+  "lib/creators/topPostsFromCampaigns.ts": ["settings"],
+
+  // lib/posts/: unattributedCreator and unattributedName reach five areas and stay unmapped.
+  "lib/posts/addPostChecks.ts": ["campaigns", "portal", "settings"],
+  "lib/posts/bulkActions.ts": ["campaigns"],
+  "lib/posts/bulkAdd.ts": ["campaigns"],
+  "lib/posts/detectCreator.ts": ["campaigns", "portal", "settings"],
+  "lib/posts/duplicates.ts": ["analytics", "campaigns", "songs"],
+  "lib/posts/fieldFreshness.ts": ["campaigns"],
+  "lib/posts/pastedUrls.ts": ["campaigns"],
+  "lib/posts/postDisplay.ts": ["campaigns"],
+  "lib/posts/postStatus.ts": ["analytics", "campaigns", "creators"],
+};
+
+for (const [path, areas] of Object.entries(IMPORTED_BY)) {
+  for (const area of areas) {
+    /* A misspelt area would otherwise drop the path silently -- and an
+       unmapped path is safe, but a half-mapped one runs too little. */
+    if (!AREAS[area]) throw new Error(`e2e/areas.mjs: IMPORTED_BY names unknown area "${area}" for ${path}`);
+    if (!AREAS[area].sources.includes(path)) AREAS[area].sources.push(path);
+  }
+}
+
+/**
  * Paths that can change how any page renders or how every query behaves. A
  * touch here means the whole suite, no matter how small the diff looks -- the
  * number-formatting pass that prompted all this was four lines in lib/format.ts
@@ -240,6 +464,12 @@ export const AREAS = {
  */
 export const CROSS_CUTTING = [
   "lib/format",
+  /* How every metric reads -- "--" versus 0, the unit, the precision. 55
+     routes in six areas import it, and contrast and responsive score the
+     figures it produces on every screen without owning a source of their own.
+     It would force the full suite as an unmapped path anyway; it is named here
+     so nobody maps it to an area later because it looks like one feature's. */
+  "lib/metricDisplay",
   "lib/db",
   "lib/prisma",
   "components/ds/",
@@ -260,7 +490,15 @@ export const CROSS_CUTTING = [
 ];
 
 /** Paths that cannot change what the app renders, so they force nothing. */
-export const INERT = ["__tests__/", "docs/", "README", ".gitignore", "scratchpad/", ".vscode/", "scripts/creator-worker/", "scripts/trackers/", "scripts/qa/"];
+export const INERT = [
+  "__tests__/", "docs/", "README", ".gitignore", "scratchpad/", ".vscode/",
+  "scripts/creator-worker/", "scripts/trackers/", "scripts/qa/",
+  /* CI, lint and unit-test configuration, and the agent notes: none of them is
+     loaded by the app. vercel.json is read by Vercel's platform (crons,
+     regions), never by the `next start` the suite runs against, so no E2E run
+     can observe a change to it. */
+  ".github/", "CLAUDE.md", "eslint.config.mjs", "scripts/lint-ratchet", "jest.", "vercel.json",
+];
 
 export const AREA_NAMES = Object.keys(AREAS);
 
