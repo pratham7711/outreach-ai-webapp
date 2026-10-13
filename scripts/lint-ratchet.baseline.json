@@ -10,15 +10,15 @@
     "(no rule)": 11,
     "@next/next/no-img-element": 12,
     "@typescript-eslint/no-empty-object-type": 6,
-    "@typescript-eslint/no-explicit-any": 270,
+    "@typescript-eslint/no-explicit-any": 269,
     "@typescript-eslint/no-require-imports": 1,
-    "@typescript-eslint/no-unused-vars": 81,
+    "@typescript-eslint/no-unused-vars": 79,
     "jsdoc/require-param": 1,
     "jsx-a11y/role-has-required-aria-props": 1,
     "prefer-const": 1,
     "react-hooks/exhaustive-deps": 4,
     "react-hooks/purity": 3,
-    "react-hooks/set-state-in-effect": 20
+    "react-hooks/set-state-in-effect": 19
   },
   "files": {
     "app/(auth)/login/page.tsx": {
@@ -69,7 +69,7 @@
       "@typescript-eslint/no-unused-vars": 5
     },
     "app/(dashboard)/campaigns/[id]/PostsTab.tsx": {
-      "@typescript-eslint/no-unused-vars": 4
+      "@typescript-eslint/no-unused-vars": 3
     },
     "app/(dashboard)/campaigns/[id]/ReviewsSection.tsx": {
       "@typescript-eslint/no-unused-vars": 1,
@@ -431,9 +431,6 @@
     "app/api/portal/discover/route.ts": {
       "@typescript-eslint/no-explicit-any": 2
     },
-    "app/api/portal/offers/[id]/respond/route.ts": {
-      "@typescript-eslint/no-unused-vars": 1
-    },
     "app/api/portal/testimonials/route.ts": {
       "@typescript-eslint/no-unused-vars": 1
     },
@@ -504,9 +501,6 @@
     "components/ds/LastUpdated.tsx": {
       "react-hooks/purity": 1
     },
-    "components/layout/NotificationBell.tsx": {
-      "react-hooks/set-state-in-effect": 1
-    },
     "components/layout/TopBar.tsx": {
       "react-hooks/set-state-in-effect": 1
     },
@@ -517,7 +511,7 @@
       "@typescript-eslint/no-explicit-any": 2
     },
     "lib/auth.ts": {
-      "@typescript-eslint/no-explicit-any": 10
+      "@typescript-eslint/no-explicit-any": 9
     },
     "lib/authenticate.ts": {
       "@typescript-eslint/no-explicit-any": 4
