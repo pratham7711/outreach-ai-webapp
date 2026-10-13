@@ -168,7 +168,7 @@ const nextAuth = NextAuth({
         token.campaignScope = fresh.campaignScope;
         // When the row was read, not now: a persisted token must not claim a
         // fresher check than the memo actually made.
-        (token as any).checkedAt = at;
+        (token as { checkedAt?: number }).checkedAt = at;
       } catch {
         /* Keep the token as it stands. */
       }

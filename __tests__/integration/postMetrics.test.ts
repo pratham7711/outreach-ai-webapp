@@ -218,7 +218,7 @@ describe('POST /api/campaigns/[id]/posts/[postId]/sync', () => {
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(mockDb.post.update.mock.calls.every(([args]: any[]) => args.include === undefined)).toBe(true);
+    expect(mockDb.post.update.mock.calls.every(([args]: [{ include?: unknown }]) => args.include === undefined)).toBe(true);
     expect(mockDb.post.findUnique).toHaveBeenCalledWith(expect.objectContaining({
       where: { id: 'post-1' },
       include: expect.objectContaining({ creator: expect.anything(), snapshots: expect.anything() }),

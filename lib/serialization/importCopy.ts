@@ -18,6 +18,7 @@ export const IMPORT_COPY_KEY = "__cc";
 /** The bag without `__cc`, or the value unchanged when it is not an object holding one. */
 export function withoutImportCopy<T>(bag: T): T {
   if (!bag || typeof bag !== "object" || Array.isArray(bag) || !(IMPORT_COPY_KEY in bag)) return bag;
-  const { [IMPORT_COPY_KEY]: _dropped, ...rest } = bag as Record<string, unknown>;
+  const rest = { ...(bag as Record<string, unknown>) };
+  delete rest[IMPORT_COPY_KEY];
   return rest as T;
 }

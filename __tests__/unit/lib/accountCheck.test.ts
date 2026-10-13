@@ -9,7 +9,7 @@ jest.mock("@/lib/db", () => ({ db: { user: { findUnique: jest.fn() } } }));
 import { db } from "@/lib/db";
 import { ACCOUNT_CHECK_TTL_MS, forgetAccount, readAccount } from "@/lib/accountCheck";
 
-const findUnique = (db as any).user.findUnique as jest.Mock;
+const findUnique = (db as unknown as { user: { findUnique: jest.Mock } }).user.findUnique;
 const row = (over: Record<string, unknown> = {}) => ({
   role: "ADMIN", isActive: true, campaignScope: "ALL", orgId: "org-1",
   email: "ada@acme.test", emailVerified: null, ...over,
@@ -47,7 +47,7 @@ describe("readAccount", () => {
   });
 
   it("keeps users apart", async () => {
-    findUnique.mockImplementation(({ where }: any) => Promise.resolve(row({ orgId: `org-of-${where.id}` })));
+    findUnique.mockImplementation(({ where }: { where: { id: string } }) => Promise.resolve(row({ orgId: `org-of-${where.id}` })));
     expect((await readAccount("a")).row?.orgId).toBe("org-of-a");
     expect((await readAccount("b")).row?.orgId).toBe("org-of-b");
   });
