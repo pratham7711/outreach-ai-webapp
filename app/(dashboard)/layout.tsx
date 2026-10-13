@@ -13,6 +13,7 @@ import { Suspense } from "react";
 import { auth } from "@/lib/auth";
 import { isPlatformAdmin } from "@/lib/billing/subscription";
 import { getOrgEntitlements } from "@/lib/entitlements";
+import { tenantConfigFor } from "@/lib/tenantConfig";
 import { ThemeStyle } from "@/components/sdui/ThemeStyle";
 import { navHrefsForRole, resolveDashboardPolicy } from "@/lib/dashboardPolicy";
 import { usableIconHref } from "@/lib/brandingDefaults";
@@ -112,7 +113,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     : null;
 
   return (
-    <TenantProvider>
+    <TenantProvider initial={entitlements ? tenantConfigFor(entitlements) : undefined}>
       <SidebarProvider>
        {/* Wraps the rail and the page both: the campaign page below publishes
            its title and counts, and the rail above reads them. */}

@@ -33,8 +33,19 @@ export function TenantProvider({
   initial?: TenantConfig;
 }) {
   const [config, setConfig] = useState<TenantConfig>(initial ?? {});
+  // The first render's `initial`, held so the effect below runs on mount only.
+  const [seeded] = useState(initial);
 
   useEffect(() => {
+    /* The dashboard layout renders `initial` from the same entitlements read
+       /api/tenant/config answers from (tenantConfigFor), so with it there is
+       nothing to fetch: that was a request, an auth check and an org read on
+       every full page load, to learn what the server had just rendered. */
+    if (seeded) {
+      const fontFamily = customBrandingValue("fontFamily", seeded.fontFamily);
+      if (fontFamily) document.documentElement.style.setProperty("--font-family", fontFamily);
+      return;
+    }
     fetch("/api/tenant/config")
       .then((res) => {
         if (res.ok) return res.json();
@@ -53,7 +64,7 @@ export function TenantProvider({
       .catch(() => {
         // Tenant config endpoint not available — use defaults
       });
-  }, []);
+  }, [seeded]);
 
   return (
     <TenantContext.Provider value={config}>

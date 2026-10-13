@@ -199,6 +199,20 @@ describe("TenantProvider", () => {
       expect(mockFetch).toHaveBeenCalledWith("/api/tenant/config");
     });
 
+    it("does not fetch when the layout rendered the config", async () => {
+      const mockFetch = jest.fn().mockResolvedValue({ ok: false });
+      (global.fetch as jest.Mock) = mockFetch;
+
+      render(<TenantProvider initial={{ plan: "PRO", fontFamily: "Poppins" }}><div>x</div></TenantProvider>);
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(document.documentElement.style.getPropertyValue("--font-family")).toBe("Poppins");
+    });
+
     it("only calls fetch once on mount", async () => {
       const mockFetch = jest.fn().mockResolvedValue({ ok: false });
       (global.fetch as jest.Mock) = mockFetch;
