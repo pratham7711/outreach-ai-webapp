@@ -5,12 +5,12 @@ import { Plus, LayoutGrid, List as ListIcon, Users, Upload, X, Globe2, ChevronRi
 import { Badge, Card, Input, EmptyState } from "@pratham7711/ui";
 import { PageHeader, StatusTabs, Pagination, FilterDrawer, FilterButton, SortableTh, Button } from "@/components/ds";
 import type { FilterDef, FilterValues } from "@/components/ds";
-import { Search } from "lucide-react";
+import { Loader2, Search } from "lucide-react";
 import AddCreatorModal from "@/components/modals/AddCreatorModal";
 import ImportCreatorsModal from "@/components/creators/ImportCreatorsModal";
 import Link from "next/link";
 import { stripAt, platformLabel, formatFull, formatCompact, formatFullCurrency } from "@/lib/format";
-import { useListQuery } from "@/lib/useListQuery";
+import { pendingListProps, useListQuery } from "@/lib/useListQuery";
 import { CREATOR_PLATFORM_TABS, type CreatorPlatformTab } from "@/lib/creators/platformTabs";
 import { CREATORS_PAGE_SIZE } from "@/lib/listPageSize";
 import type { CreatorSort } from "@/lib/listParams";
@@ -346,7 +346,7 @@ export default function CreatorsClient({
   // Defaults are passed as undefined so they stay out of the URL entirely —
   // /creators rather than /creators?platform=All&page=1. The drawer's values
   // ride along so changing a tab or page keeps the filters applied.
-  const { push, pending } = useListQuery({
+  const { push, pending, shown } = useListQuery({
     q,
     platform: platform === "All" ? undefined : platform,
     page: page === 1 ? undefined : page,
@@ -365,6 +365,14 @@ export default function CreatorsClient({
     const dir = sort.key === key && sort.dir === "desc" ? "asc" : "desc";
     push({ sort: key, dir, page: null });
   };
+
+  /* The platform tabs and the pager draw from `shown` -- the query with the
+     click already applied (see useListQuery) -- so a choice shows the moment it
+     is made, not when the server answers. A cleared platform is All. */
+  const shownPlatform =
+    shown.platform === null ? "All" : typeof shown.platform === "string" ? shown.platform : platform;
+  const shownPage = shown.page === null ? 1 : Number(shown.page ?? page);
+  const searching = pending && (shown.q ?? "") !== q;
 
   const FILTERS: FilterDef[] = [
     // Offered only once the org has defined a tag, the way the campaigns drawer
@@ -603,7 +611,7 @@ export default function CreatorsClient({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search Creators"
-            iconLeft={<Search size={16} />}
+            iconLeft={searching ? <Loader2 size={16} className="motion-safe:animate-spin" aria-hidden="true" /> : <Search size={16} />}
           />
         </div>
         <FilterButton count={filterCount} onClick={() => setShowFilters(true)} />
@@ -624,7 +632,7 @@ export default function CreatorsClient({
           ...t,
           count: platformCounts[t.key] ?? 0,
         }))}
-        active={platform}
+        active={shownPlatform}
         onChange={(key) => push({ platform: key === "All" ? null : key, page: null })}
       />
 
@@ -681,6 +689,7 @@ export default function CreatorsClient({
         </div>
       )}
 
+      <div {...pendingListProps(pending)}>
       {filtered.length === 0 ? (
         <EmptyState
           icon={<Users size={32} color="var(--cc-text-subtle)" />}
@@ -769,11 +778,12 @@ export default function CreatorsClient({
           </div>
         </Card>
       )}
+      </div>
 
       {total > CREATORS_PAGE_SIZE && (
         <Pagination
           style={{ marginTop: 24 }}
-          page={page}
+          page={shownPage}
           totalPages={totalPages}
           total={total}
           pageSize={CREATORS_PAGE_SIZE}
