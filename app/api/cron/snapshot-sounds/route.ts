@@ -4,6 +4,10 @@ import { createLogger } from "@/lib/observability/logger";
 import { alertOps, shouldAlertOnBatch } from "@/lib/alerts";
 import { cronRoute } from "@/lib/ops/cronRoute";
 
+/* Declared, not inherited: the sweep's own deadline is four minutes plus a
+   30s backstop (lib/ops/waitUntil), and both are sized against this. */
+export const maxDuration = 300;
+
 async function cronHandler(request: NextRequest) {
   const log = createLogger({ context: { route: "cron/snapshot-sounds" } });
 
