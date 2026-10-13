@@ -78,6 +78,18 @@
   --chart-4: #eda100;
   --chart-5: #e87ba4;
 
+  /* Platform hues: the colour that names a platform wherever platforms sit
+     side by side (the dashboard's views-by-platform donut and its legend, a
+     campaign's platform split). Here and in creatorcore they are the chart
+     ramp; the black-and-white themes give them their own values below, because
+     their ramp is five greys -- the donut's three slices were #0a0a0a, #3d3d3d
+     and #5e5e5e (MEASURED 2026-10-13), which read as one dark ring. */
+  --cc-cat-1: var(--chart-1);
+  --cc-cat-2: var(--chart-2);
+  --cc-cat-3: var(--chart-3);
+  --cc-cat-4: var(--chart-4);
+  --cc-cat-5: var(--chart-5);
+
   /* Status is RESERVED — never reused as a series colour, always with icon + label */
   /* Darkened from #0CA30C / #FAB219 (2026-09-10). These are status colours,
      and a status is nearly always rendered as TEXT on a tint of itself, so the
@@ -1436,6 +1448,16 @@
   --chart-4: #858585;
   --chart-5: #6e6e6e;
 
+  /* Platform hues (see :root). The first is the theme's own ink, so TikTok --
+     the platform most posts are on -- keeps the black-and-white look; the
+     rest are Okabe-Ito hues, which stay apart under the common colour-vision
+     deficiencies. Each is over 4.4:1 on the card (#1A1A19). */
+  --cc-cat-1: #f5f5f5;
+  --cc-cat-2: #cc79a7;
+  --cc-cat-3: #d55e00;
+  --cc-cat-4: #56b4e9;
+  --cc-cat-5: #009e73;
+
   --chart-grid: #2C2C2A;
   --chart-axis: #383835;
 
@@ -1577,6 +1599,14 @@
   --chart-3: #5e5e5e;
   --chart-4: #7a7a7a;
   --chart-5: #949494;
+
+  /* Platform hues (see :root and :root.dark). Okabe-Ito after the ink; each is
+     at least 3:1 on the white card, the floor for a graphic (WCAG 1.4.11). */
+  --cc-cat-1: #0a0a0a;
+  --cc-cat-2: #cc79a7;
+  --cc-cat-3: #d55e00;
+  --cc-cat-4: #0072b2;
+  --cc-cat-5: #009e73;
 
   --chart-grid: #EBEBEB;
   --chart-axis: #C4C4C4;

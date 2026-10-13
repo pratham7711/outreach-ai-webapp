@@ -15,12 +15,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { platformColor } from "@/app/(dashboard)/analytics/shared";
-import { UNKNOWN, stripAt } from "@/lib/format";
+import { distinctPlatformColors } from "@/app/(dashboard)/analytics/shared";
+import { UNKNOWN, platformLabel, stripAt } from "@/lib/format";
 import { loadCharts } from "@/components/charts/lazyCharts";
 import { formatNumber, type PerformanceData } from "../types";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import { creatorNameParts } from "@/lib/creators/creatorName";
+import { noun } from "@/lib/ui/noun";
 
 const PlatformBreakdownPie = dynamic(
   () => loadCharts().then((m) => m.PlatformBreakdownPie),
@@ -50,6 +51,7 @@ export function PerformanceSection({
   onExportCreators,
 }: PerformanceSectionProps) {
   const platforms = financials?.platformBreakdown ?? [];
+  const platformColors = distinctPlatformColors(platforms.map((p) => p.platform));
   const byCampaign = financials?.viewsByCampaign ?? [];
   const topPosts = financials?.topPosts ?? [];
   const creators = financials?.creatorPerformance ?? [];
@@ -78,7 +80,7 @@ export function PerformanceSection({
                   <div className="h-[200px]">
                     <PlatformBreakdownPie
                       data={platforms}
-                      colors={platforms.map((entry, i) => platformColor(entry.platform, i))}
+                      colors={platformColors}
                       formatNumber={formatNumber}
                     />
                   </div>
@@ -89,12 +91,12 @@ export function PerformanceSection({
                           <span
                             aria-hidden="true"
                             className="size-2.5 shrink-0 rounded-full"
-                            style={{ background: platformColor(p.platform, i) }}
+                            style={{ background: platformColors[i] }}
                           />
-                          <span className="font-semibold text-foreground">{p.platform}</span>
+                          <span className="font-semibold text-foreground">{platformLabel(p.platform)}</span>
                         </span>
                         <span className="text-muted-foreground tabular-nums">
-                          {formatNumber(p.views)} views · {p.postsCount} posts
+                          {formatNumber(p.views)} views · {p.postsCount} {noun(p.postsCount, "post")}
                         </span>
                       </li>
                     ))}
@@ -174,7 +176,7 @@ export function PerformanceSection({
                       </TableCell>
                       <TableCell>
                         <Badge variant="neutral" size="sm">
-                          {post.platform}
+                          {platformLabel(post.platform)}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right font-semibold text-foreground tabular-nums">
@@ -240,7 +242,7 @@ export function PerformanceSection({
                               account -- and two rows here that look identical
                               without it. */}
                           {c.platform ? (
-                            <Badge variant="neutral" size="sm">{c.platform}</Badge>
+                            <Badge variant="neutral" size="sm">{platformLabel(c.platform)}</Badge>
                           ) : null}
                         </div>
                         </div>
