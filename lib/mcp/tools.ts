@@ -9,6 +9,7 @@ import {
 import { getRefreshCooldown, refreshCampaign } from "@/lib/sync/refreshCampaign";
 import { duplicatePostIds, excludingDuplicates } from "@/lib/posts/duplicates";
 import type { McpCaller } from "@/lib/mcp/caller";
+import { PAYOUTS_ENABLED } from "@/lib/payouts/switch";
 import {
   iso,
   num,
@@ -46,7 +47,10 @@ function campaignFilter(caller: McpCaller) {
 }
 
 type Handler = (orgId: string, args: Record<string, any>, caller: McpCaller) => Promise<ToolResult>;
-type Tool = { def: ToolDef; run: Handler };
+/** `payouts`: behind the payouts switch (lib/payouts/switch.ts). While it is
+    off the tool is neither listed nor callable -- a call answers exactly as an
+    unknown tool does, so a client cannot tell it apart from one never built. */
+type Tool = { def: ToolDef; run: Handler; payouts?: true };
 
 /** Reads. Nothing they do can be observed from outside this product. */
 const READ: ToolAnnotations = {
@@ -812,6 +816,7 @@ const TOOLS: Tool[] = [
       },
       annotations: read("List payouts"),
     },
+    payouts: true,
     run: async (orgId, args) => {
       const page = pageArgs(args);
       const where: Record<string, any> = {
@@ -874,8 +879,12 @@ const TOOLS: Tool[] = [
   {
     def: {
       name: "get_org_kpis",
-      description:
-        "Organization-level KPIs: total views, total posts, average engagement rate over the posts it could be measured on, and what completed payouts add up to. Returns null rather than 0 for a figure nothing was measured for.",
+      /* The payout half of this tool follows the payouts switch: off, the
+         description stops offering it and the run below neither reads the
+         Payout table nor returns its two fields. */
+      description: PAYOUTS_ENABLED
+        ? "Organization-level KPIs: total views, total posts, average engagement rate over the posts it could be measured on, and what completed payouts add up to. Returns null rather than 0 for a figure nothing was measured for."
+        : "Organization-level KPIs: total views, total posts, and average engagement rate over the posts it could be measured on. Returns null rather than 0 for a figure nothing was measured for.",
       inputSchema: { type: "object", properties: {} },
       annotations: read("Organization KPIs"),
     },
@@ -928,15 +937,17 @@ const TOOLS: Tool[] = [
           },
           _count: { _all: true },
         }),
-        db.payout.aggregate({
-          where: { orgId, status: "SUCCESS" },
-          _sum: { amount: true },
-          _count: { _all: true },
-        }),
+        PAYOUTS_ENABLED
+          ? db.payout.aggregate({
+              where: { orgId, status: "SUCCESS" },
+              _sum: { amount: true },
+              _count: { _all: true },
+            })
+          : null,
       ]);
 
       const measuredPosts = ratedRow._count._all;
-      const recordedPayouts = payoutRow._count._all;
+      const recordedPayouts = payoutRow ? payoutRow._count._all : null;
       const engagement = rollupEngagementFromTotals({
         measuredPosts,
         viewsCount: ratedRow._sum.viewsCount,
@@ -958,9 +969,14 @@ const TOOLS: Tool[] = [
         engagementSample: measuredPosts,
         // Named for its provenance. This is what completed payouts add up
         // to, which is only the campaign spend an org has actually recorded
-        // here -- not a budget, and not every campaign.
-        spendFromRecordedPayouts: recordedPayouts > 0 ? payoutRow._sum.amount ?? 0 : null,
-        recordedPayouts,
+        // here -- not a budget, and not every campaign. Absent, not null,
+        // while payouts are switched off: there is no figure to be unknown.
+        ...(payoutRow && recordedPayouts !== null
+          ? {
+              spendFromRecordedPayouts: recordedPayouts > 0 ? payoutRow._sum.amount ?? 0 : null,
+              recordedPayouts,
+            }
+          : {}),
       });
     },
   },
@@ -1047,8 +1063,13 @@ const TOOLS: Tool[] = [
 
 const BY_NAME = new Map(TOOLS.map((tool) => [tool.def.name, tool]));
 
+/** What this deployment offers: every tool, less those behind a switch that is off. */
+function offered(tool: Tool): boolean {
+  return !tool.payouts || PAYOUTS_ENABLED;
+}
+
 export function getMcpToolDefinitions(): ToolDef[] {
-  return TOOLS.map((tool) => tool.def);
+  return TOOLS.filter(offered).map((tool) => tool.def);
 }
 
 export async function executeMcpTool(
@@ -1057,6 +1078,6 @@ export async function executeMcpTool(
   args: Record<string, any>
 ): Promise<ToolResult> {
   const tool = BY_NAME.get(toolName);
-  if (!tool) throw new Error(`Unknown tool: ${toolName}`);
+  if (!tool || !offered(tool)) throw new Error(`Unknown tool: ${toolName}`);
   return tool.run(caller.orgId, args ?? {}, caller);
 }

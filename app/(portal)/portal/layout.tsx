@@ -4,11 +4,12 @@ import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { ThemedToaster } from "@/components/layout/ThemedToaster";
 import Link from "next/link";
-import { Home, Briefcase, Link2, BarChart3, UserRound, LogOut } from "lucide-react";
+import { Home, Briefcase, Link2, BarChart3, UserRound, LogOut, Wallet } from "lucide-react";
 import { BRAND } from "@/lib/brand";
 import { ConfirmProvider } from "@/components/ds";
 import { LegalLinks } from "@/components/LegalLinks";
 import { FeedbackButton } from "@/components/feedback/FeedbackButton";
+import { PAYOUTS_ENABLED } from "@/lib/payouts/switch";
 
 /**
  * The creator app's frame: five places, and nothing that talks to the creator.
@@ -20,11 +21,19 @@ import { FeedbackButton } from "@/components/feedback/FeedbackButton";
  * Phones get a bottom tab bar, the pattern a creator's other apps use, and
  * desktops a row of links in the top bar. Both read the same list.
  */
+/* Earnings -- what a creator has earned and the payout requests made against
+   it -- is listed only while payouts are switched on (lib/payouts/switch.ts).
+   Off, its URL redirects Home with the rest of the payout screens. */
+const PAYOUT_NAV_LINKS = [
+  { href: "/portal/earnings", label: "Earnings", icon: Wallet },
+];
+
 const NAV_LINKS = [
   { href: "/portal/dashboard", label: "Home", icon: Home },
   { href: "/portal/campaigns", label: "Campaigns", icon: Briefcase },
   { href: "/portal/accounts", label: "My accounts", icon: Link2 },
   { href: "/portal/stats", label: "My stats", icon: BarChart3 },
+  ...(PAYOUTS_ENABLED ? PAYOUT_NAV_LINKS : []),
   { href: "/portal/account", label: "Account", icon: UserRound },
 ];
 

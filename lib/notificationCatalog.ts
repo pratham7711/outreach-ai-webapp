@@ -5,6 +5,7 @@
  * bar's bell — and the bell is a client component, which must not pull Prisma
  * into the browser bundle.
  */
+import { PAYOUTS_ENABLED } from "@/lib/payouts/switch";
 
 export type NotificationGroup = "Campaigns" | "Creators & Lists" | "Financial";
 
@@ -51,15 +52,17 @@ export const NOTIFICATION_EVENTS: NotificationEventDef[] = [
    (next.config.ts), and Documents left the campaign rail. Their API routes
    still exist, so the keys stay in the catalog and stored preferences survive,
    but the settings screens stop offering switches for things nothing in the
-   app can make happen. */
+   app can make happen.
+   The three payout events are produced only by payout routes, which answer
+   404 while payouts are switched off (lib/payouts/switch.ts), so they are
+   parked exactly as long as that switch is off. */
+const PAYOUT_EVENTS = ["payout.create", "payout.status_changed", "payout_request.create"];
 const PARKED_EVENTS = new Set([
   "document.create",
   "negotiation.approve",
   "negotiation.reject",
   "deposit.create",
-  "payout.create",
-  "payout.status_changed",
-  "payout_request.create",
+  ...(PAYOUTS_ENABLED ? [] : PAYOUT_EVENTS),
 ]);
 
 /** The rows a settings screen offers: the catalog minus the parked events. */

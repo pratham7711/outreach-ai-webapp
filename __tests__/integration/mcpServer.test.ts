@@ -33,6 +33,22 @@ jest.mock("@/lib/posts/duplicates", () => ({
 }));
 jest.mock("@/lib/auth", () => ({ auth: jest.fn() }));
 
+/* Payouts are switched off (lib/payouts/switch.ts); the tests that cover the
+   payout tools as they behave when it is back on flip it for themselves. The
+   state lives inside the factory because lib/mcp/tools.ts reads the switch
+   while it loads, which is before any top-level `let` here exists. */
+jest.mock("@/lib/payouts/switch", () => {
+  const state = { on: false };
+  return {
+    get PAYOUTS_ENABLED() {
+      return state.on;
+    },
+    setForTest(on: boolean) {
+      state.on = on;
+    },
+  };
+});
+
 jest.mock("@/lib/entitlements", () => ({
   ...jest.requireActual("@/lib/entitlements"),
   getOrgEntitlements: jest.fn(),
@@ -42,6 +58,9 @@ import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { getOrgEntitlements } from "@/lib/entitlements";
 import { API_ACCESS_FEATURE } from "@/lib/featureKeys";
+import * as payoutSwitch from "@/lib/payouts/switch";
+
+const setPayoutsOn = (on: boolean) => (payoutSwitch as unknown as { setForTest(on: boolean): void }).setForTest(on);
 
 const mockAuth = auth as jest.Mock;
 const mockGetEntitlements = getOrgEntitlements as jest.Mock;
@@ -57,6 +76,7 @@ function makeJsonRpcRequest(method: string, params: Record<string, unknown> = {}
 
 beforeEach(() => {
   jest.clearAllMocks();
+  setPayoutsOn(false);
   mockAuth.mockResolvedValue({ user: { id: "user-1", orgId: "org-1", role: "OWNER" } });
   mockGetEntitlements.mockResolvedValue({ featureMap: { [API_ACCESS_FEATURE]: true } });
   mockDb.campaign.findMany.mockResolvedValue([]);
@@ -160,11 +180,36 @@ describe("POST /api/mcp", () => {
       "list_activations",
       "list_campaigns",
       "list_creators",
-      "list_payouts",
       "list_posts",
       "refresh_campaign",
       "search_creators",
     ]);
+  });
+
+  it("offers list_payouts only while payouts are switched on", async () => {
+    const names = async () =>
+      (await (await POST(makeJsonRpcRequest("tools/list"))).json()).result.tools.map((t: any) => t.name);
+    expect(await names()).not.toContain("list_payouts");
+    setPayoutsOn(true);
+    expect(await names()).toContain("list_payouts");
+  });
+
+  it("refuses a list_payouts call while payouts are off, exactly as an unknown tool", async () => {
+    const res = await POST(makeJsonRpcRequest("tools/call", { name: "list_payouts", arguments: {} }));
+    const body = await res.json();
+    expect(body.error).toEqual({ code: -32602, message: "Unknown tool: list_payouts" });
+    expect(mockDb.payout.findMany).not.toHaveBeenCalled();
+    expect(mockDb.payout.groupBy).not.toHaveBeenCalled();
+  });
+
+  it("answers list_payouts again once payouts are back on", async () => {
+    setPayoutsOn(true);
+    const res = await POST(makeJsonRpcRequest("tools/call", { name: "list_payouts", arguments: {} }));
+    const body = await res.json();
+    expect(body.error).toBeUndefined();
+    expect(mockDb.payout.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ orgId: "org-1" }) }),
+    );
   });
 
   /* Annotations are how a client decides what to run without asking. Exactly
@@ -272,6 +317,7 @@ describe("POST /api/mcp", () => {
   }
 
   it("returns KPIs from get_org_kpis", async () => {
+    setPayoutsOn(true);
     mockDb.post.aggregate
       .mockResolvedValueOnce({ _sum: { viewsCount: 30000 }, _count: { _all: 2 } })
       // 1,200 engagements over 30,000 measured views = 4.00%.
@@ -308,6 +354,7 @@ describe("POST /api/mcp", () => {
   });
 
   it("reports null, not zero, for figures nothing was measured for", async () => {
+    setPayoutsOn(true);
     mockDb.post.aggregate
       .mockResolvedValueOnce({ _sum: { viewsCount: null }, _count: { _all: 0 } })
       .mockResolvedValueOnce({
@@ -326,6 +373,7 @@ describe("POST /api/mcp", () => {
   });
 
   it("counts in the database instead of reading every post row", async () => {
+    setPayoutsOn(true);
     mockDb.post.aggregate
       .mockResolvedValueOnce({ _sum: { viewsCount: 1 }, _count: { _all: 1 } })
       .mockResolvedValueOnce({
@@ -346,6 +394,26 @@ describe("POST /api/mcp", () => {
     );
   });
 
+
+  it("leaves payouts out of get_org_kpis while payouts are switched off", async () => {
+    mockDb.post.aggregate
+      .mockResolvedValueOnce({ _sum: { viewsCount: 30000 }, _count: { _all: 2 } })
+      .mockResolvedValueOnce({
+        _sum: { viewsCount: 30000, likesCount: 1000, commentsCount: 100, sharesCount: 100, savesCount: 0 },
+        _count: { _all: 2 },
+      });
+
+    const kpis = await callKpis();
+    expect(kpis.totalViews).toBe(30000);
+    expect(kpis.avgEngagementRate).toBe(4);
+    expect(kpis).not.toHaveProperty("spendFromRecordedPayouts");
+    expect(kpis).not.toHaveProperty("recordedPayouts");
+    expect(mockDb.payout.aggregate).not.toHaveBeenCalled();
+
+    const tools = (await (await POST(makeJsonRpcRequest("tools/list"))).json()).result.tools;
+    const kpiTool = tools.find((t: any) => t.name === "get_org_kpis");
+    expect(kpiTool.description).not.toMatch(/payout/i);
+  });
 
   /* The tools added for post-level questions. Everything below is about the one
      thing that makes this surface safe to answer a brand with: a counter nobody

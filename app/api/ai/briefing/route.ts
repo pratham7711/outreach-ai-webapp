@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getOrgEntitlements, hasOrgFeature } from "@/lib/entitlements";
 import { AI_ASSISTANT_FEATURE } from "@/lib/featureKeys";
 import { requirePermission } from "@/lib/authz";
+import { PAYOUTS_ENABLED } from "@/lib/payouts/switch";
 
 // POST /api/ai/briefing
 // Body: { type: "campaign" | "org", id?: string }
@@ -40,10 +41,14 @@ export async function POST(req: NextRequest) {
     const [totalCampaigns, activeCampaigns, payoutAgg, topPosts] = await Promise.all([
       db.campaign.count({ where: { orgId, createdAt: { gte: thirtyDaysAgo }, deletedAt: null } }),
       db.campaign.count({ where: { orgId, status: "IN_PROGRESS", deletedAt: null } }),
-      db.payout.aggregate({
-        where: { orgId, initiatedAt: { gte: thirtyDaysAgo } },
-        _sum: { amount: true },
-      }),
+      /* Payouts are only part of the briefing while they are part of the
+         product (lib/payouts/switch.ts); off, the model is not told about them. */
+      PAYOUTS_ENABLED
+        ? db.payout.aggregate({
+            where: { orgId, initiatedAt: { gte: thirtyDaysAgo } },
+            _sum: { amount: true },
+          })
+        : null,
       db.post.findMany({
         where: { campaign: { orgId } },
         orderBy: { viewsCount: "desc" },
@@ -52,7 +57,7 @@ export async function POST(req: NextRequest) {
       }),
     ]);
 
-    const totalPayouts = payoutAgg._sum.amount ?? 0;
+    const payoutLine = payoutAgg ? `\n- Total payouts issued: $${(payoutAgg._sum.amount ?? 0).toFixed(2)}` : "";
     const topCreatorLines = topPosts
       .map((p, i) => `${i + 1}. ${p.creator.name} — ${p.viewsCount.toLocaleString()} views`)
       .join("\n");
@@ -60,8 +65,7 @@ export async function POST(req: NextRequest) {
     const prompt = `You are a concise marketing analyst. Write a 2-3 paragraph narrative summary for an influencer campaign organization based on these stats from the last 30 days:
 
 - Total new campaigns: ${totalCampaigns}
-- Currently active campaigns: ${activeCampaigns}
-- Total payouts issued: $${totalPayouts.toFixed(2)}
+- Currently active campaigns: ${activeCampaigns}${payoutLine}
 - Top 3 creators by views:
 ${topCreatorLines || "  (no posts yet)"}
 
@@ -94,12 +98,14 @@ Be professional, highlight trends, and keep it under 200 words.`;
     return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
   }
 
-  const payoutAgg = await db.payout.aggregate({
-    where: { campaignId: id, orgId },
-    _sum: { amount: true },
-  });
+  const payoutAgg = PAYOUTS_ENABLED
+    ? await db.payout.aggregate({
+        where: { campaignId: id, orgId },
+        _sum: { amount: true },
+      })
+    : null;
 
-  const totalPayout = payoutAgg._sum.amount ?? 0;
+  const campaignPayoutLine = payoutAgg ? `\n- Total payouts: $${(payoutAgg._sum.amount ?? 0).toFixed(2)}` : "";
 
   const prompt = `You are a concise marketing analyst. Write a 1-2 paragraph campaign briefing for the following influencer campaign:
 
@@ -108,8 +114,7 @@ Be professional, highlight trends, and keep it under 200 words.`;
 - Type: ${campaign.campaignType ?? "N/A"}
 - Budget: ${campaign.budget ? `$${campaign.budget} ${campaign.currency}` : "Not set"}
 - Creators activated: ${campaign._count.activations}
-- Posts submitted: ${campaign._count.posts}
-- Total payouts: $${totalPayout.toFixed(2)}
+- Posts submitted: ${campaign._count.posts}${campaignPayoutLine}
 
 Summarize the campaign's current state, progress, and any notable points. Keep it under 150 words.`;
 

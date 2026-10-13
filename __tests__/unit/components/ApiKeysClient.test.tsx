@@ -8,6 +8,12 @@ jest.mock("@/components/ds", () => ({
 }));
 
 jest.mock("sonner", () => ({ toast: { error: jest.fn(), success: jest.fn() } }));
+let mockPayoutsOn = false;
+jest.mock("@/lib/payouts/switch", () => ({
+  get PAYOUTS_ENABLED() {
+    return mockPayoutsOn;
+  },
+}));
 
 /* The create and revoke dialogs are the library's Modal and Input now, and
    ds/Button wraps the library's Button. @pratham7711/ui's "exports" map has no
@@ -45,7 +51,30 @@ function mockFetchOnce(res: { ok: boolean; status?: number; body: unknown }) {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockPayoutsOn = false;
   global.fetch = jest.fn() as any;
+});
+
+describe("ApiKeysClient MCP description", () => {
+  it("does not promise payouts while they are switched off (lib/payouts/switch.ts)", async () => {
+    mockFetchOnce({ ok: true, body: { keys: [] } });
+    render(<ApiKeysClient />);
+    await screen.findByText("No API keys yet");
+    expect(screen.getByText(/The MCP server gives an AI client read access/).textContent).toContain(
+      "campaigns, posts, creators and activations, and lets it",
+    );
+    expect(document.body.textContent).not.toMatch(/payout/i);
+  });
+
+  it("lists payouts again once they are back on, as list_payouts is then offered", async () => {
+    mockPayoutsOn = true;
+    mockFetchOnce({ ok: true, body: { keys: [] } });
+    render(<ApiKeysClient />);
+    await screen.findByText("No API keys yet");
+    expect(screen.getByText(/The MCP server gives an AI client read access/).textContent).toContain(
+      "creators, activations and payouts, and lets it",
+    );
+  });
 });
 
 describe("ApiKeysClient empty state", () => {

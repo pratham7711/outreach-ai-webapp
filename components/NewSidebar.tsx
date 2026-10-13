@@ -11,8 +11,9 @@ import {
   LayoutDashboard, Megaphone, Calendar, Users, Users2, LineChart,
   List, CreditCard, Shield,
   ChevronDown, Settings, LogOut, Menu, X, Key, BarChart2, Activity, Music, Tags,
-  Globe, MessageSquareWarning, Building2, Bell, Plug,
+  Globe, MessageSquareWarning, Building2, Bell, Plug, Wallet, Inbox, UserCheck,
 } from "lucide-react";
+import { PAYOUTS_ENABLED } from "@/lib/payouts/switch";
 import { mediaUrl } from "@/lib/postMedia";
 import { useSidebar } from "@/components/providers/SidebarProvider";
 import { ThemeRadioGroup } from "@/components/ThemeChoices";
@@ -31,6 +32,19 @@ import { FeedbackButton } from "@/components/feedback/FeedbackButton";
   plan), Connections (stored a flag, connected nothing) and Billing. Their URLs
   redirect (next.config.ts). Activity Log moved to the Settings hub, for admins.
 */
+/* Payouts, payout requests and recipients, listed only while payouts are
+   switched on (lib/payouts/switch.ts). Off, their URLs redirect and their API
+   routes answer 404; their rules stay in DASHBOARD_NAV_RULES either way, so
+   switching back on needs nothing here. */
+const PAYOUTS_SECTION = {
+  label: "Payments",
+  items: [
+    { href: "/payouts", icon: Wallet, label: "Payouts" },
+    { href: "/requests", icon: Inbox, label: "Requests" },
+    { href: "/recipients", icon: UserCheck, label: "Recipients" },
+  ],
+};
+
 /**
  * Exported so a test can assert every href here has a rule in
  * DASHBOARD_NAV_RULES. The sidebar renders these filtered by that allowlist, so
@@ -57,6 +71,7 @@ export const NAV_SECTIONS = [
       { href: "/lists", icon: List, label: "Lists" },
     ],
   },
+  ...(PAYOUTS_ENABLED ? [PAYOUTS_SECTION] : []),
   {
     label: "Settings",
     items: [

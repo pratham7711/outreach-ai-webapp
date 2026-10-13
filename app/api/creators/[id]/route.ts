@@ -12,6 +12,7 @@ import { creatorFollowersTime, figureTimeDto, linkFollowersTime } from "@/lib/cr
 import { readThroughOwnAccount } from "@/lib/creators/agencyLookup";
 import { latestTrackerReadings } from "@/lib/creators/latestReadings";
 import { requirePermission } from "@/lib/authz";
+import { PAYOUTS_ENABLED } from "@/lib/payouts/switch";
 
 const updateCreatorSchema = z.object({
   name: z.string().optional(),
@@ -33,6 +34,11 @@ const updateCreatorSchema = z.object({
 
 const DETAIL_FIELDS = ["country", "audienceCountry", "niche"] as const;
 
+/* paymentInfo is where a payout would be sent. While payouts are switched off
+   (lib/payouts/switch.ts) it is not read back and not accepted; what is stored
+   stays. */
+const paymentInfoOmit = () => ({ paymentInfo: !PAYOUTS_ENABLED });
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -44,6 +50,7 @@ export async function GET(
     const { orgId } = result;
     const creator = await db.creator.findFirst({
       where: { id, orgId, deletedAt: null },
+      omit: paymentInfoOmit(),
       include: {
         activations: {
           where: { deletedAt: null },
@@ -153,6 +160,12 @@ export async function PATCH(
     if (!parsed.success) {
       return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
     }
+    if (!PAYOUTS_ENABLED && parsed.data.paymentInfo !== undefined) {
+      return NextResponse.json(
+        { error: "Payment details can't be saved while payouts are switched off." },
+        { status: 400 },
+      );
+    }
     const existing = await db.creator.findFirst({ where: { id, orgId, deletedAt: null } });
     if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
     const { country, audienceCountry, niche, ...fields } = parsed.data;
@@ -168,7 +181,7 @@ export async function PATCH(
       ? await db.creatorDetail.findUnique({ where: { creatorId: id }, select: { country: true, audienceCountry: true, niche: true } })
       : null;
     const creator = await db.$transaction(async (tx) => {
-      const updated = await tx.creator.update({ where: { id }, data: fields });
+      const updated = await tx.creator.update({ where: { id }, data: fields, omit: paymentInfoOmit() });
       if (Object.keys(detail).length) {
         await tx.creatorDetail.upsert({
           where: { creatorId: id },

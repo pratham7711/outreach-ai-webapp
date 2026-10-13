@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { payoutsOffResponse } from "@/lib/payouts/routeGate";
 import { db } from "@/lib/db";
 import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
 import { requirePermission } from "@/lib/authz";
@@ -18,6 +19,8 @@ const listPayoutsQuerySchema = z.object({
 });
 
 export async function GET(req: NextRequest) {
+  const off = payoutsOffResponse(); // 404 while payouts are off: lib/payouts/switch.ts
+  if (off) return off;
   const result = await authenticateRequest(req);
   if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { orgId } = result;
@@ -35,6 +38,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const off = payoutsOffResponse(); // 404 while payouts are off: lib/payouts/switch.ts
+  if (off) return off;
   const gate = await requirePermission(req, "payments:manage");
   if (!gate.ok) return gate.response;
   const result = gate.auth;
