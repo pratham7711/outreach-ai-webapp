@@ -42,6 +42,14 @@ import { countsContradict, engagementExceedsViews } from "@/lib/metrics/coherenc
  * no later sync can tell them apart again.
  */
 
+/* What a screen that renders a freshly synced post reads with it. Opt-in: the
+   writers below return the post's own columns only, and the one caller that
+   renders the result (the post page's Sync Now, via the sync route) reads
+   these itself. Every write used to load them -- the creator and up to fifty
+   snapshots per post -- including the cron sweep and Refresh Data, which
+   discard the post they get back (refreshCampaign reads only its
+   platformMetrics), so a 500-post refresh could load up to 25,000 snapshot
+   rows nobody looked at. */
 export const SYNC_POST_INCLUDE = {
   creator: { select: { id: true, name: true, handle: true, avatarUrl: true } },
   snapshots: { orderBy: { recordedAt: "desc" as const }, take: 50 },
@@ -234,7 +242,6 @@ async function recordUnread(
           }
         : {}),
     },
-    include: SYNC_POST_INCLUDE,
   });
   /* Why, not just that. A caller counting these can now say "62 challenged by
      TikTok, 4 deleted" instead of "66 returned no metrics", which is the
@@ -422,7 +429,6 @@ export async function applyPostMetrics(
           [METRIC_WRITERS_KEY]: ranked.notes,
         },
       },
-      include: SYNC_POST_INCLUDE,
     }),
     db.postMetricSnapshot.create({
       data: {

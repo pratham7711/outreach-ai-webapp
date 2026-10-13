@@ -9,7 +9,7 @@ import { POST as POSTSync } from '@/app/api/campaigns/[id]/posts/[postId]/sync/r
 jest.mock('@/lib/db', () => ({
   db: {
     campaign: { findFirst: jest.fn() },
-    post: { findFirst: jest.fn(), update: jest.fn() },
+    post: { findFirst: jest.fn(), update: jest.fn(), findUnique: jest.fn() },
     postMetricSnapshot: { findMany: jest.fn(), create: jest.fn() },
     $transaction: jest.fn(),
   },
@@ -200,5 +200,32 @@ describe('POST /api/campaigns/[id]/posts/[postId]/sync', () => {
     expect(res.status).toBe(200);
     expect(body.viewsCount).toBe(5000);
     expect(mockDb.$transaction).toHaveBeenCalled();
+  });
+
+  it('reads the creator and snapshots for its answer instead of loading them on the write', async () => {
+    mockDb.$transaction.mockResolvedValue([{ ...mockPost, viewsCount: 5000 }, { id: 'snap-new' }]);
+    mockDb.post.findUnique.mockResolvedValue({
+      ...mockPost, viewsCount: 5000,
+      platformMetrics: { __cc: { raw: 'importer copy' }, __measured: ['views'] },
+      creator: { id: 'c1', name: 'Test' },
+      snapshots: [{ id: 's1', viewsCount: 5000 }],
+    });
+
+    const res = await POSTSync(
+      makeRequest('http://localhost/api/campaigns/camp-1/posts/post-1/sync', { method: 'POST' }),
+      makeParams('camp-1', 'post-1'),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(mockDb.post.update.mock.calls.every(([args]: any[]) => args.include === undefined)).toBe(true);
+    expect(mockDb.post.findUnique).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'post-1' },
+      include: expect.objectContaining({ creator: expect.anything(), snapshots: expect.anything() }),
+    }));
+    expect(body.creator).toEqual({ id: 'c1', name: 'Test' });
+    expect(body.snapshots).toHaveLength(1);
+    expect(body.platformMetrics).toEqual({ __measured: ['views'] });
+    expect(body.metricsFound).toBe(true);
   });
 });
