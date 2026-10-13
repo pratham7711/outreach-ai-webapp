@@ -299,7 +299,7 @@ describe("age columns in the export (plan A2/A6)", () => {
     expect(col(row, "Followers (primary)")).toBe(99000);
     expect(col(row, "Followers as of")).toBe("—");
     expect(col(row, "Followers source")).toBe("Time not recorded");
-    expect(col(row, "Status")).toBe("Age unknown");
+    expect(col(row, "Status")).toBe("Time not recorded");
   });
 
   it("says the last read failed when the held count cannot be dated", async () => {

@@ -4,7 +4,7 @@ import { toCsv, type Cell } from "@/lib/csv";
 import { platformLabel } from "@/lib/format";
 import { rosterTablesReady } from "@/lib/creators/rosterTables";
 import { deriveAverageViewsMeasured } from "@/lib/creatorMetrics";
-import { asOfCell, freshnessCell } from "@/lib/dataAge";
+import { asOfCell, freshnessCell, TIME_NOT_RECORDED } from "@/lib/dataAge";
 import { creatorAvgViewsTime, creatorFollowersTime, type FigureTime } from "@/lib/creators/figureTime";
 import { latestTrackerReadings } from "@/lib/creators/latestReadings";
 import { metricExportCell, unknownNotes, type MetricValue } from "@/lib/creators/metricValue";
@@ -165,11 +165,13 @@ function figureSource(t: FigureTime): string {
 
 /**
  * Status of the primary figure: Current or Stale against its cadence, "Not
- * read" when there is no figure, "Age unknown" when there is one we cannot date.
+ * read" when there is no figure, "Time not recorded" when there is one we cannot
+ * date -- the phrase the screens use (TIME_NOT_RECORDED); this said "Age
+ * unknown" beside a Source cell saying "Time not recorded" for the same fact.
  */
 function figureStatus(t: FigureTime): string {
   if (t.at) return freshnessCell(t.at, t.field);
-  return t.source === "Not read" ? "Not read" : "Age unknown";
+  return t.source === "Not read" ? "Not read" : TIME_NOT_RECORDED.charAt(0).toUpperCase() + TIME_NOT_RECORDED.slice(1);
 }
 
 export function spreadsheetResponse(rows: Cell[][], format: "csv" | "xlsx", baseName: string): Response {

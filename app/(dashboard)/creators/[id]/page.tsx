@@ -23,6 +23,7 @@ import {
   isUnknownMetric,
   postCounterValue,
   postEngagementValue,
+  unknownMetric,
 } from "@/lib/creators/metricValue";
 import MetricFigure from "@/components/creators/MetricFigure";
 import CreatorAccess from "@/components/creators/CreatorAccess";
@@ -863,11 +864,33 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
      one that writes followersCount, so its stamp and its problem explain a
      missing count; the tracker's own attempt is the fallback. */
   const primaryLink = creator.profileLinks?.find((l) => l.isPrimary) ?? null;
-  const followers = followersValue(creator.followersCount, {
+  const ownFollowers = followersValue(creator.followersCount, {
     readError: primaryLink?.problem ? handleProblemText(primaryLink.platform, primaryLink.handle, primaryLink.problem) : null,
     lastError: creator.trackerLastError ?? null,
     attemptedAt: primaryLink?.refreshedAt ?? creator.trackerLastAttemptAt ?? null,
   });
+  /* The account chips in the header show each linked account's own count, so
+     a merged person read "TikTok · 5,000" there and "— not known" on this tile:
+     the merge kept the primary account's imported count on the link and left
+     the creator's own field empty. When the creator's field is unknown, the
+     tile takes the primary account's count with that account's own age (which
+     says "not read by us yet" when nothing read it). With no primary count,
+     the reason names what the other accounts hold rather than contradicting
+     them in silence. */
+  const primaryHeld =
+    isUnknownMetric(ownFollowers) && primaryLink && (primaryLink.followersCount ?? 0) > 0 ? primaryLink : null;
+  const otherCounts = isUnknownMetric(ownFollowers) && !primaryHeld
+    ? (creator.profileLinks ?? [])
+        .filter((l) => (l.followersCount ?? 0) > 0)
+        .map((l) => `${platformLabel(l.platform)} · ${formatNumber(l.followersCount ?? 0)}`)
+    : [];
+  const followers = primaryHeld
+    ? (primaryHeld.followersCount as number)
+    : otherCounts.length > 0 && isUnknownMetric(ownFollowers)
+      ? unknownMetric(
+          `${ownFollowers.reason} The primary account has no count; other linked accounts hold ${otherCounts.join(", ")}, shown on their chips.`,
+        )
+      : ownFollowers;
   /* Over the posts that were read, never over the zeroes of the ones that were
      not -- see creatorEngagementValue. */
   const avgEngagement = creatorEngagementValue(creator.posts);
@@ -876,7 +899,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
      decided on the server. Engagement: the newest read among the posts it is
      averaged over -- an average of posts read at different times has no single
      age, so it is labelled as the newest one and never called stale. */
-  const followersAt = creator.figureTimes?.followers ?? null;
+  const followersAt = primaryHeld ? primaryHeld.age ?? null : creator.figureTimes?.followers ?? null;
   const engagementAsOf = dataAsOf(creator.posts.map((p) => p.lastSyncedAt));
 
   return (
@@ -974,8 +997,8 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                     <AgeLabel
                       at={followersAt.at}
                       field={followersAt.field}
-                      source={followersAt.source}
-                      never={followersAt.missing}
+                      source={primaryHeld ? `${platformLabel(primaryHeld.platform)} account, as on its chip` : followersAt.source}
+                      never={primaryHeld ? `${platformLabel(primaryHeld.platform)} account · ${followersAt.missing}` : followersAt.missing}
                       style={{ whiteSpace: "normal" }}
                     />
                     {creator.instagramReadVia ? (
