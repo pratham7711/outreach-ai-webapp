@@ -45,6 +45,8 @@ import {
 import { MAX_BULK_ACTION_POSTS, removeConfirmText, removePostsSummary, type BulkAction } from "@/lib/posts/bulkActions";
 import { useConfirm } from "@/components/ds/ConfirmDialog";
 import { Trash2 } from "lucide-react";
+import { RotateCcw } from "lucide-react";
+import { removePostsUndoHint, restorePostsSummary } from "@/lib/posts/bulkActions";
 import PostActionMenu, { type PostMenuItem } from "@/components/posts/PostActionMenu";
 import { PlatformGlyph } from "@/components/ui/PlatformGlyph";
 import { platformFromHost, detectPlatformFromUrl, platformLabel } from "@/lib/platforms/registry";
@@ -114,6 +116,12 @@ const STATUS_TABS = [
   { key: "APPROVED", label: "Approved", bg: "var(--cc-success-bg)", color: "var(--cc-success)" },
   { key: "REJECTED", label: "Rejected", bg: "var(--cc-danger-bg)", color: "var(--cc-danger)" },
 ];
+
+/* Not a review status: the posts taken out of the campaign with Remove from
+   campaign, kept so they can be restored (lib/posts/removed). It sits with the
+   status pills because it is the same question -- which posts am I looking at
+   -- but the server answers it from removedAt, not from status. */
+const REMOVED_FILTER = "REMOVED";
 
 const PLATFORM_FILTERS = ["ALL", "TIKTOK", "INSTAGRAM", "YOUTUBE"] as const;
 const MEDIA_TYPE_FILTERS = ["ALL", "REEL", "STORY", "POST", "SHORT"] as const;
@@ -447,6 +455,12 @@ export default function PostsTab({
   onRefreshed?: () => void;
 }) {
   const [posts, setPosts] = useState<PostData[]>([]);
+  /* Which list `posts` holds, from the response itself, and how many posts
+     are under Removed -- so the Removed pill shows only when there is
+     something in it, and a list still in flight never renders under the
+     wrong pill. */
+  const [postsAreRemoved, setPostsAreRemoved] = useState(false);
+  const [removedCount, setRemovedCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
@@ -548,7 +562,8 @@ export default function PostsTab({
   const fetchPosts = useCallback(async () => {
     setError(null);
     const params = new URLSearchParams();
-    if (statusFilter !== "ALL") params.set("status", statusFilter);
+    if (statusFilter === REMOVED_FILTER) params.set("removed", "1");
+    else if (statusFilter !== "ALL") params.set("status", statusFilter);
     if (platformFilter !== "ALL") params.set("platform", platformFilter);
     if (mediaTypeFilter !== "ALL") params.set("mediaType", mediaTypeFilter);
 
@@ -557,6 +572,8 @@ export default function PostsTab({
       if (res.ok) {
         const data = await res.json();
         setPosts(Array.isArray(data.posts) ? data.posts : []);
+        setPostsAreRemoved(data.removed === true);
+        if (typeof data.removedCount === "number") setRemovedCount(data.removedCount);
       } else {
         setError("Could not load posts. Please try again.");
       }
@@ -1020,10 +1037,11 @@ export default function PostsTab({
 
   /* Remove from campaign, for one post or the selection: a mis-pasted link
      used to stay in the post count for good, because nothing could take a
-     post out (walkthrough F2). Confirmed first, naming how many, since it
-     cannot be undone -- the server deletes the posts and their readings in one
-     transaction (DELETE /api/campaigns/[id]/posts). The page above is told
-     too, so the header count and the totals move with the list. */
+     post out (walkthrough F2). Confirmed first, naming how many. It is a soft
+     remove (DELETE /api/campaigns/[id]/posts stamps removedAt and keeps the
+     row), so the toast offers Undo and the posts wait under Removed after
+     that. The page above is told too, so the header count and the totals
+     move with the list. */
   const confirm = useConfirm();
   const removePosts = async (ids: string[]) => {
     if (ids.length === 0) return;
@@ -1040,7 +1058,19 @@ export default function PostsTab({
         toast.error(body.error ?? "Could not remove those posts.");
         return;
       }
-      toast.success(removePostsSummary(typeof body.removed === "number" ? body.removed : ids.length));
+      /* postIds is what THIS call removed, so Undo cannot bring back a post
+         somebody else removed earlier. */
+      const removedIds: string[] = Array.isArray(body.postIds) ? body.postIds : ids;
+      const removed = typeof body.removed === "number" ? body.removed : removedIds.length;
+      if (removed > 0) {
+        toast.success(removePostsSummary(removed), {
+          description: removePostsUndoHint(removed),
+          duration: 10_000,
+          action: { label: "Undo", onClick: () => void restorePosts(removedIds) },
+        });
+      } else {
+        toast.info("Already removed from this campaign.");
+      }
       setSelectedIds((prev) => {
         const next = new Set(prev);
         for (const id of ids) next.delete(id);
@@ -1050,6 +1080,40 @@ export default function PostsTab({
       onRefreshed?.();
     } catch {
       toast.error("Could not remove those posts.");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  /* The way back: the toast's Undo right after a remove, and Restore in the
+     Removed view (single post or the selection). Reads the list through the
+     ref, because Undo runs from a toast that may outlive the filters it was
+     raised under. */
+  const restorePosts = async (ids: string[]) => {
+    if (ids.length === 0) return;
+    setBulkBusy(true);
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}/posts/restore`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postIds: ids }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(body.message ?? body.error ?? "Could not restore those posts.");
+        return;
+      }
+      const restored = typeof body.restored === "number" ? body.restored : ids.length;
+      toast.success(restored > 0 ? restorePostsSummary(restored) : "Already back in this campaign.");
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        for (const id of ids) next.delete(id);
+        return next;
+      });
+      fetchPostsRef.current();
+      onRefreshed?.();
+    } catch {
+      toast.error("Could not restore those posts.");
     } finally {
       setBulkBusy(false);
     }
@@ -1281,7 +1345,8 @@ export default function PostsTab({
          every instant; the server filter stays because it is what keeps the
          payload small. Measured: a slow /posts response left all four camp-1
          posts on screen under a YOUTUBE chip for the whole request. */
-      if (statusFilter !== "ALL" && p.status !== statusFilter) return false;
+      if (postsAreRemoved !== (statusFilter === REMOVED_FILTER)) return false;
+      if (statusFilter !== "ALL" && statusFilter !== REMOVED_FILTER && p.status !== statusFilter) return false;
       if (trackingFilter === "TRACKED" && p.trackingEnabled !== true) return false;
       if (trackingFilter === "UNTRACKED" && p.trackingEnabled === true) return false;
       if (platformFilter !== "ALL" && p.platform !== platformFilter) return false;
@@ -1331,7 +1396,7 @@ export default function PostsTab({
       return sortDir === "asc" ? diff : -diff;
     });
     return keyed.map(([, p]) => p);
-  }, [posts, statusFilter, trackingFilter, platformFilter, mediaTypeFilter, deferredMinViews, deferredCreatorSearch, postedFrom, postedTo, sortKey, sortDir]);
+  }, [posts, postsAreRemoved, statusFilter, trackingFilter, platformFilter, mediaTypeFilter, deferredMinViews, deferredCreatorSearch, postedFrom, postedTo, sortKey, sortDir]);
 
   const anyDelta = useMemo(() => posts.some((p) => (p.snapshots?.length ?? 0) >= 2), [posts]);
   /* Imported posts carried view counts only, so likes, comments and engagement
@@ -1592,9 +1657,42 @@ export default function PostsTab({
   const menuTracked = menuPost?.trackingEnabled === true;
   const mayReview = postApprovalMode === "MANUAL" || !!marketplace;
 
+  /* Under Removed the only thing to do with a post is bring it back (or look
+     at it on the platform): every other action writes to a post the campaign
+     no longer counts, and the routes refuse them (REMOVED_POST_REFUSAL). */
   const menuItems: PostMenuItem[] = !menuPost
     ? []
-    : [
+    : postsAreRemoved
+      ? [
+          {
+            kind: "head" as const,
+            label: menuOnSelection
+              ? `${selectedOnPage.length} ${noun(selectedOnPage.length, "post")} selected`
+              : isUnattributedCreator(menuPost.creator)
+                ? UNKNOWN_CREATOR_LABEL
+                : creatorNameText(menuPost.creator.name, menuPost.creator.handle),
+          },
+          {
+            kind: "action" as const,
+            label: menuOnSelection ? `Restore ${selectedOnPage.length} posts to campaign` : "Restore to campaign",
+            icon: <RotateCcw size={14} />,
+            disabled: bulkBusy,
+            onSelect: () => restorePosts(menuOnSelection ? selectedOnPage : [menuPost.id]),
+          },
+          ...(menuOnSelection
+            ? []
+            : [
+                { kind: "sep" as const },
+                {
+                  kind: "link" as const,
+                  label: "Open on platform",
+                  icon: <ExternalLink size={14} />,
+                  href: menuPost.postUrl,
+                  external: true,
+                },
+              ]),
+        ]
+      : [
         {
           kind: "head" as const,
           label: menuOnSelection
@@ -1727,18 +1825,31 @@ export default function PostsTab({
           until someone approves it, and four pills that all filter to the same
           list are a control for nothing. Kept while a status is picked, so the
           way back to All never disappears. */}
-      {(statusFilter !== "ALL" || mixedStatuses) && (
+      {/* Removed joins them whenever the campaign has removed posts -- the way
+          back to a post taken out by mistake -- without bringing back the
+          three review pills when every post shares one status. */}
+      {(statusFilter !== "ALL" || mixedStatuses || removedCount > 0) && (
         <div className="cc-poststab-filter" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <StatusTabs
             variant="pill"
             ariaLabel="Filter posts by status"
-            tabs={STATUS_TABS}
+            tabs={[
+              ...(mixedStatuses || (statusFilter !== "ALL" && statusFilter !== REMOVED_FILTER) ? STATUS_TABS : STATUS_TABS.slice(0, 1)),
+              ...(removedCount > 0 || statusFilter === REMOVED_FILTER
+                ? [{ key: REMOVED_FILTER, label: "Removed", count: removedCount, bg: "var(--cc-neutral-bg)", color: "var(--cc-text-muted)" }]
+                : []),
+            ]}
             active={statusFilter}
             onChange={setStatusFilter}
           />
         </div>
       )}
-      {!error && posts.length > 0 && (
+      {statusFilter === REMOVED_FILTER && (
+        <p data-removed-note style={{ margin: 0, fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
+          Removed posts don&rsquo;t count toward this campaign&rsquo;s totals and aren&rsquo;t synced. Restore one to put it and its views back.
+        </p>
+      )}
+      {!error && posts.length > 0 && !postsAreRemoved && statusFilter !== REMOVED_FILTER && (
         /* Classes, not inline styles: every number that was here is now a
            --cc-kpi-* token, because an inline style is the one thing a theme
            cannot outrank and the census measured all seven of them off their
@@ -2008,6 +2119,12 @@ export default function PostsTab({
           </div>
 
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+            {/* Under Removed the selection can only be restored. */}
+            {postsAreRemoved ? (
+            <Button variant="primary" onClick={() => restorePosts(selectedOnPage)} loading={bulkBusy} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <RotateCcw size={14} aria-hidden="true" />Restore
+            </Button>
+            ) : (<>
             <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
               <span>Track for</span>
               <select
@@ -2041,6 +2158,7 @@ export default function PostsTab({
             <Button variant="secondary" onClick={() => removePosts(selectedOnPage)} loading={bulkBusy} style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--cc-danger)" }}>
               <Trash2 size={14} aria-hidden="true" />Remove
             </Button>
+            </>)}
           </div>
         </div>
       )}
@@ -2048,8 +2166,8 @@ export default function PostsTab({
       {!error && filteredSorted.length === 0 ? (
         <EmptyState
           icon={<Video size={32} color="var(--cc-text-subtle)" />}
-          title={posts.length === 0 ? "No posts yet" : "No posts match your filters"}
-          description={posts.length === 0 ? "Submit post URLs to track performance and manage approvals." : "Adjust the filters or search to see more posts."}
+          title={statusFilter === REMOVED_FILTER && posts.length === 0 ? "No removed posts" : posts.length === 0 ? "No posts yet" : "No posts match your filters"}
+          description={statusFilter === REMOVED_FILTER && posts.length === 0 ? "Posts you remove from this campaign wait here, so you can restore them." : posts.length === 0 ? "Submit post URLs to track performance and manage approvals." : "Adjust the filters or search to see more posts."}
         />
       ) : !error && viewMode === "list" ? (
         <>
@@ -2257,6 +2375,14 @@ export default function PostsTab({
                   />
                   </div>
                   <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                    {/* A removed post is only restored from here; reading,
+                        tracking or approving it would act on a post the
+                        campaign no longer counts. */}
+                    {postsAreRemoved ? (
+                    <button onClick={() => restorePosts([post.id])} disabled={bulkBusy} aria-label="Restore this post to the campaign" title="Restore to campaign" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-border)", background: "var(--cc-card)", color: "var(--cc-text-muted)", cursor: bulkBusy ? "wait" : "pointer", fontSize: "var(--cc-t-12)", display: "flex", alignItems: "center", gap: 4 }}>
+                      <RotateCcw size={12} />Restore
+                    </button>
+                    ) : (<>
                     {/* Tracking, first and stateful. It used to be reachable only
                         by opening the post's own page, which is why almost
                         nothing on this platform is tracked: the control was two
@@ -2310,6 +2436,7 @@ export default function PostsTab({
                         <Flag size={12} />
                       </button>
                     )}
+                    </>)}
                   </div>
                 </div>
               );
