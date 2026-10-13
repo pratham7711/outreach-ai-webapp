@@ -11,9 +11,11 @@ import { getRequestIp } from "@/lib/request";
 import { checkLoginAttempt } from "@/lib/loginRateLimit";
 import { cookies } from "next/headers";
 import { ACT_AS_COOKIE, applyActingAs, resolveActAs } from "@/lib/platform/actAs";
+import { ACCOUNT_CHECK_TTL_MS, readAccount } from "@/lib/accountCheck";
+import { cache } from "react";
 
 /** How stale a JWT's copy of role/isActive may get. See the jwt callback. */
-const ROLE_REFRESH_MS = 60_000;
+const ROLE_REFRESH_MS = ACCOUNT_CHECK_TTL_MS;
 
 /**
  * Only this string reaches the browser -- @auth/core copies `code`, never the
@@ -149,10 +151,12 @@ const nextAuth = NextAuth({
       if (!token.id || Date.now() - last < ROLE_REFRESH_MS) return token;
 
       try {
-        const fresh = await db.user.findUnique({
-          where: { id: token.id as string },
-          select: { role: true, isActive: true, campaignScope: true, orgId: true },
-        });
+        /* Through the per-instance memo in lib/accountCheck: this callback runs
+           inside auth(), which cannot persist the refreshed token from a server
+           component or route handler, so checkedAt above never moved and every
+           request after the first minute paid the read. The memo serves an
+           answer no older than ROLE_REFRESH_MS, so the bound stays the same. */
+        const { row: fresh, at } = await readAccount(token.id as string);
         /* Null destroys the session, which is what a deleted or deactivated
            user should get. Only reached when the query actually answered -- a
            database blip lands in the catch below and leaves the token alone,
@@ -162,7 +166,9 @@ const nextAuth = NextAuth({
         token.role = fresh.role;
         token.orgId = fresh.orgId;
         token.campaignScope = fresh.campaignScope;
-        (token as any).checkedAt = Date.now();
+        // When the row was read, not now: a persisted token must not claim a
+        // fresher check than the memo actually made.
+        (token as any).checkedAt = at;
       } catch {
         /* Keep the token as it stands. */
       }
@@ -197,7 +203,17 @@ export const { handlers, signIn, signOut } = nextAuth;
  * which is caught: no switch, plain session, rather than a crash in the one
  * function every authenticated path calls.
  */
-export const auth: typeof nextAuth.auth = (async (...args: unknown[]) => {
+export const auth: typeof nextAuth.auth = ((...args: unknown[]) =>
+  /* Every caller in this codebase asks with no arguments, and those are
+     de-duplicated per request: the dashboard layout, its generateMetadata and
+     the page each called auth(), and each decoded the cookie and ran the jwt
+     callback again. cache() memoises for the duration of one server render and
+     is a plain call anywhere else (route handlers, scripts, tests). */
+  args.length === 0 ? sessionForRequest() : readSession(...args)) as typeof nextAuth.auth;
+
+const sessionForRequest = cache(() => readSession());
+
+async function readSession(...args: unknown[]) {
   const session = await (nextAuth.auth as (...a: unknown[]) => Promise<SessionShape>)(...args);
   if (!session?.user) return session;
 
@@ -213,7 +229,7 @@ export const auth: typeof nextAuth.auth = (async (...args: unknown[]) => {
     /* No request scope, or no cookie store. The operator simply is not acting. */
     return session;
   }
-}) as typeof nextAuth.auth;
+}
 
 type SessionShape = {
   user?: { email?: string | null; orgId?: string; role?: string; campaignScope?: string } | null;

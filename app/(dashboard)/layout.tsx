@@ -18,7 +18,7 @@ import { navHrefsForRole, resolveDashboardPolicy } from "@/lib/dashboardPolicy";
 import { usableIconHref } from "@/lib/brandingDefaults";
 import type { OrgUiConfig } from "@/lib/orgConfig";
 import { redirect } from "next/navigation";
-import { db } from "@/lib/db";
+import { readAccount } from "@/lib/accountCheck";
 import { VerifyEmailBanner } from "@/components/layout/VerifyEmailBanner";
 import { ActingAsBanner } from "@/components/layout/ActingAsBanner";
 import type { ActingAs } from "@/lib/platform/actAs";
@@ -43,11 +43,11 @@ export async function generateMetadata(): Promise<Metadata> {
   const orgId = (session?.user as any)?.orgId as string | undefined;
   if (!orgId) return {};
 
-  const org = await db.organization.findUnique({
-    where: { id: orgId },
-    select: { faviconUrl: true },
-  });
-  const icon = usableIconHref(org?.faviconUrl);
+  /* The entitlements read carries faviconUrl already, and is cached for this
+     render, so the layout below gets it for nothing. This was its own
+     organization read on every page view. */
+  const entitlements = await getOrgEntitlements(orgId);
+  const icon = usableIconHref(entitlements?.branding.faviconUrl);
   if (!icon) return {};
 
   return { icons: { icon, shortcut: icon, apple: icon } };
@@ -90,12 +90,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   /* Read rather than taken from the session. The JWT is minted at sign-in and
      never revisited, so a user who confirms their address mid-session would
-     keep being told to confirm it until the token expired. One indexed lookup
-     by primary key is the cheaper half of that trade. */
+     keep being told to confirm it until the token expired. The row comes from
+     the same once-a-minute read the jwt callback just made for role and
+     isActive (lib/accountCheck), so this costs no query of its own; the
+     verify-email route drops it, so a confirmation shows at once. A blip is
+     no banner, the same as a missing row. */
   const userId = (session?.user as any)?.id as string | undefined;
-  const account = userId
-    ? await db.user.findUnique({ where: { id: userId }, select: { email: true, emailVerified: true } })
-    : null;
+  const account = userId ? (await readAccount(userId).catch(() => null))?.row ?? null : null;
   const needsEmailVerification = Boolean(account && !account.emailVerified);
 
   /* Set by lib/auth.ts when a platform operator has opened somebody else's

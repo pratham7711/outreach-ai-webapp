@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { db } from "@/lib/db";
 import { PLANS, type PlanName } from "@/lib/plans";
 import { AUDIT_LOG_FEATURE } from "@/lib/featureKeys";
@@ -64,7 +65,15 @@ function featureMapToList(featureMap: Record<string, boolean>): string[] {
     .map(([key]) => key);
 }
 
-export async function getOrgEntitlements(orgId: string): Promise<OrgEntitlements | null> {
+/**
+ * Once per server render, however many callers ask: the dashboard layout reads
+ * this for the shell and a page reads it again for its own gate, which was two
+ * identical organization reads per page view. cache() is a plain call outside a
+ * render (route handlers, crons, tests), so nothing there changes.
+ */
+export const getOrgEntitlements = cache(readOrgEntitlements);
+
+async function readOrgEntitlements(orgId: string): Promise<OrgEntitlements | null> {
   const org = await db.organization.findUnique({
     where: { id: orgId },
     include: { planConfig: true },
