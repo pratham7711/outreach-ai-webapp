@@ -363,9 +363,14 @@ async function campaignReportStamp(campaignId: string): Promise<string> {
      running them in series cost two round trips on every view to answer a
      question none of them needed the others for. */
   const [[row], [act], [audio]] = await Promise.all([
-    db.$queryRaw<{ posts: bigint; synced: Date | null; views: string | null }[]>`
+    db.$queryRaw<{ posts: bigint; synced: Date | null; views: string | null; added: Date | null }[]>`
       SELECT COUNT(*) AS posts,
              MAX("lastSyncedAt") AS synced,
+             /* Posts can now be removed (DELETE .../posts). Removing one and
+                adding an unread one in its place leaves the count, the newest
+                sync and the view sum where they were; the newest createdAt
+                still moves, so the report is not served for the old set. */
+             MAX("createdAt") AS added,
              /* Text, because SUM over a Float comes back as a JS number that
                 loses precision long before the view counts here would. */
              SUM("viewsCount")::text AS views
@@ -405,6 +410,7 @@ async function campaignReportStamp(campaignId: string): Promise<string> {
        lastSyncedAt, and a report that ignored that would show the pre-import
        totals until the next real sync happened to move the stamp. */
     row.views ?? "0",
+    row.added?.getTime() ?? 0,
     audio?.song ?? "nosong",
     audio?.sound_at?.getTime() ?? 0,
   ].join("-");
