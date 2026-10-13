@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { defineTool, type ToolDefinition } from "@/lib/ai/tools/types";
+import { PAYOUTS_ENABLED } from "@/lib/payouts/switch";
 
 export const search_creators = defineTool({
   name: "search_creators",
@@ -80,13 +81,17 @@ export const request_payout = defineTool({
   audit: true,
 });
 
+/* request_payout is registered only while payouts are switched on
+   (lib/payouts/switch.ts). Off, it is absent from TOOL_REGISTRY, so the
+   orchestrator never offers it to the model, toMcpTools never lists it, and
+   executeTool answers unknown_tool. */
 const ALL_TOOLS: ToolDefinition[] = [
   search_creators,
   authenticity_check,
   roi_forecast,
   brand_fit,
   send_invite,
-  request_payout,
+  ...(PAYOUTS_ENABLED ? [request_payout] : []),
 ];
 
 function buildRegistry(tools: ToolDefinition[]): Record<string, ToolDefinition> {

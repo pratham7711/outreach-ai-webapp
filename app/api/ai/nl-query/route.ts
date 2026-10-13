@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getOrgEntitlements, hasOrgFeature } from "@/lib/entitlements";
 import { AI_ASSISTANT_FEATURE } from "@/lib/featureKeys";
 import { requirePermission } from "@/lib/authz";
+import { PAYOUTS_ENABLED } from "@/lib/payouts/switch";
 
 type Intent =
   | { type: "list_campaigns"; status?: string; limit?: number }
@@ -13,6 +14,9 @@ type Intent =
   | { type: "list_payouts"; status?: string; limit?: number }
   | { type: "unknown" };
 
+/* Payout questions are only offered while payouts are switched on
+   (lib/payouts/switch.ts). Off, the classifier is not told the intent exists,
+   and an answer that names it anyway is treated as unknown below. */
 const CLASSIFY_SYSTEM = `You are a query intent classifier for an influencer marketing platform.
 Given a natural language query, return ONLY a JSON object matching one of these intent types. No prose.
 
@@ -20,16 +24,18 @@ Valid intents:
 - { "type": "list_campaigns", "status"?: "IN_PROGRESS"|"PENDING"|"COMPLETE"|"CANCELLED", "limit"?: number }
 - { "type": "list_creators", "platform"?: "TIKTOK"|"INSTAGRAM"|"YOUTUBE", "limit"?: number }
 - { "type": "get_org_kpis" }
-- { "type": "search_creators", "query": string }
-- { "type": "list_payouts", "status"?: "PENDING"|"SUCCESS"|"FAILED", "limit"?: number }
+- { "type": "search_creators", "query": string }${
+  PAYOUTS_ENABLED ? `\n- { "type": "list_payouts", "status"?: "PENDING"|"SUCCESS"|"FAILED", "limit"?: number }` : ""
+}
 - { "type": "unknown" }
 
 Examples:
 "show active campaigns" → {"type":"list_campaigns","status":"IN_PROGRESS"}
 "list tiktok creators" → {"type":"list_creators","platform":"TIKTOK"}
 "what are my KPIs?" → {"type":"get_org_kpis"}
-"find creators about music" → {"type":"search_creators","query":"music"}
-"show pending payouts" → {"type":"list_payouts","status":"PENDING"}
+"find creators about music" → {"type":"search_creators","query":"music"}${
+  PAYOUTS_ENABLED ? `\n"show pending payouts" → {"type":"list_payouts","status":"PENDING"}` : ""
+}
 "what is the capital of France?" → {"type":"unknown"}`;
 
 // POST /api/ai/nl-query
@@ -76,6 +82,7 @@ export async function POST(req: NextRequest) {
   } catch {
     intent = { type: "unknown" };
   }
+  if (intent.type === "list_payouts" && !PAYOUTS_ENABLED) intent = { type: "unknown" };
 
   const clampLimit = (limit: unknown): number =>
     typeof limit === "number" && Number.isInteger(limit) && limit > 0 ? Math.min(limit, 50) : 10;
@@ -134,16 +141,17 @@ export async function POST(req: NextRequest) {
     const [campaignCount, creatorCount, payoutAgg, pendingPayouts] = await Promise.all([
       db.campaign.count({ where: { orgId, deletedAt: null, status: "IN_PROGRESS" } }),
       db.creator.count({ where: { orgId } }),
-      db.payout.aggregate({ where: { orgId }, _sum: { amount: true } }),
-      db.payout.count({ where: { orgId, status: "PENDING" } }),
+      PAYOUTS_ENABLED ? db.payout.aggregate({ where: { orgId }, _sum: { amount: true } }) : null,
+      PAYOUTS_ENABLED ? db.payout.count({ where: { orgId, status: "PENDING" } }) : null,
     ]);
     return NextResponse.json({
       intent,
       results: {
         activeCampaigns: campaignCount,
         totalCreators: creatorCount,
-        totalPayoutsAmount: payoutAgg._sum.amount ?? 0,
-        pendingPayouts,
+        ...(payoutAgg && pendingPayouts !== null
+          ? { totalPayoutsAmount: payoutAgg._sum.amount ?? 0, pendingPayouts }
+          : {}),
       },
       count: 1,
     });
@@ -152,6 +160,8 @@ export async function POST(req: NextRequest) {
   // unknown intent
   return NextResponse.json({
     intent,
-    error: "I couldn't understand that query. Try: 'show active campaigns', 'list creators on TikTok', 'show pending payouts'",
+    error: `I couldn't understand that query. Try: 'show active campaigns', 'list creators on TikTok'${
+      PAYOUTS_ENABLED ? ", 'show pending payouts'" : ""
+    }`,
   });
 }

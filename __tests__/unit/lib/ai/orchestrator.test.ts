@@ -1,3 +1,8 @@
+/* request_payout is registered only while payouts are switched on
+   (lib/payouts/switch.ts); this suite covers the registry as it is then.
+   registryPayoutsOff.test.ts covers it switched off. */
+jest.mock("@/lib/payouts/switch", () => ({ PAYOUTS_ENABLED: true }));
+
 import {
   runAgent,
   buildToolSchemas,
