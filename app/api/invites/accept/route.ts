@@ -18,6 +18,15 @@ function tooMany(retryAfterSeconds: number) {
   );
 }
 
+/* The accept page shows these to the person holding the link, word for word.
+   "Invalid invite token" was the raw form of the first: it named an internal
+   and offered no next step. POST used terser copies of the other two than GET,
+   so the same expired link read differently before and after typing a password. */
+const INVITE_NOT_FOUND =
+  "We couldn't find this invitation. Check that you opened the whole link from the email, or ask whoever invited you to send a new one.";
+const INVITE_USED = "This invitation has already been used. Sign in with that address instead.";
+const INVITE_EXPIRED = "This invitation has expired. Ask whoever invited you to send a new one.";
+
 /**
  * GET /api/invites/accept?token=… — what the invite page needs before it can
  * ask for anything.
@@ -34,7 +43,7 @@ export async function GET(request: NextRequest) {
   if (!rl.allowed) return tooMany(rl.retryAfterSeconds);
 
   const token = request.nextUrl.searchParams.get("token")?.trim();
-  if (!token) return NextResponse.json({ error: "Invalid invite token" }, { status: 404 });
+  if (!token) return NextResponse.json({ error: INVITE_NOT_FOUND }, { status: 404 });
 
   const invite = await db.userInvite.findUnique({
     where: { token },
@@ -47,16 +56,16 @@ export async function GET(request: NextRequest) {
     },
   });
 
-  if (!invite) return NextResponse.json({ error: "Invalid invite token" }, { status: 404 });
+  if (!invite) return NextResponse.json({ error: INVITE_NOT_FOUND }, { status: 404 });
   if (invite.acceptedAt) {
     return NextResponse.json(
-      { error: "This invitation has already been used. Sign in with that address instead." },
+      { error: INVITE_USED },
       { status: 410 }
     );
   }
   if (new Date(invite.expiresAt) < new Date()) {
     return NextResponse.json(
-      { error: "This invitation has expired. Ask whoever invited you to send a new one." },
+      { error: INVITE_EXPIRED },
       { status: 410 }
     );
   }
@@ -99,15 +108,15 @@ export async function POST(request: NextRequest) {
     const invite = await db.userInvite.findUnique({ where: { token } });
 
     if (!invite) {
-      return NextResponse.json({ error: "Invalid invite token" }, { status: 404 });
+      return NextResponse.json({ error: INVITE_NOT_FOUND }, { status: 404 });
     }
 
     if (invite.acceptedAt) {
-      return NextResponse.json({ error: "Invite has already been accepted" }, { status: 410 });
+      return NextResponse.json({ error: INVITE_USED }, { status: 410 });
     }
 
     if (new Date(invite.expiresAt) < new Date()) {
-      return NextResponse.json({ error: "Invite has expired" }, { status: 410 });
+      return NextResponse.json({ error: INVITE_EXPIRED }, { status: 410 });
     }
 
     // Check if user with this email already exists
