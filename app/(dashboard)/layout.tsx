@@ -22,6 +22,14 @@ import { VerifyEmailBanner } from "@/components/layout/VerifyEmailBanner";
 import { ActingAsBanner } from "@/components/layout/ActingAsBanner";
 import type { ActingAs } from "@/lib/platform/actAs";
 import type { Metadata } from "next";
+import { BRAND } from "@/lib/brand";
+import { PAGE_TITLE_TEMPLATE } from "@/lib/ui/pageTitle";
+
+/* Each section's layout.tsx names itself ("Campaigns"); this turns that into
+   "Campaigns · Made Boring Campaigns". On the group's layout rather than the
+   root one, because the public pages already write the brand into their own
+   titles and a root template would print it twice. */
+const TITLE: Metadata["title"] = { template: PAGE_TITLE_TEMPLATE, default: BRAND.name };
 
 /**
  * The org's own favicon, which was stored and never applied.
@@ -40,16 +48,16 @@ import type { Metadata } from "next";
 export async function generateMetadata(): Promise<Metadata> {
   const session = await auth();
   const orgId = (session?.user as any)?.orgId as string | undefined;
-  if (!orgId) return {};
+  if (!orgId) return { title: TITLE };
 
   const org = await db.organization.findUnique({
     where: { id: orgId },
     select: { faviconUrl: true },
   });
   const icon = usableIconHref(org?.faviconUrl);
-  if (!icon) return {};
+  if (!icon) return { title: TITLE };
 
-  return { icons: { icon, shortcut: icon, apple: icon } };
+  return { title: TITLE, icons: { icon, shortcut: icon, apple: icon } };
 }
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
