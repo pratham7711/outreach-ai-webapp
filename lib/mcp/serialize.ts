@@ -1,5 +1,5 @@
 import {
-  engagementRateValue,
+  postEngagementPercent,
   fieldMetricValue,
   lastFetchNote,
   measuredFields,
@@ -146,7 +146,9 @@ export function shapePost(post: ShapeablePost): Record<string, unknown> {
       : field === "comments" ? post.commentsCount
       : field === "shares" ? post.sharesCount
       : post.savesCount;
-    metrics[field] = fieldMetricValue(raw, post.lastSyncedAt ?? null, post.platformMetrics, field);
+    /* With the platform, so a YouTube post's 0 shares reads as unmeasured --
+       YouTube publishes no share count (sharesPublished). */
+    metrics[field] = fieldMetricValue(raw, post.lastSyncedAt ?? null, post.platformMetrics, field, post.platform);
   }
 
   /*
@@ -182,17 +184,10 @@ export function shapePost(post: ShapeablePost): Record<string, unknown> {
          quotient carries fifteen digits of precision the underlying counts do
          not have, and a model repeating it back reads as a claim about the
          seventh decimal of a like count. */
-      engagementRatePercent:
-        metrics.likes === null
-          ? null
-          : round2(
-              engagementRateValue(
-                post.likesCount,
-                post.commentsCount,
-                post.viewsCount,
-                post.lastSyncedAt ?? null
-              )
-            ),
+      /* postEngagementPercent, the product's one per-post rate: (likes +
+         comments + shares + saves) / views. engagementRateValue was called
+         here with likes and comments only. */
+      engagementRatePercent: round2(postEngagementPercent(post)),
     },
     measured: measuredFields(post.platformMetrics),
     ...(note ? { notMeasuredReason: note } : {}),

@@ -174,6 +174,9 @@ describe("GET /api/analytics", () => {
       avgEngagementRate: 5.5,
       totalPosts: 2,
       engagementSample: 2,
+      // The third aggregate (views known) falls through to EMPTY_KPIS here.
+      viewsKnownPosts: 0,
+      asOf: null,
     });
 
     expect(body.leaderboard).toHaveLength(1);
@@ -270,7 +273,9 @@ describe("GET /api/analytics", () => {
     expect(body.leaderboard[0].views).toBe(100_000);
   });
 
-  it("reports zero for a leaderboard creator with no measured post", async () => {
+  /* Unknown, not zero: a creator none of whose posts had views and likes read
+     has no rate, and the leaderboard prints "—" for it rather than "0.0%". */
+  it("reports no rate for a leaderboard creator with no measured post", async () => {
     stubGroupBy([
       {
         creatorId: "creator-1",
@@ -284,8 +289,58 @@ describe("GET /api/analytics", () => {
     ]);
 
     const body = await (await getAnalytics(makeRequest())).json();
-    expect(body.leaderboard[0].engagementRate).toBe(0);
-    expect(body.leaderboard[0].engagements).toBe(0);
+    expect(body.leaderboard[0].engagementRate).toBeNull();
+    expect(body.leaderboard[0].engagements).toBeNull();
+  });
+
+  it("reports no views for a creator whose posts carry no view count, and ranks them last", async () => {
+    stubGroupBy([
+      {
+        creatorId: "photos",
+        platform: "INSTAGRAM",
+        _sum: { viewsCount: 0, likesCount: 900, commentsCount: 10, sharesCount: 0, savesCount: 0 },
+        _count: { _all: 4 },
+      },
+      {
+        creatorId: "videos",
+        platform: "TIKTOK",
+        _sum: { viewsCount: 5_000, likesCount: 100, commentsCount: 1, sharesCount: 0, savesCount: 0 },
+        _count: { _all: 1 },
+      },
+    ]);
+    mockDb.creator.findMany.mockResolvedValue([
+      { id: "photos", name: "Photos", handle: "photos", platform: "INSTAGRAM", avatarUrl: null, followersCount: 0 },
+      { id: "videos", name: "Videos", handle: "videos", platform: "TIKTOK", avatarUrl: null, followersCount: 0 },
+    ]);
+
+    const body = await (await getAnalytics(makeRequest())).json();
+    expect(body.leaderboard.map((r: { id: string }) => r.id)).toEqual(["videos", "photos"]);
+    expect(body.leaderboard[1].views).toBeNull();
+  });
+
+  it("leaves the Unattributed holding row out of the creator ranking", async () => {
+    await getAnalytics(makeRequest());
+    const [creatorTotalsCall] = mockDb.post.groupBy.mock.calls;
+    expect(creatorTotalsCall[0].where.creator).toEqual({
+      NOT: expect.objectContaining({ handle: "" }),
+    });
+  });
+
+  it("says how many posts the views total covers, and when it was read", async () => {
+    stubAggregates(
+      { _sum: { viewsCount: 0, likesCount: 10, commentsCount: 1 }, _count: { _all: 7 } },
+      EMPTY_KPIS,
+    );
+    mockDb.post.aggregate.mockResolvedValueOnce({
+      _count: { _all: 0 },
+      _max: { lastSyncedAt: new Date("2026-10-12T07:50:00Z"), lastFreshAt: new Date("2026-10-13T07:50:00Z") },
+    });
+
+    const body = await (await getAnalytics(makeRequest())).json();
+    expect(body.kpis.viewsKnownPosts).toBe(0);
+    expect(body.kpis.asOf).toBe("2026-10-13T07:50:00.000Z");
+    const [, , knownCall] = mockDb.post.aggregate.mock.calls;
+    expect(knownCall[0].where.viewsCount).toEqual({ gt: 0 });
   });
 
   it("fills the six-month trend from the bucketed campaign counts", async () => {
@@ -382,10 +437,13 @@ describe("GET /api/analytics", () => {
     expect(mockDb.$queryRawUnsafe.mock.calls[1][2]).toBe("UTC");
   });
 
-  it("reports an all-null median as zero instead of null", async () => {
-    stubRaw([], [{ day: 0, hour: 0, count: 2, medianViews: null }]);
+  /* A slot whose posts carry no view count has no median. It was reported as
+     0, and the Timing tab printed "0 median" for it. */
+  it("reports an all-unknown median as null, not zero", async () => {
+    stubRaw([], [{ day: 0, hour: 0, count: 2, medianViews: null, viewsKnown: 0 }]);
     const body = await (await getAnalytics(makeRequest())).json();
-    expect(body.postingBuckets[0].medianViews).toBe(0);
+    expect(body.postingBuckets[0].medianViews).toBeNull();
+    expect(body.postingBuckets[0].viewsKnown).toBe(0);
   });
 
   it("narrows the posting slots by the same platform and date filters as the KPIs", async () => {

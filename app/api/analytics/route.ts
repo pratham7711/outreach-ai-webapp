@@ -3,7 +3,8 @@ import { db } from "@/lib/db";
 import { READ_CACHE_HEADERS } from "@/lib/http/readCache";
 import { cachedOrgRead } from "@/lib/reports/orgReadCache";
 import { authenticateRequest } from "@/lib/authenticate";
-import { RATED_POSTS_FILTER, rollupEngagementFromTotals } from "@/lib/metricDisplay";
+import { RATED_POSTS_FILTER, VIEWS_KNOWN_FILTER, rollupEngagementFromTotals } from "@/lib/metricDisplay";
+import { UNATTRIBUTED_CREATOR_WHERE } from "@/lib/posts/unattributedName";
 import { duplicatePostIds, excludingDuplicates } from "@/lib/posts/duplicates";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { PLATFORM_VALUES } from "@/lib/platforms/constants";
@@ -154,6 +155,7 @@ async function analyticsBody(orgId: string, from: Date | null, platform: string 
     creatorCampaignPairs,
     platformRows,
     orgCampaigns,
+    knownRow,
   ] =
     await Promise.all([
       db.post.aggregate({
@@ -213,20 +215,30 @@ async function analyticsBody(orgId: string, from: Date | null, platform: string 
        * puts a post in the hour it actually went live — the same trap the month
        * bucketing above documents.
        */
-      db.$queryRawUnsafe<{ day: number; hour: number; count: number; medianViews: number | null }[]>(
+      db.$queryRawUnsafe<{ day: number; hour: number; count: number; medianViews: number | null; viewsKnown?: number }[]>(
         `SELECT EXTRACT(DOW FROM (p."postedAt" AT TIME ZONE 'UTC') AT TIME ZONE $2::text)::int AS day,
                 EXTRACT(HOUR FROM (p."postedAt" AT TIME ZONE 'UTC') AT TIME ZONE $2::text)::int AS hour,
                 COUNT(*)::int AS count,
-                percentile_cont(0.5) WITHIN GROUP (ORDER BY p."viewsCount")::float8 AS "medianViews"
+                /* Over the posts with a view count only (VIEWS_KNOWN_FILTER's
+                   test). An Instagram photo publishes none and stores 0, and
+                   medianing those zeroes in printed "0 median" for a slot
+                   nobody had measured. No known view leaves the median null. */
+                percentile_cont(0.5) WITHIN GROUP (ORDER BY p."viewsCount")
+                  FILTER (WHERE p."viewsCount" > 0)::float8 AS "medianViews",
+                COUNT(*) FILTER (WHERE p."viewsCount" > 0)::int AS "viewsKnown"
            FROM "Post" p
            JOIN "Campaign" c ON c.id = p."campaignId"
           WHERE c."orgId" = $1 AND c."deletedAt" IS NULL AND p."postedAt" IS NOT NULL${slotFilter}
           GROUP BY 1, 2`,
         ...slotParams
       ),
+      /* The org's "Unattributed <platform> posts" holding row is a filing
+         label, not a creator, so it is not ranked among them -- the campaign
+         leaderboard already leaves it out (lib/reports/campaignPerformance).
+         Its posts still count in every total above. */
       db.post.groupBy({
         by: ["creatorId"],
-        where: orgPostWhere,
+        where: { ...orgPostWhere, creator: { NOT: UNATTRIBUTED_CREATOR_WHERE } },
         _sum: {
           viewsCount: true,
           likesCount: true,
@@ -265,6 +277,14 @@ async function analyticsBody(orgId: string, from: Date | null, platform: string 
         where: { orgId, deletedAt: null },
         select: { id: true, title: true, status: true },
         orderBy: { createdAt: "desc" },
+      }),
+      /* What the Total Views tile can stand behind: how many of the posts it
+         adds up have a view count, and when the newest of them was read. Last
+         in the wave so the aggregates above keep their order. */
+      db.post.aggregate({
+        where: { ...orgPostWhere, ...VIEWS_KNOWN_FILTER },
+        _count: { _all: true },
+        _max: { lastSyncedAt: true, lastFreshAt: true },
       }),
     ]);
 
@@ -335,8 +355,18 @@ async function analyticsBody(orgId: string, from: Date | null, platform: string 
     ])
   );
 
-  // Rank first, then fetch profiles — only the visible 20 creators are read.
-  const ranked = [...totals.entries()].sort((a, b) => b[1].views - a[1].views).slice(0, LEADERBOARD_SIZE);
+  /* Rank first, then fetch profiles — only the visible 20 creators are read.
+     A creator with no view count read sits below every measured one (their
+     sum is 0 only because nothing was read), ordered among themselves by
+     engagements and then posts. */
+  const ranked = [...totals.entries()]
+    .sort(
+      (a, b) =>
+        b[1].views - a[1].views ||
+        (measuredByCreator.get(b[0])?.engagements ?? -1) - (measuredByCreator.get(a[0])?.engagements ?? -1) ||
+        b[1].posts - a[1].posts,
+    )
+    .slice(0, LEADERBOARD_SIZE);
   const profiles = ranked.length
     ? await db.creator.findMany({
         where: { orgId, id: { in: ranked.map(([id]) => id) } },
@@ -355,11 +385,14 @@ async function analyticsBody(orgId: string, from: Date | null, platform: string 
       avatarUrl: profile?.avatarUrl ?? null,
       followersCount: profile?.followersCount ?? 0,
       campaigns: campaignsPerCreator.get(creatorId) ?? 0,
-      views: t.views,
+      /* Null, not 0, when none of their posts has a view count -- the sum of
+         unread zeroes. VIEWS_KNOWN_FILTER's test: a positive sum means some
+         post had views. Likewise the rate when no post had views and likes. */
+      views: t.views > 0 ? t.views : null,
       likes: t.likes,
       posts: t.posts,
-      engagements: measuredByCreator.get(creatorId)?.engagements ?? 0,
-      engagementRate: measuredByCreator.get(creatorId)?.rate ?? 0,
+      engagements: measuredByCreator.get(creatorId)?.engagements ?? null,
+      engagementRate: measuredByCreator.get(creatorId)?.rate ?? null,
     };
   });
 
@@ -389,6 +422,12 @@ async function analyticsBody(orgId: string, from: Date | null, platform: string 
       avgEngagementRate: parseFloat(((orgEngagement.rate ?? 0) * 100).toFixed(2)),
       totalPosts: kpiRow._count._all,
       engagementSample: measuredRow._count._all,
+      /* Posts with a view count, for "views known for N of M posts"; the tile
+         shows a dash when it is 0 rather than the sum of unread zeroes. */
+      viewsKnownPosts: knownRow?._count?._all ?? null,
+      /* The newest reading behind the views total: our read or the import's
+         refresh, whichever is later. Null when neither was recorded. */
+      asOf: newestOf(knownRow?._max?.lastSyncedAt, knownRow?._max?.lastFreshAt),
     },
     monthlyTrend,
     leaderboard,
@@ -401,9 +440,18 @@ async function analyticsBody(orgId: string, from: Date | null, platform: string 
       day: r.day,
       hour: r.hour,
       count: r.count,
-      // percentile_cont is null for a group whose views are all null.
-      medianViews: r.medianViews ?? 0,
+      /* Null when no post in the slot has a view count: the slot has no
+         median, which the heatmap says rather than printing "0 median". */
+      medianViews: r.medianViews ?? null,
+      viewsKnown: r.viewsKnown,
     })),
     postingTimeZone: timeZone,
   };
+}
+
+/** The later of two optional timestamps, as ISO; null when neither exists. */
+function newestOf(...times: (Date | null | undefined)[]): string | null {
+  let newest: Date | null = null;
+  for (const t of times) if (t && (!newest || t > newest)) newest = t;
+  return newest ? newest.toISOString() : null;
 }

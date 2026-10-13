@@ -6,6 +6,7 @@ import { ArrowRight, Layers, Megaphone, Music } from "lucide-react";
 import { PostAnalysisTable, type AnalysisPost } from "@/components/posts/PostAnalysisTable";
 import { PostingTimeHeatmap } from "@/app/(dashboard)/analytics/PostingTimeHeatmap";
 import { platformLabel, formatFull, fitFigureSize } from "@/lib/format";
+import { asOfCaption } from "@/lib/dataAge";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import AttachCampaigns, { type AttachableCampaign } from "./AttachCampaigns";
 
@@ -14,11 +15,18 @@ type Summary = {
   activeCampaignCount: number;
   phaseCount: number;
   postCount: number;
-  totalViews: number;
+  /** Each video once; null when no post has a view count we hold. */
+  totalViews: number | null;
+  /** Videos whose views are known, of `videoCount`. Optional: the API's older shape lacks them. */
+  viewsKnown?: number;
+  videoCount?: number;
+  /** The newest reading behind totalViews. */
+  viewsAsOf?: string | null;
   totalLikes: number;
   totalComments: number;
   totalShares: number;
-  engagementRate: number;
+  /** A fraction; null when no post has both views and likes read. */
+  engagementRate: number | null;
   totalBudget: number;
 };
 
@@ -29,7 +37,7 @@ type CampaignRow = {
   budget: number | null;
   phaseCount: number;
   postCount: number;
-  views: number;
+  views: number | null;
 };
 
 type PhaseRow = {
@@ -40,7 +48,7 @@ type PhaseRow = {
   campaignTitle: string;
   targetPosts: number | null;
   postCount: number;
-  views: number;
+  views: number | null;
 };
 
 export type SongDashboardData = {
@@ -48,7 +56,7 @@ export type SongDashboardData = {
   summary: Summary;
   campaigns: CampaignRow[];
   phases: PhaseRow[];
-  platformBreakdown: { platform: string; views: number; posts: number }[];
+  platformBreakdown: { platform: string; views: number | null; posts: number }[];
   posts: AnalysisPost[];
 };
 
@@ -70,7 +78,8 @@ function DistributionRow({
   suffix,
 }: {
   label: string;
-  count: number;
+  /** Null when none of the row's posts has a view count read: "—", not 0. */
+  count: number | null;
   max: number;
   color: string;
   href: string;
@@ -92,12 +101,15 @@ function DistributionRow({
         <span
           style={{
             display: "block", height: "100%", borderRadius: 4, background: color,
-            width: `${max > 0 ? (count / max) * 100 : 0}%`, transition: "width 400ms ease-out",
+            width: `${max > 0 && count !== null ? (count / max) * 100 : 0}%`, transition: "width 400ms ease-out",
           }}
         />
       </span>
-      <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
-        {formatFull(count)}{suffix}
+      <span
+        title={count === null ? "None of these posts has a view count read yet" : undefined}
+        style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}
+      >
+        {count === null ? "—" : formatFull(count)}{count === null ? null : suffix}
       </span>
     </Link>
   );
@@ -114,10 +126,16 @@ export default function SongDashboard({
   const [tab, setTab] = useState<"posts" | "timing">("posts");
 
   const platformMax = useMemo(
-    () => platformBreakdown.reduce((m, p) => Math.max(m, p.views), 0),
+    () => platformBreakdown.reduce((m, p) => Math.max(m, p.views ?? 0), 0),
     [platformBreakdown],
   );
-  const phaseMax = useMemo(() => phases.reduce((m, p) => Math.max(m, p.views), 0), [phases]);
+  const phaseMax = useMemo(() => phases.reduce((m, p) => Math.max(m, p.views ?? 0), 0), [phases]);
+  const viewsNote = asOfCaption(summary.viewsAsOf, {
+    known: summary.viewsKnown,
+    total: summary.videoCount ?? summary.postCount,
+    noun: "video",
+    what: "views",
+  });
 
   const phaseOptions = useMemo(
     () => phases.map((p) => ({ id: p.id, name: p.name, campaignTitle: p.campaignTitle })),
@@ -157,7 +175,13 @@ export default function SongDashboard({
           background: "linear-gradient(135deg, color-mix(in srgb, var(--cc-primary) 8%, transparent) 0%, var(--cc-card) 100%)",
         }}
       >
-        <HeroStat value={formatFull(summary.totalViews)} label="Total views" sub={`across ${summary.postCount} posts`} />
+        <HeroStat
+          value={summary.totalViews === null ? "—" : formatFull(summary.totalViews)}
+          label="Total views"
+          sub={`across ${summary.postCount} posts`}
+          note={viewsNote}
+          valueTitle={summary.totalViews === null && summary.postCount > 0 ? "None of this song's posts has a view count read yet" : undefined}
+        />
         <span aria-hidden="true" style={{ width: 1, height: 48, background: "var(--cc-border)" }} />
         <HeroStat
           value={String(summary.campaignCount)}
@@ -240,8 +264,11 @@ export default function SongDashboard({
                 <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", fontVariantNumeric: "tabular-nums" }}>
                   {c.postCount} posts
                 </span>
-                <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", fontVariantNumeric: "tabular-nums", minWidth: 64, textAlign: "right" }}>
-                  {formatFull(c.views)}
+                <span
+                  title={c.views === null ? (c.postCount === 0 ? "No posts yet" : "None of this campaign's posts has a view count read yet") : undefined}
+                  style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", fontVariantNumeric: "tabular-nums", minWidth: 64, textAlign: "right" }}
+                >
+                  {c.views === null ? "—" : formatFull(c.views)}
                 </span>
               </Link>
             ))}
@@ -275,14 +302,28 @@ export default function SongDashboard({
   );
 }
 
-function HeroStat({ value, label, sub }: { value: string; label: string; sub: string }) {
+function HeroStat({
+  value,
+  label,
+  sub,
+  note,
+  valueTitle,
+}: {
+  value: string;
+  label: string;
+  sub: string;
+  /** When the figure was read and what it covers ("as of … · views known for 4 of 5 videos"). */
+  note?: string | null;
+  valueTitle?: string;
+}) {
   return (
     <div>
-      <p title={value} style={{ fontSize: fitFigureSize(value, 36), fontWeight: 700, color: "var(--cc-text)", lineHeight: 1, fontVariantNumeric: "tabular-nums", marginBottom: 6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+      <p title={valueTitle ?? value} style={{ fontSize: fitFigureSize(value, 36), fontWeight: 700, color: "var(--cc-text)", lineHeight: 1, fontVariantNumeric: "tabular-nums", marginBottom: 6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
         {value}
       </p>
       <p style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{label}</p>
       <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{sub}</p>
+      {note && <p data-views-asof style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{note}</p>}
     </div>
   );
 }

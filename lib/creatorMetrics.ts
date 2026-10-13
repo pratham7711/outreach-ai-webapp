@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { RATED_POSTS_FILTER, rollupEngagementFromTotals } from "@/lib/metricDisplay";
 
 /**
  * Average views per creator, measured from their posts.
@@ -71,14 +72,16 @@ export async function deriveAverageViewsMeasured(creatorIds: string[]): Promise<
 }
 
 /**
- * Engagement rate per creator, as a percentage: (likes + comments + shares) /
- * views over their posts.
+ * Engagement rate per creator, as a percentage: the product's one rate,
+ * (likes + comments + shares + saves) / views over their measured posts --
+ * rollupEngagementFromTotals over RATED_POSTS_FILTER, the same pair the
+ * dashboard and /analytics leaderboards use.
  *
- * Same discipline as deriveAverageViews: derived, never read from a stored
- * column, and a creator whose posts were never measured is absent from the map
- * rather than present at 0.00%. A post only counts once it carries a sync
- * timestamp, because likes and comments default to 0 on an unfetched row and
- * summing those would manufacture a very confident 0%.
+ * It was a three-term rate (no saves) over a narrower "measured" test of its
+ * own, so the list a client was sent rated a creator differently from the
+ * campaign report beside it. Still derived, never read from a stored column,
+ * and a creator whose posts were never measured is absent from the map rather
+ * than present at 0.00%.
  */
 export async function deriveEngagementRates(creatorIds: string[]): Promise<Map<string, number>> {
   const result = new Map<string, number>();
@@ -86,15 +89,15 @@ export async function deriveEngagementRates(creatorIds: string[]): Promise<Map<s
 
   const grouped = await db.post.groupBy({
     by: ["creatorId"],
-    where: { creatorId: { in: creatorIds }, viewsCount: { gt: 0 }, lastSyncedAt: { not: null } },
-    _sum: { viewsCount: true, likesCount: true, commentsCount: true, sharesCount: true },
+    where: { creatorId: { in: creatorIds }, ...RATED_POSTS_FILTER },
+    _sum: { viewsCount: true, likesCount: true, commentsCount: true, sharesCount: true, savesCount: true },
+    _count: { _all: true },
   });
 
   for (const g of grouped) {
-    const views = g._sum.viewsCount ?? 0;
-    if (views <= 0) continue;
-    const engagement = (g._sum.likesCount ?? 0) + (g._sum.commentsCount ?? 0) + (g._sum.sharesCount ?? 0);
-    result.set(g.creatorId, Math.round((engagement / views) * 10_000) / 100);
+    const { rate } = rollupEngagementFromTotals({ measuredPosts: g._count._all, ...g._sum });
+    if (rate === null) continue;
+    result.set(g.creatorId, Math.round(rate * 10_000) / 100);
   }
   return result;
 }

@@ -25,7 +25,12 @@ export type ActivityEvent = {
 export type PerformanceData = {
   summary: {
     activeCampaigns: number;
+    /** Creators who posted in the selected range (not the Unattributed row). */
     totalCreators: number;
+    /** Posts in range with a view count. Absent from a response cached before it existed. */
+    viewsKnownPosts?: number | null;
+    /** The newest reading behind Total Views, ISO; null when none was recorded. */
+    asOf?: string | null;
   };
   /* One measured reading per bucket. `views` is a LEVEL -- lifetime views of
      every post the org held on that day -- not the views earned during the
@@ -46,7 +51,8 @@ export type PerformanceData = {
        cannot tell them apart. Null only when the creator row has gone. */
     platform: string | null;
     activationCount: number;
-    views: number;
+    /** Null when none of their posts in range has a view count. */
+    views: number | null;
     /** Percent; null when none of their posts in range had views and likes read. */
     avgEngagement: number | null;
   }[];

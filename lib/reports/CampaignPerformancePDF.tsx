@@ -182,8 +182,15 @@ export function CampaignPerformancePDF({
   const showStatusColumn = leaderboard.some((r) => r.status !== null);
   /* "Data as of" is the newest reading behind the figures (plan A6): the
      moment the report's numbers were last refreshed. Each post row carries its
-     own read date beside it, so an older row is visible as older. */
-  const asOf = dataAsOf(posts.map((p) => p.lastSyncedAt));
+     own read date beside it, so an older row is visible as older.
+
+     The newest reading alone overstated the report: one post synced this
+     morning stamped the whole document "as of" this morning above posts whose
+     figures were an import's. So the line now also says how many posts we read
+     ourselves. kpis.asOf counts an import's refresh time too; a payload cached
+     before that field existed falls back to our own reads. */
+  const asOf = kpis.asOf !== undefined ? kpis.asOf : dataAsOf(posts.map((p) => p.lastSyncedAt));
+  const readPosts = kpis.readPosts ?? posts.filter((p) => p.lastSyncedAt !== null).length;
   /* Post status rides only on what redactForShare left in: every post on the
      dashboard's own export, only the flagged ones on a link that marks them. */
   const showPostStatus = posts.some((p) => p.status && p.status.kind !== "live");
@@ -191,7 +198,13 @@ export function CampaignPerformancePDF({
   // Engagement is unknown for posts we never fetched, so those cells are left
   // out of the report rather than printed as a zero or a dash.
   const kpiCells = [
-    { label: "Views", value: fmtNumber(kpis.views), note: viewsCoverageNote(kpis.viewsKnownPosts, kpis.posts) },
+    {
+      label: "Views",
+      /* A sum over no read post is not a zero: the tile said "0" above a
+         campaign of Instagram photos, which publish no view count. */
+      value: kpis.viewsKnownPosts === 0 && kpis.posts > 0 ? "\u2014" : fmtNumber(kpis.views),
+      note: viewsCoverageNote(kpis.viewsKnownPosts, kpis.posts),
+    },
     kpis.engagements !== null
       ? { label: "Engagements", value: fmtNumber(kpis.engagements) }
       : null,
@@ -210,7 +223,7 @@ export function CampaignPerformancePDF({
           <Text style={styles.headerLabel}>Campaign Performance Report</Text>
           <Text style={styles.headerTitle}>{campaignTitle}</Text>
           <Text style={[styles.headerLabel, { marginTop: 8, marginBottom: 0, textTransform: "none" }]}>
-            {dataAsOfLine(asOf)}
+            {dataAsOfLine(asOf, { read: readPosts, total: kpis.posts })}
           </Text>
         </View>
 
@@ -264,7 +277,7 @@ export function CampaignPerformancePDF({
                   <Text style={[styles.tableCell, { flex: 1 }]}>{row.posts}</Text>
                   <Text style={[styles.tableCell, { flex: 1 }]}>{row.views === null ? "—" : fmtNumber(row.views)}</Text>
                   <Text style={[styles.tableCell, { flex: 1 }]}>
-                    {row.engagementRate !== null ? (row.engagementRate * 100).toFixed(1) + "%" : "—"}
+                    {row.engagementRate !== null ? (row.engagementRate * 100).toFixed(2) + "%" : "—"}
                   </Text>
                   {showStatusColumn && (
                     <Text style={[styles.tableCell, { flex: 1.4 }]}>

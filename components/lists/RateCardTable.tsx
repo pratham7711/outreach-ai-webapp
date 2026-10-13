@@ -5,9 +5,11 @@ import Link from "next/link";
 import { ArrowDown, ArrowUp, Trash2 } from "lucide-react";
 import { Badge } from "@pratham7711/ui";
 import { toast } from "sonner";
-import { formatFull, stripAt } from "@/lib/format";
+import { stripAt } from "@/lib/format";
 import { DECISION_BADGE, DECISION_LABELS, type ListItemDecision } from "@/lib/lists/approval";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
+import MetricFigure from "@/components/creators/MetricFigure";
+import { avgViewsValue, followersValue } from "@/lib/creators/metricValue";
 
 export type RateCardItem = {
   id: string;
@@ -121,8 +123,11 @@ export default function RateCardTable({
                   <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>@{stripAt(item.creator.handle)}</p>
                 </div>
               </Link>
-              <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{formatFull(item.creator.followersCount)}</span>
-              <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{item.creator.avgViews ? formatFull(item.creator.avgViews) : "—"}</span>
+              {/* followersCount defaults to 0 for a creator nobody has read, and
+                  this is the view a client approves from: "—" with the reason,
+                  as the list's plain view already shows it. */}
+              <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}><MetricFigure value={followersValue(item.creator.followersCount)} /></span>
+              <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}><MetricFigure value={avgViewsValue(item.creator.avgViews)} /></span>
               <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
                 {item.creator.engagementRate != null ? `${item.creator.engagementRate.toFixed(2)}%` : "—"}
               </span>

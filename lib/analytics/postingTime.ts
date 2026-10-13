@@ -10,14 +10,22 @@ export type TimeBucket = {
   /** 0 … 23, in the requested timezone. */
   hour: number;
   count: number;
-  /** Median, not mean — see medianOf. 0 when the bucket is empty. */
-  medianViews: number;
+  /**
+   * Median, not mean — see medianOf — over the slot's posts whose views are
+   * known. Null when none are: an empty slot, or one holding only posts with no
+   * view count (Instagram photos publish none). It was 0 for both, and the
+   * Timing tab printed "0 median" for a slot nobody had measured.
+   */
+  medianViews: number | null;
+  /** Posts in the slot with a view count -- the median's sample. Absent when
+   *  the source did not say, in which case `count` stands in for it. */
+  viewsKnown?: number;
 };
 
 export type PostingTimeReport = {
   buckets: TimeBucket[];
   /** Buckets clearing minSample, best median first. Empty when nothing qualifies. */
-  best: TimeBucket[];
+  best: (TimeBucket & { medianViews: number })[];
   totalPosts: number;
   /** Highest median across buckets that cleared minSample — the colour scale ceiling. */
   scaleMax: number;
@@ -86,7 +94,7 @@ export function postingTimeReport(
       ? posts.filter((p) => p.platform === opts.platform)
       : posts;
 
-  const grouped = new Map<string, number[]>();
+  const grouped = new Map<string, { count: number; views: number[] }>();
   let totalPosts = 0;
 
   for (const post of relevant) {
@@ -96,16 +104,19 @@ export function postingTimeReport(
     const views = Number(post.viewsCount);
     if (!Number.isFinite(views)) continue;
     const key = `${slot.day}-${slot.hour}`;
-    const list = grouped.get(key);
-    if (list) list.push(views);
-    else grouped.set(key, [views]);
+    const entry = grouped.get(key) ?? { count: 0, views: [] };
+    entry.count += 1;
+    /* A 0 is a view count nobody read -- the same test as VIEWS_KNOWN_FILTER
+       on the aggregated path, so the two paths median the same posts. */
+    if (views > 0) entry.views.push(views);
+    grouped.set(key, entry);
     totalPosts += 1;
   }
 
   const sparse: TimeBucket[] = [];
-  for (const [key, values] of grouped) {
+  for (const [key, { count, views }] of grouped) {
     const [day, hour] = key.split("-").map(Number);
-    sparse.push({ day, hour, count: values.length, medianViews: medianOf(values) });
+    sparse.push({ day, hour, count, medianViews: views.length ? medianOf(views) : null, viewsKnown: views.length });
   }
 
   // Same tail as the aggregated path, so the two cannot rank slots differently.
@@ -124,25 +135,29 @@ export function postingTimeReport(
  * land in slot NaN.
  */
 export function postingTimeReportFromBuckets(
-  rows: readonly { day: number; hour: number; count: number; medianViews: number }[],
+  rows: readonly { day: number; hour: number; count: number; medianViews: number | null; viewsKnown?: number }[],
   opts: { timeZone?: string; minSample?: number; totalPosts?: number } = {},
 ): PostingTimeReport {
   const timeZone = opts.timeZone ?? "UTC";
   const minSample = Math.max(1, opts.minSample ?? 3);
 
-  const byKey = new Map<string, { count: number; medianViews: number }>();
+  const byKey = new Map<string, { count: number; medianViews: number | null; viewsKnown?: number }>();
   let counted = 0;
   for (const row of rows) {
     const day = Number(row.day);
     const hour = Number(row.hour);
     const count = Number(row.count);
-    const medianViews = Number(row.medianViews);
+    /* null stays null: percentile_cont over no known view is "no median",
+       and Number(null) would have quietly made it 0. */
+    const medianViews = row.medianViews === null || row.medianViews === undefined ? NaN : Number(row.medianViews);
+    const viewsKnown = row.viewsKnown === undefined || row.viewsKnown === null ? undefined : Number(row.viewsKnown);
     if (!Number.isInteger(day) || day < 0 || day > 6) continue;
     if (!Number.isInteger(hour) || hour < 0 || hour > 23) continue;
     if (!Number.isFinite(count) || count <= 0) continue;
     byKey.set(`${day}-${hour}`, {
       count,
-      medianViews: Number.isFinite(medianViews) ? medianViews : 0,
+      medianViews: Number.isFinite(medianViews) && viewsKnown !== 0 ? medianViews : null,
+      ...(viewsKnown !== undefined && Number.isFinite(viewsKnown) && { viewsKnown }),
     });
     counted += count;
   }
@@ -151,11 +166,20 @@ export function postingTimeReportFromBuckets(
   for (let day = 0; day < 7; day += 1) {
     for (let hour = 0; hour < 24; hour += 1) {
       const hit = byKey.get(`${day}-${hour}`);
-      buckets.push({ day, hour, count: hit?.count ?? 0, medianViews: hit?.medianViews ?? 0 });
+      buckets.push(
+        hit
+          ? { day, hour, ...hit }
+          : { day, hour, count: 0, medianViews: null },
+      );
     }
   }
 
-  const qualified = buckets.filter((b) => b.count >= minSample);
+  /* A slot is recommended on the posts its median was taken over, not the posts
+     it holds: three posts of which one has a view count is an anecdote too. */
+  const qualified = buckets.filter(
+    (b): b is TimeBucket & { medianViews: number } =>
+      b.medianViews !== null && (b.viewsKnown ?? b.count) >= minSample,
+  );
   const best = [...qualified].sort(
     (a, b) => b.medianViews - a.medianViews || b.count - a.count || a.day - b.day || a.hour - b.hour,
   );

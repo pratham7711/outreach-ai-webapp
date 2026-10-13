@@ -26,6 +26,8 @@ import {
   metricValue as postMetricValue,
   postEngagementPercent,
   rollupEngagement,
+  sharesPublished,
+  sharesUnknownReason,
   type MetricField,
 } from "@/lib/metricDisplay";
 import { followerCount } from "@/lib/trackers/creatorMetrics";
@@ -79,8 +81,10 @@ function readReason(e: ReadEvidence, what: string, storedZero: boolean): string 
   /* null is the caller saying "never tried"; undefined is a caller that holds
      no read history at all, which cannot claim either way. */
   if (e.attemptedAt === null) {
+    /* "The 0 on file is a placeholder" described our storage, not the
+       creator; what a reader needs is that the figure is not known yet. */
     return storedZero
-      ? `Not read from the platform yet. The 0 on file is a placeholder, not a ${what}.`
+      ? `Not read from the platform yet, so the ${what} is not known.`
       : `Not read from the platform yet.`;
   }
   return `No ${what} on record yet.`;
@@ -149,6 +153,8 @@ function postWasMeasured(p: EngagementPost): boolean {
 export type CounterPost = {
   lastSyncedAt?: string | Date | null;
   platformMetrics?: unknown;
+  /** Lets shares be unknown where the platform publishes none (sharesPublished). */
+  platform?: string | null;
 };
 
 /**
@@ -157,8 +163,13 @@ export type CounterPost = {
  * Instagram post's shares) and a post nobody has read say different things.
  */
 export function postCounterValue(value: number | null | undefined, post: CounterPost, field: MetricField): MetricValue {
-  const v = fieldMetricValue(value, post.lastSyncedAt, post.platformMetrics, field);
+  const v = fieldMetricValue(value, post.lastSyncedAt, post.platformMetrics, field, post.platform);
   if (v !== null) return v;
+  /* YouTube, and Instagram outside the creator's own insights, publish no share
+     count: say that, rather than blaming a read that could not have got one. */
+  if (field === "shares" && post.platform != null && !sharesPublished(post.platform, post.platformMetrics)) {
+    return unknownMetric(sharesUnknownReason(post.platform).title);
+  }
   return unknownMetric(
     post.lastSyncedAt
       ? `The platform did not report ${field} for this post.`

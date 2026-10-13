@@ -130,9 +130,10 @@ describe("rollupEngagement", () => {
     const rollup = rollupEngagement(posts);
 
     expect(summary.campaignRate).toBeCloseTo(rollup.rate! * 100, 10);
-    /* And downloads stay out of the rate even though CreatorCore's `engagement`
-       field, which this column is audited against, still counts them. */
-    expect(summary.engagement).toBe(3_380); // + 30 downloads
+    /* And the total agrees with the rate: downloads are out of both. The Posts
+       strip used to total CreatorCore's five-term `engagement` (3,380 here)
+       beside a four-term rate. */
+    expect(summary.engagement).toBe(3_350);
     expect(rollup.engagements).toBe(3_350);
   });
 

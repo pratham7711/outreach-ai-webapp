@@ -6,6 +6,7 @@ import { Music, Plus } from "lucide-react";
 import { Card, EmptyState, Input } from "@pratham7711/ui";
 import { PageHeader, Button } from "@/components/ds";
 import { platformLabel, formatFull } from "@/lib/format";
+import { asOfCaption } from "@/lib/dataAge";
 import { action } from "@/lib/ui/actions";
 
 export type SongRow = {
@@ -17,7 +18,13 @@ export type SongRow = {
   campaignCount: number;
   activeCampaignCount: number;
   postCount: number;
-  totalViews: number;
+  /** Null when none of the song's posts has a view count we hold. */
+  totalViews: number | null;
+  /** Videos whose views are known, of `videoCount` (each video once). */
+  viewsKnown: number;
+  videoCount: number;
+  /** The newest reading behind totalViews. */
+  viewsAsOf: string | null;
   platforms: string[];
 };
 
@@ -61,7 +68,10 @@ export default function SongsClient({ songs: initial }: { songs: SongRow[] }) {
           campaignCount: 0,
           activeCampaignCount: 0,
           postCount: 0,
-          totalViews: 0,
+          totalViews: null,
+          viewsKnown: 0,
+          videoCount: 0,
+          viewsAsOf: null,
           platforms: [],
         },
         ...prev,
@@ -127,7 +137,9 @@ export default function SongsClient({ songs: initial }: { songs: SongRow[] }) {
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" style={{ gap: 20 }}>
-          {filtered.map((s) => (
+          {filtered.map((s) => {
+            const viewsNote = asOfCaption(s.viewsAsOf, { known: s.viewsKnown, total: s.videoCount, noun: "video", what: "views" });
+            return (
             <Link key={s.id} href={`/songs/${s.id}`} style={{ textDecoration: "none" }}>
               <Card variant="solid" className="ui-card-clickable" style={{ padding: 20 }}>
                 <div style={{ display: "flex", gap: 14, marginBottom: 16 }}>
@@ -148,10 +160,25 @@ export default function SongsClient({ songs: initial }: { songs: SongRow[] }) {
                   </div>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-                  <Stat label="Views" value={formatFull(s.totalViews)} />
+                  <Stat
+                    label="Views"
+                    value={s.totalViews === null ? "—" : formatFull(s.totalViews)}
+                    title={
+                      s.totalViews !== null
+                        ? undefined
+                        : s.postCount === 0
+                          ? "No posts yet, so there are no views to count"
+                          : "None of this song's posts has a view count read yet"
+                    }
+                  />
                   <Stat label="Posts" value={String(s.postCount)} />
                   <Stat label="Campaigns" value={String(s.campaignCount)} />
                 </div>
+                {viewsNote && (
+                  <p data-views-asof style={{ marginTop: 10, fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
+                    {viewsNote}
+                  </p>
+                )}
                 {s.platforms.length > 0 && (
                   <p style={{ marginTop: 14, fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
                     {s.platforms.map(platformLabel).join(" · ")}
@@ -159,20 +186,21 @@ export default function SongsClient({ songs: initial }: { songs: SongRow[] }) {
                 )}
               </Card>
             </Link>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, title }: { label: string; value: string; title?: string }) {
   return (
     <div>
       <p className="cc-microlabel" style={{ marginBottom: 2 }}>
         {label}
       </p>
-      <p className="cc-panel-title" style={{ fontVariantNumeric: "tabular-nums" }}>{value}</p>
+      <p className="cc-panel-title" title={title} style={{ fontVariantNumeric: "tabular-nums" }}>{value}</p>
     </div>
   );
 }

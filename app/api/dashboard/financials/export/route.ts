@@ -6,6 +6,7 @@ import { dateParam, parseQuery } from "@/lib/http/queryParams";
 import { deriveAverageViewsMeasured } from "@/lib/creatorMetrics";
 import { asOfCell } from "@/lib/dataAge";
 import { UNKNOWN } from "@/lib/format";
+import { UNATTRIBUTED_CREATOR_WHERE } from "@/lib/posts/unattributedName";
 
 const financialsExportQuerySchema = z.object({
   from: dateParam.optional(),
@@ -89,6 +90,9 @@ export async function GET(request: NextRequest) {
         where: {
           orgId,
           deletedAt: null,
+          /* The Unattributed holding row is a filing label, not a creator --
+             the dashboard's creator table no longer lists it either. */
+          NOT: UNATTRIBUTED_CREATOR_WHERE,
         },
         include: {
           activations: { select: { id: true } },

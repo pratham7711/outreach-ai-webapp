@@ -5,7 +5,8 @@ import { cachedOrgRead, utcHourKey } from "@/lib/reports/orgReadCache";
 import { auth } from "@/lib/auth";
 import { z } from "zod";
 import { dateParam, parseQuery } from "@/lib/http/queryParams";
-import { RATED_POSTS_FILTER, postEngagementPercent, rollupEngagementFromTotals } from "@/lib/metricDisplay";
+import { RATED_POSTS_FILTER, VIEWS_KNOWN_FILTER, postEngagementPercent, rollupEngagementFromTotals } from "@/lib/metricDisplay";
+import { UNATTRIBUTED_CREATOR_WHERE } from "@/lib/posts/unattributedName";
 import { duplicatePostIds, excludingDuplicates } from "@/lib/posts/duplicates";
 
 const performanceQuerySchema = z.object({
@@ -126,19 +127,18 @@ async function performanceBody(orgId: string, from: Date, to: Date, granularity:
     byCreator,
     campaignTitles,
     topPostRows,
+    viewsKnown,
   ] = await Promise.all([
     db.campaign.count({ where: { orgId, deletedAt: null, status: "IN_PROGRESS" } }),
-    /* A creator is on the roster via an activation, whether or not a post
-       exists -- and the campaign that activation belongs to has to still
-       exist. `deletedAt: null` here is the ACTIVATION's; the campaign's was
-       missing, so Total Creators counted anyone activated on a soft-deleted
-       campaign while the post tiles beside it, activeCampaigns and the title
-       lookup all excluded those campaigns. Delete a finished campaign and the
-       creator count stayed high with nothing on the screen to explain it. */
-    db.activation.findMany({
-      where: { campaign: { orgId, deletedAt: null }, deletedAt: null },
-      select: { creatorId: true },
-      distinct: ["creatorId"],
+    /* The creators who posted in the selected range. This was every creator
+       holding an activation anywhere -- a number the range picker above it
+       could not move, so the tile read 6 on 7D, 30D and 1Y alike beside Total
+       Views and Total Posts that did move. The campaign's soft delete still
+       applies (postWhere), and the org's Unattributed holding row is a filing
+       label, not a creator, so it is not counted. */
+    db.post.groupBy({
+      by: ["creatorId"],
+      where: { ...orgPostWhere, creator: { NOT: UNATTRIBUTED_CREATOR_WHERE } },
     }),
     /* Measured, not derived. One row per day, written by
        /api/cron/snapshot-org-views at 00:30 UTC (vercel.json).
@@ -183,9 +183,11 @@ async function performanceBody(orgId: string, from: Date, to: Date, granularity:
       _sum: { viewsCount: true },
       _count: { _all: true },
     }),
+    /* Not the Unattributed holding row: it is not a creator, and the
+       campaign leaderboards already leave it out. */
     db.post.groupBy({
       by: ["creatorId"],
-      where: orgPostWhere,
+      where: { ...orgPostWhere, creator: { NOT: UNATTRIBUTED_CREATOR_WHERE } },
       _sum: { viewsCount: true },
       _count: { _all: true },
       orderBy: { _sum: { viewsCount: "desc" } },
@@ -195,8 +197,11 @@ async function performanceBody(orgId: string, from: Date, to: Date, granularity:
       where: { orgId, deletedAt: null },
       select: { id: true, title: true },
     }),
+    /* Top posts are posts with a view count. Ordered by views alone, a range
+       of mostly Instagram photos (which publish none) filled the table with
+       0-view rows ranked as "top". */
     db.post.findMany({
-      where: orgPostWhere,
+      where: { ...orgPostWhere, ...VIEWS_KNOWN_FILTER },
       orderBy: { viewsCount: "desc" },
       take: 5,
       select: {
@@ -207,11 +212,26 @@ async function performanceBody(orgId: string, from: Date, to: Date, granularity:
         campaign: { select: { title: true } },
       },
     }),
+    /* What the Total Views tile can stand behind: how many posts in range have
+       a view count, and the newest reading among them. */
+    db.post.aggregate({
+      where: { ...orgPostWhere, ...VIEWS_KNOWN_FILTER },
+      _count: { _all: true },
+      _max: { lastSyncedAt: true, lastFreshAt: true },
+    }),
   ]);
 
+  const newest = [viewsKnown?._max?.lastSyncedAt, viewsKnown?._max?.lastFreshAt]
+    .filter((d): d is Date => d instanceof Date)
+    .sort((a, b) => b.getTime() - a.getTime())[0];
   const summary = {
     activeCampaigns,
     totalCreators: distinctCreators.length,
+    /* Posts in range with a view count, for "views known for N of M posts";
+       Total Views is a dash when this is 0, not the sum of unread zeroes. */
+    viewsKnownPosts: viewsKnown?._count?._all ?? null,
+    /* The newest reading behind Total Views: our read or the import's. */
+    asOf: newest ? newest.toISOString() : null,
   };
 
   const viewsOverTime = bucketRows.map((r) => ({
@@ -294,7 +314,10 @@ async function performanceBody(orgId: string, from: Date, to: Date, granularity:
       handle: creator?.handle ?? "",
       platform: creator?.platform ?? null,
       activationCount: creator?._count.activations ?? 0,
-      views: c._sum.viewsCount ?? 0,
+      /* Null, not 0, when none of their posts in range has a view count -- the
+         sum of unread zeroes (VIEWS_KNOWN_FILTER's test: a positive sum means
+         some post had views). Ordered by views, so they already sit last. */
+      views: (c._sum.viewsCount ?? 0) > 0 ? c._sum.viewsCount : null,
       avgEngagement: engagementByCreator.get(c.creatorId) ?? null,
     };
   });

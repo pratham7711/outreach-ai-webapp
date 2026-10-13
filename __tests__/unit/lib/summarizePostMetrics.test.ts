@@ -33,7 +33,7 @@ describe("summarizePostMetrics", () => {
     expect(s.campaignRate).toBeNull();
   });
 
-  it("sums engagement across measured posts and includes downloads", () => {
+  it("sums engagement across measured posts on the four-term definition, without downloads", () => {
     const s = summarizePostMetrics([
       post({
         viewsCount: 10_000,
@@ -59,10 +59,11 @@ describe("summarizePostMetrics", () => {
     expect(s.comments).toBe(200);
     expect(s.shares).toBe(100);
     expect(s.saves).toBe(50);
-    // Five terms, matching CreatorCore's own `engagement` field: likes +
-    // comments + shares + downloads + saves. Audited over 9,372 of their
-    // records, 0 of which matched any other formula.
-    expect(s.engagement).toBe(3_000 + 200 + 100 + 30 + 50);
+    // Four terms -- likes + comments + shares + saves, the product's one
+    // definition. It was five (CreatorCore's own `engagement` field, which adds
+    // downloads), so the Posts strip's Engagements sat 30 above the figure the
+    // Performance tab and the client report print for the same posts.
+    expect(s.engagement).toBe(3_000 + 200 + 100 + 50);
   });
 
   it("rates a mixed campaign on measured views only, so unfetched posts cannot dilute it", () => {

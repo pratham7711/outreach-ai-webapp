@@ -14,7 +14,7 @@ jest.mock("@/lib/db", () => ({
   db: {
     payout: { findMany: jest.fn() },
     campaign: { findMany: jest.fn(), count: jest.fn() },
-    post: { findMany: jest.fn(), groupBy: jest.fn() },
+    post: { findMany: jest.fn(), groupBy: jest.fn(), aggregate: jest.fn() },
     creator: { findMany: jest.fn() },
     activation: { findMany: jest.fn() },
     campaignDeposit: { findMany: jest.fn() },
@@ -50,6 +50,7 @@ function stubEmptyAggregates() {
   mockDb.campaign.findMany.mockResolvedValue([]);
   mockDb.post.groupBy.mockResolvedValue([]);
   mockDb.post.findMany.mockResolvedValue([]);
+  mockDb.post.aggregate.mockResolvedValue({ _count: { _all: 0 }, _max: { lastSyncedAt: null, lastFreshAt: null } });
   mockDb.activation.findMany.mockResolvedValue([]);
   mockDb.creator.findMany.mockResolvedValue([]);
   mockDb.$queryRawUnsafe.mockResolvedValue([]);
@@ -84,6 +85,8 @@ describe("GET /api/dashboard/financials", () => {
       { bucket: new Date("2026-08-01"), views: 10000, posts: 1 },
     ]);
     mockDb.post.groupBy
+      // The creators who posted in range (the Creators tile).
+      .mockResolvedValueOnce([{ creatorId: "c1" }])
       .mockResolvedValueOnce([{ campaignId: "camp-1", _sum: { viewsCount: 10000 } }])
       .mockResolvedValueOnce([{ platform: "TIKTOK", _sum: { viewsCount: 10000 }, _count: { _all: 1 } }])
       .mockResolvedValueOnce([
@@ -106,7 +109,7 @@ describe("GET /api/dashboard/financials", () => {
     expect(res.status).toBe(200);
 
     const body = await res.json();
-    expect(body.summary).toEqual({ activeCampaigns: 1, totalCreators: 1 });
+    expect(body.summary).toMatchObject({ activeCampaigns: 1, totalCreators: 1 });
     expect(body.viewsOverTime).toEqual([{ date: "2026-08", views: 10000, posts: 1 }]);
     expect(body.viewsByCampaign).toEqual([
       { campaignId: "camp-1", title: "Test", views: 10000, creatorsCount: 1 },
@@ -168,28 +171,53 @@ describe("GET /api/dashboard/financials", () => {
     expect(mockDb.post.findMany.mock.calls[0][0].where.id).toEqual({ notIn: ["post-copy"] });
   });
 
-  /* Total Creators is a roster count, and a roster is the campaigns that still
-     exist. The activation query carried its OWN deletedAt but not the
-     campaign's, so a creator activated only on a soft-deleted campaign kept
-     the tile inflated while every post tile, activeCampaigns and the campaign
-     title lookup on the same screen had already dropped that campaign. */
-  it("counts roster creators only from campaigns that are not soft-deleted", async () => {
-    await GET(makeRequest("http://localhost/api/dashboard/financials"));
+  /* The Creators tile follows the range picker like the tiles beside it: the
+     creators who POSTED in the range, on campaigns that still exist. It was
+     every creator holding an activation, which no range could move -- the tile
+     read 6 on 7D and 1Y alike. The Unattributed holding row is not a creator. */
+  it("counts the creators who posted in the range, on live campaigns, without the Unattributed row", async () => {
+    const from = "2026-10-06T00:00:00.000Z";
+    await GET(makeRequest(`http://localhost/api/dashboard/financials?from=${from}`));
 
-    const [rosterCall] = mockDb.activation.findMany.mock.calls;
-    expect(rosterCall[0].where.campaign).toEqual({ orgId: "org-1", deletedAt: null });
-    // The activation's own soft-delete flag stays too — both, not either.
-    expect(rosterCall[0].where.deletedAt).toBeNull();
+    const [creatorsCall] = mockDb.post.groupBy.mock.calls;
+    expect(creatorsCall[0].by).toEqual(["creatorId"]);
+    expect(creatorsCall[0].where.campaign).toEqual({ orgId: "org-1", deletedAt: null });
+    expect(creatorsCall[0].where.postedAt.gte.toISOString()).toBe(from);
+    expect(creatorsCall[0].where.creator).toEqual({ NOT: expect.objectContaining({ handle: "" }) });
+    expect(mockDb.activation.findMany).not.toHaveBeenCalledWith(
+      expect.objectContaining({ distinct: ["creatorId"] }),
+    );
   });
 
-  it("drops a creator whose only activation is on a deleted campaign", async () => {
-    /* The filter lives in the query, so the mock stands in for the database
-       having applied it: the deleted campaign's activation never comes back. */
-    mockDb.campaign.count.mockResolvedValue(0);
-    mockDb.activation.findMany.mockResolvedValueOnce([]);
-
+  it("counts no creators for a range nobody posted in", async () => {
+    mockDb.post.groupBy.mockResolvedValueOnce([]);
     const body = await (await GET(makeRequest("http://localhost/api/dashboard/financials"))).json();
     expect(body.summary.totalCreators).toBe(0);
+  });
+
+  /* Unknown is never 0: a creator whose posts in range carry no view count
+     (Instagram photos publish none) has no views, and Top posts lists only
+     posts that have one. */
+  it("reports unknown views as null, and ranks only posts with a view count as top posts", async () => {
+    mockDb.post.groupBy
+      .mockResolvedValueOnce([{ creatorId: "c1" }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ creatorId: "c1", _sum: { viewsCount: 0 }, _count: { _all: 3 } }]);
+    mockDb.creator.findMany.mockResolvedValue([
+      { id: "c1", name: "Photo Person", handle: "photos", platform: "INSTAGRAM", _count: { activations: 1 } },
+    ]);
+    mockDb.post.aggregate.mockResolvedValue({
+      _count: { _all: 0 },
+      _max: { lastSyncedAt: new Date("2026-10-13T07:50:00Z"), lastFreshAt: null },
+    });
+
+    const body = await (await GET(makeRequest("http://localhost/api/dashboard/financials"))).json();
+    expect(body.creatorPerformance[0].views).toBeNull();
+    expect(body.summary).toMatchObject({ viewsKnownPosts: 0, asOf: "2026-10-13T07:50:00.000Z" });
+    expect(mockDb.post.findMany.mock.calls[0][0].where.viewsCount).toEqual({ gt: 0 });
+    const creatorRanking = mockDb.post.groupBy.mock.calls[3][0];
+    expect(creatorRanking.where.creator).toEqual({ NOT: expect.objectContaining({ handle: "" }) });
   });
 
   /* The point of the snapshot table. If the chart ever goes back to reading
@@ -219,7 +247,7 @@ describe("GET /api/dashboard/financials", () => {
     expect(res.status).toBe(200);
 
     const body = await res.json();
-    expect(body.summary).toEqual({ activeCampaigns: 0, totalCreators: 0 });
+    expect(body.summary).toEqual({ activeCampaigns: 0, totalCreators: 0, viewsKnownPosts: 0, asOf: null });
     expect(body.viewsOverTime).toEqual([]);
     expect(body.viewsByCampaign).toEqual([]);
     expect(body.platformBreakdown).toEqual([]);

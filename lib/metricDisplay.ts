@@ -13,6 +13,7 @@
  */
 
 import { sumEngagements } from "@/lib/metrics/costs";
+import { writerNotes } from "@/lib/metrics/postWriters";
 
 /** Sentinel for "we never measured this", so callers can format it their own way. */
 export const UNKNOWN = null;
@@ -177,18 +178,49 @@ export function measuredFields(platformMetrics: unknown): MetricField[] | null {
   return Array.isArray(raw) ? (raw.filter((f) => typeof f === "string") as MetricField[]) : null;
 }
 
+/**
+ * Pass `platform` to apply what the platform publishes on top of the stored
+ * provenance -- see sharesPublished. Callers that show a share count pass it;
+ * the rest are unchanged, so leaving it out keeps the old rule exactly.
+ */
 export function fieldMetricValue(
   value: number | null | undefined,
   lastSyncedAt: string | Date | null | undefined,
   platformMetrics: unknown,
-  field: MetricField
+  field: MetricField,
+  platform?: string | null
 ): number | null {
   // A value we hold is a value we hold, whatever its provenance -- the importer
   // wrote real saves counts with no sync timestamp and no measured list.
   if (typeof value === "number" && value > 0) return value;
+  if (field === "shares" && platform !== undefined && !sharesPublished(platform, platformMetrics)) return UNKNOWN;
   const fields = measuredFields(platformMetrics);
   if (fields) return fields.includes(field) ? metricValue(value, lastSyncedAt) : UNKNOWN;
   return metricValue(value, lastSyncedAt);
+}
+
+/**
+ * Whether a zero in this post's shares column can be a reading at all.
+ *
+ * YouTube publishes no share count, and Instagram reports one only to the
+ * account's own insights -- so for those two a stored 0 is a reading nobody
+ * could have taken, whatever the row's provenance says. It matters because the
+ * provenance is wrong on old rows: on a read-only copy of production
+ * (2026-10-13) 489 of 492 YouTube posts on one campaign carry an `__measured`
+ * list naming shares, written by an importer that listed every counter it
+ * defaulted, and the posts list, the KPI strip and the post page all printed
+ * "0 shares" off it.
+ *
+ * Instagram shares DO exist when the creator's own account was read: the
+ * insights edge returns them and lib/metrics/postWriters notes the counter's
+ * writer as "connected". That note is what keeps a real connected zero. A
+ * positive count is never touched here -- fieldMetricValue keeps any value it
+ * holds before asking.
+ */
+export function sharesPublished(platform: string | null | undefined, platformMetrics: unknown): boolean {
+  if (platform === "YOUTUBE") return false;
+  if (platform === "INSTAGRAM") return writerNotes(platformMetrics).shares?.source === "connected";
+  return true;
 }
 
 /**
@@ -310,20 +342,32 @@ export function snapshotViewsKnownSql(alias: string): string {
 }
 
 /**
- * Engagement rate is derived from the same unmeasured counters, so it inherits
- * their provenance rather than confidently reporting 0.00%.
+ * One post's engagement rate in PERCENT, by the old positional signature --
+ * now postEngagementPercent underneath, so it is the canonical four-term rate.
+ *
+ * It used to be (likes + comments) / views, and it was what the Posts tab card
+ * and list and the XLSX Posts sheet printed: 8.6% for a post the post page,
+ * Performance, the share link and the PDF all rated 9.91%, because those read
+ * the four-term rate. Shares and saves arrive in `extra`; a caller that leaves
+ * them out is rating on fewer terms than the rest of the product, so prefer
+ * postEngagementPercent with the post itself.
  */
 export function engagementRateValue(
   likes: number | null | undefined,
   comments: number | null | undefined,
   views: number | null | undefined,
-  lastSyncedAt: string | Date | null | undefined
+  lastSyncedAt: string | Date | null | undefined,
+  extra: { shares?: number | null; saves?: number | null; platformMetrics?: unknown } = {}
 ): number | null {
-  const l = metricValue(likes, lastSyncedAt);
-  const c = metricValue(comments, lastSyncedAt);
-  if (l === UNKNOWN && c === UNKNOWN) return UNKNOWN;
-  if (!views || views <= 0) return UNKNOWN;
-  return (((l ?? 0) + (c ?? 0)) / views) * 100;
+  return postEngagementPercent({
+    viewsCount: views,
+    likesCount: likes,
+    commentsCount: comments,
+    sharesCount: extra.shares,
+    savesCount: extra.saves,
+    lastSyncedAt,
+    platformMetrics: extra.platformMetrics,
+  });
 }
 
 /**
@@ -486,6 +530,20 @@ export const RATED_POSTS_FILTER: {
 };
 
 /**
+ * The posts whose views a database total may count as known: a positive view
+ * count. For the routes that sum views in SQL and must say "known for N of M
+ * posts" -- the dashboard and /analytics summed every post's 0 and printed
+ * "TOTAL VIEWS 0 · 7 posts" over seven Instagram photos, which publish no view
+ * count at all.
+ *
+ * Narrower than fieldMetricValue by exactly one case: a post we read whose
+ * views genuinely came back 0. That needs the per-row __measured list, which a
+ * groupBy cannot see, and leaving it out costs a "known for 6 of 7" where it
+ * could have said 7 -- never a false number. The sum is the same either way.
+ */
+export const VIEWS_KNOWN_FILTER: { viewsCount: { gt: number } } = { viewsCount: { gt: 0 } };
+
+/**
  * rollupEngagement over sums the database already computed under
  * MEASURED_POSTS_FILTER.
  *
@@ -530,6 +588,8 @@ export type MeasurablePost = {
   downloadsCount: number;
   lastSyncedAt: string | Date | null;
   platformMetrics?: unknown;
+  /** When given, shares on a platform that publishes none are unknown (sharesPublished). */
+  platform?: string | null;
 };
 
 /**
@@ -547,8 +607,12 @@ export function summarizePostMetrics(posts: readonly MeasurablePost[]) {
      an Instagram campaign whose shares were never returned showed "Total
      Shares 0" here while the Performance tab hid the tile as unknown. */
   const read = (p: MeasurablePost, field: MetricField, value: number) => {
+    if (value > 0) return true;
+    /* A YouTube post's 0 shares is not a reading whatever its list says --
+       sharesPublished has the 489-of-492 rows that said otherwise. */
+    if (field === "shares" && p.platform !== undefined && !sharesPublished(p.platform, p.platformMetrics)) return false;
     const fields = measuredFields(p.platformMetrics);
-    return !fields || fields.includes(field) || value > 0;
+    return !fields || fields.includes(field);
   };
   const sum = (field: MetricField, pick: (p: MeasurablePost) => number) => {
     const known = measured.filter((p) => read(p, field, pick(p)));
@@ -560,33 +624,24 @@ export function summarizePostMetrics(posts: readonly MeasurablePost[]) {
   const shares = sum("shares", (p) => p.sharesCount);
   const saves = sum("saves", (p) => p.savesCount);
   const downloads = sum("downloads", (p) => p.downloadsCount);
-  /* Five terms, matching CreatorCore's own `engagement` field rather than
-     guessing: audited over 9,372 of their statistic-post records, 8,767 equal
-     likes+comments+shares+downloads (no saves on the row) and 804 equal that
-     plus saves, with 0 matching neither. Their engagementRate is exactly this
-     over views in every row. */
-  const engagement =
-    measured.length === 0
-      ? UNKNOWN
-      : (likes ?? 0) + (comments ?? 0) + (shares ?? 0) + (downloads ?? 0) + (saves ?? 0);
+
+  /* Total Engagement and both rates are rollupEngagement's, the four terms the
+     Performance tab, the share link and the PDF print. `engagement` used to be
+     CreatorCore's five-term field (downloads included), and the per-post mean
+     was a two-term (likes + comments) rate -- so one campaign's Posts strip,
+     its Performance tiles and the report sent to the brand were three
+     different sums of the same posts. Downloads keep their own chip. */
+  const { engagements, rate } = rollupEngagement(posts);
+  const engagement = engagements;
 
   const perPostRates = measured
-    .filter((p) => read(p, "likes", p.likesCount))
-    .map((p) => engagementRateValue(p.likesCount, p.commentsCount, p.viewsCount, p.lastSyncedAt))
+    .map((p) => postEngagementPercent(p))
     .filter((r): r is number => r !== UNKNOWN);
   const avgPostRate =
     perPostRates.length === 0
       ? UNKNOWN
       : perPostRates.reduce((a, b) => a + b, 0) / perPostRates.length;
 
-  /* The rate is rollupEngagement's, not `engagement`/views. The two differ by
-     downloads: `engagement` above is CreatorCore's own five-term field, kept
-     because it is what their export carries and what this column is audited
-     against, while the RATE has one definition across the whole product and
-     that definition is the four-term one the client report prints. A tab that
-     rated the same campaign differently from the PDF sent to the brand was the
-     bug; a five-term total beside a four-term rate is the documented seam. */
-  const { rate } = rollupEngagement(posts);
   const campaignRate = rate === null ? UNKNOWN : rate * 100;
 
   return {

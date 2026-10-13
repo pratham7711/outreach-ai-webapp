@@ -144,7 +144,9 @@ export async function GET(
       fieldMetricValue(p.viewsCount, p.lastSyncedAt, p.platformMetrics, "views") ?? UNKNOWN,
       fieldMetricValue(p.likesCount, p.lastSyncedAt, p.platformMetrics, "likes") ?? UNKNOWN,
       fieldMetricValue(p.commentsCount, p.lastSyncedAt, p.platformMetrics, "comments") ?? UNKNOWN,
-      fieldMetricValue(p.sharesCount, p.lastSyncedAt, p.platformMetrics, "shares") ?? UNKNOWN,
+      // With the platform: YouTube publishes no share count, nor Instagram
+      // outside the creator's own insights, so their 0 is unknown here too.
+      fieldMetricValue(p.sharesCount, p.lastSyncedAt, p.platformMetrics, "shares", p.platform) ?? UNKNOWN,
       // Nothing here writes these two, so a sync's timestamp does not vouch for
       // their zeroes the way it does for the columns above.
       unwrittenMetricValue(p.savesCount) ?? UNKNOWN,

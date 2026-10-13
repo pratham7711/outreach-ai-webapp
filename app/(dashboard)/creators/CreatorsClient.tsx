@@ -25,6 +25,7 @@ import { handleIssueSummary } from "@/lib/creators/handleCheck";
 import { isUnknownMetric, type MetricValue } from "@/lib/creators/metricValue";
 import type { FigureTimeDto } from "@/lib/creators/figureTime";
 import { AgeLabel } from "@/components/ds/AgeLabel";
+import { TIME_NOT_RECORDED } from "@/lib/dataAge";
 import MetricFigure from "@/components/creators/MetricFigure";
 
 type Creator = {
@@ -56,8 +57,9 @@ type CountryOption = { name: string; n: number };
 
 /**
  * A roster figure's age on its own line under the figure (plan A6): "3h ago",
- * a Stale chip past twice its cadence, or "age unknown" when no read can be
- * shown to have produced it -- the reason is in the tooltip. Nothing under an
+ * a Stale chip past twice its cadence, or "time not recorded" (TIME_NOT_RECORDED,
+ * the one phrase every screen uses) when no read can be shown to have produced
+ * it -- the reason is in the tooltip. Nothing under an
  * unknown figure: its "—" already says why, on hover.
  */
 function FigureAge({ value, time }: { value: MetricValue; time: FigureTimeDto | undefined }) {
@@ -67,7 +69,7 @@ function FigureAge({ value, time }: { value: MetricValue; time: FigureTimeDto | 
       at={time.at}
       field={time.field}
       source={time.at ? time.source : time.missing}
-      never="age unknown"
+      never={TIME_NOT_RECORDED}
       style={{ display: "flex", maxWidth: "100%", overflow: "hidden", marginTop: 2 }}
     />
   );
