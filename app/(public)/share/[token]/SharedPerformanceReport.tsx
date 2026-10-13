@@ -96,6 +96,7 @@ export default function SharedPerformanceReport({
   visibility = DEFAULT_SHARE_VISIBILITY,
   budget = null,
   campaignStatus = null,
+  artworkUrl = null,
 }: {
   token: string;
   campaignTitle: string;
@@ -107,6 +108,8 @@ export default function SharedPerformanceReport({
   campaignStatus?: string | null;
   /** Already gated by the server — null both when hidden and when unset. */
   budget?: number | null;
+  /** The campaign's stored picture, for a header with no audio cover or one that will not load. */
+  artworkUrl?: string | null;
 }) {
   /* A creator whose picture would not decode, so the circle shows their initial
      instead of an empty ring. Keyed by creator, because the same avatar can
@@ -124,7 +127,10 @@ export default function SharedPerformanceReport({
       `/api/share/${encodeURIComponent(token)}/avatar/${encodeURIComponent(row.creatorId)}?w=64`,
       shareImgSrc(token, row.avatarUrl ?? null, 56),
     ].filter((u): u is string => Boolean(u));
-  const [coverBroken, setCoverBroken] = useState(false);
+  /* How many header pictures have failed so far: the audio's cover, then the
+     campaign's own artwork, then the music-note tile. Offered after hydration
+     for the same reason as the avatars. */
+  const [coverMisses, setCoverMisses] = useState(0);
   // Already redacted server-side — a hidden leaderboard arrives empty rather
   // than arriving whole and being skipped at render time.
   const { kpis, timeSeries, seriesPlatforms, platformSplit, leaderboard, currency } = data;
@@ -166,7 +172,12 @@ export default function SharedPerformanceReport({
 
   const isEmpty = kpis.views === 0 && leaderboard.length === 0 && timeSeries.length === 0;
   const viewsNote = viewsCoverageNote(kpis.viewsKnownPosts, kpis.posts);
-  const cover = coverBroken ? null : shareImgSrc(token, data.audio?.coverUrl ?? null, 302);
+  const coverSources = !hydrated
+    ? []
+    : [...new Set([data.audio?.coverUrl, artworkUrl].map((u) => shareImgSrc(token, u ?? null, 302)))].filter(
+        (u): u is string => Boolean(u)
+      );
+  const cover = coverSources[coverMisses] ?? null;
   const hasSplit = platformSplit.some((p) => p.views > 0);
   const slices = platformSplit.filter((p) => p.views > 0);
   const dates = dateFormatsFor(timeSeries);
@@ -195,7 +206,8 @@ export default function SharedPerformanceReport({
               className="spr-cover"
               src={cover}
               alt=""
-              onError={() => setCoverBroken(true)}
+              key={cover}
+              onError={() => setCoverMisses((n) => n + 1)}
             />
           ) : (
             <div className="spr-cover spr-cover-fallback" aria-hidden="true">

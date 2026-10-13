@@ -4,6 +4,7 @@ import { Link2 } from "lucide-react";
 import { db } from "@/lib/db";
 import { computeCampaignPerformance, redactForShare } from "@/lib/reports/campaignPerformance";
 import { parseShareVisibility } from "@/lib/reports/shareVisibility";
+import { CAMPAIGN_ARTWORK_INCLUDE, campaignArtwork } from "@/lib/campaignArtwork";
 import SharedPerformanceReport from "./SharedPerformanceReport";
 import { FeedbackButton } from "@/components/feedback/FeedbackButton";
 
@@ -27,6 +28,8 @@ const loadShareLink = cache((token: string) =>
           budget: true,
           currency: true,
           status: true,
+          thumbnailUrl: true,
+          song: CAMPAIGN_ARTWORK_INCLUDE,
           org: { select: { name: true } },
         },
       },
@@ -124,6 +127,9 @@ export default async function SharedReportPage({
         // creator name to anyone who reads the HTML.
         data={redactForShare(performance, visibility)}
         campaignStatus={link.campaign.status}
+        // The audio's cover leads the header; this is what stands in when the
+        // campaign has no tracked sound, the same picture the campaigns list shows.
+        artworkUrl={campaignArtwork(link.campaign)}
         visibility={visibility}
         // Only reaches the client when the link is allowed to show it, so a
         // hidden budget is absent from the payload rather than merely unrendered.
