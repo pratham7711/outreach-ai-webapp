@@ -581,7 +581,7 @@ export async function DELETE(
     // The same gate as adding a post: a VIEWER can do neither.
     const denied = permissionDenial(session.user, "campaigns:edit_own");
     if (denied) return denied;
-    const orgId = (session.user as any).orgId;
+    const orgId = (session.user as { orgId: string }).orgId;
     const { id: campaignId } = await params;
 
     const scope = scopeSubjectFromSession(session.user);
