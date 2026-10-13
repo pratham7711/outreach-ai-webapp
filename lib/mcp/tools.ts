@@ -3,6 +3,7 @@ import {
   MEASURED_POSTS_FILTER,
   RATED_POSTS_FILTER,
   rollupEngagementFromTotals,
+  sharesPublished,
   snapshotMetric,
 } from "@/lib/metricDisplay";
 import { getRefreshCooldown, refreshCampaign } from "@/lib/sync/refreshCampaign";
@@ -464,7 +465,13 @@ const TOOLS: Tool[] = [
           views: snapshotMetric(num(row.viewsCount), row.platformMetrics, "views"),
           likes: snapshotMetric(num(row.likesCount), row.platformMetrics, "likes"),
           comments: snapshotMetric(num(row.commentsCount), row.platformMetrics, "comments"),
-          shares: snapshotMetric(num(row.sharesCount), row.platformMetrics, "shares"),
+          /* A platform that publishes no share count (YouTube; Instagram outside
+             a connected account) has none here either, whatever an older
+             importer wrote into the reading's measured list. */
+          shares:
+            (num(row.sharesCount) ?? 0) <= 0 && !sharesPublished(post.platform, row.platformMetrics)
+              ? null
+              : snapshotMetric(num(row.sharesCount), row.platformMetrics, "shares"),
           saves: num(row.savesCount),
           source: row.syncSource ?? null,
           final: row.isFinalSnapshot,

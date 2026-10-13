@@ -34,7 +34,7 @@ describe("followersValue", () => {
   it("never returns 0: a stored zero is unknown", () => {
     const v = followersValue(0, { attemptedAt: null });
     expect(isUnknownMetric(v)).toBe(true);
-    expect(reasonOf(v)).toBe("Not read from the platform yet. The 0 on file is a placeholder, not a follower count.");
+    expect(reasonOf(v)).toBe("Not read from the platform yet, so the follower count is not known.");
   });
 
   it("treats null, negative and non-finite as unknown too", () => {
