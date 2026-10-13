@@ -29,7 +29,10 @@ const createCampaignSchema = z.object({
   status: z.enum(["DRAFT", "PENDING", "IN_PROGRESS", "COMPLETE", "CANCELLED"]).optional(),
   campaignType: z.enum(CAMPAIGN_TYPES).optional(),
   typeConfig: z.any().nullable().optional(),
-  budget: z.number().positive().nullable().optional(),
+  /* Zero or more. Negative was already refused (positive()), but so was 0,
+     which a person types to mean "no budget"; 0 is accepted now and stored as
+     null below, the same as leaving the field empty. */
+  budget: z.number().finite().nonnegative({ message: "Budget can't be negative" }).nullable().optional(),
   currency: z.enum(["USD", "EUR", "GBP", "INR"]).optional(),
   notes: z.string().nullable().optional(),
   clientId: z.string().nullable().optional(),
@@ -172,7 +175,7 @@ export async function POST(request: NextRequest) {
         statusDefId: defaultStatusDefFor(bucket, statusDefs)?.id ?? null,
         campaignType: campaignType ?? "BUDGET_BASED",
         typeConfig: typeConfig ?? null,
-        budget: budget ?? null,
+        budget: budget || null,
         currency: currency ?? "USD",
         notes: notes ?? null,
         clientId: clientId ?? null,

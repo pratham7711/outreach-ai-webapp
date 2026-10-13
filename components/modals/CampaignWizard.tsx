@@ -298,7 +298,8 @@ export default function CampaignWizard({
           /* BUDGET_BASED is what a negotiated campaign has always been stored
              as; VIEW_BASED belonged to per-view. */
           campaignType: "BUDGET_BASED",
-          budget: form.budget ? Number(form.budget) : null,
+          // 0 is "no budget", stored as null like an empty field.
+          budget: budgetValue ? budgetValue : null,
           currency: form.currency,
           postApprovalMode: form.postApprovalMode,
           /* paymentMode, paymentRelease and enrollmentOpen are not sent -- the
@@ -327,7 +328,15 @@ export default function CampaignWizard({
     }
   };
 
-  const canCreate = form.title.trim().length > 0 && !audioError;
+  /* A budget is money set aside, so it cannot be negative. The number input
+     took "-500" and the server's refusal came back as a bare "Invalid input";
+     it is caught here, beside the field, before anything is sent. The route
+     refuses it too (app/api/campaigns). */
+  const budgetValue = form.budget.trim() === "" ? null : Number(form.budget);
+  const budgetError =
+    budgetValue !== null && (!Number.isFinite(budgetValue) || budgetValue < 0) ? "Budget can't be negative." : null;
+
+  const canCreate = form.title.trim().length > 0 && !audioError && !budgetError;
 
   return (
     <Modal
@@ -507,10 +516,17 @@ export default function CampaignWizard({
             <Input
               label="Budget"
               type="number"
+              min={0}
               value={form.budget}
               onChange={(e) => set({ budget: e.target.value })}
               placeholder="e.g. 10000"
+              aria-invalid={Boolean(budgetError)}
             />
+            {budgetError && (
+              <p role="alert" style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-danger)", margin: "6px 0 0" }}>
+                {budgetError}
+              </p>
+            )}
           </div>
           <div style={{ width: 110 }}>
             <label htmlFor="wz-currency" style={labelStyle}>Currency</label>
