@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { payoutsOffResponse } from "@/lib/payouts/routeGate";
 import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
 import { z } from "zod";
@@ -7,6 +8,8 @@ import { computeCreatorEarnings } from "@/lib/marketplace/earnings";
 
 // GET /api/portal/payout-requests — List payout requests for current creator user
 export async function GET() {
+  const off = payoutsOffResponse(); // 404 while payouts are off: lib/payouts/switch.ts
+  if (off) return off;
   try {
     const session = await getCreatorSession();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -42,6 +45,8 @@ function round2(n: number): number {
 
 // POST /api/portal/payout-requests — Create a payout request
 export async function POST(req: NextRequest) {
+  const off = payoutsOffResponse(); // 404 while payouts are off: lib/payouts/switch.ts
+  if (off) return off;
   try {
     const session = await getCreatorSession();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

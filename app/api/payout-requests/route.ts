@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { payoutsOffResponse } from "@/lib/payouts/routeGate";
 import { db } from "@/lib/db";
 import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
 
 // ---------- GET /api/payout-requests ----------
 export async function GET(request: NextRequest) {
+  const off = payoutsOffResponse(); // 404 while payouts are off: lib/payouts/switch.ts
+  if (off) return off;
   try {
     const authResult = await authenticateRequest(request);
     if (!authResult)

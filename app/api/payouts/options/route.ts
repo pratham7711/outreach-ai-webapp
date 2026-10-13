@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { payoutsOffResponse } from "@/lib/payouts/routeGate";
 import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
 
@@ -16,6 +17,8 @@ import { authenticateRequest } from "@/lib/authenticate";
  * being able to pay the rest.
  */
 export async function GET(req: NextRequest) {
+  const off = payoutsOffResponse(); // 404 while payouts are off: lib/payouts/switch.ts
+  if (off) return off;
   const result = await authenticateRequest(req);
   if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { orgId } = result;

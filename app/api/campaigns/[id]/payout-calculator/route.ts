@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { payoutsOffResponse } from "@/lib/payouts/routeGate";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { sessionCampaignScopeDenial } from "@/lib/campaignAccess";
@@ -15,6 +16,8 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const off = payoutsOffResponse(); // 404 while payouts are off: lib/payouts/switch.ts
+  if (off) return off;
   try {
     const session = await auth();
     if (!session?.user)

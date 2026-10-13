@@ -11,6 +11,12 @@ import { GET as getPortalDiscover } from "@/app/api/portal/discover/route";
 import { GET as getFinancials } from "@/app/api/dashboard/financials/route";
 import { GET as getFinancialsExport } from "@/app/api/dashboard/financials/export/route";
 
+/* Payouts are switched off in production (lib/payouts/switch.ts), and every
+   payout route then answers 404 before reading the session -- that half is
+   pinned by __tests__/unit/api/payoutRoutesOff.test.ts. This suite covers the
+   other half: how the routes behave when the switch is back on. */
+jest.mock("@/lib/payouts/switch", () => ({ PAYOUTS_ENABLED: true }));
+
 jest.mock("@/lib/db", () => ({
   db: {
     creator: { findMany: jest.fn(), count: jest.fn() },

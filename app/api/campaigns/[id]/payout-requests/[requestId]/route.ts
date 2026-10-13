@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { payoutsOffResponse } from "@/lib/payouts/routeGate";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { createAuditActor, logAudit } from "@/lib/audit";
@@ -18,6 +19,8 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; requestId: string }> }
 ) {
+  const off = payoutsOffResponse(); // 404 while payouts are off: lib/payouts/switch.ts
+  if (off) return off;
   try {
     const session = await auth();
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

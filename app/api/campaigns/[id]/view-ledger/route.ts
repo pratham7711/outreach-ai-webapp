@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { payoutsOffResponse } from "@/lib/payouts/routeGate";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { permissionDenial } from "@/lib/authz";
@@ -17,6 +18,8 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const off = payoutsOffResponse(); // 404 while payouts are off: lib/payouts/switch.ts
+  if (off) return off;
   try {
     const session = await auth();
     if (!session?.user)
@@ -82,6 +85,9 @@ export async function GET(
 }
 
 // ---------- POST /api/campaigns/[id]/view-ledger ----------
+// Not behind the payouts switch, unlike GET above: this is the CPM accrual,
+// and switching payouts off hides what was earned without changing what gets
+// written (lib/payouts/switch.ts).
 export async function POST(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

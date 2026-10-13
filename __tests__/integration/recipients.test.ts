@@ -5,6 +5,12 @@ import { NextRequest } from "next/server";
 import { GET } from "@/app/api/recipients/route";
 import { runRouteTriad } from "../helpers/routeTriad";
 
+/* Payouts are switched off in production (lib/payouts/switch.ts), and every
+   payout route then answers 404 before reading the session -- that half is
+   pinned by __tests__/unit/api/payoutRoutesOff.test.ts. This suite covers the
+   other half: how the routes behave when the switch is back on. */
+jest.mock("@/lib/payouts/switch", () => ({ PAYOUTS_ENABLED: true }));
+
 jest.mock("@/lib/db", () => ({
   db: { payout: { findMany: jest.fn() } },
 }));

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { payoutsOffResponse } from "@/lib/payouts/routeGate";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getAuditActor } from "@/lib/authenticate";
@@ -18,6 +19,8 @@ const PayoutPatchSchema = z.object({
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const off = payoutsOffResponse(); // 404 while payouts are off: lib/payouts/switch.ts
+  if (off) return off;
   /* The gate POST /api/payouts already uses. A payout's status is what says it
      was paid; any seat, VIEWER and read-only act-as included, could mark one
      SUCCESS. */

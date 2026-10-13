@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
+import { payoutsOffResponse } from "@/lib/payouts/routeGate";
 import { getCreatorSession } from "@/lib/creator-auth";
 import { computeCreatorEarnings } from "@/lib/marketplace/earnings";
 import { totalsByCurrency } from "@/lib/money";
 
 // GET /api/portal/earnings — per-campaign accrued earnings + totals for the creator
 export async function GET() {
+  const off = payoutsOffResponse(); // 404 while payouts are off: lib/payouts/switch.ts
+  if (off) return off;
   try {
     const session = await getCreatorSession();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
