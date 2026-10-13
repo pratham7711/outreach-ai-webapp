@@ -4216,6 +4216,17 @@ h1, h2, h3, h4, h5, h6 {
   border-color: var(--cc-primary);
 }
 
+/* The analytics comparison's search field (CampaignComparison). The ring goes
+   round the whole field, icon included, rather than round the bare input
+   inside it, where the global ring drew a second box within the border. */
+.cc-picker-field:focus-within {
+  outline: 2px solid var(--cc-primary);
+  outline-offset: 2px;
+}
+.cc-picker-field input:focus-visible {
+  outline: none;
+}
+
 .cc-linkfield-input {
   flex: 1 1 var(--cc-linkfield-input-min);
   min-width: 0;
