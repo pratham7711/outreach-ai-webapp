@@ -82,6 +82,10 @@ export function ShareModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const [copied, setCopied] = useState(false);
+  /* Revoking breaks a URL the owner may already have sent, and the button sat
+     one click from the visibility toggles with no way back. Asked first, the
+     way an API key's revoke is. */
+  const [confirmRevoke, setConfirmRevoke] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -159,6 +163,7 @@ export function ShareModal({
       const res = await fetch(`/api/campaigns/${campaignId}/share`, { method: "DELETE" });
       if (!res.ok) throw new Error("failed");
       setLink(null);
+      setConfirmRevoke(false);
     } catch {
       setError(true);
     } finally {
@@ -180,10 +185,16 @@ export function ShareModal({
   return (
     <Modal open onClose={onClose} title={campaignTitle ? `Share \u2014 ${campaignTitle}` : "Share report"} size="sm">
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", margin: 0, lineHeight: 1.6 }}>
-          Generate a read-only link to this campaign&apos;s performance report. Anyone with the link
-          can view it — no login required. Revoke it anytime.
-        </p>
+        {/* Said only once we know there is no link: "Generate a link" above a
+            link that already exists read as if pressing something would make
+            a second one. */}
+        {!loading && (
+          <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", margin: 0, lineHeight: 1.6 }}>
+            {link
+              ? "Anyone with this link can view this campaign\u2019s performance report \u2014 no login required. Choose below what it shows, or revoke it to switch it off."
+              : "Generate a read-only link to this campaign\u2019s performance report. Anyone with the link can view it \u2014 no login required. Revoke it anytime."}
+          </p>
+        )}
 
         {loading ? (
           <Skeleton width="100%" height="44px" borderRadius="8px" />
@@ -274,17 +285,68 @@ export function ShareModal({
               </div>
             </div>
 
-            <button
-              onClick={revoke}
-              disabled={busy}
-              style={{
-                background: "var(--cc-card)", color: "var(--status-critical)", border: "1.5px solid var(--status-critical)",
-                borderRadius: 8, padding: "8px 16px", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)",
-                cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1, alignSelf: "flex-start",
-              }}
-            >
-              {busy ? "Revoking…" : "Revoke link"}
-            </button>
+            {confirmRevoke ? (
+              <div
+                role="alertdialog"
+                aria-labelledby="share-revoke-title"
+                aria-describedby="share-revoke-body"
+                style={{
+                  border: "1px solid var(--cc-border)", borderRadius: 10, padding: 16,
+                  background: "var(--cc-card)",
+                }}
+              >
+                <h3
+                  id="share-revoke-title"
+                  style={{ fontSize: "var(--cc-t-16)", fontWeight: 700, color: "var(--cc-text)", margin: "0 0 6px" }}
+                >
+                  Revoke share link?
+                </h3>
+                <p
+                  id="share-revoke-body"
+                  style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", margin: "0 0 14px", lineHeight: 1.5 }}
+                >
+                  This cannot be undone. Anyone who opens this link will see &ldquo;Link unavailable&rdquo;
+                  from now on, and a new link will have a different address.
+                </p>
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                  <button
+                    autoFocus
+                    onClick={() => setConfirmRevoke(false)}
+                    disabled={busy}
+                    style={{
+                      padding: "9px 16px", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)",
+                      borderRadius: 8, border: "1px solid var(--cc-border)", background: "var(--cc-card)",
+                      color: "var(--cc-text)", cursor: "pointer",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={revoke}
+                    disabled={busy}
+                    style={{
+                      padding: "9px 16px", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)",
+                      borderRadius: 8, border: "none", background: "var(--cc-danger-solid)",
+                      color: "var(--cc-on-primary)", cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1,
+                    }}
+                  >
+                    {busy ? "Revoking…" : "Revoke link"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmRevoke(true)}
+                disabled={busy}
+                style={{
+                  background: "var(--cc-card)", color: "var(--status-critical)", border: "1.5px solid var(--status-critical)",
+                  borderRadius: 8, padding: "8px 16px", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)",
+                  cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1, alignSelf: "flex-start",
+                }}
+              >
+                Revoke link
+              </button>
+            )}
           </>
         ) : (
           <button
