@@ -40,7 +40,7 @@ jest.mock("@/lib/creators/followerWriter", () => ({
   protectedCreatorFollowers: (...a: any[]) => mockProtectedFollowers(...a),
 }));
 
-import { applyPostMetrics, keepPrecise } from "@/lib/sync/syncPost";
+import { applyPostMetrics, keepPrecise, measuredForNewPost } from "@/lib/sync/syncPost";
 import { EXACT, TIKTOK_DISPLAY, YOUTUBE_SUBSCRIBERS } from "@/lib/platforms/precision";
 import type { PostMetrics } from "@/lib/platforms/fetchPostMetrics";
 import { UNATTRIBUTED_CREATOR_WHERE, unattributedCreatorName } from "@/lib/posts/unattributedCreator";
@@ -751,5 +751,36 @@ describe("applyPostMetrics — the validation gate", () => {
       expect(mockCreatorUpdateMany).not.toHaveBeenCalled();
       expect(gateLines()).toEqual([]);
     });
+  });
+});
+
+/** Add post, a portal submission and the canary create a post from its first
+ *  reading; the same gate decides whether that reading's counters are kept. */
+describe("measuredForNewPost", () => {
+  beforeEach(() => {
+    jest.spyOn(process.stdout, "write").mockImplementation(() => true);
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  it("takes a consistent first reading", () => {
+    const m = metrics({ viewsCount: 1_200, likesCount: 90 });
+    expect(measuredForNewPost(m, "INSTAGRAM", { writer: "add-post" })).toBe(m);
+  });
+
+  it("creates the post unmeasured when the reading has more likes than views", () => {
+    expect(measuredForNewPost(metrics({ viewsCount: 313, likesCount: 1_088 }), "INSTAGRAM", { writer: "add-post" })).toBeNull();
+  });
+
+  it("creates the post unmeasured when the reading is for another platform", () => {
+    expect(measuredForNewPost(metrics({ viewsCount: 1_200 }), "TIKTOK", { writer: "portal-submission" })).toBeNull();
+  });
+
+  it("creates the post unmeasured when nothing countable came back", () => {
+    expect(measuredForNewPost(metrics(), "INSTAGRAM", { writer: "canary" })).toBeNull();
+    expect(measuredForNewPost(null, "INSTAGRAM", { writer: "canary" })).toBeNull();
+  });
+
+  it("takes a brand-new post's genuine zero", () => {
+    expect(measuredForNewPost(metrics({ viewsCount: 0, likesCount: 0 }), "INSTAGRAM", { writer: "add-post" })).not.toBeNull();
   });
 });

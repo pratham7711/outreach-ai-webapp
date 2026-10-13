@@ -207,6 +207,35 @@ export function gatePostReading(
   return { verdict, metrics: kept };
 }
 
+/**
+ * The first reading of a post that is being created, through the shared
+ * validation gate (plan A3) -- for the three writers that create a post with
+ * counters already on it rather than leaving the first write to
+ * applyPostMetrics: Add post, a creator's portal submission, and the canary.
+ *
+ * There is no stored figure yet, so the rules that can fire are the reading's
+ * own: more likes than views, and a reading for another platform than the one
+ * the link was filed under. Returns the reading to take counters from, or
+ * null to create the post unmeasured -- the same shape a failed fetch leaves,
+ * which the next sync fills in. A refusal is logged; it used to be silent.
+ */
+export function measuredForNewPost(
+  metrics: PostMetrics | null | undefined,
+  rowPlatform: string | null | undefined,
+  ctx: { writer: string; orgId?: string },
+): PostMetrics | null {
+  if (!metrics) return null;
+  const verdict = validateReading(
+    { kind: "post", platform: metrics.platform, counts: postGateCounts(metrics) },
+    { platform: rowPlatform },
+  );
+  if (!verdict.ok) {
+    logVerdict({ writer: ctx.writer, kind: "post", platform: rowPlatform ?? metrics.platform, orgId: ctx.orgId }, verdict);
+  }
+  if (verdict.rejected || !hasMetricCounts(metrics)) return null;
+  return metrics;
+}
+
 /* The platforms whose post URL or reading names the author by the same handle
    the roster stores. YouTube links carry a channel handle only on some forms and
    the roster often holds a channel id or display name instead; Facebook's page

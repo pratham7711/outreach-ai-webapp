@@ -33,6 +33,8 @@ jest.mock("@/lib/platforms/fetchPostMetrics", () => ({
 }));
 jest.mock("@/lib/sync/syncPost", () => ({
   countsFrom: jest.fn(() => ({ counts: {}, present: [], measuredPatch: {} })),
+  // The fetch above answers nothing, so there is no reading to accept.
+  measuredForNewPost: jest.fn(() => null),
 }));
 jest.mock("@/lib/platforms/instagramToken", () => ({ getInstagramAccountForCreator: jest.fn() }));
 jest.mock("@/lib/platforms/tiktokToken", () => ({ getTikTokTokenForCreator: jest.fn() }));

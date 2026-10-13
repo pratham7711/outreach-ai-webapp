@@ -388,7 +388,7 @@ export async function provisionCanary(
   targets: CanaryTargets,
 ): Promise<ProvisionOutcome> {
   const db = await database();
-  const [{ detectPlatform }, { fetchPostMetrics }, { countsFrom }, { ensureCreatorForHandle }, { resolveAuthorFromPlatform }, { parseSoundUrl }] =
+  const [{ detectPlatform }, { fetchPostMetrics }, { countsFrom, measuredForNewPost }, { ensureCreatorForHandle }, { resolveAuthorFromPlatform }, { parseSoundUrl }] =
     await Promise.all([
       import("@/lib/platforms/postUrl"),
       import("@/lib/platforms/fetchPostMetrics"),
@@ -480,7 +480,11 @@ export async function provisionCanary(
          be read at all should fail at provisioning time, in front of the person
          running it, instead of looking healthy until the first sweep. */
       const metrics = await fetchPostMetrics(url).catch(() => null);
-      const counts = metrics ? countsFrom(metrics) : null;
+      /* Through the shared validation gate (plan A3) and the same coherence
+         check every other post writer applies; a canary is still a post the
+         campaign totals count. */
+      const accepted = measuredForNewPost(metrics, detected.platform, { writer: "canary", orgId });
+      const counts = accepted ? countsFrom(accepted) : null;
 
       await db.post.create({
         data: {
@@ -494,7 +498,7 @@ export async function provisionCanary(
           mediaType: detected.mediaType ?? null,
           ...(counts ? counts.counts : {}),
           ...(counts ? { platformMetrics: counts.measuredPatch } : {}),
-          engagementRate: metrics?.engagementRate ?? 0,
+          engagementRate: accepted?.engagementRate ?? 0,
           postedAt: metrics?.postedAt ?? new Date(),
           lastSyncedAt: counts && Object.keys(counts.counts).length > 0 ? new Date() : null,
           status: "APPROVED",

@@ -8,10 +8,9 @@ import { z } from "zod";
 import {
   detectPlatform,
   fetchPostMetrics,
-  hasMetricCounts,
   MEDIA_TYPES as DETECTABLE_MEDIA_TYPES,
 } from "@/lib/platforms/fetchPostMetrics";
-import { countsFrom, syncPost, SYNC_POST_INCLUDE } from "@/lib/sync/syncPost";
+import { countsFrom, measuredForNewPost, syncPost, SYNC_POST_INCLUDE } from "@/lib/sync/syncPost";
 import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
 import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
 import { checkPostCompliance } from "@/lib/compliance/postCompliance";
@@ -420,11 +419,12 @@ export async function POST(
     });
 
     const initialStatus: PostStatus = campaign.postApprovalMode === "AUTO_APPROVED" ? "APPROVED" : "PENDING_REVIEW";
-    /* hasMetricCounts also refuses a reading with more likes than views, and
-       the counts below used to be written whether or not it passed -- so a new
-       post could start life with the contradiction applyPostMetrics refuses
-       on every later read. See lib/metrics/coherence. */
-    const measuredMetrics = metrics && hasMetricCounts(metrics) ? metrics : null;
+    /* hasMetricCounts (inside measuredForNewPost, with the shared validation
+       gate) also refuses a reading with more likes than views, and the counts
+       below used to be written whether or not it passed -- so a new post could
+       start life with the contradiction applyPostMetrics refuses on every
+       later read. See lib/metrics/coherence. */
+    const measuredMetrics = measuredForNewPost(metrics, detectedPlatform, { writer: "add-post", orgId });
 
     const post = await db.post.create({
       data: {
