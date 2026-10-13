@@ -16,6 +16,7 @@ import { UNATTRIBUTED_CREATOR_WHERE } from "@/lib/posts/unattributedCreator";
 import { detectPostCreator } from "@/lib/posts/detectCreator";
 import { countsContradict, engagementExceedsViews } from "@/lib/metrics/coherence";
 import { DEAD_LETTER_CLEARED } from "@/lib/sync/deadLetter";
+import { capturePostThumbnail } from "@/lib/posts/thumbnailStore";
 
 /**
  * Refresh one post's metrics from its platform.
@@ -268,7 +269,7 @@ async function recordUnread(
  * down. Both paths land here, so the offline writer cannot drift from the live
  * one on which columns it sets.
  */
-export async function applyPostMetrics(
+async function writePostMetrics(
   post: SyncablePost,
   metrics: PostMetrics,
   /* Stamped on the snapshot only. /settings/ingestion groups snapshots by this
@@ -465,6 +466,28 @@ export async function applyPostMetrics(
   ]);
 
   return { status: "measured", post: updated as unknown as Record<string, unknown> };
+}
+
+/**
+ * The write above, then our own copy of the cover it just stored.
+ *
+ * Both branches of writePostMetrics -- counts or none -- put a fresh cover
+ * link on the post when the read carried one. TikTok and Instagram sign those
+ * links with an expiry, so the link is only good while the campaign keeps
+ * syncing; a copy is kept the moment one is seen (lib/posts/thumbnailStore).
+ * After the write, never instead of it: the copy is best-effort, cannot throw,
+ * and costs a single primary-key read whenever the cover is one already held.
+ * Every caller -- the cron sweep, Sync Now, Refresh, tracking -- comes through
+ * here, so none of them can forget it.
+ */
+export async function applyPostMetrics(
+  post: SyncablePost,
+  metrics: PostMetrics,
+  options: { syncSource?: string } = {},
+): Promise<SyncPostOutcome> {
+  const outcome = await writePostMetrics(post, metrics, options);
+  if (metrics.thumbnailUrl) await capturePostThumbnail(post, metrics.thumbnailUrl);
+  return outcome;
 }
 
 export async function syncPost(
