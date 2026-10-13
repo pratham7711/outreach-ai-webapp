@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { oneCopyPerVideo } from "@/lib/posts/duplicates";
 import { authenticateRequest } from "@/lib/authenticate";
 import { requirePermission } from "@/lib/authz";
@@ -34,7 +35,7 @@ export async function GET(req: NextRequest) {
         select: {
           id: true,
           status: true,
-          posts: { select: { viewsCount: true, platform: true, postUrl: true } },
+          posts: { where: NOT_REMOVED, select: { viewsCount: true, platform: true, postUrl: true } },
         },
       },
     },

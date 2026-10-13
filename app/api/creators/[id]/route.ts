@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { httpUrl } from "@/lib/validation/url";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
@@ -53,6 +54,7 @@ export async function GET(
           orderBy: { createdAt: "desc" },
         },
         posts: {
+          where: NOT_REMOVED,
           include: { campaign: { select: { id: true, title: true } } },
           orderBy: { postedAt: "desc" },
           take: 50,
@@ -61,7 +63,7 @@ export async function GET(
         // so only the name and emoji the profile actually renders come back.
         tagLinks: { select: { tag: { select: { id: true, name: true } } } },
         flagLinks: { select: { flag: { select: { id: true, name: true, emoji: true } } } },
-        _count: { select: { activations: true, posts: true } },
+        _count: { select: { activations: true, posts: { where: NOT_REMOVED } } },
       },
     });
     if (!creator) return NextResponse.json({ error: "Not found" }, { status: 404 });

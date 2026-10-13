@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { logAudit } from "@/lib/audit";
 import { computeCampaignAccrual } from "@/lib/marketplace/cap";
 import type { CampaignStatus, Prisma } from "@/lib/generated/prisma/client";
@@ -172,6 +173,9 @@ async function cronHandler(request: NextRequest) {
     const flaggedPostIds = flagged.map((f) => f.postId);
     const where: Prisma.PostWhereInput = {
       status: "PENDING_REVIEW",
+      /* A removed post is not approved behind the operator's back: approval
+         is what starts accruing it against the budget. */
+      ...NOT_REMOVED,
       ...(flaggedPostIds.length ? { id: { notIn: flaggedPostIds } } : {}),
       campaign: {
         deletedAt: null,

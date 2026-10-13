@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { rankTopPosts, type TopPost } from "@/lib/platforms/creatorProfile";
 
 /**
@@ -39,7 +40,9 @@ export async function readTopPostsFromCampaigns(
   creatorId: string
 ): Promise<CampaignTopPostsRead | null> {
   const rows = await db.post.findMany({
-    where: { creatorId },
+    /* A post removed from its campaign is often a mis-paste -- the wrong
+       creator's video -- so it is not evidence of this creator's best work. */
+    where: { creatorId, ...NOT_REMOVED },
     /* Ordered by views so the candidate window holds the posts that can
        actually win, rather than the most recent ones. */
     orderBy: { viewsCount: "desc" },

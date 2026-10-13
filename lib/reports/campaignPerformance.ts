@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { unwrittenMetricValue, fieldMetricValue, rollupEngagement, snapshotViewsKnownSql, postEngagementPercent } from "@/lib/metricDisplay";
 import type { MetricField } from "@/lib/metricDisplay";
 import { isPostRemoved } from "@/lib/postRemoval";
+import { NOT_REMOVED, notRemovedSql } from "@/lib/posts/removed";
+import { Prisma } from "@/lib/generated/prisma/client";
 import { postStatus, postMeasuredAt, type PostStatusKind } from "@/lib/posts/postStatus";
 import { dataAsOf } from "@/lib/dataAge";
 import { isUnattributedCreator } from "@/lib/posts/unattributedName";
@@ -369,17 +371,22 @@ async function campaignReportStamp(campaignId: string): Promise<string> {
      running them in series cost two round trips on every view to answer a
      question none of them needed the others for. */
   const [[row], [act], [audio]] = await Promise.all([
-    db.$queryRaw<{ posts: bigint; synced: Date | null; views: string | null; added: Date | null }[]>`
-      SELECT COUNT(*) AS posts,
-             MAX("lastSyncedAt") AS synced,
-             /* Posts can now be removed (DELETE .../posts). Removing one and
+    db.$queryRaw<{ posts: bigint; synced: Date | null; views: string | null; added: Date | null; removed: Date | null }[]>`
+      SELECT COUNT(*) FILTER (WHERE ${Prisma.raw(notRemovedSql())}) AS posts,
+             MAX("lastSyncedAt") FILTER (WHERE ${Prisma.raw(notRemovedSql())}) AS synced,
+             /* Posts can be removed (DELETE .../posts). Removing one and
                 adding an unread one in its place leaves the count, the newest
                 sync and the view sum where they were; the newest createdAt
                 still moves, so the report is not served for the old set. */
-             MAX("createdAt") AS added,
+             MAX("createdAt") FILTER (WHERE ${Prisma.raw(notRemovedSql())}) AS added,
+             /* Over every row, removed included: each remove stamps a new
+                newest removedAt, so a remove paired with a restore or an add
+                that happens to leave the live count where it was still moves
+                the key. A restore alone moves the live count. */
+             MAX("removedAt") AS removed,
              /* Text, because SUM over a Float comes back as a JS number that
                 loses precision long before the view counts here would. */
-             SUM("viewsCount")::text AS views
+             (SUM("viewsCount") FILTER (WHERE ${Prisma.raw(notRemovedSql())}))::text AS views
         FROM "Post" WHERE "campaignId" = ${campaignId}
     `,
     db.$queryRaw<{ activations: Date | null }[]>`
@@ -417,6 +424,7 @@ async function campaignReportStamp(campaignId: string): Promise<string> {
        totals until the next real sync happened to move the stamp. */
     row.views ?? "0",
     row.added?.getTime() ?? 0,
+    row.removed?.getTime() ?? 0,
     audio?.song ?? "nosong",
     audio?.sound_at?.getTime() ?? 0,
   ].join("-");
@@ -440,6 +448,7 @@ async function computeCampaignPerformanceUncached(
      share report paid for three of them in series on every view. */
   const postWhere = {
     campaignId: campaign.id,
+    ...NOT_REMOVED,
     ...(platforms?.length && { platform: { in: platforms as unknown as never } }),
   };
 
@@ -520,6 +529,7 @@ async function computeCampaignPerformanceUncached(
            FROM "PostMetricSnapshot" s
            JOIN "Post" p ON p.id = s."postId"
           WHERE p."campaignId" = $1${platformFilter}
+            AND ${notRemovedSql("p")}
             AND ${snapshotViewsKnownSql("s")}
             AND s."viewsCount" > 0
           ORDER BY s."postId", s."recordedAt"::date, s."recordedAt" DESC, s.id DESC

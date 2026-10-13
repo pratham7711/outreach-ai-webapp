@@ -257,7 +257,7 @@ describe("tenancy", () => {
       deletedAt: null,
       OR: [
         { activations: { some: { campaignId: "camp-1", deletedAt: null } } },
-        { posts: { some: { campaignId: "camp-1" } } },
+        { posts: { some: { campaignId: "camp-1", removedAt: null } } },
       ],
     });
   });

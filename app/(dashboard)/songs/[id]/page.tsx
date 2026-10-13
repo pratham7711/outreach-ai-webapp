@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { fieldMetricValue, postEngagementPercent, rollupEngagement } from "@/lib/metricDisplay";
 import { oneCopyPerVideo } from "@/lib/posts/duplicates";
 import { viewTotals } from "@/lib/posts/viewTotals";
@@ -30,6 +31,7 @@ export default async function SongPage({ params }: { params: Promise<{ id: strin
           budget: true,
           phases: { select: { id: true, name: true, sequence: true, targetPosts: true }, orderBy: { sequence: "asc" } },
           posts: {
+            where: NOT_REMOVED,
             select: {
               id: true, phaseId: true, platform: true, postUrl: true, postedAt: true,
               viewsCount: true, likesCount: true, commentsCount: true, sharesCount: true,

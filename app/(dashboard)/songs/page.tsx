@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { oneCopyPerVideo } from "@/lib/posts/duplicates";
 import { viewTotals } from "@/lib/posts/viewTotals";
 import SongsClient from "./SongsClient";
@@ -27,6 +28,7 @@ export default async function SongsPage() {
           // Provenance as well as the count, so an unread post is not summed as
           // 0 and the card can say when its views were read.
           posts: {
+            where: NOT_REMOVED,
             select: {
               viewsCount: true, platform: true, postUrl: true,
               lastSyncedAt: true, lastFreshAt: true, platformMetrics: true,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { READ_CACHE_HEADERS } from "@/lib/http/readCache";
 import { authenticateRequest } from "@/lib/authenticate";
 import { carryForwardViewsByDay } from "@/lib/analytics/viewsSeries";
@@ -45,11 +46,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ campaigns: [], series: [], orgAverages: null });
   }
 
-  const postWhere: any = { campaignId: { in: campaignIds } };
+  const postWhere: any = { campaignId: { in: campaignIds }, ...NOT_REMOVED };
   if (platform) postWhere.platform = platform;
   if (from) postWhere.postedAt = { gte: from };
 
-  const orgPostWhere: any = { campaign: { orgId, deletedAt: null } };
+  const orgPostWhere: any = { campaign: { orgId, deletedAt: null }, ...NOT_REMOVED };
   if (platform) orgPostWhere.platform = platform;
   if (from) orgPostWhere.postedAt = { gte: from };
 

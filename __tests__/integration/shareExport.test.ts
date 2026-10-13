@@ -69,6 +69,22 @@ it('serves a CSV attachment named after the campaign', async () => {
   expect(res.headers.get('Cache-Control')).toBe('no-store');
 });
 
+it('exports only the posts still in the campaign, never one that was removed from it', async () => {
+  const table: Record<string, unknown>[] = [
+    post({ postUrl: 'https://www.tiktok.com/@a/video/1', removedAt: null }),
+    post({ postUrl: 'https://www.tiktok.com/@a/video/2', removedAt: new Date('2026-10-10') }),
+  ];
+  mockDb.post.findMany.mockImplementation(({ where }: any) =>
+    Promise.resolve(
+      table.filter((p) => !('removedAt' in where) || (where.removedAt === null) === (p.removedAt === null)),
+    ),
+  );
+  const body = await (await call()).text();
+  expect(mockDb.post.findMany.mock.calls[0][0].where).toMatchObject({ campaignId: 'camp-1', removedAt: null });
+  expect(body.trim().split('\r\n')).toHaveLength(2);
+  expect(body).not.toContain('video/2');
+});
+
 /** The cells up to and including Last synced: everything before the appended As of / Source. */
 const coreCells = (row: string) => row.split(',').slice(0, -2);
 

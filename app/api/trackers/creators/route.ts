@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { notRemovedSql } from "@/lib/posts/removed";
 import { authenticateRequest } from "@/lib/authenticate";
 import { isTrackerWindow, type TrackerWindow } from "@/lib/trackers/metrics";
 import { READ_CADENCE_HOURS, downsample, effectiveChartGranularity, parseGranularity } from "@/lib/trackers/granularity";
@@ -151,6 +152,7 @@ export async function GET(req: NextRequest) {
           AND c."deletedAt" IS NULL
           AND p."creatorId" = ANY($4::text[])
           AND p."postedAt" >= $3::timestamp
+          AND ${notRemovedSql("p")}
         GROUP BY 1`,
       orgId,
       bounds.current.toISOString(),

@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { notRemovedSql } from "@/lib/posts/removed";
 
 /**
  * One video, however many campaigns it was delivered against.
@@ -76,6 +77,9 @@ export async function duplicatePostIds(orgId: string): Promise<string[]> {
          FROM "Post" p
          JOIN "Campaign" c ON c.id = p."campaignId"
         WHERE c."orgId" = $1 AND c."deletedAt" IS NULL
+          /* A removed copy is not a copy: it must never be the one kept while
+             the live copy is dropped as its duplicate. */
+          AND ${notRemovedSql("p")}
      ) ranked
      WHERE copy > 1`,
     orgId,

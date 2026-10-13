@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { NOT_REMOVED, notRemovedSql } from "@/lib/posts/removed";
 import { READ_CACHE_HEADERS } from "@/lib/http/readCache";
 import { cachedOrgRead } from "@/lib/reports/orgReadCache";
 import { authenticateRequest } from "@/lib/authenticate";
@@ -120,6 +121,7 @@ export async function GET(req: NextRequest) {
 async function analyticsBody(orgId: string, from: Date | null, platform: string | null, timeZone: string, now: Date) {
   const postWhere: Prisma.PostWhereInput = {
     campaign: { orgId, deletedAt: null },
+    ...NOT_REMOVED,
     ...(platform && { platform: platform as (typeof PLATFORMS)[number] }),
     ...(from && { postedAt: { gte: from } }),
   };
@@ -228,7 +230,8 @@ async function analyticsBody(orgId: string, from: Date | null, platform: string 
                 COUNT(*) FILTER (WHERE p."viewsCount" > 0)::int AS "viewsKnown"
            FROM "Post" p
            JOIN "Campaign" c ON c.id = p."campaignId"
-          WHERE c."orgId" = $1 AND c."deletedAt" IS NULL AND p."postedAt" IS NOT NULL${slotFilter}
+          WHERE c."orgId" = $1 AND c."deletedAt" IS NULL AND p."postedAt" IS NOT NULL
+            AND ${notRemovedSql("p")}${slotFilter}
           GROUP BY 1, 2`,
         ...slotParams
       ),

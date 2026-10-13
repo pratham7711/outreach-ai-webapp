@@ -3,6 +3,7 @@ import React from "react";
 import * as XLSX from "xlsx";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { authenticateRequest } from "@/lib/authenticate";
 import { campaignScopeWhereFor } from "@/lib/campaignScope";
 import { computeCampaignPerformance } from "@/lib/reports/campaignPerformance";
@@ -84,7 +85,7 @@ export async function GET(
 
     const [posts, activations] = await Promise.all([
       db.post.findMany({
-        where: { campaignId: campaign.id, campaign: { orgId } },
+        where: { campaignId: campaign.id, campaign: { orgId }, ...NOT_REMOVED },
         select: {
           platform: true,
           postUrl: true,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { imageDimension, resizeImage } from "@/lib/media/proxyImage";
 import { readStoredAvatar } from "@/lib/creators/avatarStore";
 import { serveAvatar } from "@/lib/creators/avatarResponse";
@@ -46,7 +47,9 @@ async function lookUp(token: string): Promise<Creators> {
   if (!(link?.isPublic && config.kind === SHARE_KIND && link.campaignId && showsCreators)) return { orgId: null, ids: new Set() };
   const [posts, activations] = await Promise.all([
     db.post.findMany({
-      where: { campaignId: link.campaignId, campaign: { orgId: link.orgId } },
+      /* Only the posts the report shows: a creator whose every post was
+         removed from the campaign is no longer on the link. */
+      where: { campaignId: link.campaignId, campaign: { orgId: link.orgId }, ...NOT_REMOVED },
       select: { creatorId: true },
       distinct: ["creatorId"],
     }),

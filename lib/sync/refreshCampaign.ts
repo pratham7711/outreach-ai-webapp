@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { syncPost } from "@/lib/sync/syncPost";
 import type { FetchReason } from "@/lib/platforms/fetchPostMetrics";
 import { openTikTokPostFetcher } from "@/lib/platforms/tiktokEgress";
@@ -342,6 +343,9 @@ export async function refreshCampaign(input: {
   const posts = await db.post.findMany({
     where: {
       campaignId,
+      /* Refresh Data reads the posts the campaign shows; a removed one is not
+         read again until it is restored. */
+      ...NOT_REMOVED,
       /* The leftover set, derived rather than stored.
        *
        * syncPost stamps lastSyncedAt ONLY when counts actually came back, so

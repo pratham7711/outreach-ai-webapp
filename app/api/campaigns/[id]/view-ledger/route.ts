@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { auth } from "@/lib/auth";
 import { permissionDenial } from "@/lib/authz";
 import { sessionCampaignScopeDenial } from "@/lib/campaignAccess";
@@ -129,7 +130,9 @@ export async function POST(
     const activations = await db.activation.findMany({
       where: { campaignId, deletedAt: null },
       include: {
-        posts: { select: { id: true, viewsCount: true, activationId: true, creatorId: true } },
+        /* A removed post accrues nothing new; one with earnings already
+           cannot be removed (DELETE .../posts refuses it). */
+        posts: { where: NOT_REMOVED, select: { id: true, viewsCount: true, activationId: true, creatorId: true } },
         creator: { select: { id: true, name: true, handle: true } },
       },
     });

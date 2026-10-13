@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { authenticateRequest } from "@/lib/authenticate";
 import { PLATFORM_VALUES } from "@/lib/platforms/constants";
 
@@ -11,7 +12,9 @@ export async function GET(req: NextRequest) {
   const { orgId } = result;
 
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const orgScope = { campaign: { orgId } };
+  /* Removed posts are not read any more (every sweep selects NOT_REMOVED), so
+     counting them would only show as a growing pile of stale posts. */
+  const orgScope = { campaign: { orgId }, ...NOT_REMOVED };
 
   const [totalRows, syncedRows, neverRows, deadRows, sealedRows, deadLetterPosts, snapshotGroups] = await Promise.all([
     db.post.groupBy({ by: ["platform"], where: orgScope, _count: { _all: true }, _max: { lastSyncedAt: true } }),

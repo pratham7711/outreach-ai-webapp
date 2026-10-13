@@ -47,6 +47,8 @@ type Row = {
   trackingTtlDays: number | null;
   campaign: { status: string; archived: boolean; deletedAt: Date | null };
   snapshots: { isFinalSnapshot: boolean }[];
+  /** Set when the post was removed from its campaign (lib/posts/removed). */
+  removedAt: Date | null;
   /* The __lastFetch stamp, flattened: when we last asked, and what we heard. */
   lastAttemptAt?: Date | null;
   lastReason?: string | null;
@@ -162,6 +164,7 @@ function row(over: Partial<Row> & { postedAt: Date }): Row {
     trackingTtlDays: null,
     campaign: COMPLETE,
     snapshots: [],
+    removedAt: null,
     ...over,
   };
 }
@@ -237,6 +240,20 @@ describe("sweep tiers", () => {
     expect(tierOf(row({ ...young, campaign: LIVE, trackingExpiresAt: ago(now, HOUR) }))).toEqual([]);
     expect(tierOf(row({ ...young, snapshots: [{ isFinalSnapshot: true }] }))).toEqual([]);
     expect(tierOf(row({ ...young, syncDisabledAt: ago(now, HOUR) }))).toEqual([]);
+  });
+
+  it("never reads a post that was removed from its campaign, in any tier", () => {
+    const removedAt = ago(now, HOUR);
+    expect(tierOf(row({ postedAt: ago(now, 5 * HOUR), removedAt }))).toEqual([]);
+    expect(tierOf(row({ postedAt: ago(now, 90 * DAY), campaign: LIVE, removedAt }))).toEqual([]);
+    const oldTracker = {
+      postedAt: ago(now, 200 * DAY),
+      trackingEnabled: true,
+      trackingStartedAt: ago(now, 40 * DAY),
+      lastSyncedAt: ago(now, DAY),
+    };
+    expect(tierOf(row(oldTracker))).not.toEqual([]);
+    expect(tierOf(row({ ...oldTracker, removedAt }))).toEqual([]);
   });
 
   it("does not hold a place for a post read too recently to be due", () => {

@@ -81,6 +81,37 @@ beforeEach(() => {
   );
 });
 
+/* The share link, its PDF and the Performance tab all read this report. A
+   post removed from the campaign keeps its row, readings and all, so what keeps
+   it out is the post where and the snapshot SQL. The mock applies the where's
+   removedAt condition the way Postgres would. */
+describe("computeCampaignPerformance leaves removed posts out", () => {
+  it("drops a removed post from the totals and the leaderboard", async () => {
+    const table: Record<string, unknown>[] = [
+      post({ id: "post-live", removedAt: null }),
+      post({ id: "post-gone", viewsCount: 7_000_000, removedAt: new Date("2026-10-10") }),
+    ];
+    mockDb.post.findMany.mockImplementation(({ where }: { where: Record<string, unknown> }) =>
+      Promise.resolve(
+        table.filter((p) => !("removedAt" in where) || (where.removedAt === null) === (p.removedAt === null)),
+      ),
+    );
+
+    const result = await computeCampaignPerformance(campaign);
+
+    expect(mockDb.post.findMany.mock.calls[0][0].where).toMatchObject({ campaignId: "camp-1", removedAt: null });
+    expect(result.kpis.views).toBe(10_000);
+    expect(result.leaderboard.map((r) => r.views)).toEqual([10_000]);
+  });
+
+  it("keeps a removed post's readings out of the views-over-time chart", async () => {
+    mockDb.post.findMany.mockResolvedValue([post()]);
+    await computeCampaignPerformance(campaign);
+    const [sql] = mockDb.$queryRawUnsafe.mock.calls[0];
+    expect(sql).toContain(`p."removedAt" IS NULL`);
+  });
+});
+
 describe("computeCampaignPerformance engagement provenance", () => {
   it("reports no engagement figures when nothing was ever fetched", async () => {
     mockDb.post.findMany.mockResolvedValue([post()]);

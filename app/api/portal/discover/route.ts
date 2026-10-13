@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { withoutImportCopy } from "@/lib/serialization/importCopy";
 import { getCreatorSession } from "@/lib/creator-auth";
 import { z } from "zod";
@@ -64,7 +65,7 @@ export async function GET(request: NextRequest) {
           enrollmentOpen: true,
           createdAt: true,
           org: { select: { id: true, name: true, logoUrl: true } },
-          _count: { select: { activations: true, posts: true, proposals: true } },
+          _count: { select: { activations: true, posts: { where: NOT_REMOVED }, proposals: true } },
         },
         orderBy,
         skip,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { READ_CACHE_HEADERS } from "@/lib/http/readCache";
 import { cachedOrgRead, utcHourKey } from "@/lib/reports/orgReadCache";
 import { auth } from "@/lib/auth";
@@ -110,6 +111,7 @@ async function performanceBody(orgId: string, from: Date, to: Date, granularity:
      Two tiles and a chart on one screen disagreeing about which campaigns exist. */
   const postWhere = {
     campaign: { orgId, deletedAt: null },
+    ...NOT_REMOVED,
     postedAt: { gte: from, lte: to },
   };
   /* The org-wide breakdowns count a video once however many campaigns it was

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { auth } from "@/lib/auth";
 import { analyzePostForFraud, fraudFlagKey } from "@/lib/fraud-detection";
 import { readableSnapshots } from "@/lib/metricDisplay";
@@ -33,7 +34,7 @@ export async function POST(
 
     // Fetch all posts in the campaign with their snapshots
     const posts = await db.post.findMany({
-      where: { campaignId },
+      where: { campaignId, ...NOT_REMOVED },
       include: {
         snapshots: {
           orderBy: { recordedAt: "asc" },

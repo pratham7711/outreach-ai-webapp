@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { ONLY_REMOVED } from "@/lib/posts/removed";
 import { auth } from "@/lib/auth";
 import { sessionCampaignScopeDenial } from "@/lib/campaignAccess";
 
@@ -40,6 +41,16 @@ export async function GET(
     } else if (resolvedParam === "true") {
       where.isResolved = true;
     }
+
+    /* A removed post's flags stay on file (they come back with a restore),
+       but they are not this campaign's flags while the post is out of it --
+       the hard delete used to take them with the post. ViewFraudFlag has no
+       Post relation, so the removed ids are read first. */
+    const removed = await db.post.findMany({
+      where: { campaignId, ...ONLY_REMOVED },
+      select: { id: true },
+    });
+    if (removed.length > 0) where.postId = { notIn: removed.map((p) => p.id) };
 
     const flags = await db.viewFraudFlag.findMany({
       where,

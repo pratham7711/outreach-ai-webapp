@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 import { computeCampaignAccrual } from "@/lib/marketplace/cap";
 import { minorToMajor } from "@/lib/marketplace/public";
 
@@ -47,7 +48,7 @@ export async function computeMarketplaceAnalytics(
 
   const statusGroups = await db.post.groupBy({
     by: ["status"],
-    where: { campaignId },
+    where: { campaignId, ...NOT_REMOVED },
     _count: { _all: true },
   });
   const statusMap = new Map(statusGroups.map((g) => [g.status, g._count._all]));
