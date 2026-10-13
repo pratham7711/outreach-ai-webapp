@@ -244,6 +244,17 @@ export default function CampaignWizard({
         setImportError(body?.message ?? "Could not read that sound.");
         return;
       }
+      /* The link parsed, but TikTok had no sound under that id -- or would not
+         say. Either way nothing was found, so no card and no name: the slug in
+         the URL is not the sound's title. The link is still kept: creating
+         the campaign primes a read of the sound, and the daily sound snapshot
+         keeps trying, so the details fill in if it turns out to be real. */
+      if (body?.verified === false) {
+        setImportError(
+          "We couldn't find or verify this sound on TikTok. Check the link; if it is right, you can still create the campaign and the sound's details fill in once TikTok answers.",
+        );
+        return;
+      }
       setImported({
         soundId: body.soundId,
         platform: body.platform,

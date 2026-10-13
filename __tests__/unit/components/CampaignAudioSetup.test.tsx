@@ -31,7 +31,7 @@ function mockApi({ audio = null as any, resolve = {} as any, patchOk = true } = 
         json: async () =>
           resolve.ok === false
             ? { message: resolve.message ?? "no" }
-            : { platform: "TIKTOK", soundId: "7208251152978151425", provisionalTitle: "Roots" },
+            : (resolve.body ?? { platform: "TIKTOK", soundId: "7208251152978151425", provisionalTitle: "Roots" }),
       } as any;
     }
     // the PATCH
@@ -120,5 +120,26 @@ describe("CampaignAudioSetup — a campaign that already has one", () => {
     /* songId: null, never a DELETE. Other campaigns may read the same tracker
        and the usage history belongs to the sound. */
     expect(JSON.parse(patch![1].body)).toEqual({ songId: null });
+  });
+});
+
+/* Walkthrough 2026-10-13 A1#11: a TikTok id TikTok does not know used to be
+   shown under a title spelled out of the URL slug. The route now says it was
+   not verified and sends no title. */
+describe("CampaignAudioSetup — a sound TikTok did not confirm", () => {
+  it("says so and invents no title", async () => {
+    mockApi({
+      resolve: { body: { platform: "TIKTOK", soundId: "7400000000000000009", verified: false, provisionalTitle: null } },
+    });
+    setup();
+    fireEvent.click(await screen.findByRole("button", { name: /add audio/i }));
+    fireEvent.change(screen.getByLabelText("Sound link"), {
+      target: { value: "https://www.tiktok.com/music/WALK-Test-Sound-7400000000000000009" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /continue/i }));
+
+    expect(await screen.findByText("Sound not verified")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(/couldn.t find or verify this sound on TikTok/);
+    expect(screen.queryByText(/WALK Test Sound/)).toBeNull();
   });
 });
