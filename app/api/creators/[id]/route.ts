@@ -25,8 +25,9 @@ const updateCreatorSchema = z.object({
   country: z.string().trim().max(200).nullable().optional(),
   audienceCountry: z.string().trim().max(200).nullable().optional(),
   niche: z.string().trim().max(500).nullable().optional(),
-  followersCount: z.number().finite().min(0).max(5e9).optional(),
-  averageViews: z.number().finite().min(0).max(5e9).optional(),
+  // followersCount / averageViews are not editable: figures come from the
+  // platforms, never from a person. z.object strips them, so a client that
+  // still sends one gets a 200 and the stored figure is left as it was.
 });
 
 const DETAIL_FIELDS = ["country", "audienceCountry", "niche"] as const;
@@ -187,8 +188,6 @@ export async function PATCH(
         name: existing.name,
         handle: existing.handle,
         platform: existing.platform,
-        ...(fields.followersCount !== undefined && { followersCount: existing.followersCount }),
-        ...(fields.averageViews !== undefined && { averageViews: existing.averageViews }),
         ...(Object.keys(detail).length && { detail: detailBefore }),
       },
       after: {
@@ -196,8 +195,6 @@ export async function PATCH(
         name: creator.name,
         handle: creator.handle,
         platform: creator.platform,
-        ...(fields.followersCount !== undefined && { followersCount: creator.followersCount }),
-        ...(fields.averageViews !== undefined && { averageViews: creator.averageViews }),
         ...(Object.keys(detail).length && { detail }),
       },
     });

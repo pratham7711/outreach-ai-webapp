@@ -24,15 +24,14 @@ export type AddCreatorLookup =
  * land on the new creator the way the daily profile read would put them there.
  *
  * Null for every other org and platform, which add a creator exactly as before
- * and wait for the scheduled reads. A figure typed into the form is kept.
+ * and wait for the scheduled reads. There is no typed figure to keep any more:
+ * Add creator asks for none, and the route drops one if it is sent.
  */
 export async function lookupNewCreatorViaAgency(input: {
   orgId: string;
   creatorId: string;
   platform: string;
   handle: string;
-  typedFollowers?: number | null;
-  typedViews?: number | null;
   now?: Date;
 }): Promise<AddCreatorLookup | null> {
   if (input.platform !== "INSTAGRAM") return null;
@@ -50,10 +49,7 @@ export async function lookupNewCreatorViaAgency(input: {
 
   await db.creator.updateMany({
     where,
-    data: {
-      ...(input.typedFollowers ? {} : { followersCount }),
-      ...(input.typedViews ? {} : views),
-    },
+    data: { followersCount, ...views },
   });
   if (await rosterTablesReady()) {
     await db.creatorProfileLink.createMany({

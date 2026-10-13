@@ -77,9 +77,9 @@ describe("lookupNewCreatorViaAgency", () => {
     });
   });
 
-  it("keeps a figure typed into the form", async () => {
-    await lookupNewCreatorViaAgency({ ...input, typedFollowers: 1234 });
-    expect(mockCreatorUpdateMany.mock.calls[0][0].data).toEqual({ averageViews: 900 });
+  it("writes the read figures whatever a caller passes, since nothing typed is kept", async () => {
+    await lookupNewCreatorViaAgency({ ...input, typedFollowers: 1234 } as typeof input);
+    expect(mockCreatorUpdateMany.mock.calls[0][0].data).toEqual({ followersCount: 5000, averageViews: 900 });
   });
 
   it("reports a failed read and writes nothing", async () => {

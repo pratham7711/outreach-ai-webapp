@@ -65,7 +65,7 @@ describe("PATCH /api/creators/[id]/profile-links/[linkId]", () => {
       where: { id: "link-1", orgId: "org-1" },
       data: { handle: "synthfix01", url: "https://www.tiktok.com/@synthfix01", refreshedAt: null, refreshError: null },
     });
-    // The counts are the creator's own answer about the real account; the read replaces them.
+    // Stored counts stay until the read replaces them; nothing here writes one.
     expect(tx.creatorProfileLink.update.mock.calls[0][0].data).not.toHaveProperty("followersCount");
     expect(tx.creator.update).toHaveBeenCalledWith({ where: { id: "creator-1", orgId: "org-1" }, data: { handle: "@synthfix01" } });
     expect(logAudit).toHaveBeenCalledWith(
@@ -101,53 +101,27 @@ describe("PATCH /api/creators/[id]/profile-links/[linkId]", () => {
     expect(tx.creatorProfileLink.update).not.toHaveBeenCalled();
   });
 
-  it("sets the counts of an account the read cannot see, keeps its place in the queue and mirrors the primary", async () => {
-    findFirst.mockReset().mockResolvedValueOnce({ ...LINK, followersCount: 104, averageViews: null });
-    const res = await patch({ followersCount: 102376, averageViews: 5400 });
-    expect(res.status).toBe(200);
-    expect((await res.json()).link).toMatchObject({ handle: "synthfixx", followersCount: 102376, averageViews: 5400 });
-    expect(tx.creatorProfileLink.update).toHaveBeenCalledWith({
-      where: { id: "link-1", orgId: "org-1" },
-      data: { followersCount: 102376, averageViews: 5400 },
-    });
-    expect(tx.creator.update).toHaveBeenCalledWith({
-      where: { id: "creator-1", orgId: "org-1" },
-      data: { followersCount: 102376, averageViews: 5400 },
-    });
-    expect(findFirst).toHaveBeenCalledTimes(1);
-    expect(logAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        before: { platform: "TIKTOK", handle: "synthfixx", followersCount: 104, averageViews: null },
-        after: { platform: "TIKTOK", handle: "synthfixx", followersCount: 102376, averageViews: 5400 },
-      }),
-    );
-  });
+  it("never writes a count: figures come from the platforms, not from a person", async () => {
+    findFirst.mockReset().mockResolvedValueOnce(LINK);
+    const countsOnly = await patch({ followersCount: 102376, averageViews: 5400 });
+    expect(countsOnly.status).toBe(400);
+    expect(tx.creatorProfileLink.update).not.toHaveBeenCalled();
 
-  it("clears a count to unknown, and leaves a secondary account's counts off the creator", async () => {
-    findFirst.mockReset().mockResolvedValueOnce({ ...LINK, isPrimary: false });
-    expect((await patch({ averageViews: null })).status).toBe(200);
-    expect(tx.creatorProfileLink.update.mock.calls[0][0].data).toEqual({ averageViews: null });
-    expect(tx.creator.update).not.toHaveBeenCalled();
-  });
-
-  it("takes a new handle and counts together", async () => {
-    const res = await patch({ handle: "synthfix01", followersCount: 2000 });
+    findFirst.mockReset().mockResolvedValueOnce(LINK).mockResolvedValueOnce(null);
+    const res = await patch({ handle: "synthfix01", followersCount: 2000, averageViews: null });
     expect(res.status).toBe(200);
     expect(tx.creatorProfileLink.update.mock.calls[0][0].data).toEqual({
       handle: "synthfix01",
       url: "https://www.tiktok.com/@synthfix01",
       refreshedAt: null,
       refreshError: null,
-      followersCount: 2000,
     });
-    expect(tx.creator.update.mock.calls[0][0].data).toEqual({ handle: "@synthfix01", followersCount: 2000 });
+    expect(tx.creator.update.mock.calls[0][0].data).toEqual({ handle: "@synthfix01" });
+    expect((await res.json()).link).not.toHaveProperty("followersCount");
   });
 
-  it("refuses an empty body and a count that cannot be one", async () => {
+  it("refuses an empty body", async () => {
     expect((await patch({})).status).toBe(400);
-    findFirst.mockReset().mockResolvedValue(LINK);
-    expect((await patch({ followersCount: -5 })).status).toBe(400);
-    expect((await patch({ followersCount: "17.3k" })).status).toBe(400);
     expect(tx.creatorProfileLink.update).not.toHaveBeenCalled();
   });
 });

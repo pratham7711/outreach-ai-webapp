@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Modal, Input } from "@pratham7711/ui";
 import { Dropdown, Button } from "@/components/ds";
-import { formatFull, parseCountInput } from "@/lib/format";
+import { formatFull } from "@/lib/format";
 
 type AddLookup =
   | { ok: true; followersCount: number; postsCount: number; via: { username: string } | null }
@@ -34,31 +34,20 @@ export default function AddCreatorModal({ onClose }: { onClose: () => void }) {
      field and 401 when the session has gone. All three used to be dropped on
      the floor -- `if (res.ok)` and no else -- so the button looked broken. */
   const [error, setError] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<{ followersCount?: string; averageViews?: string }>({});
+  /* No follower or view fields (Pratham, 2026-10-13: "there should be no
+     manual share entry"). A figure somebody typed in sits beside measured ones
+     with nothing to tell them apart, and it never updates; the route ignores
+     them now even if a client still sends them. */
   const [form, setForm] = useState({
     name: "",
     handle: "",
     platform: "INSTAGRAM",
-    followersCount: "",
-    averageViews: "",
     rate: "",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (loading) return;
-
-    const followers = parseCountInput(form.followersCount);
-    const views = parseCountInput(form.averageViews);
-    if (!followers.ok || !views.ok) {
-      setFieldErrors({
-        ...(followers.ok ? {} : { followersCount: followers.error }),
-        ...(views.ok ? {} : { averageViews: views.error }),
-      });
-      setError(null);
-      return;
-    }
-    setFieldErrors({});
 
     setLoading(true);
     setError(null);
@@ -70,8 +59,6 @@ export default function AddCreatorModal({ onClose }: { onClose: () => void }) {
           name: form.name,
           handle: form.handle,
           platform: form.platform,
-          followersCount: followers.value,
-          averageViews: views.value,
           rate: form.rate ? Number(form.rate) : undefined,
         }),
       });
@@ -169,42 +156,10 @@ export default function AddCreatorModal({ onClose }: { onClose: () => void }) {
             ]}
           />
         </div>
-        {/* Text, not type="number": these get pasted straight off a profile
-            page as "2.4M" or "1,200,000", both of which a number input simply
-            refuses to hold. parseCountInput turns them into the integer the
-            route wants. */}
-        <div style={{ display: "flex", gap: 12 }}>
-          <div style={{ flex: 1 }}>
-            <Input
-              label="Follower Count"
-              inputMode="numeric"
-              value={form.followersCount}
-              onChange={(e) => setForm((f) => ({ ...f, followersCount: e.target.value }))}
-              placeholder="e.g. 2.4m"
-              aria-invalid={Boolean(fieldErrors.followersCount)}
-            />
-            {fieldErrors.followersCount && (
-              <p role="alert" style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-danger)", margin: "6px 0 0" }}>
-                {fieldErrors.followersCount}
-              </p>
-            )}
-          </div>
-          <div style={{ flex: 1 }}>
-            <Input
-              label="Avg Views"
-              inputMode="numeric"
-              value={form.averageViews}
-              onChange={(e) => setForm((f) => ({ ...f, averageViews: e.target.value }))}
-              placeholder="e.g. 500k"
-              aria-invalid={Boolean(fieldErrors.averageViews)}
-            />
-            {fieldErrors.averageViews && (
-              <p role="alert" style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-danger)", margin: "6px 0 0" }}>
-                {fieldErrors.averageViews}
-              </p>
-            )}
-          </div>
-        </div>
+        <p style={{ margin: 0, fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
+          Followers and views are read from the platform, so there is nothing to type here. They show
+          &ldquo;&mdash;&rdquo; until the first read.
+        </p>
         <Input
           label="Rate per Post (USD)"
           type="number"
