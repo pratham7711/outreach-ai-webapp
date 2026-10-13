@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { authenticateRequest } from "@/lib/authenticate";
 import { rateLimit } from "@/lib/rateLimit";
 import { snapshotSounds } from "@/lib/sounds/snapshot";
 import { createLogger } from "@/lib/observability/logger";
+import { requirePermission } from "@/lib/authz";
 
 // The nightly cron at /api/cron/snapshot-sounds does the same work for every org.
 // This is the same job scoped to the caller's org so the Refresh button on
@@ -36,8 +36,11 @@ function tooSoon(retryAfterSeconds: number) {
 export async function POST(req: NextRequest) {
   const log = createLogger({ context: { route: "trackers/refresh" } });
 
-  const result = await authenticateRequest(req);
-  if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  /* Re-reading sound trackers spends the org's platform quota; the same
+     permission as adding one. */
+  const gate = await requirePermission(req, "campaigns:create");
+  if (!gate.ok) return gate.response;
+  const result = gate.auth;
   const { orgId } = result;
 
   // An empty body is the sweep, and is how every existing caller posts.

@@ -30,8 +30,8 @@ import { auth } from "@/lib/auth";
 const mockAuth = auth as jest.Mock;
 const mockDb = db as any;
 
-const authedSession = { user: { id: "user-1", orgId: "org-1" } };
-const otherOrgSession = { user: { id: "user-2", orgId: "org-other" } };
+const authedSession = { user: { id: "user-1", orgId: "org-1", role: "OWNER" } };
+const otherOrgSession = { user: { id: "user-2", orgId: "org-other", role: "OWNER" } };
 
 const viewBasedCampaign = {
   id: "camp-1",

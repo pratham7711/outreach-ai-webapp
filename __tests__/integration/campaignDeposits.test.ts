@@ -8,7 +8,7 @@ import { POST as RELEASE } from '@/app/api/campaigns/[id]/deposits/release/route
 jest.mock('@/lib/db', () => ({
   db: {
     campaign: { findFirst: jest.fn() },
-    campaignDeposit: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
+    campaignDeposit: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn(), findUniqueOrThrow: jest.fn() },
   },
 }));
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
@@ -20,7 +20,7 @@ import { auth } from '@/lib/auth';
 
 const mockAuth = auth as jest.Mock;
 const mockDb = db as any;
-const session = { user: { id: 'user-1', orgId: 'org-1' } };
+const session = { user: { id: 'user-1', orgId: 'org-1', role: 'OWNER' } };
 const mockCampaign = { id: 'camp-1', orgId: 'org-1', deletedAt: null };
 
 function makeRequest(url: string, options?: ConstructorParameters<typeof NextRequest>[1]) { return new NextRequest(url, options); }
@@ -78,7 +78,8 @@ describe('POST /api/campaigns/[id]/deposits', () => {
 describe('POST /api/campaigns/[id]/deposits/release', () => {
   it('releases funds', async () => {
     mockDb.campaignDeposit.findFirst.mockResolvedValue({ id: 'd1', amountUsd: 5000, releasedAmount: 0, status: 'HELD' });
-    mockDb.campaignDeposit.update.mockResolvedValue({ id: 'd1', releasedAmount: 1000, status: 'PARTIALLY_RELEASED' });
+    mockDb.campaignDeposit.updateMany.mockResolvedValue({ count: 1 });
+    mockDb.campaignDeposit.findUniqueOrThrow.mockResolvedValue({ id: 'd1', releasedAmount: 1000, status: 'PARTIALLY_RELEASED' });
 
     const res = await RELEASE(makeRequest('http://localhost/api/campaigns/camp-1/deposits/release', {
       method: 'POST',
@@ -97,7 +98,8 @@ describe('POST /api/campaigns/[id]/deposits/release', () => {
     mockDb.campaignDeposit.findFirst.mockResolvedValue({
       id: 'd1', amountUsd: 500.31, releasedAmount: 333.54, status: 'PARTIALLY_RELEASED',
     });
-    mockDb.campaignDeposit.update.mockResolvedValue({ id: 'd1', releasedAmount: 500.31, status: 'FULLY_RELEASED' });
+    mockDb.campaignDeposit.updateMany.mockResolvedValue({ count: 1 });
+    mockDb.campaignDeposit.findUniqueOrThrow.mockResolvedValue({ id: 'd1', releasedAmount: 500.31, status: 'FULLY_RELEASED' });
 
     const res = await RELEASE(makeRequest('http://localhost/api/campaigns/camp-1/deposits/release', {
       method: 'POST',
@@ -106,9 +108,39 @@ describe('POST /api/campaigns/[id]/deposits/release', () => {
     }), makeParams('camp-1'));
 
     expect(res.status).toBe(200);
-    expect(mockDb.campaignDeposit.update).toHaveBeenCalledWith(
+    expect(mockDb.campaignDeposit.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({ data: { releasedAmount: 500.31, status: 'FULLY_RELEASED' } })
     );
+  });
+
+  /* Two releases that both read "500 left" used to both pass the check and both
+     write. The write is now conditional on the row this request read. */
+  it('409s a release that lost the race to another release', async () => {
+    mockDb.campaignDeposit.findFirst.mockResolvedValue({ id: 'd1', amountUsd: 5000, releasedAmount: 0, status: 'HELD' });
+    mockDb.campaignDeposit.updateMany.mockResolvedValue({ count: 0 });
+
+    const res = await RELEASE(makeRequest('http://localhost/api/campaigns/camp-1/deposits/release', {
+      method: 'POST',
+      body: JSON.stringify({ amount: 1000 }),
+      headers: { 'Content-Type': 'application/json' },
+    }), makeParams('camp-1'));
+
+    expect(res.status).toBe(409);
+    expect(mockDb.campaignDeposit.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'd1', orgId: 'org-1', status: 'HELD', releasedAmount: 0 } })
+    );
+    expect(mockDb.campaignDeposit.findUniqueOrThrow).not.toHaveBeenCalled();
+  });
+
+  it('refuses a VIEWER', async () => {
+    mockAuth.mockResolvedValue({ user: { id: 'user-2', orgId: 'org-1', role: 'VIEWER' } });
+    const res = await RELEASE(makeRequest('http://localhost/api/campaigns/camp-1/deposits/release', {
+      method: 'POST',
+      body: JSON.stringify({ amount: 1000 }),
+      headers: { 'Content-Type': 'application/json' },
+    }), makeParams('camp-1'));
+    expect(res.status).toBe(403);
+    expect(mockDb.campaignDeposit.updateMany).not.toHaveBeenCalled();
   });
 
   it('still refuses a release a cent over the deposit', async () => {

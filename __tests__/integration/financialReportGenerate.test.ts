@@ -32,7 +32,7 @@ import { auth } from "@/lib/auth";
 const mockAuth = auth as jest.Mock;
 const mockDb = db as any;
 
-const authedSession = { user: { id: "user-1", orgId: "org-1", email: "a@b.com" } };
+const authedSession = { user: { id: "user-1", orgId: "org-1", role: "OWNER", email: "a@b.com" } };
 
 function makeRequest(body: Record<string, unknown>) {
   return new NextRequest("http://localhost/api/financial-reports/generate", {

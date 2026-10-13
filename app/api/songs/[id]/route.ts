@@ -7,6 +7,7 @@ import { fieldMetricValue, postEngagementPercent } from "@/lib/metricDisplay";
 import { logAudit } from "@/lib/audit";
 import { oneCopyPerVideo } from "@/lib/posts/duplicates";
 import { getRequestIp } from "@/lib/request";
+import { requirePermission } from "@/lib/authz";
 
 /**
  * Everything the song dashboard renders, in one round trip.
@@ -204,8 +205,12 @@ const updateSchema = z.object({
  * usage curve into its own campaign report.
  */
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const result = await authenticateRequest(req);
-  if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  /* Songs and sound trackers are what campaigns point at, and campaign creation
+     makes them (ensureSongForAudio), so they take the permission that creates a
+     campaign -- as clients and folders already do. */
+  const gate = await requirePermission(req, "campaigns:create");
+  if (!gate.ok) return gate.response;
+  const result = gate.auth;
   const { orgId, userId, actorEmail } = result;
   const { id } = await ctx.params;
 

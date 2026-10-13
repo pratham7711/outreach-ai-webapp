@@ -3,12 +3,16 @@ import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { createAuditActor, logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
+import { permissionDenial } from "@/lib/authz";
 
 const MAX_PER_REQUEST = 500;
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  /* The gate every other list write uses (lists/[id], reorder, duplicate). */
+  const denied = permissionDenial(session.user, "creators:create");
+  if (denied) return denied;
   const orgId = (session.user as any).orgId;
   const { id } = await params;
 

@@ -43,7 +43,7 @@ const mockDb = db as any;
 const mockEntitlements = getOrgEntitlements as jest.Mock;
 const mockHasFeature = hasOrgFeature as jest.Mock;
 
-const session = { user: { id: "user-1", orgId: "org-1", email: "u@org-1.test" } };
+const session = { user: { id: "user-1", orgId: "org-1", role: "OWNER", email: "u@org-1.test" } };
 
 function jsonRequest(url: string, body: unknown) {
   return new NextRequest(url, {

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { authenticateRequest } from "@/lib/authenticate";
 import { rateLimit } from "@/lib/rateLimit";
 import { snapshotCreators } from "@/lib/creators/snapshot";
 import { openTopPostsSession } from "@/lib/platforms/tiktokTopPostsBrowser";
 import { openSandboxProfileFetcher } from "@/lib/platforms/tiktokProfileSandbox";
 import { createLogger } from "@/lib/observability/logger";
+import { requirePermission } from "@/lib/authz";
 
 /* TikTok opens a browser, so this is sized like the sound reader's route rather
    than a normal request. Instagram and YouTube return in milliseconds. */
@@ -42,8 +42,11 @@ function tooSoon(retryAfterSeconds: number) {
 export async function POST(req: NextRequest) {
   const log = createLogger({ context: { route: "trackers/creators/refresh" } });
 
-  const result = await authenticateRequest(req);
-  if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  /* Creator tracking is a roster write: creators:create, as tracking in bulk
+     (trackers/creators/bulk) already requires. */
+  const gate = await requirePermission(req, "creators:create");
+  if (!gate.ok) return gate.response;
+  const result = gate.auth;
   const { orgId } = result;
 
   const parsed = BodySchema.safeParse(await req.json().catch(() => null));

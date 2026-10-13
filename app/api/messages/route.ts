@@ -7,6 +7,7 @@ import {
   resolveCreatorUserForCreator,
 } from "@/lib/messaging/conversations";
 import { z } from "zod";
+import { requirePermission } from "@/lib/authz";
 
 export async function GET(request: NextRequest) {
   const result = await authenticateRequest(request);
@@ -60,8 +61,11 @@ const postSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  const result = await authenticateRequest(request);
-  if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  /* Writing to a creator on the org's behalf: campaign work, so the gate the
+     campaign writes use. VIEWER can read conversations, not send into them. */
+  const gate = await requirePermission(request, "campaigns:edit_own");
+  if (!gate.ok) return gate.response;
+  const result = gate.auth;
   const { orgId, userId } = result;
 
   const json = await request.json();

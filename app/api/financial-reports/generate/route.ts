@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { authenticateRequest } from "@/lib/authenticate";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { FinancialPDF, ReportData } from "@/lib/reports/FinancialPDF";
 import React from "react";
@@ -14,12 +13,14 @@ import {
   isPeriodKey,
   pctChange,
 } from "@/lib/reports/financialPeriod";
+import { requirePermission } from "@/lib/authz";
 
 export async function POST(req: NextRequest): Promise<Response> {
-  const authResult = await authenticateRequest(req);
-  if (!authResult) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  /* An export of figures every seat can already read on the page: reports:read,
+     which VIEWER holds. Nothing is written. */
+  const gate = await requirePermission(req, "reports:read");
+  if (!gate.ok) return gate.response;
+  const authResult = gate.auth;
   const { orgId } = authResult;
 
   let body: { period?: string; format?: string };

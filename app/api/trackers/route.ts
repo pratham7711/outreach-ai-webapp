@@ -25,6 +25,7 @@ import { usesPrecisionOf } from "@/lib/sounds/precision";
 import { readOneInstagramAudio } from "@/lib/platforms/instagramAudioUsage";
 import { expandShortLink } from "@/lib/trackers/expandShortLink";
 import { trackerLimitError, trackerUsage } from "@/lib/trackers/limit";
+import { requirePermission } from "@/lib/authz";
 
 const SORTS = ["velocity", "uses", "added"] as const;
 type SortKey = (typeof SORTS)[number];
@@ -202,9 +203,12 @@ const createSoundSchema = z.union([
 
 export async function POST(req: NextRequest) {
   try {
-    const result = await authenticateRequest(req);
-    if (!result)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    /* Songs and sound trackers are what campaigns point at, and campaign creation
+       makes them (ensureSongForAudio), so they take the permission that creates a
+       campaign -- as clients and folders already do. */
+    const gate = await requirePermission(req, "campaigns:create");
+    if (!gate.ok) return gate.response;
+    const result = gate.auth;
     const { orgId } = result;
 
     const body = await req.json();
@@ -367,9 +371,9 @@ export async function POST(req: NextRequest) {
  */
 export async function DELETE(req: NextRequest) {
   try {
-    const result = await authenticateRequest(req);
-    if (!result)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const gate = await requirePermission(req, "campaigns:create");
+    if (!gate.ok) return gate.response;
+    const result = gate.auth;
     const { orgId } = result;
 
     const body = await req.json().catch(() => null);

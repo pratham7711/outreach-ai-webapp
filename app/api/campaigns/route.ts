@@ -61,10 +61,11 @@ export async function GET(request: NextRequest) {
        an OR, and so does the scope, so spreading one over the other silently
        dropped whichever came first. The list used to skip the scope entirely,
        so an "assigned only" member saw every campaign in the org through the
-       API while the page hid them. */
-    const where: Prisma.CampaignWhereInput = {
-      AND: [campaignWhere(orgId, filters), campaignScopeWhereFor(result)],
-    };
+       API while the page hid them. Unscoped callers keep the query they had. */
+    const filterWhere = campaignWhere(orgId, filters);
+    const scope = campaignScopeWhereFor(result);
+    const where: Prisma.CampaignWhereInput =
+      Object.keys(scope).length === 0 ? filterWhere : { AND: [filterWhere, scope] };
 
     const [campaigns, total] = await Promise.all([
       db.campaign.findMany({

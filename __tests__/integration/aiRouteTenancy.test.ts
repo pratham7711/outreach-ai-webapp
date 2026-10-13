@@ -49,10 +49,10 @@ const ORG_A = "org-a";
 const ORG_B = "org-b";
 
 const sessionA = {
-  user: { id: "user-a", orgId: ORG_A, email: "owner@org-a.test" },
+  user: { id: "user-a", orgId: ORG_A, role: "OWNER", email: "owner@org-a.test" },
 };
 const sessionB = {
-  user: { id: "user-b", orgId: ORG_B, email: "owner@org-b.test" },
+  user: { id: "user-b", orgId: ORG_B, role: "OWNER", email: "owner@org-b.test" },
 };
 
 const CAMPAIGN_A = {

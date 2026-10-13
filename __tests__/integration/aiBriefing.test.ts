@@ -43,7 +43,7 @@ const mockGetEntitlements = getOrgEntitlements as jest.Mock;
 const mockDb = db as any;
 const mockAnthropicCreate = mockMessagesCreate;
 
-const authedSession = { user: { id: "user-1", orgId: "org-1", email: "admin@demo.com" } };
+const authedSession = { user: { id: "user-1", orgId: "org-1", role: "OWNER", email: "admin@demo.com" } };
 
 function makeRequest(url: string, body: object) {
   return new NextRequest(url, {

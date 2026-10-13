@@ -65,8 +65,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const result = await authenticateRequest(req);
-  if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  /* Every list write needs creators:create. The gate used to sit inside the
+     favourite/archive branch only, so a VIEWER could rename any list. */
+  const gate = await requirePermission(req, "creators:create");
+  if (!gate.ok) return gate.response;
+  const result = gate.auth;
   const { orgId } = result;
   const { id } = await params;
 
@@ -80,8 +83,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const favorite = typeof body?.isFavorite === "boolean" ? (body.isFavorite as boolean) : undefined;
   const archived = typeof body?.archived === "boolean" ? (body.archived as boolean) : undefined;
   if (favorite !== undefined || archived !== undefined) {
-    const perm = await requirePermission(req, "creators:create");
-    if (!perm.ok) return perm.response;
     if (!(await listApprovalTablesReady())) return rateCardNotReady();
     const data = {
       ...(favorite !== undefined && { isFavorite: favorite }),
@@ -130,8 +131,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const result = await authenticateRequest(req);
-  if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const gate = await requirePermission(req, "creators:create");
+  if (!gate.ok) return gate.response;
+  const result = gate.auth;
   const { orgId } = result;
   const { id } = await params;
 
