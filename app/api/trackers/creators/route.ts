@@ -79,18 +79,20 @@ export async function GET(req: NextRequest) {
       total: 0,
     };
 
-    const org = await db.organization.findUnique({
+    /* The org's chart setting and the tracked list do not depend on each
+       other, so they are read in one wave; so are the window aggregates and
+       the anchor readings below, which need only the ids. Four round trips
+       in a row became two before the page read. */
+    const orgRead = db.organization.findUnique({
       where: { id: orgId },
       select: { uiConfig: true },
     });
-    const granularity = parseGranularity(org?.uiConfig ?? null);
-    const chartAt = effectiveChartGranularity(granularity);
 
     /* Every tracked creator, but only what ranking needs from the row itself.
        Newest-tracked first is the order a tie keeps, as it always was; the id
        makes that order total, so a tie cannot straddle a page boundary and
        hand one creator back twice. */
-    const tracked = await db.creator.findMany({
+    const trackedRead = db.creator.findMany({
       where: {
         orgId,
         deletedAt: null,
@@ -107,6 +109,9 @@ export async function GET(req: NextRequest) {
       select: { id: true, followersCount: true },
       orderBy: [{ trackedSince: "desc" }, { id: "asc" }],
     });
+    const [org, tracked] = await Promise.all([orgRead, trackedRead]);
+    const granularity = parseGranularity(org?.uiConfig ?? null);
+    const chartAt = effectiveChartGranularity(granularity);
 
     if (tracked.length === 0) return NextResponse.json(empty);
     const trackedIds = tracked.map((c) => c.id);
@@ -125,7 +130,7 @@ export async function GET(req: NextRequest) {
      * Over every tracked creator rather than the page, because Posts is one
      * of the sorts. It returns one small row per creator who posted.
      */
-    const rows = await db.$queryRawUnsafe<
+    const rowsRead = db.$queryRawUnsafe<
       {
         creatorId: string;
         avgCurrent: unknown;
@@ -151,6 +156,7 @@ export async function GET(req: NextRequest) {
       bounds.previous.toISOString(),
       trackedIds
     );
+    const [rows, anchors] = await Promise.all([rowsRead, readAnchorReadings(orgId, trackedIds, bounds.current)]);
 
     const byCreator = new Map<string, CreatorWindowRow>(
       (rows ?? []).map((r) => [
@@ -165,7 +171,6 @@ export async function GET(req: NextRequest) {
       ])
     );
 
-    const anchors = await readAnchorReadings(orgId, trackedIds, bounds.current);
     const ranked = byMetricDescending(
       tracked.map((c) => {
         const f = figuresFor(anchors.get(c.id) ?? [], c.followersCount, period, now);
