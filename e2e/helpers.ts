@@ -154,3 +154,54 @@ export async function firstPostDetailHref(page: Page): Promise<string> {
   await page.keyboard.press('Escape');
   return href as string;
 }
+
+/**
+ * Console errors and uncaught exceptions from a page, collected from the moment
+ * this is called. Read it at the end of a test with `unexpectedErrors`.
+ */
+export function collectPageErrors(page: Page): string[] {
+  const errors: string[] = [];
+  page.on('console', (m) => {
+    /* Chrome's "Failed to load resource" line names no URL in its text; the
+       location does, and a failure that does not say which request is a
+       failure nobody can act on. */
+    if (m.type() === 'error') errors.push(`${m.text()}${m.location().url ? ` [${m.location().url}]` : ''}`);
+  });
+  page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+  return errors;
+}
+
+/**
+ * The errors a test did not ask for. A page showing a dead link is SUPPOSED to
+ * have had a 4xx from its own API, and Chrome logs every one of those as a
+ * console error ("Failed to load resource: ... status of 404"), so a test of an
+ * error state passes `allowHttp4xx` -- which drops exactly those lines and
+ * nothing else. A thrown exception or a 5xx still counts.
+ */
+export function unexpectedErrors(errors: string[], { allowHttp4xx = false } = {}): string[] {
+  return errors.filter(
+    (e) =>
+      !(allowHttp4xx && /Failed to load resource: the server responded with a status of 4\d\d/.test(e)) &&
+      !MISSING_AVATAR.test(e),
+  );
+}
+
+/* A creator with no stored picture: /api/creators/<id>/avatar (and the shared
+   list's equivalent) answers 404 by design and CreatorAvatar falls back to
+   initials, so nobody sees a broken image -- but Chrome still logs the 404.
+   Only that exact request is let through. */
+const MISSING_AVATAR = /status of 404 \(Not Found\) \[[^\]]*\/avatar(\?[^\]]*)?\]$/;
+
+/** The page itself does not scroll sideways (1px of subpixel rounding allowed). */
+export async function expectNoHorizontalScroll(page: Page, label: string): Promise<void> {
+  const { scrollWidth, clientWidth } = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    clientWidth: document.documentElement.clientWidth,
+  }));
+  expect(scrollWidth, `${label}: scrollWidth ${scrollWidth} should be <= clientWidth ${clientWidth} + 1`).toBeLessThanOrEqual(
+    clientWidth + 1,
+  );
+}
+
+/** A phone, for the pages people open from a link in a messaging app. */
+export const PHONE = { width: 390, height: 844 };

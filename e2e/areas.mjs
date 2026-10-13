@@ -18,7 +18,7 @@
 
 export const AREAS = {
   auth: {
-    specs: ["auth.spec.ts", "signup-org-types.spec.ts", "portal-auth.spec.ts"],
+    specs: ["auth.spec.ts", "signup-org-types.spec.ts", "portal-auth.spec.ts", "auth-pages.spec.ts"],
     sources: ["app/(auth)/", "app/api/auth/", "lib/auth"],
   },
   campaigns: {
@@ -59,6 +59,7 @@ export const AREAS = {
       "creators-detail.spec.ts",
       "lists.spec.ts",
       "public-profile.spec.ts",
+      "shared-links.spec.ts",
     ],
     sources: [
       "app/(dashboard)/creators/",
@@ -115,6 +116,7 @@ export const AREAS = {
     specs: [
       "portal-dashboard.spec.ts",
       "portal-discover.spec.ts",
+      "shared-links.spec.ts",
     ],
     sources: [
       "app/(portal)/",
@@ -219,6 +221,14 @@ export const AREAS = {
   actions: {
     specs: ["action-registry.spec.ts"],
     sources: ["lib/ui/actions.ts"],
+  },
+  /* Songs: the catalogue page, a song's own page and their API. Their spec is
+     shared-links.spec.ts, which opens /songs/[id] in an org of its own; it is
+     also listed under creators and portal, for the shared list, the connect
+     link and the campaign invitation it opens. */
+  songs: {
+    specs: ["shared-links.spec.ts"],
+    sources: ["app/(dashboard)/songs/", "app/api/songs/"],
   },
 };
 
