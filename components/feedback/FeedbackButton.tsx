@@ -20,6 +20,8 @@ import { MAX_MESSAGE_CHARS, type FeedbackSurface } from "@/lib/feedback/submissi
  */
 
 const WIDGET_ATTR = "data-feedback-widget";
+/* Scrolled this far, a phone shows the button as its icon alone. */
+const COMPACT_AFTER_PX = 160;
 
 type Phase =
   | { kind: "idle" }
@@ -70,6 +72,20 @@ export function FeedbackButton({
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [scrolled, setScrolled] = useState(false);
+
+  /* The dashboard scrolls inside <main> and the public pages scroll the window,
+     so listen in the capture phase for either. Scrollers too short to matter --
+     a table sliding sideways, a dropdown -- are ignored. */
+  useEffect(() => {
+    const onScroll = (e: Event) => {
+      const el = e.target instanceof Element ? e.target : document.scrollingElement;
+      if (!el || el.scrollHeight - el.clientHeight < 400) return;
+      setScrolled(el.scrollTop > COMPACT_AFTER_PX);
+    };
+    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    return () => document.removeEventListener("scroll", onScroll, { capture: true });
+  }, []);
 
   useEffect(() => {
     installClientSignals();
@@ -148,14 +164,14 @@ export function FeedbackButton({
       <button
         type="button"
         {...{ [WIDGET_ATTR]: "" }}
-        className={raiseOnPhone ? "cc-feedback-fab cc-feedback-fab-raised" : "cc-feedback-fab"}
+        className={["cc-feedback-fab", raiseOnPhone && "cc-feedback-fab-raised", scrolled && !busy && "cc-feedback-fab-compact"].filter(Boolean).join(" ")}
         onClick={start}
         disabled={busy}
         aria-busy={busy || undefined}
         aria-label={busy ? "Capturing the page for feedback" : "Send feedback about this page"}
       >
         <MessageSquareWarning size={15} aria-hidden="true" />
-        <span>{busy ? "Capturing…" : "Feedback"}</span>
+        <span className="cc-feedback-fab-label">{busy ? "Capturing…" : "Feedback"}</span>
       </button>
 
       {open && (

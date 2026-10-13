@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { ImageOff, Eye, Heart, MessageCircle, Share2, Bookmark, Download, Activity } from "lucide-react";
 import type { SharedReportData } from "@/lib/reports/campaignPerformance";
 import { shareImgSrc } from "@/lib/postMedia";
-import { stripAt, formatDateAbs, timeAgo } from "@/lib/format";
+import { stripAt, formatDateAbs, timeAgo, platformLabel } from "@/lib/format";
 import { creatorNameParts, creatorNameText } from "@/lib/creators/creatorName";
 import RemovedPostOverlay from "@/components/posts/RemovedPostOverlay";
 import PostStatusChip from "@/components/posts/PostStatusChip";
@@ -71,7 +71,7 @@ export default function SharedPostList({
           ? creatorNameText(post.creator.name, post.creator.handle)
           : unknownCreator
             ? UNKNOWN_CREATOR_LABEL
-            : post.platform;
+            : platformLabel(post.platform);
         const shownLabel = who ? (
           <>
             <span className="spr-post-name">{who.name}</span>
@@ -80,7 +80,7 @@ export default function SharedPostList({
         ) : unknownCreator ? (
           <span className="spr-post-name">{UNKNOWN_CREATOR_LABEL}</span>
         ) : (
-          post.platform
+          platformLabel(post.platform)
         );
 
         return (
@@ -169,7 +169,9 @@ export default function SharedPostList({
               )}
 
               <div className="spr-post-meta">
-                <span>Posted {formatDateAbs(post.postedAt)}</span>
+                {/* Nothing else on the card says where the post is, and a
+                    campaign's posts run across TikTok, Instagram and YouTube. */}
+                <span>{platformLabel(post.platform)} · Posted {formatDateAbs(post.postedAt)}</span>
                 {/* "Never" would read as a claim about the post rather than
                     about our own sync, which has simply not run for it.
 

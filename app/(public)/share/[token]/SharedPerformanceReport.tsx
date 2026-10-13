@@ -11,7 +11,7 @@ import { DEFAULT_SHARE_VISIBILITY, type ShareVisibility } from "@/lib/reports/sh
 import { formatFull, formatCompact, platformLabel } from "@/lib/format";
 import { creatorNameParts, creatorNameText } from "@/lib/creators/creatorName";
 import { ACTIVATION_STATUS_LABEL, activationStatusBadgeStyle } from "@/lib/activationQueues";
-import { chartGreysFor, chartStrokeFor, pieColorsFor } from "@/lib/reports/shareChartPalette";
+import { platformColorsFor } from "@/lib/reports/shareChartPalette";
 import { POWERED_BY } from "@/lib/brand";
 import { AudioCard } from "@/components/campaigns/AudioCard";
 import { shareImgSrc } from "@/lib/postMedia";
@@ -26,16 +26,18 @@ import { viewsCoverageNote } from "@/lib/metricDisplay";
  * ever drew TikTok, Instagram and YouTube, so a campaign carrying a Twitter or
  * Facebook post stacked to a total below the Total Views tile above it.
  *
- * The colours are greyscale because the reference's chart is -- the palette and
- * the measurement behind it live in lib/reports/shareChartPalette. The pie
- * beside this chart keeps its platform colours (pieColorsFor): the reference
- * report has no platform breakdown at all, so there is nothing there to diverge
- * from, and hue is the only thing encoding which slice is which.
+ * Each series takes its platform's colour from the same map as the pie below
+ * it (lib/reports/shareChartPalette), so TikTok is one colour in both charts.
  */
-function seriesFor(platforms: string[]): { key: string; color: string }[] {
-  const greys = chartGreysFor(platforms.length);
-  return platforms.map((key, i) => ({ key, color: greys[i] }));
+function seriesFor(platforms: string[], colorOf: (platform: string) => string): { key: string; color: string }[] {
+  return platforms.map((key) => ({ key, color: colorOf(key) }));
 }
+
+/* Recharts inks each legend label and tooltip row in its series colour, which
+   for a brand colour on white is under 4.5:1; the swatch carries the colour. */
+const legendLabel = (value: unknown) => <span style={{ color: "var(--spr-ink-muted)" }}>{String(value)}</span>;
+const TOOLTIP_STYLE = { background: "var(--spr-card)", border: "1px solid var(--spr-hairline)", borderRadius: 12, fontSize: 13, color: "var(--spr-ink)" };
+const TOOLTIP_ITEM_STYLE = { color: "var(--spr-ink)" };
 
 function formatNumber(num: number): string {
   return formatFull(num);
@@ -126,11 +128,16 @@ export default function SharedPerformanceReport({
   // Already redacted server-side — a hidden leaderboard arrives empty rather
   // than arriving whole and being skipped at render time.
   const { kpis, timeSeries, seriesPlatforms, platformSplit, leaderboard, currency } = data;
+  /* One colour per platform for both charts, handed out biggest first, so the
+     platform with the most views keeps its brand colour if two would clash. */
+  const colorOrder = [...platformSplit.map((p) => p.platform), ...seriesPlatforms.filter((k) => !platformSplit.some((p) => p.platform === k))];
+  const colorList = platformColorsFor(colorOrder);
+  const colorOf = (platform: string) => colorList[colorOrder.indexOf(platform)] ?? colorList[0];
   /* Stacked areas draw every series, so a platform with no views still paints
      its stroke along the top of the stack -- a TikTok-only campaign showed a
      green "YouTube" line (measured on the misery - pupsies report). Only
      platforms that actually have views get an area and a legend entry. */
-  const activeSeries = seriesFor(seriesPlatforms).filter((s) =>
+  const activeSeries = seriesFor(seriesPlatforms, colorOf).filter((s) =>
     timeSeries.some((row) => Number(row[s.key] ?? 0) > 0)
   );
   /* Engagement exists only for posts we fetched ourselves, so the column is
@@ -162,7 +169,6 @@ export default function SharedPerformanceReport({
   const cover = coverBroken ? null : shareImgSrc(token, data.audio?.coverUrl ?? null, 302);
   const hasSplit = platformSplit.some((p) => p.views > 0);
   const slices = platformSplit.filter((p) => p.views > 0);
-  const sliceColors = pieColorsFor(slices.map((p) => p.platform));
   const dates = dateFormatsFor(timeSeries);
   const showBoard = visibility.showCreators && leaderboard.length > 0;
 
@@ -239,7 +245,13 @@ export default function SharedPerformanceReport({
                 {/* The three the reference leads with, in its order. A counter no
                     post has measured has no tile at all -- printing "Total Eng. 0"
                     to a brand would claim a measurement nobody ever took. */}
-                <div className="spr-tiles">
+                {/* Four tiles in a column this width auto-fit three to a row
+                    and stranded the fourth under them; two by two keeps the
+                    grid square and gives the views note room to finish. */}
+                <div
+                  className="spr-tiles"
+                  style={kpis.engagementRate !== null && kpis.engagements !== null ? { gridTemplateColumns: "repeat(2, minmax(0, 1fr))" } : undefined}
+                >
                   {/* The count was only in the Posts section at the foot of the
                       page, three screens down on a phone, so a client reading
                       the summary saw views with no idea how many posts made them. */}
@@ -265,29 +277,26 @@ export default function SharedPerformanceReport({
                       <Tooltip
                         labelFormatter={(l) => dates.label(String(l))}
                         formatter={(v: unknown) => formatNumber(Number(v ?? 0))}
-                        contentStyle={{ background: "var(--spr-card)", border: "1px solid var(--spr-hairline)", borderRadius: 12, fontSize: 13, color: "var(--spr-ink)" }}
+                        contentStyle={TOOLTIP_STYLE}
+                        itemStyle={TOOLTIP_ITEM_STYLE}
                       />
-                      <Legend wrapperStyle={{ fontSize: 12, color: "var(--spr-label)" }} />
-                      {activeSeries.map((s, i) => (
+                      <Legend iconType="square" iconSize={10} wrapperStyle={{ fontSize: 12 }} formatter={legendLabel} />
+                      {activeSeries.map((s) => (
                         <Area
                           isAnimationActive={false}
                           key={s.key}
                           type="monotone"
                           dataKey={s.key}
                           name={platformLabel(s.key)}
-                          /* Solid, as the reference draws it. The app's light and
-                             dark themes dash series 2-5 so greys can be told apart,
-                             and that rule reached this chart as a dotted line along
-                             the top of the stack; it stands down for any series
-                             that sets its own dash. */
+                          /* Solid. The app's light and dark themes dash series 2-5
+                             so their greys can be told apart, and that rule reached
+                             this chart as a dotted line along the top of the stack;
+                             it stands down for any series that sets its own dash. */
                           strokeDasharray="0"
                           stackId="views"
-                          /* Every band but the topmost carries the lighter
-                             separator the reference draws at its top edge; the
-                             topmost strokes with its own fill, because the
-                             reference's stack meets the card ground with no
-                             lighter line above it. */
-                          stroke={chartStrokeFor(i, activeSeries.length)}
+                          /* Stroked in its own colour, so a platform too small to
+                             show a band at this scale still draws a line. */
+                          stroke={s.color}
                           fill={s.color}
                           fillOpacity={1}
                           strokeWidth={2}
@@ -331,8 +340,8 @@ export default function SharedPerformanceReport({
                           stroke="var(--spr-card)"
                           strokeWidth={slices.length > 1 ? 2 : 0}
                         >
-                          {slices.map((entry, i) => (
-                            <Cell key={entry.platform} fill={sliceColors[i]} />
+                          {slices.map((entry) => (
+                            <Cell key={entry.platform} fill={colorOf(entry.platform)} />
                           ))}
                         </Pie>
                         <Tooltip
@@ -343,11 +352,8 @@ export default function SharedPerformanceReport({
                               platformLabel(item?.payload?.platform),
                             ];
                           }}
-                          contentStyle={{ background: "var(--spr-card)", border: "1px solid var(--spr-hairline)", borderRadius: 12, fontSize: 13, color: "var(--spr-ink)" }}
-                          /* Recharts inks each row in its slice's fill, which is
-                             a pale brand colour or a grey; the swatch beside it in
-                             the legend below already says which slice it is. */
-                          itemStyle={{ color: "var(--spr-ink)" }}
+                          contentStyle={TOOLTIP_STYLE}
+                          itemStyle={TOOLTIP_ITEM_STYLE}
                         />
                       </PieChart>
                     </ChartFrame>
@@ -357,10 +363,9 @@ export default function SharedPerformanceReport({
                         one whose views are not known yet and so has no slice. */}
                     <ul className="spr-split">
                       {platformSplit.map((p) => {
-                        const i = slices.indexOf(p);
                         return (
                           <li key={p.platform} className="spr-split-row">
-                            <span className="spr-split-swatch" style={{ background: i >= 0 ? sliceColors[i] : "var(--spr-hairline)" }} aria-hidden="true" />
+                            <span className="spr-split-swatch" style={{ background: p.views > 0 ? colorOf(p.platform) : "var(--spr-hairline)" }} aria-hidden="true" />
                             <span className="spr-split-name">{platformLabel(p.platform)}</span>
                             <span className="spr-split-figure">{p.views > 0 ? `${formatNumber(p.views)} views` : "Views not known yet"}</span>
                             <span className="spr-split-figure">{p.posts} post{p.posts === 1 ? "" : "s"}</span>

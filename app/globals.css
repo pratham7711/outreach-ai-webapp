@@ -7953,9 +7953,9 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   --spr-hairline: rgba(0, 0, 0, 0.08);
   --spr-hairline-dark: rgba(255, 255, 255, 0.14);
   --spr-grid: rgba(0, 0, 0, 0.10);
-  /* Chart axis labels. Sampled straight off the reference's chart canvas, and
-     the same grey its audio card spends on the same job. */
-  --spr-chart-axis: #AEB9C2;
+  /* Chart axis labels. The reference's own #AEB9C2 is 2.0:1 on the white card,
+     too faint to read a 12px date on a phone; this is 5.1:1. */
+  --spr-chart-axis: #6E6E6E;
   --spr-r-card: 20px;
   --spr-r-pill: 10px;
   --spr-r-thumb: 5px;
@@ -7982,7 +7982,8 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   --spr-audio-sound-bg: #848484;
   --spr-audio-area: #7F7F7F;
   --spr-audio-line: #000000;
-  --spr-audio-axis: #AEB9C2;
+  /* Not the reference's #AEB9C2 (2.0:1): the same readable grey as the views chart. */
+  --spr-audio-axis: var(--spr-chart-axis);
 
   display: flex;
   flex-direction: column;
@@ -10968,6 +10969,20 @@ a.cc-platform-chip[data-problem]:hover {
   cursor: pointer;
 }
 .cc-feedback-fab:hover { border-color: var(--cc-primary); color: var(--cc-primary); }
+/* On a phone the labelled pill sat over the right-hand column of whatever was
+   under it -- a creator's views on the client report. Once the page is
+   scrolled it drops to its icon; back at the top the label returns. */
+@media (max-width: 767.98px) {
+  .cc-feedback-fab-compact { padding: 10px; gap: 0; }
+  .cc-feedback-fab-compact .cc-feedback-fab-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
 .cc-feedback-fab:disabled { cursor: progress; opacity: 0.8; }
 /* The creator portal's phone tab bar is ~57px plus the safe area. */
 @media (max-width: 1023.98px) {
