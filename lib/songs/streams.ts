@@ -108,11 +108,12 @@ function noteFor(newest: StreamRow | undefined): string {
  * card is on a campaign with no sound.
  */
 export async function loadCampaignStreams(campaignId: string, orgId: string): Promise<CampaignStreams | null> {
-  const campaign = await db.campaign.findFirst({
-    where: { id: campaignId, orgId },
-    select: { status: true, song: { select: { id: true, title: true, deletedAt: true } } },
+  const campaign = await db.campaign.findUnique({
+    where: { id: campaignId },
+    select: { orgId: true, status: true, song: { select: { id: true, title: true, deletedAt: true } } },
   });
-  const song = campaign?.song;
+  if (!campaign || campaign.orgId !== orgId) return null;
+  const song = campaign.song;
   if (!song || song.deletedAt) return null;
 
   let rows: StreamRow[];

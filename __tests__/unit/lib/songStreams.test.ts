@@ -6,7 +6,16 @@
  * where that difference would lie: a missed day, a count that went down, and a
  * song that was matched to a different track part-way through.
  */
-import { streamFigures, type StreamRow } from "@/lib/songs/streams";
+const mockCampaign = jest.fn();
+const mockReadings = jest.fn();
+jest.mock("@/lib/db", () => ({
+  db: {
+    campaign: { findUnique: (...a: unknown[]) => mockCampaign(...a) },
+    songStreamSnapshot: { findMany: (...a: unknown[]) => mockReadings(...a) },
+  },
+}));
+
+import { loadCampaignStreams, streamFigures, type StreamRow } from "@/lib/songs/streams";
 
 const A = "0AbCdEfGhIjKlMnOpQrStU";
 const B = "1ZyXwVuTsRqPoNmLkJiHgF";
@@ -82,5 +91,58 @@ describe("streamFigures", () => {
   it("keeps counts past 2^31 exact", () => {
     const out = streamFigures([r("2026-10-15", 5_631_276_067), r("2026-10-16", 5_632_000_000)]);
     expect(out.lastDay).toBe(723_933);
+  });
+});
+
+describe("loadCampaignStreams", () => {
+  const camp = (over: Record<string, unknown> = {}) => ({
+    orgId: "org-1",
+    status: "IN_PROGRESS",
+    song: { id: "song-1", title: "Neon Skyline", deletedAt: null },
+    ...over,
+  });
+  beforeEach(() => {
+    mockCampaign.mockReset();
+    mockReadings.mockReset();
+  });
+
+  it("answers null for another org's campaign without reading its song", async () => {
+    mockCampaign.mockResolvedValue(camp({ orgId: "org-2" }));
+    expect(await loadCampaignStreams("camp-1", "org-1")).toBeNull();
+    expect(mockReadings).not.toHaveBeenCalled();
+  });
+
+  it("answers null for a campaign with no song, or a deleted one", async () => {
+    mockCampaign.mockResolvedValue(camp({ song: null }));
+    expect(await loadCampaignStreams("camp-1", "org-1")).toBeNull();
+    mockCampaign.mockResolvedValue(camp({ song: { id: "song-1", title: "x", deletedAt: new Date() } }));
+    expect(await loadCampaignStreams("camp-1", "org-1")).toBeNull();
+  });
+
+  it("reads only the song's rows in the campaign's org", async () => {
+    mockCampaign.mockResolvedValue(camp());
+    mockReadings.mockResolvedValue([]);
+    await loadCampaignStreams("camp-1", "org-1");
+    expect(mockReadings.mock.calls[0][0].where).toEqual({ songId: "song-1", orgId: "org-1" });
+  });
+
+  it("says the first reading is still to come on an open campaign, and shows nothing on a closed one", async () => {
+    mockReadings.mockResolvedValue([]);
+    mockCampaign.mockResolvedValue(camp());
+    expect((await loadCampaignStreams("camp-1", "org-1"))?.note).toMatch(/first reading has not happened yet/);
+    mockCampaign.mockResolvedValue(camp({ status: "COMPLETE" }));
+    expect(await loadCampaignStreams("camp-1", "org-1")).toBeNull();
+  });
+
+  it("says no track was found when the day's row has no track", async () => {
+    mockCampaign.mockResolvedValue(camp());
+    mockReadings.mockResolvedValue([r("2026-10-15", null, { spotifyTrackId: null, failure: "no Spotify track with this title and artist" })]);
+    expect((await loadCampaignStreams("camp-1", "org-1"))?.note).toMatch(/No Spotify track found/);
+  });
+
+  it("answers null while the table does not exist", async () => {
+    mockCampaign.mockResolvedValue(camp());
+    mockReadings.mockRejectedValue(Object.assign(new Error('relation "SongStreamSnapshot" does not exist'), { code: "P2021" }));
+    expect(await loadCampaignStreams("camp-1", "org-1")).toBeNull();
   });
 });

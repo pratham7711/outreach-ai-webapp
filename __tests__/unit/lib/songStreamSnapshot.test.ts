@@ -64,6 +64,20 @@ it("opens no browser and reads nothing while the table does not exist", async ()
   expect(mockUpsert).not.toHaveBeenCalled();
 });
 
+it("still reads on a dry run before the table exists, so Spotify can be checked first, and writes nothing", async () => {
+  const missing = Object.assign(new Error('relation "SongStreamSnapshot" does not exist'), { code: "P2021" });
+  const withoutReadings: Record<string, unknown> = dueSong();
+  delete withoutReadings.streamReadings;
+  mockFindMany.mockRejectedValueOnce(missing).mockResolvedValueOnce([withoutReadings]);
+  const r = reader();
+  const out = await run(r, { dryRun: true });
+  expect(out).toMatchObject({ tableReady: false, dryRun: true, due: 1, read: 1 });
+  expect(r.search).toHaveBeenCalledTimes(1);
+  expect(mockUpsert).not.toHaveBeenCalled();
+  // The second read cannot name the missing relation, or it would fail the same way.
+  expect(JSON.stringify(mockFindMany.mock.calls[1][0])).not.toContain("streamReadings");
+});
+
 it("opens no browser when no song is due", async () => {
   mockFindMany.mockResolvedValue([]);
   const out = await snapshotSongStreams({ nowMs: NOW });

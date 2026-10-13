@@ -19,8 +19,9 @@ import { isMissingSongStreamTable } from "./streamSnapshotDdl";
  * time gets finished: the second pass sees the first one's rows and reads
  * nothing twice.
  *
- * Before the table exists this returns without opening a browser: deploying
- * the code first makes no Spotify call at all.
+ * Before the table exists the cron returns without opening a browser:
+ * deploying the code first makes no Spotify call at all. Only the admin dry run
+ * (app/api/admin/song-streams) reads then, and it stores nothing.
  */
 
 export const OPEN_CAMPAIGN_STATUSES = ["PENDING", "IN_PROGRESS"] as const;
@@ -102,6 +103,59 @@ async function readSong(
   };
 }
 
+type DueSong = {
+  id: string;
+  orgId: string;
+  title: string;
+  artist: string | null;
+  isrc: string | null;
+  updatedAt: Date;
+  sound: { artist: string | null } | null;
+  streamReadings: { spotifyTrackId: string | null; recordedAt: Date }[];
+};
+
+const OPEN_CAMPAIGN = { some: { deletedAt: null, status: { in: [...OPEN_CAMPAIGN_STATUSES] } } };
+const DUE_SONG_FIELDS = {
+  id: true,
+  orgId: true,
+  title: true,
+  artist: true,
+  isrc: true,
+  updatedAt: true,
+  sound: { select: { artist: true } },
+} as const;
+
+/**
+ * Songs on an open campaign with no reading today. `withReadings: false` is
+ * the same list for a database without the readings table, where every song
+ * is due and none has a known track.
+ */
+async function dueSongs(day: Date, limit: number, withReadings: boolean): Promise<DueSong[]> {
+  if (!withReadings) {
+    const songs = await db.song.findMany({
+      where: { deletedAt: null, campaigns: OPEN_CAMPAIGN },
+      select: DUE_SONG_FIELDS,
+      orderBy: { id: "asc" },
+      take: limit,
+    });
+    return songs.map((song) => ({ ...song, streamReadings: [] }));
+  }
+  return db.song.findMany({
+    where: { deletedAt: null, campaigns: OPEN_CAMPAIGN, streamReadings: { none: { day } } },
+    select: {
+      ...DUE_SONG_FIELDS,
+      streamReadings: {
+        where: { spotifyTrackId: { not: null } },
+        orderBy: { day: "desc" },
+        take: 1,
+        select: { spotifyTrackId: true, recordedAt: true },
+      },
+    },
+    orderBy: { id: "asc" },
+    take: limit,
+  });
+}
+
 export async function snapshotSongStreams(options: StreamSweepOptions = {}): Promise<StreamSweepResult> {
   const log = createLogger({ context: { job: "snapshot-song-streams" } });
   const nowMs = options.nowMs ?? Date.now();
@@ -127,35 +181,18 @@ export async function snapshotSongStreams(options: StreamSweepOptions = {}): Pro
     result.failures[reason] = (result.failures[reason] ?? 0) + 1;
   };
 
-  let due;
+  let due: DueSong[];
   try {
-    due = await db.song.findMany({
-      where: {
-        deletedAt: null,
-        campaigns: { some: { deletedAt: null, status: { in: [...OPEN_CAMPAIGN_STATUSES] } } },
-        streamReadings: { none: { day } },
-      },
-      select: {
-        id: true,
-        orgId: true,
-        title: true,
-        artist: true,
-        isrc: true,
-        updatedAt: true,
-        sound: { select: { artist: true } },
-        streamReadings: {
-          where: { spotifyTrackId: { not: null } },
-          orderBy: { day: "desc" },
-          take: 1,
-          select: { spotifyTrackId: true, recordedAt: true },
-        },
-      },
-      orderBy: { id: "asc" },
-      take: limit,
-    });
+    due = await dueSongs(day, limit, true);
   } catch (e) {
-    if (isMissingSongStreamTable(e)) return { ...result, tableReady: false };
-    throw e;
+    if (!isMissingSongStreamTable(e)) throw e;
+    /* Before the table exists the cron reads nothing: a reading it cannot
+       store is a wasted visit to Spotify every day. A dry run still reads,
+       because checking that Spotify answers from production is what it is
+       for, and that check has to come before the table is created. */
+    if (!dryRun) return { ...result, tableReady: false };
+    result.tableReady = false;
+    due = await dueSongs(day, limit, false);
   }
   result.due = due.length;
   if (!due.length) return result;

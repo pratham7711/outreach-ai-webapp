@@ -29,7 +29,7 @@ jest.mock("@/lib/db", () => ({
       return Promise.resolve([postRow]);
     }),
     activation: { findMany: jest.fn().mockResolvedValue([]) },
-    campaign: { findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn().mockResolvedValue(null) },
+    campaign: { findUnique: jest.fn().mockResolvedValue(null) },
     soundTrackerSnapshot: { findMany: jest.fn().mockResolvedValue([]) },
   },
 }));
