@@ -58,6 +58,8 @@ type PostDetail = {
   platformPostId: string;
   postUrl: string;
   thumbnailUrl: string | null;
+  /** Our own copy of the picture (lib/posts/thumbnailStore), when there is one. */
+  storedThumbnail?: string | null;
   caption: string | null;
   mediaType: string | null;
   postedAt: string;
@@ -477,7 +479,7 @@ export default function PostDetailPage() {
 
   const embedSrc = embedSrcFor(post.platform, post.platformPostId, post.postUrl);
   // Not the raw CDN URL: TikTok's thumbnail hosts are blocked on some networks.
-  const thumb = imgSrc(postThumbnailUrl(post), 240, 160);
+  const thumb = imgSrc(post.storedThumbnail ?? postThumbnailUrl(post), 240, 160);
 
   /* postEngagementPercent, the one per-post rate: the same number the Posts
      tab card and list, Performance, the share link and the exports print. As a

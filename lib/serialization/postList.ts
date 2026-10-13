@@ -29,7 +29,7 @@
 import { outreach } from "./postList.generated.js";
 import { snapshotViewsKnown } from "@/lib/metricDisplay";
 import { viewsReadAt } from "@/lib/posts/fieldFreshness";
-import { postThumbnailUrl } from "@/lib/postMedia";
+import { postThumbnailPath, postThumbnailUrl } from "@/lib/postMedia";
 
 const PostListMessage = outreach.postlist.v1.PostList;
 
@@ -182,6 +182,15 @@ function provenanceFrom(platformMetrics: unknown): PlatformMetricsDto {
 }
 
 /**
+ * Our stored copy of the post's picture, when the route found one
+ * (`storedThumbnailAt`, from lib/posts/thumbnailStore#storedThumbnailVersions).
+ * It goes first because the CDN link it stands in for is signed and expires;
+ * after it come the stored link and then YouTube's fixed address.
+ */
+const storedThumbnail = (row: PostRow): string | null =>
+  typeof row.storedThumbnailAt === "number" ? postThumbnailPath(str(row.id), row.storedThumbnailAt) : null;
+
+/**
  * The single definition of what one post looks like on the wire.
  *
  * Both transports go through here, so the protobuf path can never carry a
@@ -197,7 +206,7 @@ export function toPostDto(row: PostRow, hasOpenFraudFlag: boolean, complianceFla
     platform: str(row.platform),
     platformPostId: str(row.platformPostId),
     postUrl: str(row.postUrl),
-    thumbnailUrl: postThumbnailUrl({
+    thumbnailUrl: storedThumbnail(row) ?? postThumbnailUrl({
       platform: str(row.platform),
       platformPostId: strOrNull(row.platformPostId),
       postUrl: strOrNull(row.postUrl),

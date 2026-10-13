@@ -40,6 +40,7 @@ import {
   POST_LIST_CONTENT_TYPE,
 } from "@/lib/serialization/postList";
 import { removablePostIds } from "@/lib/posts/bulkActions";
+import { storedThumbnailVersions } from "@/lib/posts/thumbnailStore";
 
 const PLATFORMS = PLATFORM_VALUES;
 // One list, shared with the detector -- two copies would be free to disagree
@@ -167,7 +168,13 @@ export async function GET(
        month or in a running campaign is read without one, and a tracker whose
        window has closed is not read though its column is still on until the
        seal lands. Same rule as the cron (postCoverage), same org cadence. */
-    const org = await db.organization.findUnique({ where: { id: orgId }, select: { uiConfig: true } });
+    /* Beside it, which posts have our own copy of their picture
+       (lib/posts/thumbnailStore). Never throws: without it every card keeps
+       its stored link, as before. */
+    const [org, storedThumbs] = await Promise.all([
+      db.organization.findUnique({ where: { id: orgId }, select: { uiConfig: true } }),
+      storedThumbnailVersions(posts.map((p) => p.id), orgId),
+    ]);
     const granularity = parsePostTracking(org?.uiConfig ?? null);
     const campaignLive = isLiveCampaign(campaign);
     const now = new Date();
@@ -185,7 +192,7 @@ export async function GET(
         postedAt: p.postedAt,
         campaignLive,
       });
-      return toPostDto({ ...p, ...view }, flaggedPostIds.has(p.id), checkPostCompliance(p, campaign));
+      return toPostDto({ ...p, ...view, storedThumbnailAt: storedThumbs.get(p.id) }, flaggedPostIds.has(p.id), checkPostCompliance(p, campaign));
     });
 
     /* Protobuf only when asked for by name, so every existing caller -- and any
