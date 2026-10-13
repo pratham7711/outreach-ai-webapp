@@ -13,7 +13,7 @@ jest.mock('@/lib/db', () => ({
     $queryRaw: jest.fn(),
     creatorSocialAccount: { findFirst: jest.fn() },
     activation: { findFirst: jest.fn() },
-    post: { findMany: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
+    post: { findMany: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn(), count: jest.fn() },
     viewFraudFlag: { findMany: jest.fn() },
     organization: { findUnique: jest.fn() },
   },
@@ -107,6 +107,7 @@ beforeEach(() => {
   // The duplicate check runs on every add, so "no post looks like this one" is
   // the default every case here starts from.
   mockDb.post.findMany.mockResolvedValue([]);
+  mockDb.post.count.mockResolvedValue(0);
   mockDb.viewFraudFlag.findMany.mockResolvedValue([]);
 });
 
@@ -267,6 +268,85 @@ describe('GET /api/campaigns/[id]/posts', () => {
     ]);
     const body = await (await GET(makeRequest('http://localhost/api/campaigns/camp-1/posts'), makeParams('camp-1'))).json();
     expect(body.posts[0]).toMatchObject({ trackingEnabled: true, trackingSource: 'campaign', trackingExpiresAt: null });
+  });
+});
+
+describe('GET /api/campaigns/[id]/posts — the Removed view', () => {
+  it('lists only the posts still in the campaign, and says how many are under Removed', async () => {
+    mockDb.post.count.mockResolvedValue(3);
+    const body = await (await GET(makeRequest('http://localhost/api/campaigns/camp-1/posts'), makeParams('camp-1'))).json();
+    expect(mockDb.post.findMany.mock.calls[0][0].where).toEqual({ campaignId: 'camp-1', removedAt: null });
+    expect(mockDb.post.count.mock.calls[0][0].where).toEqual({ campaignId: 'camp-1', removedAt: { not: null } });
+    expect(body).toMatchObject({ removed: false, removedCount: 3 });
+  });
+
+  it('lists only the removed posts with ?removed=1, inside the session org\'s campaign', async () => {
+    const body = await (
+      await GET(makeRequest('http://localhost/api/campaigns/camp-1/posts?removed=1&platform=TIKTOK'), makeParams('camp-1'))
+    ).json();
+    expect(mockDb.campaign.findFirst.mock.calls[0][0].where).toMatchObject({ id: 'camp-1', orgId: 'org-1', deletedAt: null });
+    expect(mockDb.post.findMany.mock.calls[0][0].where).toEqual({
+      campaignId: 'camp-1',
+      removedAt: { not: null },
+      platform: 'TIKTOK',
+    });
+    expect(body).toMatchObject({ removed: true, removedCount: 0 });
+  });
+
+  it('still answers the list when the count fails, with the count unknown rather than 0', async () => {
+    mockDb.post.count.mockRejectedValue(new Error('connection reset'));
+    const res = await GET(makeRequest('http://localhost/api/campaigns/camp-1/posts'), makeParams('camp-1'));
+    expect(res.status).toBe(200);
+    expect((await res.json()).removedCount).toBeNull();
+  });
+});
+
+describe('POST /api/campaigns/[id]/posts — adding back a removed post', () => {
+  const addReq = () =>
+    makeRequest('http://localhost/api/campaigns/camp-1/posts', {
+      method: 'POST',
+      body: JSON.stringify({ postUrl: 'https://youtube.com/watch?v=abc123', creatorId: 'c1' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+  const removedCopy = {
+    id: 'post-old',
+    campaignId: 'camp-1',
+    removedAt: new Date('2026-10-01T00:00:00.000Z'),
+    campaign: { title: 'This One' },
+    creator: { id: 'c1', name: 'Jane', handle: '@jane' },
+  };
+
+  it('restores the removed row instead of creating a second one', async () => {
+    mockDb.post.findMany.mockResolvedValue([removedCopy]);
+    mockDb.post.updateMany.mockResolvedValue({ count: 1 });
+    mockDb.post.findUnique.mockResolvedValue({ id: 'post-old', viewsCount: 1200, creator: { id: 'c1', handle: '@jane' } });
+
+    const res = await POST(addReq(), makeParams('camp-1'));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ id: 'post-old', viewsCount: 1200, restored: true });
+    expect(mockDb.post.updateMany).toHaveBeenCalledWith({
+      where: { id: 'post-old', campaignId: 'camp-1', removedAt: { not: null } },
+      data: { removedAt: null, removedById: null },
+    });
+    expect(mockDb.post.create).not.toHaveBeenCalled();
+    expect(fetchPostMetrics).not.toHaveBeenCalled();
+  });
+
+  it('still refuses the add when a live copy is in the campaign beside the removed one', async () => {
+    mockDb.post.findMany.mockResolvedValue([removedCopy, { ...removedCopy, id: 'post-live', removedAt: null }]);
+    const res = await POST(addReq(), makeParams('camp-1'));
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe('duplicate_post');
+    expect(mockDb.post.updateMany).not.toHaveBeenCalled();
+    expect(mockDb.post.create).not.toHaveBeenCalled();
+  });
+
+  it('adds a new row when the removed copy was in another campaign', async () => {
+    mockDb.post.findMany.mockResolvedValue([{ ...removedCopy, campaignId: 'camp-2', campaign: { title: 'Other' } }]);
+    mockDb.post.create.mockResolvedValue({ id: 'post-new', platform: 'YOUTUBE', creator: { id: 'c1', name: 'Jane' } });
+    const res = await POST(addReq(), makeParams('camp-1'));
+    expect(res.status).toBe(201);
+    expect(mockDb.post.updateMany).not.toHaveBeenCalled();
   });
 });
 

@@ -150,15 +150,32 @@ describe("campaign activity feed phrasing", () => {
     expect(userFindMany).not.toHaveBeenCalled();
   });
 
-  it("exports exactly the six actions the route filters on", () => {
+  it("exports exactly the eight actions the route filters on", () => {
     expect([...FEED_ACTIONS]).toEqual([
       "activation.create",
       "activation.update",
       "post.create",
       "post.bulk_create",
       "post.delete",
+      "post.remove",
+      "post.restore",
       "campaign.update",
     ]);
+  });
+
+  it("words a remove and a restore as such, not as a delete", async () => {
+    const events = await buildActivityFeed(
+      [
+        log({ id: "r1", action: "post.remove", metadata: { campaignId: "cam1", batch: 1 } }),
+        log({ id: "r2", action: "post.restore", metadata: { campaignId: "cam1", batch: 1 } }),
+      ],
+      [],
+    );
+    const byId = Object.fromEntries(events.map((e) => [e.id, e]));
+    expect(byId.r1.glyph).toBe("🗑️");
+    expect(byId.r1.text).toBe("A post has been removed by Alex Turner");
+    expect(byId.r2.glyph).toBe("↩️");
+    expect(byId.r2.text).toBe("A post has been restored by Alex Turner");
   });
 
   it("humanises enum statuses", () => {

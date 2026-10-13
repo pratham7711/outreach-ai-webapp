@@ -4,17 +4,20 @@
  * Remove from campaign (DELETE /api/campaigns/[id]/posts): org- and
  * scope-checked like adding a post, all or nothing, refused when earnings are
  * recorded against a post, and one audit line per removed post.
+ *
+ * The remove is soft: it stamps removedAt/removedById and deletes nothing --
+ * not the row, not its fraud flags, not its readings -- so the toast's Undo and
+ * the Removed view's Restore can bring the post back whole.
  */
 import { NextRequest } from "next/server";
 
-const mockTx = jest.fn();
 jest.mock("@/lib/db", () => ({
   db: {
     campaign: { findFirst: jest.fn() },
-    post: { findMany: jest.fn(), deleteMany: jest.fn((args: unknown) => ({ op: "post.deleteMany", args })) },
+    post: { findMany: jest.fn(), updateMany: jest.fn(), deleteMany: jest.fn() },
     viewLedger: { findMany: jest.fn() },
-    viewFraudFlag: { deleteMany: jest.fn((args: unknown) => ({ op: "viewFraudFlag.deleteMany", args })) },
-    $transaction: (...args: unknown[]) => mockTx(...args),
+    viewFraudFlag: { deleteMany: jest.fn() },
+    $transaction: jest.fn(),
   },
 }));
 jest.mock("@/lib/auth", () => ({ auth: jest.fn() }));
@@ -24,16 +27,24 @@ import { DELETE } from "@/app/api/campaigns/[id]/posts/route";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
-import { MAX_BULK_ACTION_POSTS, removeConfirmText, removePostsSummary, removablePostIds } from "@/lib/posts/bulkActions";
+import {
+  MAX_BULK_ACTION_POSTS,
+  removeConfirmText,
+  removePostsSummary,
+  removePostsUndoHint,
+  removablePostIds,
+  restorePostsSummary,
+} from "@/lib/posts/bulkActions";
 
 const mdb = db as unknown as {
   campaign: { findFirst: jest.Mock };
-  post: { findMany: jest.Mock; deleteMany: jest.Mock };
+  post: { findMany: jest.Mock; updateMany: jest.Mock; deleteMany: jest.Mock };
   viewLedger: { findMany: jest.Mock };
   viewFraudFlag: { deleteMany: jest.Mock };
+  $transaction: jest.Mock;
 };
 
-const post = (id: string) => ({
+const post = (id: string, removedAt: Date | null = null) => ({
   id,
   postUrl: `https://www.tiktok.com/@walk/video/${id}`,
   platform: "TIKTOK",
@@ -41,6 +52,7 @@ const post = (id: string) => ({
   creatorId: "cr-1",
   status: "PENDING_REVIEW",
   viewsCount: 10,
+  removedAt,
   creator: { handle: "@walk" },
 });
 
@@ -57,31 +69,56 @@ beforeEach(() => {
   mdb.campaign.findFirst.mockResolvedValue({ id: "camp-9", title: "C" });
   mdb.post.findMany.mockResolvedValue([post("p1"), post("p2")]);
   mdb.viewLedger.findMany.mockResolvedValue([]);
-  mockTx.mockResolvedValue([{ count: 0 }, { count: 2 }]);
+  mdb.post.updateMany.mockResolvedValue({ count: 2 });
 });
 
 describe("DELETE /api/campaigns/[id]/posts", () => {
-  it("removes the posts and their fraud flags in one transaction, scoped to the campaign and org", async () => {
+  it("stamps the posts removed, scoped to the campaign and org, and deletes nothing", async () => {
     const res = await del({ postIds: ["p1", "p2", "p1"] });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ removed: 2 });
+    expect(await res.json()).toEqual({ removed: 2, postIds: ["p1", "p2"] });
 
     expect(mdb.campaign.findFirst.mock.calls[0][0].where).toMatchObject({ id: "camp-9", orgId: "org-1", deletedAt: null });
     expect(mdb.post.findMany.mock.calls[0][0].where).toEqual({ id: { in: ["p1", "p2"] }, campaignId: "camp-9" });
-    const [ops] = mockTx.mock.calls[0];
-    expect(ops).toEqual([
-      { op: "viewFraudFlag.deleteMany", args: { where: { orgId: "org-1", campaignId: "camp-9", postId: { in: ["p1", "p2"] } } } },
-      { op: "post.deleteMany", args: { where: { id: { in: ["p1", "p2"] }, campaignId: "camp-9" } } },
-    ]);
+    expect(mdb.post.updateMany).toHaveBeenCalledTimes(1);
+    const { where, data } = mdb.post.updateMany.mock.calls[0][0];
+    expect(where).toEqual({ id: { in: ["p1", "p2"] }, campaignId: "camp-9", removedAt: null });
+    expect(data).toEqual({ removedAt: expect.any(Date), removedById: "u-1" });
+
+    // The readings, flags and row all stay, for the Undo.
+    expect(mdb.post.deleteMany).not.toHaveBeenCalled();
+    expect(mdb.viewFraudFlag.deleteMany).not.toHaveBeenCalled();
+    expect(mdb.$transaction).not.toHaveBeenCalled();
   });
 
-  it("writes one post.delete audit line per post, keeping the URL", async () => {
+  it("is idempotent: an already-removed post is neither restamped, counted nor handed to Undo", async () => {
+    const earlier = new Date("2026-10-01T00:00:00.000Z");
+    mdb.post.findMany.mockResolvedValue([post("p1", earlier), post("p2")]);
+    mdb.post.updateMany.mockResolvedValue({ count: 1 });
+    const res = await del({ postIds: ["p1", "p2"] });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ removed: 1, postIds: ["p2"] });
+    expect(mdb.post.updateMany.mock.calls[0][0].where.id).toEqual({ in: ["p2"] });
+    expect(logAudit).toHaveBeenCalledTimes(1);
+    expect(logAudit).toHaveBeenCalledWith(expect.objectContaining({ entityId: "p2" }));
+  });
+
+  it("writes nothing when every post was already removed", async () => {
+    mdb.post.findMany.mockResolvedValue([post("p1", new Date())]);
+    const res = await del({ postIds: ["p1"] });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ removed: 0, postIds: [] });
+    expect(mdb.post.updateMany).not.toHaveBeenCalled();
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+
+  it("writes one post.remove audit line per post, keeping the URL", async () => {
     await del({ postIds: ["p1", "p2"] });
     expect(logAudit).toHaveBeenCalledTimes(2);
     expect(logAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         orgId: "org-1",
-        action: "post.delete",
+        action: "post.remove",
         entityType: "post",
         entityId: "p1",
         metadata: { campaignId: "camp-9", batch: 2 },
@@ -95,19 +132,19 @@ describe("DELETE /api/campaigns/[id]/posts", () => {
     expect((await del({ postIds: ["p1"] })).status).toBe(401);
     (auth as jest.Mock).mockResolvedValueOnce({ user: { id: "u-2", orgId: "org-1", role: "VIEWER" } });
     expect((await del({ postIds: ["p1"] })).status).toBe(403);
-    expect(mockTx).not.toHaveBeenCalled();
+    expect(mdb.post.updateMany).not.toHaveBeenCalled();
   });
 
   it("answers 404 for a campaign outside the caller's org or scope", async () => {
     mdb.campaign.findFirst.mockResolvedValue(null);
     expect((await del({ postIds: ["p1"] })).status).toBe(404);
-    expect(mockTx).not.toHaveBeenCalled();
+    expect(mdb.post.updateMany).not.toHaveBeenCalled();
   });
 
   it("is all or nothing when an id is not a post of this campaign", async () => {
     mdb.post.findMany.mockResolvedValue([post("p1")]);
     expect((await del({ postIds: ["p1", "elsewhere"] })).status).toBe(404);
-    expect(mockTx).not.toHaveBeenCalled();
+    expect(mdb.post.updateMany).not.toHaveBeenCalled();
   });
 
   it("refuses to remove a post with earnings recorded, naming which", async () => {
@@ -116,7 +153,7 @@ describe("DELETE /api/campaigns/[id]/posts", () => {
     expect(res.status).toBe(409);
     expect(await res.json()).toMatchObject({ code: "has_earnings", postIds: ["p2"] });
     expect(mdb.viewLedger.findMany.mock.calls[0][0].where).toEqual({ orgId: "org-1", campaignId: "camp-9", postId: { in: ["p1", "p2"] } });
-    expect(mockTx).not.toHaveBeenCalled();
+    expect(mdb.post.updateMany).not.toHaveBeenCalled();
     expect(logAudit).not.toHaveBeenCalled();
   });
 
@@ -124,7 +161,7 @@ describe("DELETE /api/campaigns/[id]/posts", () => {
     for (const body of [{}, { postIds: [] }, { postIds: "p1" }, { postIds: Array.from({ length: MAX_BULK_ACTION_POSTS + 1 }, (_, i) => `p${i}`) }]) {
       expect((await del(body)).status).toBe(400);
     }
-    expect(mockTx).not.toHaveBeenCalled();
+    expect(mdb.post.updateMany).not.toHaveBeenCalled();
   });
 });
 
@@ -138,7 +175,19 @@ describe("remove helpers", () => {
   it("names the count in the confirmation and the summary", () => {
     expect(removeConfirmText(1)).toMatchObject({ title: "Remove 1 post from this campaign?", confirmLabel: "Remove 1 post" });
     expect(removeConfirmText(3).title).toBe("Remove 3 posts from this campaign?");
-    expect(removeConfirmText(3).description).toMatch(/can't be undone/);
     expect(removePostsSummary(2)).toBe("Removed 2 posts from this campaign.");
+  });
+
+  it("no longer calls the removal permanent, and says where to get it back", () => {
+    for (const n of [1, 3]) {
+      const { description } = removeConfirmText(n);
+      expect(description).not.toMatch(/can't be undone|cannot be undone|permanent|delete/i);
+      expect(description).toMatch(/undo/i);
+      expect(description).toMatch(/Removed/);
+    }
+    expect(removePostsUndoHint(1)).toBe("Undo now, or restore it later from Removed.");
+    expect(removePostsUndoHint(3)).toBe("Undo now, or restore them later from Removed.");
+    expect(restorePostsSummary(1)).toBe("Restored 1 post to this campaign.");
+    expect(restorePostsSummary(3)).toBe("Restored 3 posts to this campaign.");
   });
 });

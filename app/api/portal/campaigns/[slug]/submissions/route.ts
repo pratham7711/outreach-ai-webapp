@@ -155,13 +155,18 @@ export async function POST(
           ? { OR: [{ platformPostId: detected.id }, { postUrl }] }
           : { platformPostId: detected.id }),
       },
-      select: { id: true, creatorId: true },
+      select: { id: true, creatorId: true, removedAt: true },
     });
+    /* A copy the brand removed from the campaign still counts as the claim
+       (lib/posts/removed): resubmitting it must not slip a second row past the
+       brand's decision. It is not shown to the creator any more, so the
+       refusal says why rather than "you already submitted this". */
     if (duplicate) {
       return NextResponse.json(
         {
-          error:
-            duplicate.creatorId === creator.id
+          error: duplicate.removedAt
+            ? "This post was removed from this campaign by the brand, so it can't be submitted again"
+            : duplicate.creatorId === creator.id
               ? "You already submitted this post to this campaign"
               : "This post has already been submitted to this campaign",
         },

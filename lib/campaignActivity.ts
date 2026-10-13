@@ -22,6 +22,11 @@ export const FEED_ACTIONS = [
   "post.create",
   "post.bulk_create",
   "post.delete",
+  /* Remove from campaign is a soft remove (lib/posts/removed), so it and its
+     undo are their own events. post.delete stays for the rows the hard delete
+     wrote before 2026-10-14. */
+  "post.remove",
+  "post.restore",
   "campaign.update",
 ] as const;
 
@@ -181,6 +186,14 @@ export async function buildActivityFeed(
 
       case "post.delete":
         events.push({ ...base, glyph: "🗑️", text: `A post has been deleted by ${who}` });
+        break;
+
+      case "post.remove":
+        events.push({ ...base, glyph: "🗑️", text: `A post has been removed by ${who}` });
+        break;
+
+      case "post.restore":
+        events.push({ ...base, glyph: "↩️", text: `A post has been restored by ${who}` });
         break;
 
       case "campaign.update": {

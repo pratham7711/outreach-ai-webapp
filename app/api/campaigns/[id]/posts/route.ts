@@ -40,6 +40,7 @@ import {
   POST_LIST_CONTENT_TYPE,
 } from "@/lib/serialization/postList";
 import { removablePostIds } from "@/lib/posts/bulkActions";
+import { NOT_REMOVED, ONLY_REMOVED } from "@/lib/posts/removed";
 
 const PLATFORMS = PLATFORM_VALUES;
 // One list, shared with the detector -- two copies would be free to disagree
@@ -93,10 +94,24 @@ export async function GET(
     const platform = searchParams.get("platform") as (typeof PLATFORMS)[number] | null;
     const mediaType = searchParams.get("mediaType") as (typeof MEDIA_TYPES)[number] | null;
 
-    const where: Record<string, unknown> = { campaignId };
+    /* ?removed=1 is the Posts tab's Removed view: only the posts taken out of
+       the campaign, so they can be restored. Every other read -- this one
+       included, by default -- leaves them out. */
+    const showRemoved = searchParams.get("removed") === "1";
+    const where: Record<string, unknown> = { campaignId, ...(showRemoved ? ONLY_REMOVED : NOT_REMOVED) };
     if (status) where.status = status;
     if (platform) where.platform = platform;
     if (mediaType) where.mediaType = mediaType;
+
+    /* How many are under Removed, so the tab can offer the view only when
+       there is something in it. Served by the (campaignId, removedAt) index.
+       .then() starts it now, beside the list read (a Prisma query is lazy),
+       and a failure only costs the count -- null, which hides nothing the
+       operator already sees. */
+    const removedCountRead = db.post.count({ where: { campaignId, ...ONLY_REMOVED } }).then(
+      (n) => n,
+      () => null,
+    );
 
     /* Name the columns instead of taking the row.
        `include` with no `select` hands back every Post column, which meant this
@@ -207,7 +222,9 @@ export async function GET(
       });
     }
 
-    return NextResponse.json({ posts: dtos });
+    /* `removed` echoes which list this is, so a tab that switched views while
+       the request was in flight can tell a stale answer from the current one. */
+    return NextResponse.json({ posts: dtos, removed: showRemoved, removedCount: await removedCountRead });
   } catch (error) {
     console.error("Failed to fetch posts:", error);
     return NextResponse.json({ error: "Failed to fetch posts" }, { status: 500 });
@@ -253,7 +270,44 @@ export async function POST(
        per-browser web_id -- the same video copied from two browsers produced
        two strings, and the equality check let the second one straight through
        into the campaign's totals. */
-    const existing = await findExistingPosts(orgId, postUrl);
+    const found = await findExistingPosts(orgId, postUrl);
+    /* A copy removed from THIS campaign is brought back rather than added
+       again: a second row would start the post's history from zero beside the
+       one that holds its readings, and Restore on the removed one would then
+       double-count it. Restored as it was -- creator, status, tracker and
+       readings -- which is what "add it back" means. */
+    const removedHere = found.find((e) => e.campaignId === campaignId && e.removed);
+    if (removedHere && !found.some((e) => e.campaignId === campaignId && !e.removed)) {
+      const { count } = await db.post.updateMany({
+        where: { id: removedHere.id, campaignId, ...ONLY_REMOVED },
+        data: { removedAt: null, removedById: null },
+      });
+      const restored = await db.post.findUnique({
+        where: { id: removedHere.id },
+        include: { creator: { select: { id: true, name: true, handle: true, avatarUrl: true } } },
+      });
+      if (count > 0) {
+        await logAudit({
+          orgId,
+          userId: session.user.id ?? undefined,
+          actorEmail: session.user.email ?? undefined,
+          action: "post.restore",
+          entityType: "post",
+          entityId: removedHere.id,
+          entityLabel: restored?.creator.handle ?? postUrl,
+          ipAddress: getRequestIp(request),
+          metadata: { campaignId, source: "post_add", postUrl },
+          after: { removedAt: null },
+        });
+      }
+      return NextResponse.json(
+        { ...restored, creatorAutoAdded: null, unattributed: false, creatorDetected: null, restored: true },
+        { status: 200 },
+      );
+    }
+    /* Everything below is about live copies; a removed one in another
+       campaign no longer counts anywhere. */
+    const existing = found.filter((e) => !e.removed);
     const sameCampaign = existing.find((e) => e.campaignId === campaignId);
     if (sameCampaign) {
       /* The one duplicate that is still refused. Two rows for one post inside
@@ -335,7 +389,7 @@ export async function POST(
     /* The org's own copy of this exact post, when nothing else named anybody.
        Same rule as the precheck, and it has to be here too or the dialog would
        promise a creator this handler then refuses. */
-    const attributedCopy = existing.find(
+    const attributedCopy = found.find(
       (e) => !isUnattributedCreator({ name: e.creatorName, handle: e.creatorHandle }),
     );
     if (!creatorId && attributedCopy) creatorId = attributedCopy.creatorId;
@@ -548,28 +602,30 @@ export async function POST(
  * DELETE /api/campaigns/[id]/posts — remove posts from this campaign.
  * Body: { postIds: string[] } (1..MAX_BULK_ACTION_POSTS).
  *
- * A hard delete, because a post in a campaign is a claim that it belongs to
- * the campaign: a mis-pasted link otherwise stays in the post count and the
- * totals forever, and there is no deletedAt on Post to hide it with (adding
- * one is a schema change every Post query would then have to honour).
+ * A SOFT remove: removedAt/removedById are stamped and the row stays. It used
+ * to be a hard delete, which made a mis-click permanent -- the readings went
+ * with the row and the only way back was to paste the link again and start
+ * the post's history from zero. Now every read of a campaign's posts leaves a
+ * removed post out (lib/posts/removed#NOT_REMOVED), so the count and the
+ * totals drop exactly as they did, and POST .../posts/restore -- the toast's
+ * Undo, or the Posts tab's Removed view -- puts it back with everything.
  *
- * What hangs off a Post, and what happens to it:
- *   - PostMetricSnapshot: FK, ON DELETE CASCADE -- the readings go with it.
- *   - SyncSlot.postId: FK, ON DELETE SET NULL -- the slot survives, unbound.
- *   - ViewFraudFlag.postId: no FK. Deleted here in the same transaction, so a
- *     flag never points at a post that is gone.
+ * What hangs off a Post, and what happens to it now:
+ *   - PostMetricSnapshot, SyncSlot, ViewFraudFlag: untouched. A removed post
+ *     is not synced (every sweep selects NOT_REMOVED), so none of them grows.
  *   - ViewLedger.postId: no FK, and it is money -- CPM earnings already
- *     recorded against the post. Removal is REFUSED when any exist: deleting
- *     the post would leave earnings for a post nobody can see, and deleting
- *     the ledger would rewrite what a creator was paid for.
- *   - Creator.topPosts JSON holds platform ids, not ours; nothing to do.
+ *     recorded against the post. Removal is still REFUSED when any exist,
+ *     exactly as before: the campaign's payout figures read the ledger, not
+ *     the post list, so a removed post with earnings would keep paying out of
+ *     a campaign that no longer shows it.
  * Campaign totals and reports are derived from Post rows at read time, and the
- * cached performance report is keyed on a stamp that moves when the post
- * count does (lib/reports/campaignPerformance).
+ * cached performance report is keyed on a stamp over the campaign's live
+ * posts, so it moves on remove and on restore (lib/reports/campaignPerformance).
  *
  * All or nothing: if any id is not a post of this campaign the call is
  * refused rather than removing the rest, so the count the operator confirmed
- * is the count that goes.
+ * is the count that goes. Idempotent: a post that is already removed is
+ * left as it is (its removedAt is not moved) and is not counted again.
  */
 export async function DELETE(
   request: NextRequest,
@@ -597,6 +653,8 @@ export async function DELETE(
       return NextResponse.json({ error: "Pick between 1 and 50 posts to remove." }, { status: 400 });
     }
 
+    /* Removed rows are found too: removing one again is a no-op, not a 404,
+       so a double click or a second tab cannot fail the whole selection. */
     const posts = await db.post.findMany({
       where: { id: { in: ids }, campaignId },
       select: {
@@ -607,6 +665,7 @@ export async function DELETE(
         creatorId: true,
         status: true,
         viewsCount: true,
+        removedAt: true,
         creator: { select: { handle: true } },
       },
     });
@@ -636,24 +695,33 @@ export async function DELETE(
       );
     }
 
-    const [, removed] = await db.$transaction([
-      db.viewFraudFlag.deleteMany({ where: { orgId, campaignId, postId: { in: ids } } }),
-      db.post.deleteMany({ where: { id: { in: ids }, campaignId } }),
-    ]);
+    const live = posts.filter((p) => p.removedAt === null);
+    const liveIds = live.map((p) => p.id);
+    const removedAt = new Date();
+    /* NOT_REMOVED in the write as well as the filter above, so a concurrent
+       remove of the same post cannot restamp who removed it and when. */
+    const removed =
+      liveIds.length > 0
+        ? await db.post.updateMany({
+            where: { id: { in: liveIds }, campaignId, ...NOT_REMOVED },
+            data: { removedAt, removedById: session.user.id ?? null },
+          })
+        : { count: 0 };
 
-    /* One line per post, like post.create, so each post's history ends with
-       who removed it -- and the URL is kept, since the row that held it is gone. */
-    for (const post of posts) {
+    /* One line per post, like post.create, so each post's history says who
+       removed it. post.remove rather than post.delete: the row is still there,
+       and the activity feed words the two differently. */
+    for (const post of live) {
       await logAudit({
         orgId,
         userId: session.user.id ?? undefined,
         actorEmail: session.user.email ?? undefined,
-        action: "post.delete",
+        action: "post.remove",
         entityType: "post",
         entityId: post.id,
         entityLabel: post.creator?.handle ?? post.postUrl,
         ipAddress: getRequestIp(request),
-        metadata: { campaignId, batch: ids.length },
+        metadata: { campaignId, batch: liveIds.length },
         before: {
           postUrl: post.postUrl,
           platform: post.platform,
@@ -665,7 +733,9 @@ export async function DELETE(
       });
     }
 
-    return NextResponse.json({ removed: removed.count });
+    /* postIds names exactly what this call removed, so the toast's Undo puts
+       back these and only these -- not a post someone else removed earlier. */
+    return NextResponse.json({ removed: removed.count, postIds: liveIds });
   } catch (error) {
     console.error("Failed to remove posts:", error);
     return NextResponse.json({ error: "Failed to remove posts" }, { status: 500 });
