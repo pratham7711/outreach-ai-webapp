@@ -14,6 +14,7 @@ jest.mock('@/lib/db', () => {
       findFirst: jest.fn(),
       update: jest.fn(),
     },
+    post: { findMany: jest.fn() },
     campaignStatusDef: { findMany: jest.fn(), findFirst: jest.fn() },
     tikTokSound: { findFirst: jest.fn(), create: jest.fn() },
     song: { findFirst: jest.fn(), create: jest.fn() },
@@ -53,16 +54,18 @@ const mockCampaign = {
     id: 'act-1', status: 'APPROVED', deliverableDueDate: null,
     creator: { id: 'c1', name: 'Test Creator', handle: '@test', platform: 'TIKTOK', followersCount: 100000, avatarUrl: null, rate: 2000 },
   }],
-  posts: [{
-    id: 'p1', platform: 'TIKTOK', platformPostId: 'tt-1', postUrl: 'https://tiktok.com/test',
-    caption: 'Test post', postedAt: new Date().toISOString(),
-    viewsCount: 50000, likesCount: 3000, commentsCount: 200, sharesCount: 100, engagementRate: 6.4,
-    creator: { id: 'c1', name: 'Test Creator' },
-  }],
   brief: null,
   financials: { spentAmount: 5000, totalBudget: 25000 },
   _count: { activations: 1, posts: 1 },
 };
+
+// What GET reads for the roster and the totals, in its own query beside the campaign.
+const mockPosts = [{
+  platform: 'TIKTOK',
+  viewsCount: 50000, likesCount: 3000, commentsCount: 200, sharesCount: 100, savesCount: 0,
+  lastSyncedAt: new Date().toISOString(), platformMetrics: null,
+  creator: { id: 'c1', name: 'Test Creator', handle: '@test', platform: 'TIKTOK', followersCount: 100000, avatarUrl: null, rate: 2000 },
+}];
 
 // The org's own statuses, shaped as both prod orgs actually have them.
 const STATUS_DEFS = [
@@ -77,6 +80,7 @@ const STATUS_DEFS = [
 beforeEach(() => {
   jest.clearAllMocks();
   mockAuth.mockResolvedValue(authedSession);
+  mockDb.post.findMany.mockResolvedValue(mockPosts);
   mockDb.campaignStatusDef.findMany.mockResolvedValue(STATUS_DEFS);
   // findForeignRef proves a statusDefId in the body belongs to this org.
   mockDb.campaignStatusDef.findFirst.mockImplementation(({ where }: any) =>
@@ -99,7 +103,7 @@ describe('GET /api/campaigns/[id] detail', () => {
     expect(body.activations[0].creator.name).toBe('Test Creator');
   });
 
-  it('returns posts with creator relation', async () => {
+  it('returns the roster and the post totals in place of the posts', async () => {
     mockDb.campaign.findFirst.mockResolvedValue(mockCampaign);
 
     const req = makeRequest('http://localhost/api/campaigns/camp-1');
@@ -107,9 +111,40 @@ describe('GET /api/campaigns/[id] detail', () => {
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body.posts).toHaveLength(1);
-    expect(body.posts[0].creator.id).toBe('c1');
-    expect(body.posts[0].creator.name).toBe('Test Creator');
+    expect(body.posts).toBeUndefined();
+    expect(body.roster).toEqual([expect.objectContaining({
+      creator: expect.objectContaining({ id: 'c1', name: 'Test Creator' }),
+      activationStatus: 'APPROVED', posts: 1, views: 50000,
+    })]);
+    expect(body.summary).toEqual(expect.objectContaining({
+      posts: 1, views: 50000, viewsKnownPosts: 1, likes: 3000, likesMeasured: true, creatorCount: 1,
+      platforms: [{ platform: 'TIKTOK', views: 50000, likes: 3000, posts: 1 }],
+      topCreators: [{ name: 'Test Creator', views: 50000, likes: 3000 }],
+    }));
+  });
+
+  it('reads the posts through the caller\'s org and names every creator field it sends', async () => {
+    mockDb.campaign.findFirst.mockResolvedValue(mockCampaign);
+
+    await GET(makeRequest('http://localhost/api/campaigns/camp-1'), makeParams('camp-1'));
+
+    const postsArgs = mockDb.post.findMany.mock.calls[0][0];
+    expect(postsArgs.where).toEqual({ campaignId: 'camp-1', campaign: { orgId: 'org-1', deletedAt: null } });
+    /* contactEmail and paymentInfo went to every seat that could open the
+       campaign while activations included the whole creator row. */
+    const campaignArgs = mockDb.campaign.findFirst.mock.calls[0][0];
+    for (const select of [postsArgs.select.creator.select, campaignArgs.include.activations.select.creator.select]) {
+      expect(Object.keys(select).sort()).toEqual(['avatarUrl', 'followersCount', 'handle', 'id', 'name', 'platform', 'rate']);
+    }
+    expect(campaignArgs.include.posts).toBeUndefined();
+  });
+
+  it('keeps the importer copy out of typeConfig', async () => {
+    mockDb.campaign.findFirst.mockResolvedValue({ ...mockCampaign, typeConfig: { __cc: { raw: 1 }, cpm: 3 } });
+
+    const body = await (await GET(makeRequest('http://localhost/api/campaigns/camp-1'), makeParams('camp-1'))).json();
+
+    expect(body.typeConfig).toEqual({ cpm: 3 });
   });
 
   it('returns financials data', async () => {
