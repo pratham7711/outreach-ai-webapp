@@ -5019,10 +5019,45 @@ h1, h2, h3, h4, h5, h6 {
   align-items: center;
   gap: 8px;
 }
+/* A date input's wrapper is no box at all at desktop, so the input stays a
+   flex item of the row exactly as before; its caption only shows on a phone. */
+.cc-posts-filter-date {
+  display: contents;
+}
+.cc-posts-filter-date-cap {
+  display: none;
+}
 @media (max-width: 640px) {
+  /* Full width: the row around it is justify-content: flex-end, so a grid
+     sized to its content sat pushed right -- 11px in WebKit, ~47px on an
+     iPhone, whose date inputs are wider. */
   .cc-posts-filters {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    flex: 1 1 100%;
+  }
+  /* iOS paints an empty date input as a blank box, so the pair read as two
+     broken fields. Each carries its word above it instead. */
+  .cc-posts-filter-date {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .cc-posts-filter-date-cap {
+    display: block;
+    font-size: var(--cc-t-12);
+    color: var(--cc-text-muted);
+  }
+  .cc-posts-filter-date > input {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .cc-posts-filter-date > input::-webkit-date-and-time-value {
+    text-align: left;
   }
   .cc-posts-filters > *,
   .cc-posts-filters > div > [role="combobox"] {
@@ -9496,6 +9531,48 @@ html:has(.lp-page) { scroll-behavior: smooth; }
     --cc-kpi-label-fs: 9px;
     --cc-kpi-label-lh: 11px;
     --cc-kpi-value-fs: 14px;
+  }
+
+  /* Light and dark had none of the above, so on a phone (MEASURED 2026-10-13,
+     iPhone 15 viewport, dark): the actions hung right-aligned at x=52 under a
+     title at x=16 with the close button on their row, and every KPI chip sized
+     to its own text, leaving rows ragged 70-140px short of the edge. Same
+     shape as the creatorcore rules -- actions on their own row, close on the
+     title's -- at these themes' own sizes. */
+  :root:not(.creatorcore) .cc-shell-root[data-shell="campaign"] .cc-page-titleblock {
+    flex: 1 1 0%;
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+  :root:not(.creatorcore) .cc-shell-root[data-shell="campaign"] .cc-page-titlebar > .cc-page-actions {
+    order: 1;
+    flex: 1 0 100%;
+    margin-left: 0;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+  /* Overview and the other sections with no actions: no empty row. */
+  :root:not(.creatorcore) .cc-shell-root[data-shell="campaign"] .cc-page-titlebar > .cc-page-actions:empty {
+    display: none;
+  }
+  :root:not(.creatorcore) .cc-shell-root[data-shell="campaign"] .cc-page-actions > * {
+    width: auto;
+    min-width: 0;
+  }
+  /* On the title's line, not centred on a block the chips may have wrapped. */
+  :root:not(.creatorcore) .cc-shell-root[data-shell="campaign"] .cc-page-titlebar > .cc-page-close {
+    align-self: flex-start;
+  }
+  :root:not(.creatorcore) .cc-shell-root[data-shell="campaign"] .cc-page-meta {
+    --cc-page-meta-gap: 8px;
+  }
+  /* Two equal columns: at three each chip is ~112px, and the demo campaign's
+     "1,823,228,537" needed a 144px chip at these themes' figure size. */
+  :root:not(.creatorcore) .cc-kpi-strip:not(.cc-kpi-quiet) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

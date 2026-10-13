@@ -1769,22 +1769,30 @@ export default function PostsTab({
             className="posts-min-views cc-posts-filter-min"
             style={selectStyle}
           />
-          <input
-            type="date"
-            value={postedFrom}
-            max={postedTo || undefined}
-            onChange={(e) => setPostedFrom(e.target.value)}
-            aria-label="Posted on or after"
-            style={selectStyle}
-          />
-          <input
-            type="date"
-            value={postedTo}
-            min={postedFrom || undefined}
-            onChange={(e) => setPostedTo(e.target.value)}
-            aria-label="Posted on or before"
-            style={selectStyle}
-          />
+          {/* The caption shows on a phone only, where iOS paints an empty date
+              input as a blank box. */}
+          <label className="cc-posts-filter-date">
+            <span className="cc-posts-filter-date-cap" aria-hidden="true">Posted from</span>
+            <input
+              type="date"
+              value={postedFrom}
+              max={postedTo || undefined}
+              onChange={(e) => setPostedFrom(e.target.value)}
+              aria-label="Posted on or after"
+              style={selectStyle}
+            />
+          </label>
+          <label className="cc-posts-filter-date">
+            <span className="cc-posts-filter-date-cap" aria-hidden="true">Posted to</span>
+            <input
+              type="date"
+              value={postedTo}
+              min={postedFrom || undefined}
+              onChange={(e) => setPostedTo(e.target.value)}
+              aria-label="Posted on or before"
+              style={selectStyle}
+            />
+          </label>
           <Dropdown
             ariaLabel="Filter by platform"
             align="left"
