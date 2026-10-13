@@ -9691,11 +9691,24 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   :root:not(.creatorcore) .cc-shell-root[data-shell="campaign"] .cc-page-meta {
     --cc-page-meta-gap: 8px;
   }
-  /* Two equal columns: at three each chip is ~112px, and the demo campaign's
-     "1,823,228,537" needed a 144px chip at these themes' figure size. */
+  /* One row that scrolls sideways rather than four rows of two. MEASURED
+     2026-10-13 at 390x844, light, Posts tab: the eight chips in two columns
+     stood 258px tall, and with the filters under them the first post began
+     at y=978 -- not one post on the first screen. Each chip keeps the 148px
+     the demo campaign's "1,823,228,537" needs at these themes' figure size
+     (144 measured), and at 42% the third chip is cut at the edge, which is the
+     cue that the row scrolls. Snap so a flick stops on a chip, not between. */
   :root:not(.creatorcore) .cc-kpi-strip:not(.cc-kpi-quiet) {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(148px, 42%);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+  :root:not(.creatorcore) .cc-kpi-strip:not(.cc-kpi-quiet) > .cc-kpi-chip {
+    scroll-snap-align: start;
   }
 
   /* Share Campaign leads every section's actions (components/campaigns/
