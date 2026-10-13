@@ -217,23 +217,33 @@ Two long-lived branches, one direction of travel:
 | `development` | All local and sandbox work. Cut short-lived branches from it; merge them back into it. |
 | `master` | **Deployment only.** Whatever is on `master` is what production is. |
 
-**Nothing reaches production except by being merged into `master` and pushed.**
+**Nothing reaches production except by landing on `master`.** The normal way there is a
+candidate branch, which CI promotes only after it passes:
 
 ```bash
-# 1. work on development (or a short-lived branch cut from it)
-git switch development
+# 1. rebase onto master first -- this must print nothing
+git fetch origin && git log --oneline HEAD..origin/master
 
-# 2. prove it — the deploy gate requires unit + playwright + build for THIS code state
+# 2. prove it locally -- unit + playwright + build for THIS code state
 bash ~/.claude/hooks/verify.sh all
 
-# 3. merge into master and push; Vercel builds master as production
-git switch master
-git merge --ff-only development
-git push origin master
+# 3. send the "Expected on prod" note, then push the exact commit as a candidate
+git push origin <sha>:refs/heads/candidate/<slug>
 ```
 
+The candidate push runs `.github/workflows/ci.yml`: `gate` (typecheck, lint ratchet, unit,
+integration, build) and the E2E suite in three shards. When all of them pass, the `promote` job
+fast-forwards `master` to that commit, and Vercel builds `master` as production. A candidate that
+`master` has moved past is refused, never merged or forced; rebase it and push it again. Proven
+on 2026-10-13: candidate `3185f2e` passed run 38449017939, promote moved `master`, and Vercel
+deployed it (`dpl_bsKYZ46obmagzxT4aqeTdV3kxQ5F`) about 7 minutes after the push. The push to a
+candidate IS the deploy, so the "Expected on prod" note is due before it.
+
+A direct `git push origin <sha>:master` still works and is the fallback when CI itself is broken.
+It skips the CI gate, so it relies on the local deploy gate alone.
+
 Vercel's **production branch is `master`** (project `prj_qG6uzSDP9ZLrJytmCGE4mlp20knf`,
-GitHub `pratham7711/outreach-ai-webapp`), so the push is the deploy. Confirm it landed with
+GitHub `pratham7711/outreach-ai-webapp`). Confirm a deploy landed with
 `bash ~/.claude/hooks/prod-status.sh --expect <deployment>`.
 
 **Never deploy a working tree.** `vercel --prod` uploads whatever is on disk — uncommitted
