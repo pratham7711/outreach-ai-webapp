@@ -10237,6 +10237,9 @@ a.cc-platform-chip[data-problem]:hover {
   flex: 1;
   min-width: 0;
 }
+/* line-height 1.5 makes the link's own box 24px (WCAG 2.5.8); at 1.35 it was
+   22. Its ::after covers the card, so the real target was always larger, but
+   the element a checker or a screen reader's focus box reports is this one. */
 .cc-roster-card-link {
   display: block;
   overflow: hidden;
@@ -10244,7 +10247,7 @@ a.cc-platform-chip[data-problem]:hover {
   white-space: nowrap;
   font-size: var(--cc-t-16);
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.5;
   color: var(--cc-text);
   text-decoration: none;
 }
@@ -10351,6 +10354,26 @@ a.cc-platform-chip[data-problem]:hover {
   width: 1%;
   padding: 14px 0 14px 20px;
   text-align: left;
+}
+/* The table's checkbox was a bare 16px box -- the whole target (WCAG 2.5.8
+   asks for 24). The label makes a 32px square around it that toggles it too;
+   the negative margins give the 16px back on every side, so the box stays
+   where it was and neither the row nor the column grows. The cell has no
+   right padding, so the square's right 8px lie over the next cell, which
+   paints later and took those clicks; position: relative lifts the square
+   above it. */
+.cc-roster-check-hit {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin: -8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.cc-roster-check-hit:hover {
+  background: var(--cc-hover-bg);
 }
 .cc-table-row[data-selected] {
   background: var(--cc-primary-light);

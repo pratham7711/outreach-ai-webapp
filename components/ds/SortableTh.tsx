@@ -101,7 +101,11 @@ export function SortableTh({
           flexDirection: align === "right" ? "row-reverse" : "row",
           background: "none",
           border: "none",
-          padding: 0,
+          /* A 25px target around 17px of text, without making the header row
+             any taller: the negative margin hands the padding back. WCAG 2.5.8
+             asks for 24; the bare label was the whole target before. */
+          padding: "4px 0",
+          margin: "-4px 0",
           font: "inherit",
           letterSpacing: "inherit",
           textTransform: "inherit",

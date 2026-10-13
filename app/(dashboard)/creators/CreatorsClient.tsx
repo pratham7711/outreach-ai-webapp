@@ -253,7 +253,9 @@ const CreatorRow = memo(function CreatorRow({
   return (
     <tr className="cc-table-row" data-selected={on || undefined} style={{ borderTop: "1px solid var(--cc-border)" }}>
       <td className="cc-roster-td-check">
-        <input type="checkbox" checked={on} onChange={() => onToggle(c.id)} aria-label={`Select ${c.name}`} />
+        <label className="cc-roster-check-hit">
+          <input type="checkbox" checked={on} onChange={() => onToggle(c.id)} aria-label={`Select ${c.name}`} />
+        </label>
       </td>
       <td style={{ padding: ROSTER_CELL_PAD }}>
         <Link prefetch={false} href={`/creators/${c.id}`} style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 12 }}>
@@ -733,15 +735,17 @@ export default function CreatorsClient({
             <thead>
               <tr style={{ background: "var(--cc-hover-bg)" }}>
                 <th className="cc-roster-th-check">
-                  <input
-                    type="checkbox"
-                    checked={allMatching || allOnPage}
-                    ref={(el) => {
-                      if (el) el.indeterminate = !allMatching && pickedOnPage > 0 && !allOnPage;
-                    }}
-                    onChange={togglePage}
-                    aria-label="Select every creator on this page"
-                  />
+                  <label className="cc-roster-check-hit">
+                    <input
+                      type="checkbox"
+                      checked={allMatching || allOnPage}
+                      ref={(el) => {
+                        if (el) el.indeterminate = !allMatching && pickedOnPage > 0 && !allOnPage;
+                      }}
+                      onChange={togglePage}
+                      aria-label="Select every creator on this page"
+                    />
+                  </label>
                 </th>
                 <SortableTh label="Creator" sortKey="name" sort={sort} onToggle={toggleSort} padX={ROSTER_PAD_X} />
                 <SortableTh label="Accounts" padX={ROSTER_PAD_X} />

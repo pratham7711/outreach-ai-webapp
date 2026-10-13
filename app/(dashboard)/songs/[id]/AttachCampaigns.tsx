@@ -101,9 +101,12 @@ export default function AttachCampaigns({
                 aria-label={`Detach ${c.title}`}
                 disabled={busy === c.id}
                 onClick={() => setSong(c.id, null)}
+                /* 24px square around the 12px glyph; the negative margin keeps
+                   the chip the height it was. At padding 2 the target was 16. */
                 style={{
                   background: "none", border: "none", cursor: "pointer",
-                  color: "var(--cc-text-muted)", display: "inline-flex", padding: 2,
+                  color: "var(--cc-text-muted)", display: "inline-flex", padding: 6,
+                  margin: "-4px -4px -4px 0", borderRadius: 999,
                 }}
               >
                 <Unlink size={12} aria-hidden="true" />
