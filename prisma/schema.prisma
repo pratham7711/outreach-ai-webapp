@@ -1189,6 +1189,14 @@ model Post {
   autoAdded         Boolean         @default(false) // source autoAdd
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
+  /// "Remove from campaign" is a soft remove: the row, its readings, its fraud
+  /// flags and any earnings stay, and every read of a campaign's posts leaves
+  /// it out (lib/posts/removed.ts#NOT_REMOVED). Null = in the campaign.
+  /// Restoring clears both columns, so the post's numbers move straight back.
+  removedAt         DateTime?
+  /// Who removed it. A plain id like createdById elsewhere -- no FK, so
+  /// removing a teammate's seat never has to touch posts they removed.
+  removedById       String?
 
   campaign   Campaign             @relation(fields: [campaignId], references: [id])
   creator    Creator              @relation(fields: [creatorId], references: [id])
@@ -1208,6 +1216,9 @@ model Post {
   // The cron's whole candidate query is now "tracking on, not yet expired".
   // Without this it is a full scan of the largest table every hour.
   @@index([trackingEnabled, trackingExpiresAt])
+  // Every campaign posts read is now "this campaign, not removed", and the
+  // Removed view is "this campaign, removed". One index serves both.
+  @@index([campaignId, removedAt])
 }
 
 model PostMetricSnapshot {
