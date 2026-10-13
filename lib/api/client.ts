@@ -1,3 +1,5 @@
+import { signInPathFor } from "@/lib/callbackPath";
+
 export class ApiError extends Error {
   readonly status: number;
   readonly details: unknown;
@@ -39,7 +41,12 @@ export function redirectToSignIn(pathname: string): string | null {
 function handleUnauthorized(): void {
   if (typeof window === "undefined") return;
   const target = redirectToSignIn(window.location.pathname);
-  if (target) window.location.href = target;
+  /* With the page the session expired on, so signing in again goes back to it. */
+  if (target) {
+    window.location.href = signInPathFor(target, `${window.location.pathname}${window.location.search}`, {
+      within: target === "/portal/login" ? "/portal" : undefined,
+    });
+  }
 }
 
 async function readError(res: Response): Promise<{ message: string; details: unknown }> {

@@ -8,6 +8,7 @@ import { Input } from "@pratham7711/ui";
 import { Button } from "@/components/ds";
 import { Eye, EyeOff } from "lucide-react";
 import { BRAND } from "@/lib/brand";
+import { CALLBACK_PARAM, safeCallbackPath } from "@/lib/callbackPath";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -81,7 +82,12 @@ export default function LoginPage() {
       );
       setLoading(false);
     } else {
-      window.location.href = "/campaigns";
+      /* Back to the page the sign-in interrupted, which the middleware put on
+         the redirect; the campaign list only when there was none. Read from
+         the live URL and re-checked here, because the query string is
+         whatever the link said -- see lib/callbackPath. */
+      const back = safeCallbackPath(new URLSearchParams(window.location.search).get(CALLBACK_PARAM));
+      window.location.href = back ?? "/campaigns";
     }
   };
 
@@ -130,10 +136,10 @@ export default function LoginPage() {
           }}
         >
           <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
-            Login
+            Sign in
           </h1>
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 24 }}>
-            Sign in to {BRAND.name}
+            Welcome back to {BRAND.name}
           </p>
 
           {notice && !error && (

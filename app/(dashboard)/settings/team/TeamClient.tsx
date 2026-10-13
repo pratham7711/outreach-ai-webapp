@@ -331,8 +331,8 @@ export default function TeamClient({
               gap: 16,
             }}>
               {(canManage
-                ? ["Name", "Email", "Role", "Last Login", ""]
-                : ["Name", "Email", "Role", "Last Login"]
+                ? ["Name", "Email", "Role", "Last sign-in", ""]
+                : ["Name", "Email", "Role", "Last sign-in"]
               ).map((h, i) => (
                 <span key={i} className="cc-microlabel">
                   {h}

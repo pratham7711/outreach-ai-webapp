@@ -153,7 +153,7 @@ function RegisterInner() {
           <div style={{ textAlign: "center", marginTop: 20, fontSize: 14, color: "var(--cc-text-muted)" }}>
             Already have an account?{" "}
             <Link href={loginHref} style={{ color: "var(--cc-primary)", fontWeight: 600, textDecoration: "none" }}>
-              Sign In
+              Sign in
             </Link>
           </div>
         )}

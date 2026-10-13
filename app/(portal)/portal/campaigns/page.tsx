@@ -20,6 +20,7 @@ import {
   secondaryButtonStyle,
 } from "@/components/portal/app/ui";
 import { CampaignRow } from "@/components/portal/app/CampaignRow";
+import { portalSignInHere } from "@/lib/callbackPath";
 
 const TABS = [
   { key: "joined", label: "Joined" },
@@ -166,7 +167,7 @@ function CampaignsScreen() {
     try {
       const res = await fetch("/api/portal/campaigns");
       if (res.status === 401) {
-        router.push("/portal/login");
+        router.push(portalSignInHere());
         return;
       }
       if (!res.ok) throw new Error("campaigns");

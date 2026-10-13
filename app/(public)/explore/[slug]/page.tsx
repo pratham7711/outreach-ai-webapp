@@ -496,7 +496,7 @@ export default async function CampaignLandingPage({
             </div>
           </div>
           <Link href={joinLoginHref} style={secondaryCtaStyle}>
-            Log in
+            Sign in
           </Link>
           <Link href={joinRegisterHref} style={{ ...primaryCtaStyle, flex: "1 1 auto", textAlign: "center" }}>
             Join campaign
