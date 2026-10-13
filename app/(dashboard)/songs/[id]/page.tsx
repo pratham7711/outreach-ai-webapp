@@ -1,8 +1,9 @@
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { computeEngagementRate } from "@/lib/metrics";
-import { fieldMetricValue, postEngagementPercent } from "@/lib/metricDisplay";
+import { fieldMetricValue, postEngagementPercent, rollupEngagement } from "@/lib/metricDisplay";
+import { oneCopyPerVideo } from "@/lib/posts/duplicates";
+import { viewTotals } from "@/lib/posts/viewTotals";
 import SongDashboard from "./SongDashboard";
 
 export default async function SongPage({ params }: { params: Promise<{ id: string }> }) {
@@ -32,7 +33,7 @@ export default async function SongPage({ params }: { params: Promise<{ id: strin
             select: {
               id: true, phaseId: true, platform: true, postUrl: true, postedAt: true,
               viewsCount: true, likesCount: true, commentsCount: true, sharesCount: true,
-              savesCount: true, engagementRate: true, status: true, lastSyncedAt: true, platformMetrics: true,
+              savesCount: true, engagementRate: true, status: true, lastSyncedAt: true, lastFreshAt: true, platformMetrics: true,
               creator: { select: { id: true, name: true, handle: true } },
             },
           },
@@ -52,19 +53,20 @@ export default async function SongPage({ params }: { params: Promise<{ id: strin
   const allPosts = song.campaigns.flatMap((c) =>
     c.posts.map((p) => ({ ...p, campaignId: c.id, campaignTitle: c.title })),
   );
-  const sum = (fn: (p: (typeof allPosts)[number]) => number) => allPosts.reduce((s, p) => s + fn(p), 0);
-  const totalViews = sum((p) => p.viewsCount);
+  /* Each video once, exactly as GET /api/songs/[id] counts the song's totals:
+     this page summed every row, so a video delivered to two of the song's
+     campaigns counted twice here and once in the API. */
+  const songPosts = oneCopyPerVideo(allPosts);
+  const sum = (fn: (p: (typeof allPosts)[number]) => number) => songPosts.reduce((s, p) => s + fn(p), 0);
+  const totals = viewTotals(songPosts);
   const totalLikes = sum((p) => p.likesCount);
   const totalComments = sum((p) => p.commentsCount);
   const totalShares = sum((p) => p.sharesCount);
 
-  const byPlatform = new Map<string, { views: number; posts: number }>();
-  for (const p of allPosts) {
-    const row = byPlatform.get(p.platform) ?? { views: 0, posts: 0 };
-    row.views += p.viewsCount;
-    row.posts += 1;
-    byPlatform.set(p.platform, row);
-  }
+  /* Views per group count only the views a post has; a group none of whose
+     posts was read is null, not 0 (an Instagram-photo platform row said "0"). */
+  const byPlatform = new Map<string, (typeof allPosts)[number][]>();
+  for (const p of songPosts) byPlatform.set(p.platform, [...(byPlatform.get(p.platform) ?? []), p]);
 
   const phases = song.campaigns.flatMap((c) =>
     c.phases.map((ph) => {
@@ -77,7 +79,7 @@ export default async function SongPage({ params }: { params: Promise<{ id: strin
         campaignTitle: c.title,
         targetPosts: ph.targetPosts,
         postCount: phasePosts.length,
-        views: phasePosts.reduce((s, p) => s + p.viewsCount, 0),
+        views: viewTotals(phasePosts).views,
       };
     }),
   );
@@ -98,19 +100,17 @@ export default async function SongPage({ params }: { params: Promise<{ id: strin
           activeCampaignCount: song.campaigns.filter((c) => c.status === "IN_PROGRESS").length,
           phaseCount: phases.length,
           postCount: allPosts.length,
-          totalViews,
+          totalViews: totals.views,
+          viewsKnown: totals.viewsKnown,
+          videoCount: totals.posts,
+          viewsAsOf: totals.asOf,
           totalLikes,
           totalComments,
           totalShares,
           totalBudget: song.campaigns.reduce((s, c) => s + (c.budget ?? 0), 0),
-          engagementRate:
-            computeEngagementRate({
-              views: totalViews,
-              likes: totalLikes,
-              comments: totalComments,
-              shares: totalShares,
-              saves: sum((p) => p.savesCount),
-            }) ?? 0,
+          /* The product's one rollup rule, and null rather than 0 when no post
+             has both views and likes read. */
+          engagementRate: rollupEngagement(songPosts).rate,
         },
         campaigns: song.campaigns.map((c) => ({
           id: c.id,
@@ -119,12 +119,12 @@ export default async function SongPage({ params }: { params: Promise<{ id: strin
           budget: c.budget,
           phaseCount: c.phases.length,
           postCount: c.posts.length,
-          views: c.posts.reduce((s, p) => s + p.viewsCount, 0),
+          views: viewTotals(c.posts).views,
         })),
         phases,
         platformBreakdown: [...byPlatform.entries()]
-          .map(([platform, row]) => ({ platform, ...row }))
-          .sort((a, b) => b.views - a.views),
+          .map(([platform, rows]) => ({ platform, views: viewTotals(rows).views, posts: rows.length }))
+          .sort((a, b) => (b.views ?? -1) - (a.views ?? -1)),
         posts: allPosts.map((p) => ({
           id: p.id,
           campaignId: p.campaignId,

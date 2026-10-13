@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
-import { computeEngagementRate } from "@/lib/metrics";
-import { fieldMetricValue, postEngagementPercent } from "@/lib/metricDisplay";
+import { fieldMetricValue, postEngagementPercent, rollupEngagement } from "@/lib/metricDisplay";
 import { logAudit } from "@/lib/audit";
 import { oneCopyPerVideo } from "@/lib/posts/duplicates";
+import { viewTotals } from "@/lib/posts/viewTotals";
 import { getRequestIp } from "@/lib/request";
 
 /**
@@ -62,6 +62,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
               engagementRate: true,
               status: true,
               lastSyncedAt: true,
+              lastFreshAt: true,
               platformMetrics: true,
               creator: { select: { id: true, name: true, handle: true, avatarUrl: true } },
             },
@@ -86,6 +87,10 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const songPosts = oneCopyPerVideo(allPosts);
   const sum = (fn: (p: (typeof allPosts)[number]) => number) => songPosts.reduce((s, p) => s + fn(p), 0);
   const totalViews = sum((p) => p.viewsCount);
+  /* What totalViews covers and when it was read, as the song page shows it.
+     totalViews itself stays a number for API callers; viewsKnown === 0 is the
+     signal that it is unknown rather than zero. */
+  const views = viewTotals(songPosts);
   const totalLikes = sum((p) => p.likesCount);
   const totalComments = sum((p) => p.commentsCount);
   const totalShares = sum((p) => p.sharesCount);
@@ -131,19 +136,17 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       phaseCount: phases.length,
       postCount: allPosts.length,
       totalViews,
+      viewsKnown: views.viewsKnown,
+      videoCount: views.posts,
+      viewsAsOf: views.asOf,
       totalLikes,
       totalComments,
       totalShares,
       totalSaves,
       totalBudget: campaignRows.reduce((s, c) => s + (c.budget ?? 0), 0),
-      engagementRate:
-        computeEngagementRate({
-          views: totalViews,
-          likes: totalLikes,
-          comments: totalComments,
-          shares: totalShares,
-          saves: totalSaves,
-        }) ?? 0,
+      /* The one rollup rule, and null rather than 0 when no post has both views
+         and likes read -- the same figure the song page computes. */
+      engagementRate: rollupEngagement(songPosts).rate,
     },
     campaigns: campaignRows.map((c) => ({
       id: c.id,

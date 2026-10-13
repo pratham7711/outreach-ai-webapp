@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { oneCopyPerVideo } from "@/lib/posts/duplicates";
+import { viewTotals } from "@/lib/posts/viewTotals";
 import SongsClient from "./SongsClient";
 
 export default async function SongsPage() {
@@ -19,7 +21,18 @@ export default async function SongsPage() {
       releaseDate: true,
       campaigns: {
         where: { deletedAt: null },
-        select: { id: true, status: true, posts: { select: { viewsCount: true, platform: true } } },
+        select: {
+          id: true,
+          status: true,
+          // Provenance as well as the count, so an unread post is not summed as
+          // 0 and the card can say when its views were read.
+          posts: {
+            select: {
+              viewsCount: true, platform: true, postUrl: true,
+              lastSyncedAt: true, lastFreshAt: true, platformMetrics: true,
+            },
+          },
+        },
       },
     },
   });
@@ -28,6 +41,9 @@ export default async function SongsPage() {
     <SongsClient
       songs={songs.map((s) => {
         const posts = s.campaigns.flatMap((c) => c.posts);
+        /* Each video once, as the song page and GET /api/songs/[id] count it:
+           a video delivered to two of the song's campaigns is two rows. */
+        const totals = viewTotals(oneCopyPerVideo(posts));
         return {
           id: s.id,
           title: s.title,
@@ -37,7 +53,10 @@ export default async function SongsPage() {
           campaignCount: s.campaigns.length,
           activeCampaignCount: s.campaigns.filter((c) => c.status === "IN_PROGRESS").length,
           postCount: posts.length,
-          totalViews: posts.reduce((sum, p) => sum + p.viewsCount, 0),
+          totalViews: totals.views,
+          viewsKnown: totals.viewsKnown,
+          videoCount: totals.posts,
+          viewsAsOf: totals.asOf,
           platforms: [...new Set(posts.map((p) => p.platform))],
         };
       })}
