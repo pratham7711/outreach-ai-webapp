@@ -19,6 +19,7 @@ import { SOUND_URL_ERRORS, parseSoundUrl } from "@/lib/trackers/soundUrl";
 import { changeSpanLabel, isTrackerWindow, spanMatchesWindow } from "@/lib/trackers/metrics";
 import type { ChartGranularity } from "@/lib/trackers/granularity";
 import { action } from "@/lib/ui/actions";
+import { noun } from "@/lib/ui/noun";
 
 interface SoundSnapshot {
   usesCount: number;
@@ -398,13 +399,17 @@ export default function TrackersPage() {
                   alignSelf: "center",
                   color: atLimit ? "var(--cc-warning)" : "var(--cc-text-muted)",
                 }}
+                /* The plan's count, which is sounds AND tracked creators --
+                   so it can be higher than the Sound trackers tile below. The
+                   words say "trackers" rather than "tracked" and the tooltip
+                   gives the split, so the two numbers stop contradicting. */
                 title={
                   planHasNoTrackers
                     ? "Your plan does not include sound trackers"
-                    : `${limits.used} of ${limits.max} trackers used on this plan`
+                    : `${limits.used} of ${limits.max} trackers used on this plan: ${allSounds.length} ${noun(allSounds.length, "sound")} and ${Math.max(0, limits.used - allSounds.length)} ${noun(Math.max(0, limits.used - allSounds.length), "creator")}`
                 }
               >
-                {planHasNoTrackers ? "Not on this plan" : `${limits.used} / ${limits.max} tracked`}
+                {planHasNoTrackers ? "Not on this plan" : `${limits.used} / ${limits.max} trackers`}
               </span>
             ) : null}
             <Button

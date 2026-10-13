@@ -322,9 +322,14 @@ export const METRIC_DEFINITIONS = {
        all six of them active. MEASURED 2026-09-15: six rows, six "not
        updating" badges, tile reading "Active trackers 6". Nothing here
        measures activity, so nothing here should assert it. */
-    label: "Trackers",
+    /* "Sound trackers", not "Trackers": the header's plan counter beside it
+       counts sounds AND tracked creators (lib/trackers/limit), so with one
+       creator tracked the page read "7 / 100 tracked" over a tile saying
+       "Trackers 6" -- two answers to one question. The tile counts this tab's
+       sounds; the label now says so. */
+    label: "Sound trackers",
     /* Only sounds are trackable today; hashtags were never built. */
-    what: "Sounds you are watching for campaign ideas. This is the number your plan limits.",
+    what: "Sounds you are watching for campaign ideas. Your plan's tracker limit counts these together with the creators you track.",
     how: "Counts every sound tracker in this workspace that has not been deleted.",
   },
   /* Readings come from the snapshot-sounds cron, which vercel.json schedules
