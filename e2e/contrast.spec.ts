@@ -19,6 +19,17 @@ import path from 'path';
 
 const THEMES = ['light', 'dark', 'creatorcore'] as const;
 
+/* One worker per theme. The three tests share nothing at runtime -- each has
+   its own browser context, so its own localStorage, and writes its own
+   .contrast-report.<theme>.json -- but the config runs a file's tests on one
+   worker, so this file alone took 365s of a 377s test span (MEASURED,
+   2026-10-13: 2.2m + 2.0m + 2.0m back to back) and nothing else could finish
+   before it did. In parallel the floor is the slowest theme, not their sum.
+   The one shared write is the baseline file, read-modify-written by each test
+   under CONTRAST_BASELINE=write; two themes doing that at once would each keep
+   only their own part, so a write run stays on one worker. */
+test.describe.configure({ mode: process.env.CONTRAST_BASELINE === 'write' ? 'default' : 'parallel' });
+
 const PAGES = [
   '/dashboard',
   '/campaigns',
@@ -382,6 +393,35 @@ function readBaseline(): Baseline | null {
 
 const debtKey = (f: Finding) => `${f.path}  ${f.sel}  ${inkKey(f.color)} on ${inkKey(f.bg)}`;
 
+/**
+ * Wait until nothing on the page is mid-animation, then one more frame.
+ *
+ * This replaced a flat 400ms after the content waits. What the probe is
+ * exposed to is an element caught part-way through a fade: below 0.15 opacity
+ * it is skipped as invisible, so a finding drops out of one run and back into
+ * the next, and the two-way ratchet reads that as debt fixed or debt added.
+ * CSS transitions, CSS animations and framer-motion's opacity fades (it runs
+ * opacity through the Web Animations API) all appear in getAnimations(), so
+ * "none still running" is the condition the sleep was standing in for.
+ * Infinite ones -- spinners, skeleton shimmer -- never finish and never fade
+ * text, so they do not count. Bounded, like the old sleep was: a page that
+ * keeps animating is scored as it stands rather than failing the sweep.
+ */
+async function settled(page: import('@playwright/test').Page) {
+  await page
+    .waitForFunction(
+      () =>
+        document.getAnimations().every((a) => {
+          if (a.playState !== 'running') return true;
+          return a.effect?.getComputedTiming().iterations === Infinity;
+        }),
+      null,
+      { timeout: 5000 },
+    )
+    .catch(() => {});
+  await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => r())));
+}
+
 async function sweep(page: import('@playwright/test').Page, theme: (typeof THEMES)[number]) {
   const findings: Finding[] = [];
   /* What each visit actually had to score. A contrast sweep over a page that
@@ -391,17 +431,31 @@ async function sweep(page: import('@playwright/test').Page, theme: (typeof THEME
   let visited = 0;
   let attempted = 0;
 
+  /* The theme is in localStorage before any of the page's own scripts run, so
+     next-themes' boot script paints every page in it from the first frame.
+     This used to load each page, set the theme, then reload it -- two full
+     page loads per route, 23 routes, three themes -- and the first load was
+     thrown away every time. The reload was there so nothing already painted
+     kept the old theme's colours; a first paint in the right theme gives the
+     same guarantee without the throwaway load, and the class check below
+     proves it took rather than trusting it. */
+  await page.addInitScript((t) => {
+    try {
+      localStorage.setItem('theme', t);
+    } catch {
+      /* about:blank has no storage; every real page does. */
+    }
+  }, theme);
+
   for (const p of PAGES) {
     attempted++;
     await page.goto(p, { waitUntil: 'domcontentloaded' });
-    await page.evaluate((t) => {
-      localStorage.setItem('theme', t);
-      document.documentElement.classList.remove('light', 'dark', 'creatorcore');
-      if (t !== 'light') document.documentElement.classList.add(t);
-    }, theme);
-    // Re-render under the theme class rather than trusting a class swap to
-    // restyle everything already painted.
-    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.className), {
+        message: `${p} should render in the ${theme} theme`,
+        timeout: 10000,
+      })
+      .toMatch(new RegExp(`(^|\\s)${theme}(\\s|$)`));
 
     /* Wait for content, not for a stopwatch. The old fixed 600ms was the
        hole that let the post card through: that tab is still a grid of
@@ -421,7 +475,7 @@ async function sweep(page: import('@playwright/test').Page, theme: (typeof THEME
         /* Left spinning: recorded below as too little content rather than
            silently accepted. */
       });
-    await page.waitForTimeout(400);
+    await settled(page);
     /* /analytics opens on the last 30 days, so what it draws depends on the
        seed's age: CI seeds fresh and gets the figure tiles, a test database
        seeded weeks ago gets "Nothing published in this range". The two then
@@ -441,7 +495,7 @@ async function sweep(page: import('@playwright/test').Page, theme: (typeof THEME
       await page
         .waitForFunction(() => document.querySelectorAll('.ui-skeleton').length === 0, null, { timeout: 30000 })
         .catch(() => {});
-      await page.waitForTimeout(400);
+      await settled(page);
     }
     visited++;
 
