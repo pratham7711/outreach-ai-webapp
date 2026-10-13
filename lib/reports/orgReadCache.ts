@@ -15,17 +15,38 @@ import { createLogger } from "@/lib/observability/logger";
  * Keyed by data, not invalidated by a call, for the reason
  * lib/reports/campaignPerformance gives: revalidateTag does not reach
  * unstable_cache entries in Next 16.2 with cacheComponents off. A key derived
- * from the data cannot serve a figure the data has moved past -- when a row is
- * written its updatedAt moves the key, and the old entry is never addressed
+ * from the data cannot serve a figure the data has moved past -- when a column
+ * the reads use is written the key moves, and the old entry is never addressed
  * again.
  *
- * Every model these endpoints read carries an @updatedAt that Prisma sets on
- * every update, and no code path writes Post, Campaign, Creator or Activation
- * with raw SQL (checked 2026-10-03). Prisma takes that time from the writing
- * server's clock, not the database's, so the stamp sums the times rather than
- * taking their max: under clock skew between two functions a later write can
- * carry an earlier time and leave max() where it was, but it still changes the
- * row's own value and so the sum. count(*) catches deletes.
+ * Keyed on the columns the reads use, not on updatedAt. The stamp used to sum
+ * each row's updatedAt, which every write moves -- including the ones these
+ * figures never see, and the background jobs make those constantly: every
+ * failed post read writes its __lastFetch note and syncFailCount, every sweep
+ * stamps Campaign.lastRefreshAt, every tracker pass stamps the creator's
+ * trackerLastAttemptAt. Each one threw away every cached Analytics and
+ * dashboard result for the org, so the cache missed across hours in which no
+ * figure changed. Now:
+ *
+ * - Post: the five counters and lastSyncedAt are summed (lastSyncedAt is what
+ *   separates a measured zero from an unread one, and applyPostMetrics -- the
+ *   one writer of __measured on an existing post -- stamps it in the same
+ *   write), postedAt is summed, and creator, campaign, platform and URL are
+ *   hashed. __measured itself is left out: reading it detoasts each post's
+ *   whole platformMetrics bag, importer copy included, which measured 100-170ms
+ *   on the 18,676-post org against 28ms for this.
+ * - Campaign: title, status, createdAt, deletedAt. Creator: name, handle,
+ *   platform, avatarUrl, followersCount, deletedAt. Activation: campaign,
+ *   creator, deletedAt. OrgViewsSnapshot: day, viewsCount, postsCount.
+ *
+ * A read that starts depending on another column must add it here, or it can
+ * serve that column stale for up to the revalidate window below.
+ *
+ * Sums rather than max(): two rows changing in one window cannot hide behind
+ * each other, and count(*) catches deletes. Measured 2026-10-13 on the
+ * read-only prod copy, largest org (18,676 posts), server-side EXPLAIN
+ * ANALYZE: posts 28ms (was 17ms), creators 5.5ms (was 0.9ms), the rest under
+ * 1ms -- about 16ms more per view, against a miss that runs the whole read.
  */
 
 const BUILD_KEY = process.env.VERCEL_DEPLOYMENT_ID ?? "local";
@@ -48,20 +69,31 @@ export async function orgDataStamp(orgId: string, parts: OrgStampParts = {}): Pr
     { posts: string; campaigns: string; creators: string; activations: string | null; views: string | null }[]
   >`
     SELECT
-      (SELECT count(*)::text || ':' || coalesce(sum(extract(epoch FROM p."updatedAt")::numeric)::text, '')
+      /* The counters are summed as the floats they are stored as. They hold
+         whole numbers (0 fractional values among every post on the prod copy,
+         2026-10-13), which a float adds exactly in any order, so the sum does
+         not move with the scan order; casting to numeric for safety cost 50ms.
+         A fractional count could only ever cost a needless miss, never a stale
+         hit. format() keeps each sum in its own slot when one is NULL. */
+      (SELECT count(*)::text || ':' || format('%s,%s,%s,%s,%s,%s,%s,%s',
+                sum(p."viewsCount"), sum(p."likesCount"), sum(p."commentsCount"),
+                sum(p."sharesCount"), sum(p."savesCount"),
+                sum(extract(epoch FROM p."lastSyncedAt")::numeric),
+                sum(extract(epoch FROM p."postedAt")::numeric),
+                sum(hashtextextended(concat_ws('|', p."creatorId", p."campaignId", p.platform, p."postUrl"), 0)))
          FROM "Post" p JOIN "Campaign" c ON c.id = p."campaignId"
         WHERE c."orgId" = ${orgId}) AS posts,
-      (SELECT count(*)::text || ':' || coalesce(sum(extract(epoch FROM "updatedAt")::numeric)::text, '')
+      (SELECT count(*)::text || ':' || coalesce(sum(hashtextextended(ROW(id, title, status, "createdAt", "deletedAt")::text, 0))::text, '')
          FROM "Campaign" WHERE "orgId" = ${orgId}) AS campaigns,
-      (SELECT count(*)::text || ':' || coalesce(sum(extract(epoch FROM "updatedAt")::numeric)::text, '')
+      (SELECT count(*)::text || ':' || coalesce(sum(hashtextextended(ROW(id, name, handle, platform, "avatarUrl", "followersCount", "deletedAt")::text, 0))::text, '')
          FROM "Creator" WHERE "orgId" = ${orgId}) AS creators,
       CASE WHEN ${parts.activations === true} THEN
-        (SELECT count(*)::text || ':' || coalesce(sum(extract(epoch FROM a."updatedAt")::numeric)::text, '')
+        (SELECT count(*)::text || ':' || coalesce(sum(hashtextextended(ROW(a.id, a."campaignId", a."creatorId", a."deletedAt")::text, 0))::text, '')
            FROM "Activation" a JOIN "Campaign" c ON c.id = a."campaignId"
           WHERE c."orgId" = ${orgId})
       END AS activations,
       CASE WHEN ${parts.viewsSnapshots === true} THEN
-        (SELECT count(*)::text || ':' || coalesce(sum(extract(epoch FROM "recordedAt")::numeric)::text, '')
+        (SELECT count(*)::text || ':' || coalesce(sum(hashtextextended(ROW(day, "viewsCount", "postsCount")::text, 0))::text, '')
            FROM "OrgViewsSnapshot" WHERE "orgId" = ${orgId})
       END AS views
   `;
