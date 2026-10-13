@@ -6,10 +6,10 @@ import {
 } from "@/lib/platforms/instagramToken";
 
 jest.mock("@/lib/db", () => ({
-  /* findFirst is the grant gate's ungated read (lib/creators/connectionGate):
+  /* findMany is the grant gate's ungated read (lib/creators/connectionGate):
      no grant table in a unit test, so the token comes from there, or not. */
   db: {
-    creatorSocialAccount: { update: jest.fn(), findFirst: jest.fn().mockResolvedValue(null) },
+    creatorSocialAccount: { update: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     creator: { findUnique: jest.fn() },
   },
 }));

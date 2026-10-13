@@ -155,6 +155,8 @@ export async function getInstagramAccountForCreator(
       socialAccounts: {
         where: { platform: "INSTAGRAM", ...facebookLogin },
         select: { handle: true },
+        /* A fixed order, so "the" handle is the same one every time (plan A8). */
+        orderBy: [{ createdAt: "desc" }, { id: "asc" }],
       },
     },
   });

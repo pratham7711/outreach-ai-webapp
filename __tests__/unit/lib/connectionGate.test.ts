@@ -26,6 +26,7 @@ import {
   grantedConnectionKeys,
   grantKey,
   NOT_MANUAL_ORIGIN,
+  rankConnections,
   readableConnection,
   resetConnectionGateLog,
 } from "@/lib/creators/connectionGate";
@@ -36,7 +37,7 @@ const mockDb = db as unknown as {
   creatorGrant: { findMany: jest.Mock };
 };
 
-type Row = { id: string; creatorId: string; orgId: string; platform: string; origin?: string | null };
+type Row = { id: string; creatorId: string; orgId: string; platform: string; origin?: string | null; createdAt?: Date };
 type Grant = { id: string; orgId: string; connectionId: string; revokedAt: Date | null };
 
 /* A two-org world. The same person is rostered in both; only org A's roster
@@ -57,6 +58,7 @@ function connectionFields(r: Row) {
     platformUserId: "open-id-fake",
     followersCount: 10,
     statsSyncedAt: null,
+    createdAt: r.createdAt ?? new Date("2026-09-01T00:00:00Z"),
   };
 }
 
@@ -163,7 +165,7 @@ describe("connectionForRead, with the grant table", () => {
       platform: "TIKTOK",
       creator: { orgId: "org-a" },
     });
-    expect(args.orderBy).toEqual({ createdAt: "asc" });
+    expect(args.orderBy).toEqual([{ createdAt: "asc" }, { id: "asc" }]);
   });
 
   it("does not let a filter override the creator, platform or org", async () => {
@@ -181,11 +183,11 @@ describe("connectionForRead, with the grant table", () => {
 describe("connectionForRead, before the grant table exists", () => {
   beforeEach(() => tableExists(false));
 
-  it("answers exactly what the reader's own query answered: the first matching row", async () => {
+  it("answers the best-ranked matching row, without asking for a grant", async () => {
     grants = [];
     const read = await connectionForRead("org-a", "creator-a", "TIKTOK");
     expect(read).toEqual({ ok: true, connection: expect.objectContaining({ id: "conn-a" }), grantId: null });
-    expect(mockDb.creatorSocialAccount.findFirst).toHaveBeenCalledTimes(1);
+    expect(mockDb.creatorSocialAccount.findMany).toHaveBeenCalledTimes(1);
     expect(mockDb.creatorGrant.findMany).not.toHaveBeenCalled();
   });
 
@@ -274,5 +276,71 @@ describe("grantedConnectionKeys (the bulk form, for the post sync cron)", () => 
     tableExists(true);
     mockDb.creatorGrant.findMany.mockRejectedValue(new Error("boom"));
     expect(await grantedConnectionKeys([{ orgId: "org-a", connectionId: "conn-a" }])).toEqual(new Set());
+  });
+});
+
+/**
+ * Plan A8: which row is "the" connection. The token readers used to take
+ * whatever Postgres returned first; these pin one answer for the same rows.
+ */
+describe("rankConnections", () => {
+  const at = (iso: string) => new Date(iso);
+  const row = (id: string, origin: string | null, createdAt?: Date) => ({ id, origin, createdAt });
+
+  it("puts a consented connection ahead of a legacy row and the dev shortcut, whatever their age", () => {
+    const ranked = rankConnections([
+      row("dev", "dev", at("2026-10-10")),
+      row("legacy", null, at("2026-10-09")),
+      row("oauth", "oauth", at("2026-01-01")),
+    ]);
+    expect(ranked.map((r) => r.id)).toEqual(["oauth", "legacy", "dev"]);
+  });
+
+  it("treats both OAuth origins as consented", () => {
+    const ranked = rankConnections([row("legacy", null), row("ig-login", "oauth_instagram_login")]);
+    expect(ranked[0].id).toBe("ig-login");
+  });
+
+  it("takes the newest consent by default and the oldest when asked", () => {
+    const rows = [row("old", "oauth", at("2026-03-01")), row("new", "oauth", at("2026-09-01"))];
+    expect(rankConnections(rows)[0].id).toBe("new");
+    expect(rankConnections(rows, "oldest")[0].id).toBe("old");
+  });
+
+  it("breaks a tie by id, so the same rows always give the same answer in any order", () => {
+    const t = at("2026-09-01");
+    const a = [row("b", "oauth", t), row("a", "oauth", t)];
+    expect(rankConnections(a)[0].id).toBe("a");
+    expect(rankConnections([...a].reverse())[0].id).toBe("a");
+  });
+
+  it("ranks a hand-entered row last if one ever reaches it", () => {
+    expect(rankConnections([row("manual", "manual"), row("dev", "dev")])[0].id).toBe("dev");
+  });
+});
+
+describe("connectionForRead picks deterministically (plan A8)", () => {
+  it("reads the consented connection over a newer legacy row, gate open", async () => {
+    tableExists(false);
+    rows = [
+      { id: "conn-legacy", creatorId: "creator-a", orgId: "org-a", platform: "TIKTOK", origin: null, createdAt: new Date("2026-10-01") },
+      { id: "conn-oauth", creatorId: "creator-a", orgId: "org-a", platform: "TIKTOK", origin: "oauth", createdAt: new Date("2026-02-01") },
+    ];
+    const read = await connectionForRead("org-a", "creator-a", "TIKTOK");
+    expect(read.ok && read.connection.id).toBe("conn-oauth");
+  });
+
+  it("reads the newest of two granted consents, gate closed", async () => {
+    tableExists(true);
+    rows = [
+      { id: "conn-1", creatorId: "creator-a", orgId: "org-a", platform: "TIKTOK", createdAt: new Date("2026-02-01") },
+      { id: "conn-2", creatorId: "creator-a", orgId: "org-a", platform: "TIKTOK", createdAt: new Date("2026-09-01") },
+    ];
+    grants = [
+      { id: "grant-1", orgId: "org-a", connectionId: "conn-1", revokedAt: null },
+      { id: "grant-2", orgId: "org-a", connectionId: "conn-2", revokedAt: null },
+    ];
+    const read = await connectionForRead("org-a", "creator-a", "TIKTOK");
+    expect(read).toEqual({ ok: true, connection: expect.objectContaining({ id: "conn-2" }), grantId: "grant-2" });
   });
 });

@@ -44,7 +44,7 @@ import { createLogger } from "@/lib/observability/logger";
 import { classifyPostRead, openSourceGuard } from "@/lib/ops/sourceBreaker";
 import { backgroundReadsDeferred } from "@/lib/platforms/instagramDiscoveryTokens";
 import { loadAgencyDiscoveryCredentials } from "@/lib/platforms/instagramAgencyCredential";
-import { grantedConnectionKeys, readableConnection } from "@/lib/creators/connectionGate";
+import { grantedConnectionKeys, rankConnections, readableConnection } from "@/lib/creators/connectionGate";
 
 const MAX_SYNC_FAILURES = 5;
 const DEFAULT_PLATFORM_BUDGET = 100;
@@ -395,6 +395,8 @@ export async function runPostSweep(request: NextRequest, options: PostSweepOptio
               handle: true,
               tokenExpiry: true,
               origin: true,
+              /* Read only to choose between rows; see rankConnections. */
+              createdAt: true,
             },
           },
         },
@@ -663,12 +665,17 @@ export async function runPostSweep(request: NextRequest, options: PostSweepOptio
            Facebook Login row the post reads the way an unconnected creator's
            does. */
         const orgId = post.creator.orgId;
-        const igRows = post.creator.socialAccounts.filter(
-          (a) => a.platform === "INSTAGRAM" && !isInstagramLoginRow(a.origin),
+        /* Ranked, then the first readable one (plan A8): the consented
+           connection before a legacy or dev row, newest consent first, the
+           same choice connectionForRead makes for the on-demand readers. These
+           rows arrive unordered, so the first match used to be whatever
+           Postgres returned. */
+        const igRows = rankConnections(
+          post.creator.socialAccounts.filter((a) => a.platform === "INSTAGRAM" && !isInstagramLoginRow(a.origin)),
         );
         const igAccount = igRows.find((a) => readable(orgId, a));
-        const ttAccount = post.creator.socialAccounts.find(
-          (a) => a.platform === "TIKTOK" && readable(orgId, a),
+        const ttAccount = rankConnections(post.creator.socialAccounts.filter((a) => a.platform === "TIKTOK")).find((a) =>
+          readable(orgId, a),
         );
         const instagramToken =
           post.platform === "INSTAGRAM"

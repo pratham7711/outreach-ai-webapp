@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import type { Platform, Prisma } from "@/lib/generated/prisma/client";
 import { grantTablesReady } from "@/lib/creators/grantTables";
 import { createLogger } from "@/lib/observability/logger";
-import { ACCOUNT_ORIGINS } from "@/lib/platforms/accountOrigin";
+import { ACCOUNT_ORIGINS, isAuthorizedOrigin } from "@/lib/platforms/accountOrigin";
 
 /**
  * The one way an agency-side reader gets a creator's connection (plan K4, A8).
@@ -37,6 +37,8 @@ export const READ_CONNECTION_SELECT = {
   platformUserId: true,
   followersCount: true,
   statsSyncedAt: true,
+  /* Read only to choose between rows deterministically; see rankConnections. */
+  createdAt: true,
 } as const;
 
 export type ReadableConnection = Prisma.CreatorSocialAccountGetPayload<{
@@ -51,8 +53,8 @@ export type ConnectionRead =
 export type ConnectionFilter = {
   /** Narrows the rows a reader may use, e.g. Facebook Login rows only. */
   where?: Prisma.CreatorSocialAccountWhereInput;
-  /** Which of several matching rows is "the" connection. Unordered when absent,
-   *  which is what the token helpers have always done. */
+  /** Which of several equally authorized rows is "the" connection: the newest
+   *  consent when absent. See rankConnections. */
   order?: "oldest" | "newest";
 };
 
@@ -71,10 +73,49 @@ export function resetConnectionGateLog(): void {
   ungatedNoted = false;
 }
 
-function orderFor(filter: ConnectionFilter): Prisma.CreatorSocialAccountOrderByWithRelationInput | undefined {
-  if (filter.order === "oldest") return { createdAt: "asc" };
-  if (filter.order === "newest") return { createdAt: "desc" };
-  return undefined;
+function orderFor(filter: ConnectionFilter): Prisma.CreatorSocialAccountOrderByWithRelationInput[] {
+  return [{ createdAt: filter.order === "oldest" ? "asc" : "desc" }, { id: "asc" }];
+}
+
+/* A consented connection first; then a row from before the origin column,
+   which may well be one but cannot say so; then the non-production connect
+   shortcut. A hand-entered row never reaches a ranking -- the query and
+   readableConnection refuse it -- and would rank last if it did. */
+function originRank(origin: string | null | undefined): number {
+  if (isAuthorizedOrigin(origin)) return 0;
+  if (origin === null || origin === undefined) return 1;
+  if (origin === ACCOUNT_ORIGINS.MANUAL) return 3;
+  return 2;
+}
+
+/**
+ * Which of a creator's rows on one platform is "the" connection (plan A8).
+ *
+ * The token readers took whichever row Postgres returned first, with no
+ * ORDER BY: a creator with a consented connection and an older row beside it
+ * (a reconnect, a legacy row, the dev shortcut) could be read through either,
+ * and which one could change between two runs. Now: authorized origin first
+ * (isAuthorizedOrigin), then by consent time -- newest unless the reader asks
+ * for the oldest -- then by id, so the same rows always give the same answer.
+ * Pure, and shared with the post sweep, which loads connections in bulk.
+ */
+export function rankConnections<T extends { id: string; origin: string | null; createdAt?: Date | null }>(
+  rows: readonly T[],
+  order: "oldest" | "newest" = "newest",
+): T[] {
+  const time = (r: T) => (r.createdAt instanceof Date ? r.createdAt.getTime() : null);
+  return [...rows].sort((a, b) => {
+    const byOrigin = originRank(a.origin) - originRank(b.origin);
+    if (byOrigin !== 0) return byOrigin;
+    const ta = time(a);
+    const tb = time(b);
+    if (ta !== tb) {
+      if (ta === null) return 1;
+      if (tb === null) return -1;
+      return order === "oldest" ? ta - tb : tb - ta;
+    }
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  });
 }
 
 /**
@@ -105,22 +146,16 @@ export async function connectionForRead(
     creator: { orgId },
   };
   const orderBy = orderFor(filter);
+  const rank = (found: ReadableConnection[]) => rankConnections(found, filter.order ?? "newest");
 
   if (!(await grantTablesReady())) {
     noteUngated();
-    const row = await db.creatorSocialAccount.findFirst({
-      where,
-      select: READ_CONNECTION_SELECT,
-      ...(orderBy ? { orderBy } : {}),
-    });
+    /* All of them, not the first: "first" was whatever Postgres returned. */
+    const [row] = rank(await db.creatorSocialAccount.findMany({ where, select: READ_CONNECTION_SELECT, orderBy }));
     return row ? { ok: true, connection: row, grantId: null } : { ok: false, unknown: "no_connection" };
   }
 
-  const rows = await db.creatorSocialAccount.findMany({
-    where,
-    select: READ_CONNECTION_SELECT,
-    ...(orderBy ? { orderBy } : {}),
-  });
+  const rows = rank(await db.creatorSocialAccount.findMany({ where, select: READ_CONNECTION_SELECT, orderBy }));
   /* "no_grant" whether or not a row exists: from this org's side there is no
      difference, and the answer must not tell one agency that another holds a
      connection for the same person. */
