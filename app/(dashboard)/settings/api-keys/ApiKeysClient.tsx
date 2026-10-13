@@ -8,6 +8,7 @@ import { Input, Modal } from "@pratham7711/ui";
 import { toast } from "sonner";
 import { action } from "@/lib/ui/actions";
 import { BRAND } from "@/lib/brand";
+import { PAYOUTS_ENABLED } from "@/lib/payouts/switch";
 
 interface ApiKeyItem {
   id: string;
@@ -383,7 +384,8 @@ export default function ApiKeysClient() {
             color: "var(--cc-primary)",
           }}
         >
-          The MCP server gives an AI client read access to campaigns, posts, creators, activations and payouts, and lets it refresh a campaign&apos;s metrics under the same 30-minute limit as the Refresh Data button. A key carries the whole organisation, so revoke it here the moment a client no longer needs it.
+          {/* list_payouts is only offered while payouts are on (lib/mcp/tools.ts). */}
+          The MCP server gives an AI client read access to campaigns, posts, creators{PAYOUTS_ENABLED ? ", activations and payouts" : " and activations"}, and lets it refresh a campaign&apos;s metrics under the same 30-minute limit as the Refresh Data button. A key carries the whole organisation, so revoke it here the moment a client no longer needs it.
         </div>
       </div>
 

@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { fetchMarketplaceDetail } from "@/lib/marketplace/public";
 import { BRAND } from "@/lib/brand";
 import { SHOW_MONEY } from "@/lib/moneyUi";
+import { PAYOUTS_ENABLED } from "@/lib/payouts/switch";
 import {
   CAMPAIGN_TYPE_LABEL,
   PLATFORM_META,
@@ -357,7 +358,8 @@ export default async function CampaignLandingPage({
                 );
               })}
             </div>
-            {campaign.minPayoutMajor != null && (
+            {/* Requesting a payout needs payouts switched on (lib/payouts/switch.ts). */}
+            {PAYOUTS_ENABLED && campaign.minPayoutMajor != null && (
               <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "12px 0 0" }}>
                 Minimum {formatMoney(campaign.minPayoutMajor, sym)} earned before you can request a
                 payout.

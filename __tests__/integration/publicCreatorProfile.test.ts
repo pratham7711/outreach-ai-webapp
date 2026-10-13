@@ -23,6 +23,12 @@ jest.mock("@/lib/db", () => ({
   },
 }));
 jest.mock("next/navigation", () => ({ notFound: jest.fn(() => { throw new Error("NEXT_NOT_FOUND"); }) }));
+let mockPayoutsOn = false;
+jest.mock("@/lib/payouts/switch", () => ({
+  get PAYOUTS_ENABLED() {
+    return mockPayoutsOn;
+  },
+}));
 
 import { db } from "@/lib/db";
 import CreatorProfilePage from "@/app/(public)/c/[handle]/page";
@@ -59,6 +65,7 @@ async function render() {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockPayoutsOn = false;
   mockDb.creatorUser.findFirst.mockResolvedValue(user);
   mockDb.creatorTestimonial.findMany.mockResolvedValue([
     { id: "t-1", content: "Clear brief, paid on time, would work with them again." },
@@ -105,5 +112,20 @@ describe("/c/[handle] testimonials", () => {
   it("scopes the read to this creator user", async () => {
     await render();
     expect(mockDb.creatorTestimonial.findMany.mock.calls[0][0].where).toEqual({ creatorUserId: "cu-1" });
+  });
+});
+
+describe("/c/[handle] stat tiles and the payouts switch", () => {
+  it("has no Lifetime Earnings tile while payouts are off (lib/payouts/switch.ts)", async () => {
+    const html = await render();
+    expect(html).not.toMatch(/earnings/i);
+    expect(html).toContain("Followers");
+    expect(html).toContain("Avg Views");
+    expect(html).toContain("CPM");
+  });
+
+  it("shows it again once payouts are back on", async () => {
+    mockPayoutsOn = true;
+    expect(await render()).toContain("Lifetime Earnings");
   });
 });

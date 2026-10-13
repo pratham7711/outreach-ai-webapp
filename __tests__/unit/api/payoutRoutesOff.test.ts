@@ -18,12 +18,20 @@ import fs from "fs";
 import path from "path";
 import { NextRequest } from "next/server";
 
-let mockPayoutsOn = false;
-jest.mock("@/lib/payouts/switch", () => ({
-  get PAYOUTS_ENABLED() {
-    return mockPayoutsOn;
-  },
-}));
+/* State inside the factory, not a test-scope variable: modules these routes
+   import (the notification catalog) read the switch while they load, which is
+   before a test-scope variable would be initialised. */
+jest.mock("@/lib/payouts/switch", () => {
+  const state = { on: false };
+  return {
+    get PAYOUTS_ENABLED() {
+      return state.on;
+    },
+    setForTest(on: boolean) {
+      state.on = on;
+    },
+  };
+});
 
 /* Any touch of the database fails the test: the 404 must come first. */
 const mockDbTouched: string[] = [];
@@ -45,6 +53,9 @@ jest.mock("@/lib/creator-auth", () => ({ getCreatorSession: jest.fn() }));
 import { auth } from "@/lib/auth";
 import { authenticateRequest } from "@/lib/authenticate";
 import { getCreatorSession } from "@/lib/creator-auth";
+import * as payoutSwitch from "@/lib/payouts/switch";
+
+const setPayoutsOn = (on: boolean) => (payoutSwitch as unknown as { setForTest(on: boolean): void }).setForTest(on);
 
 import * as payouts from "@/app/api/payouts/route";
 import * as payoutById from "@/app/api/payouts/[id]/route";
@@ -107,7 +118,7 @@ beforeEach(() => {
 
 describe("payout routes with payouts switched off", () => {
   beforeEach(() => {
-    mockPayoutsOn = false;
+    setPayoutsOn(false);
   });
 
   it.each(CASES)("%s answers 404 without reading a session or the database", async (_name, method, handler) => {
@@ -127,7 +138,7 @@ describe("payout routes with payouts switched off", () => {
 
 describe("payout routes with payouts switched back on", () => {
   beforeEach(() => {
-    mockPayoutsOn = true;
+    setPayoutsOn(true);
   });
 
   it.each(CASES)("%s goes back to its own session check", async (_name, method, handler) => {

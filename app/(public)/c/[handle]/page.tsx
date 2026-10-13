@@ -5,6 +5,7 @@ import { Star } from "lucide-react";
 import { stripAt, formatFull } from "@/lib/format";
 import { unwrittenMetricValue } from "@/lib/metricDisplay";
 import { POWERED_BY } from "@/lib/brand";
+import { PAYOUTS_ENABLED } from "@/lib/payouts/switch";
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
 
@@ -264,11 +265,18 @@ export default async function CreatorProfilePage({
           { label: "Followers", value: unwrittenMetricValue(user.followersCount), fmt: (v: number) => formatNumber(v) },
           { label: "Avg Views", value: unwrittenMetricValue(user.averageViews), fmt: (v: number) => formatNumber(v) },
           { label: "CPM", value: unwrittenMetricValue(user.cpm), fmt: (v: number) => `$${v.toFixed(2)}` },
-          {
-            label: "Lifetime Earnings",
-            value: unwrittenMetricValue(user.lifetimeEarnings),
-            fmt: (v: number) => `$${formatNumber(v)}`,
-          },
+          /* Earnings are a payouts figure, so the tile goes while payouts are
+             switched off (lib/payouts/switch.ts); the grid's auto-fit lets the
+             other three fill the row. */
+          ...(PAYOUTS_ENABLED
+            ? [
+                {
+                  label: "Lifetime Earnings",
+                  value: unwrittenMetricValue(user.lifetimeEarnings),
+                  fmt: (v: number) => `$${formatNumber(v)}`,
+                },
+              ]
+            : []),
         ]
           .map((stat) => ({
             label: stat.label,
