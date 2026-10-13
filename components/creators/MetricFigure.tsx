@@ -24,8 +24,13 @@ export default function MetricFigure({
      text is the same string either way. A table keeps it on one line, where a
      column that wraps a number mid-figure is worse than one that scrolls. */
   if (!isUnknownMetric(value)) return <>{breakable ? breakableFigure(format(value)) : format(value)}</>;
+  /* position: relative anchors the .sr-only reason, as in AgeLabel. Without it
+     that absolutely positioned span resolves against the page, escapes the
+     table's scrolling wrapper, and widens the whole page: MEASURED 2026-10-13,
+     the roster's table view at 390 made html.scrollWidth 634 and gave the
+     document a second, vertical scrollbar of its own. */
   return (
-    <span title={value.reason} data-unknown="" style={{ cursor: "help" }}>
+    <span title={value.reason} data-unknown="" style={{ position: "relative", cursor: "help" }}>
       <span aria-hidden="true">{metricText(value)}</span>
       <span className="sr-only">Unknown. {value.reason}</span>
     </span>
