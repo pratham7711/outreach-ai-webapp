@@ -85,20 +85,23 @@ describe("exit lane pool", () => {
       makeExit: (slot, gen) => fakeExit(`lane${slot}#${gen}`, () => ({ status: 200, body: profileHtml(1000), ms: 5 }), log),
       gate: FAST,
     });
+    const queuedAt = Date.now();
     const reads = await Promise.all(Array.from({ length: 300 }, (_, i) => pool.read(`creator${i}`)));
     expect(reads.every((r) => r.result.ok)).toBe(true);
 
     const byLane = new Map<string, number[]>();
     for (const e of log) byLane.set(e.id, [...(byLane.get(e.id) ?? []), e.at]);
     expect([...byLane.keys()].sort()).toEqual(["lane0#1", "lane1#1"]);
-    /* The gate schedules slots, so one late timer makes the next gap look
-       short; the pace is the schedule. So each read is held to its slot --
-       never before the lane's first read plus that many gaps -- rather than to
-       the gap since the read before it, which a loaded runner shortens (7ms
-       against 18 on CI, 2026-10-10). */
+    /* The gate schedules slots from each lane's first acquire, so the pace is
+       the schedule: a lane's i-th read never starts before i gaps after that
+       acquire, which is after queuedAt. Neither neighbouring reads nor the
+       lane's first read is an anchor -- the first read is logged only once all
+       300 are queued, so a stall while queueing makes it late and the next gap
+       short (7ms against 18 on CI, 2026-10-10 and 2026-10-14). The 2ms covers
+       a timer firing up to a millisecond early against Date.now(). */
     for (const times of byLane.values()) {
       expect(times.length).toBe(150);
-      for (let i = 1; i < times.length; i++) expect(times[i] - times[0]).toBeGreaterThanOrEqual(i * FAST.minGapMs - 10);
+      for (let i = 0; i < times.length; i++) expect(times[i] - queuedAt).toBeGreaterThanOrEqual(i * FAST.minGapMs - 2);
     }
     const stats = pool.stats();
     expect(stats.reduce((n, s) => n + s.proper, 0)).toBe(300);
