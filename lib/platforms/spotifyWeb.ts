@@ -1,4 +1,4 @@
-import { createBrowserSession, withTimeout, type BrowserSession, type LaunchedBrowser } from "@/lib/platforms/tiktokBrowser";
+import { launch, withTimeout, type LaunchedBrowser } from "@/lib/platforms/tiktokBrowser";
 
 /**
  * Spotify's public track page, read the way a logged-out visitor's browser
@@ -14,7 +14,17 @@ import { createBrowserSession, withTimeout, type BrowserSession, type LaunchedBr
  *
  * Measured from this Mac on 2026-10-14, logged out, no Spotify account:
  * getTrack answered "playcount": "5631276067" for a public track, and a search
- * page answered searchTracks with 20 tracks. Not yet measured from Vercel.
+ * page answered searchTracks with 20 tracks.
+ *
+ * One page per run, navigated from read to read. The TikTok readers' session
+ * (lib/platforms/tiktokBrowser) keeps a never-navigated keeper page in a
+ * second browser context, and with that page open the production Chromium
+ * (--single-process) died with SIGTRAP on Spotify's web player, 1.5s into the
+ * first read, right after its token calls: 4 runs of 4 in a 1-vCPU sin1
+ * Sandbox, 2026-10-14, and 3 of 3 production dry-run reads timing out the same
+ * day. The same build reusing one page answered 3 reads of 3 there and exited
+ * cleanly. Keeping that page open also keeps the page count above zero, which
+ * is what the keeper page is for.
  *
  * Read-only and anonymous: no login, no cookie carried between runs, no
  * Spotify account of anyone's. Images, media and fonts are refused, so a read
@@ -93,37 +103,50 @@ type PageResponse = {
   request: () => { postData: () => string | null };
   json: () => Promise<unknown>;
 };
+type OnResponse = (res: PageResponse) => void;
+type SpotifyPage = {
+  route: (url: string, handler: (route: PageRoute) => Promise<void>) => Promise<void>;
+  on: (event: "response", fn: OnResponse) => unknown;
+  off: (event: "response", fn: OnResponse) => unknown;
+  goto: (url: string, opts: { waitUntil: "domcontentloaded"; timeout: number }) => Promise<unknown>;
+};
+
+/** Whether a pathfinder call is the answer this read is waiting for. */
+export function answersAsk(ask: SpotifyAsk, body: { operationName?: unknown; variables?: Record<string, unknown> }): boolean {
+  if (ask.kind === "track") return body.operationName === "getTrack" && body.variables?.uri === `spotify:track:${ask.trackId}`;
+  return body.operationName === "searchTracks" && body.variables?.searchTerm === ask.query;
+}
 
 /**
- * Opens the page, waits for the one data call it is there for, and closes it.
- * For a track, the answer must be about that track: the page also asks about
- * other tracks (recommendations), and those are not this song's count.
+ * Navigates the run's page and waits for the one data call it is there for.
+ * The answer must be about this read: a track page also asks about other
+ * tracks (recommendations), and on a reused page the previous search can still
+ * be answering when the next one starts.
  */
-async function readOnce(browser: LaunchedBrowser, ask: SpotifyAsk, timeoutMs: number): Promise<Answer | null> {
-  const page = await browser.newPage({ locale: "en-US", viewport: { width: 1280, height: 800 } });
+async function readOnce(page: SpotifyPage, ask: SpotifyAsk, timeoutMs: number): Promise<Answer> {
+  let onResponse: OnResponse = () => {};
+  const answer = new Promise<Answer>((resolve) => {
+    onResponse = (res) => {
+      if (!String(res.url()).includes("/pathfinder/")) return;
+      let body: { operationName?: unknown; variables?: Record<string, unknown> } = {};
+      try {
+        body = JSON.parse(res.request().postData() ?? "{}");
+      } catch {
+        return;
+      }
+      if (!answersAsk(ask, body)) return;
+      void res.json().then(
+        (json) => resolve({ status: res.status(), json }),
+        () => resolve({ status: res.status(), json: null })
+      );
+    };
+  });
+  page.on("response", onResponse);
   try {
-    await page.route("**/*", (route: PageRoute) =>
-      BLOCKED.has(route.request().resourceType()) ? route.abort() : route.continue()
-    );
-    const wanted = ask.kind === "track" ? "getTrack" : "searchTracks";
-    const answer = new Promise<Answer>((resolve) => {
-      page.on("response", async (res: PageResponse) => {
-        if (!String(res.url()).includes("/pathfinder/")) return;
-        let body: { operationName?: string; variables?: { uri?: string } } = {};
-        try {
-          body = JSON.parse(res.request().postData() ?? "{}");
-        } catch {
-          return;
-        }
-        if (body.operationName !== wanted) return;
-        if (ask.kind === "track" && body.variables?.uri !== `spotify:track:${ask.trackId}`) return;
-        resolve({ status: res.status(), json: await res.json().catch(() => null) });
-      });
-    });
     await page.goto(pageUrl(ask), { waitUntil: "domcontentloaded", timeout: timeoutMs });
-    return await withTimeout(answer, timeoutMs, `spotify ${wanted}`);
+    return await withTimeout(answer, timeoutMs, `spotify ${ask.kind === "track" ? "getTrack" : "searchTracks"}`);
   } finally {
-    await page.close().catch(() => {});
+    page.off("response", onResponse);
   }
 }
 
@@ -133,19 +156,60 @@ export type SpotifyReader = {
   close: () => Promise<void>;
 };
 
+const LAUNCH_TIMEOUT_MS = 60_000;
+const READ_CAP_MS = 60_000;
+
 /**
- * One browser for a whole run, launched on the first read. A read that does
- * not get its answer throws, with the reason, so the caller can record it.
+ * One browser and one page for a whole run, opened on the first read. A read
+ * that does not get its answer throws, with the reason, so the caller can
+ * record it; the browser it ran in is closed, and the next read opens a fresh
+ * one rather than trusting a page that may have died. Every browser call is
+ * under a timeout, because a wedged --single-process Chromium neither answers
+ * nor fails (lib/platforms/tiktokBrowser, rule 2).
  */
-export function createSpotifyReader(opts: { timeoutMs?: number } = {}): SpotifyReader {
-  const session: BrowserSession<SpotifyAsk, Answer> = createBrowserSession(readOnce, {
-    defaultTimeoutMs: opts.timeoutMs ?? 30_000,
-    hardCapMs: 60_000,
-    stopWhenExhausted: true,
-  });
+export function createSpotifyReader(
+  opts: { timeoutMs?: number; launchBrowser?: () => Promise<LaunchedBrowser> } = {}
+): SpotifyReader {
+  const timeoutMs = opts.timeoutMs ?? 30_000;
+  const launchBrowser = opts.launchBrowser ?? launch;
+  let open: Promise<{ browser: LaunchedBrowser; page: SpotifyPage }> | null = null;
+
+  const dispose = () => {
+    const dead = open;
+    open = null;
+    dead?.then(({ browser }) => browser.close()).catch(() => {});
+  };
+
+  const pageForRun = () => {
+    if (!open) {
+      const launching = launchBrowser();
+      const opening = withTimeout(
+        launching.then(async (browser) => {
+          const page: SpotifyPage = await browser.newPage({ locale: "en-US", viewport: { width: 1280, height: 800 } });
+          await page.route("**/*", (route) => (BLOCKED.has(route.request().resourceType()) ? route.abort() : route.continue()));
+          return { browser, page };
+        }),
+        LAUNCH_TIMEOUT_MS,
+        "browser launch"
+      );
+      opening.catch(() => {
+        if (open === opening) open = null;
+        launching.then((b) => b.close()).catch(() => {});
+      });
+      open = opening;
+    }
+    return open;
+  };
+
   const ask = async (a: SpotifyAsk): Promise<Answer> => {
-    const got = await session.read(a);
-    if (!got) throw new Error("spotify: browser unavailable");
+    let got: Answer;
+    try {
+      const { page } = await pageForRun();
+      got = await withTimeout(readOnce(page, a, timeoutMs), READ_CAP_MS, "browser read");
+    } catch (e) {
+      dispose();
+      throw e instanceof Error ? e : new Error(String(e));
+    }
     if (got.status !== 200) throw new Error(`spotify: answered ${got.status}`);
     return got;
   };
@@ -157,6 +221,11 @@ export function createSpotifyReader(opts: { timeoutMs?: number } = {}): SpotifyR
       if (!isSpotifyTrackId(trackId)) return null;
       return parseTrack((await ask({ kind: "track", trackId })).json);
     },
-    close: () => session.close(),
+    async close() {
+      const dead = open;
+      open = null;
+      if (!dead) return;
+      await withTimeout(dead.then(({ browser }) => browser.close()), 10_000, "browser close").catch(() => {});
+    },
   };
 }
