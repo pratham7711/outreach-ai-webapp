@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { captureLatestAvatar } from "@/lib/creators/avatarStore";
+import { trackerSweepableWhere } from "@/lib/creators/handleCheck";
 import type { Prisma } from "@/lib/generated/prisma";
 import { createLogger } from "@/lib/observability/logger";
 import { velocityBetween } from "@/lib/trackers/metrics";
@@ -397,6 +398,12 @@ export async function snapshotCreators(
       /* Left out here rather than skipped one by one, so a platform that is
          switched off cannot fill the page and starve the others. */
       ...(sourceGuard?.excludedPlatforms.length ? { platform: { notIn: sourceGuard.excludedPlatforms } } : {}),
+      /* An account the platform said is gone is asked again weekly, not every
+         sweep (DEAD_ACCOUNT_RECHECK_MS). Left out here rather than skipped one
+         by one: a skipped row is not stamped, so it would stay at the head of
+         the attempt order and fill the page. A single-creator refresh is a
+         person asking, and always reads. */
+      ...(creatorId ? {} : { AND: [trackerSweepableWhere(Date.now())] }),
     },
     ...(creatorId ? {} : { take: maxCreators }),
     select: {

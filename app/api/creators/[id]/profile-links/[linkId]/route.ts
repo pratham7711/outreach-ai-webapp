@@ -77,10 +77,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         data: { handle, url, refreshedAt: null, refreshError: null },
       });
       // Creator.handle mirrors the primary account; every list and the tracker read it.
+      // The tracker's verdict was on the old handle, so it is cleared and the new one read first.
       if (link.isPrimary) {
         await tx.creator.update({
           where: { id, orgId },
-          data: { handle: `@${handle}` },
+          data: { handle: `@${handle}`, trackerLastError: null, trackerLastAttemptAt: null },
         });
       }
     });

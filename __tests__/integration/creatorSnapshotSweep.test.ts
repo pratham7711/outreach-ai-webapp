@@ -2,6 +2,7 @@
  * @jest-environment node
  */
 import { snapshotCreators } from "@/lib/creators/snapshot";
+import { DEAD_ACCOUNT_RECHECK_MS, TRACKER_HANDLE_PROBLEM_WHERE } from "@/lib/creators/handleCheck";
 
 jest.mock("@/lib/db", () => ({
   db: {
@@ -96,6 +97,24 @@ describe("creator sweep — bounded and rotating", () => {
     const args = mockDb.creator.findMany.mock.calls[0][0];
     expect(args.take).toBeUndefined();
     expect(args.where).toMatchObject({ id: "creator-1", orgId: "org-1" });
+    // A person pressing Refresh is always read, even on an account last seen gone.
+    expect(args.where).not.toHaveProperty("AND");
+  });
+
+  it("leaves out, at the query, an account the platform said is gone within the week", async () => {
+    mockDb.creator.findMany.mockResolvedValue([]);
+    const before = Date.now();
+
+    await snapshotCreators({});
+
+    const args = mockDb.creator.findMany.mock.calls[0][0];
+    const [clause] = args.where.AND;
+    expect(clause.OR).toHaveLength(4);
+    expect(clause.OR.slice(0, 2)).toEqual([{ trackerLastError: null }, { trackerLastAttemptAt: null }]);
+    const cutoff = clause.OR[2].trackerLastAttemptAt.lt.getTime();
+    expect(cutoff).toBeGreaterThanOrEqual(before - DEAD_ACCOUNT_RECHECK_MS);
+    expect(cutoff).toBeLessThanOrEqual(Date.now() - DEAD_ACCOUNT_RECHECK_MS);
+    expect(clause.OR[3]).toEqual({ NOT: TRACKER_HANDLE_PROBLEM_WHERE });
   });
 });
 

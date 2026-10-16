@@ -1,7 +1,15 @@
 /**
  * @jest-environment node
  */
-import { HANDLE_PROBLEM_WHERE, handleIssueSummary, handleProblem, handleProblemText } from "@/lib/creators/handleCheck";
+import {
+  DEAD_ACCOUNT_RECHECK_MS,
+  HANDLE_PROBLEM_WHERE,
+  TRACKER_HANDLE_PROBLEM_WHERE,
+  handleIssueSummary,
+  handleProblem,
+  handleProblemText,
+  trackerSweepableWhere,
+} from "@/lib/creators/handleCheck";
 import { countCreatorFilters, creatorWhere, readCreatorFilters } from "@/lib/listFilters";
 
 describe("handleProblem", () => {
@@ -67,5 +75,31 @@ describe("the Account not found filter", () => {
     expect(creatorWhere("org-1", f, { roster: true }).AND).toContainEqual({ profileLinks: { some: HANDLE_PROBLEM_WHERE } });
     expect(creatorWhere("org-1", f, { roster: false }).AND).not.toContainEqual({ profileLinks: { some: HANDLE_PROBLEM_WHERE } });
     expect(creatorWhere("org-1", f, { roster: true }).orgId).toBe("org-1");
+  });
+});
+
+describe("trackerSweepableWhere", () => {
+  const NOW = Date.UTC(2026, 9, 17, 12);
+
+  it("waits a week on an account the platform says is gone", () => {
+    expect(DEAD_ACCOUNT_RECHECK_MS).toBe(7 * 24 * 60 * 60 * 1000);
+    expect(TRACKER_HANDLE_PROBLEM_WHERE).toEqual({
+      OR: [
+        { trackerLastError: { startsWith: "no-such-account" } },
+        { platform: "INSTAGRAM", trackerLastError: { startsWith: "not-a-professional-account" } },
+      ],
+    });
+  });
+
+  // NOT over a NULL column is NULL in SQL, so a creator with no error must be let in by its own branch.
+  it("lets in a clean read, a never-attempted row, a week-old attempt, and any other failure", () => {
+    expect(trackerSweepableWhere(NOW)).toEqual({
+      OR: [
+        { trackerLastError: null },
+        { trackerLastAttemptAt: null },
+        { trackerLastAttemptAt: { lt: new Date(NOW - DEAD_ACCOUNT_RECHECK_MS) } },
+        { NOT: TRACKER_HANDLE_PROBLEM_WHERE },
+      ],
+    });
   });
 });

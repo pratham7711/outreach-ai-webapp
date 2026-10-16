@@ -67,7 +67,10 @@ describe("PATCH /api/creators/[id]/profile-links/[linkId]", () => {
     });
     // Stored counts stay until the read replaces them; nothing here writes one.
     expect(tx.creatorProfileLink.update.mock.calls[0][0].data).not.toHaveProperty("followersCount");
-    expect(tx.creator.update).toHaveBeenCalledWith({ where: { id: "creator-1", orgId: "org-1" }, data: { handle: "@synthfix01" } });
+    expect(tx.creator.update).toHaveBeenCalledWith({
+      where: { id: "creator-1", orgId: "org-1" },
+      data: { handle: "@synthfix01", trackerLastError: null, trackerLastAttemptAt: null },
+    });
     expect(logAudit).toHaveBeenCalledWith(
       expect.objectContaining({ action: "creator.profile_link.update", before: { platform: "TIKTOK", handle: "synthfixx" }, after: { platform: "TIKTOK", handle: "synthfix01" } }),
     );
@@ -116,7 +119,7 @@ describe("PATCH /api/creators/[id]/profile-links/[linkId]", () => {
       refreshedAt: null,
       refreshError: null,
     });
-    expect(tx.creator.update.mock.calls[0][0].data).toEqual({ handle: "@synthfix01" });
+    expect(tx.creator.update.mock.calls[0][0].data).toEqual({ handle: "@synthfix01", trackerLastError: null, trackerLastAttemptAt: null });
     expect((await res.json()).link).not.toHaveProperty("followersCount");
   });
 

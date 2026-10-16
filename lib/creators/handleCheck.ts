@@ -33,6 +33,48 @@ export const HANDLE_UNREADABLE_WHERE: Prisma.CreatorProfileLinkWhereInput = {
 /** The same test as handleProblem, for a query. */
 export const HANDLE_PROBLEM_WHERE: Prisma.CreatorProfileLinkWhereInput = { OR: [HANDLE_GONE_WHERE, HANDLE_UNREADABLE_WHERE] };
 
+/**
+ * How long an account the platform says is gone waits before the automatic
+ * jobs ask again.
+ *
+ * Both jobs used to retry it on their ordinary cadence, and the platform gave
+ * the same answer every time. MEASURED on prod 2026-10-16: 220 tracked TikTok
+ * creators read "no-such-account" on every creator sweep -- about one read in
+ * eight -- and the roster refresh asked Business Discovery about 279 Instagram
+ * accounts it cannot see once a day, ~280 Graph errors a day on the one shared
+ * Meta account. A week still notices an account that comes back; editing the
+ * handle puts it at the front of the queue, and the creator page's Refresh
+ * reads it at once.
+ */
+export const DEAD_ACCOUNT_RECHECK_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** The same test as handleProblem, on the creator tracker's own stored error. */
+export const TRACKER_HANDLE_PROBLEM_WHERE: Prisma.CreatorWhereInput = {
+  OR: [
+    { trackerLastError: { startsWith: "no-such-account" } },
+    { platform: "INSTAGRAM", trackerLastError: { startsWith: "not-a-professional-account" } },
+  ],
+};
+
+/**
+ * Tracked creators an automatic sweep may read: everyone but an account the
+ * platform said was gone at an attempt inside the last week.
+ *
+ * Written as an OR of what is allowed rather than a NOT of what is not, because
+ * SQL's NOT over a NULL column is NULL, not true: `NOT (error LIKE ...)` alone
+ * would drop every creator whose last read succeeded.
+ */
+export function trackerSweepableWhere(nowMs: number): Prisma.CreatorWhereInput {
+  return {
+    OR: [
+      { trackerLastError: null },
+      { trackerLastAttemptAt: null },
+      { trackerLastAttemptAt: { lt: new Date(nowMs - DEAD_ACCOUNT_RECHECK_MS) } },
+      { NOT: TRACKER_HANDLE_PROBLEM_WHERE },
+    ],
+  };
+}
+
 export function handleProblemText(platform: string, handle: string, problem: HandleProblem): string {
   const at = `@${handle.replace(/^@/, "")}`;
   return problem === "not-found"

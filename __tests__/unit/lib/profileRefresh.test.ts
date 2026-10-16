@@ -22,6 +22,7 @@ import { rosterTablesReady } from "@/lib/creators/rosterTables";
 import { protectedCreatorFollowers } from "@/lib/creators/followerWriter";
 import { embedHtmlVia, readTikTokTopPostsEmbed } from "@/lib/platforms/tiktokTopPostsEmbed";
 import { EMBED_GIVE_UP_STREAK, PROFILE_REFRESH_MS, refreshRosterProfiles } from "@/lib/creators/profileRefresh";
+import { DEAD_ACCOUNT_RECHECK_MS, HANDLE_PROBLEM_WHERE } from "@/lib/creators/handleCheck";
 
 const mockDb = db as any;
 const mockRead = readCreatorProfile as jest.Mock;
@@ -50,7 +51,11 @@ describe("refreshRosterProfiles", () => {
     mockDb.creatorProfileLink.findMany.mockResolvedValue([]);
     await refreshRosterProfiles({ nowMs: NOW, limit: 40 });
     const args = mockDb.creatorProfileLink.findMany.mock.calls[0][0];
-    expect(args.where.OR).toEqual([{ refreshedAt: null }, { refreshedAt: { lt: new Date(NOW - PROFILE_REFRESH_MS) } }]);
+    expect(args.where.OR).toEqual([
+      { refreshedAt: null },
+      { refreshedAt: { lt: new Date(NOW - DEAD_ACCOUNT_RECHECK_MS) } },
+      { refreshedAt: { lt: new Date(NOW - PROFILE_REFRESH_MS) }, OR: [{ refreshError: null }, { NOT: HANDLE_PROBLEM_WHERE }] },
+    ]);
     expect(args.where.creator).toEqual({ deletedAt: null });
     expect(args.orderBy[0]).toEqual({ refreshedAt: { sort: "asc", nulls: "first" } });
     expect(args.take).toBe(40);

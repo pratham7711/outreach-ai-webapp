@@ -261,9 +261,35 @@ describe('PATCH /api/creators/[id]', () => {
     expect(mockDb.creator.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'cr-1' },
-        data: { name: 'Updated Name', handle: '@updated' },
+        data: { name: 'Updated Name', handle: '@updated', trackerLastError: null, trackerLastAttemptAt: null },
       })
     );
+  });
+
+  it('keeps the tracker verdict when the handle and platform are unchanged', async () => {
+    mockDb.creator.findFirst.mockResolvedValue({ id: 'cr-1', orgId: 'org-1', handle: '@same', platform: 'TIKTOK' });
+    mockDb.creator.update.mockResolvedValue({ id: 'cr-1', name: 'Renamed', handle: '@same', platform: 'TIKTOK' });
+
+    const req = makeRequest('http://localhost/api/creators/cr-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ name: 'Renamed', handle: '@same', platform: 'TIKTOK' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect((await PATCH(req, makeParams('cr-1'))).status).toBe(200);
+    expect(mockDb.creator.update.mock.calls[0][0].data).toEqual({ name: 'Renamed', handle: '@same', platform: 'TIKTOK' });
+  });
+
+  it('clears the tracker verdict when only the platform changes', async () => {
+    mockDb.creator.findFirst.mockResolvedValue({ id: 'cr-1', orgId: 'org-1', handle: '@same', platform: 'TIKTOK' });
+    mockDb.creator.update.mockResolvedValue({ id: 'cr-1', name: 'A', handle: '@same', platform: 'INSTAGRAM' });
+
+    const req = makeRequest('http://localhost/api/creators/cr-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ platform: 'INSTAGRAM' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect((await PATCH(req, makeParams('cr-1'))).status).toBe(200);
+    expect(mockDb.creator.update.mock.calls[0][0].data).toEqual({ platform: 'INSTAGRAM', trackerLastError: null, trackerLastAttemptAt: null });
   });
 
   it('saves country, audience country and niche onto the detail row', async () => {

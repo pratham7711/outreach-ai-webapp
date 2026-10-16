@@ -182,8 +182,19 @@ export async function PATCH(
     const detailBefore = Object.keys(detail).length
       ? await db.creatorDetail.findUnique({ where: { creatorId: id }, select: { country: true, audienceCountry: true, niche: true } })
       : null;
+    /* A new handle is a new account to read: the tracker's verdict on the old
+       one -- above all "no such account", which the sweep asks again only
+       weekly -- no longer applies, and a never-attempted row is read first,
+       as an edited roster link is. */
+    const accountChanged =
+      (fields.handle !== undefined && fields.handle !== existing.handle) ||
+      (fields.platform !== undefined && fields.platform !== existing.platform);
     const creator = await db.$transaction(async (tx) => {
-      const updated = await tx.creator.update({ where: { id }, data: fields, omit: paymentInfoOmit() });
+      const updated = await tx.creator.update({
+        where: { id },
+        data: accountChanged ? { ...fields, trackerLastError: null, trackerLastAttemptAt: null } : fields,
+        omit: paymentInfoOmit(),
+      });
       if (Object.keys(detail).length) {
         await tx.creatorDetail.upsert({
           where: { creatorId: id },

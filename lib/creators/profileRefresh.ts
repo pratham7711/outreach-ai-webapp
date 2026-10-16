@@ -9,6 +9,7 @@ import { boundAccountIds, recordPlatformAccountId } from "@/lib/creators/account
 import { describeVerdict, logVerdict, validateReading } from "@/lib/acquisition/validate";
 import { protectedCreatorFollowers } from "@/lib/creators/followerWriter";
 import { createLogger } from "@/lib/observability/logger";
+import { DEAD_ACCOUNT_RECHECK_MS, HANDLE_PROBLEM_WHERE } from "@/lib/creators/handleCheck";
 
 /**
  * Keeps every roster account's follower count and picture current.
@@ -24,7 +25,8 @@ import { createLogger } from "@/lib/observability/logger";
  * when someone opens the page. Accounts are taken least recently read first,
  * so a big import is worked through across runs and then settles into a daily
  * rotation. A failed read is stamped too and waits a day, so an account that
- * no longer exists cannot hold the head of the queue.
+ * no longer exists cannot hold the head of the queue -- and a week when the
+ * platform said the account is gone, since asking daily changes nothing.
  */
 
 export const PROFILE_REFRESH_MS = 24 * 60 * 60 * 1000;
@@ -75,7 +77,17 @@ export async function refreshRosterProfiles({
     where: {
       platform: { in: READABLE },
       creator: { deletedAt: null },
-      OR: [{ refreshedAt: null }, { refreshedAt: { lt: new Date(nowMs - PROFILE_REFRESH_MS) } }],
+      /* An account the platform says is gone waits a week, not a day (see
+         DEAD_ACCOUNT_RECHECK_MS). The OR spells out a NULL refreshError rather
+         than leaving it to NOT, which a NULL would turn false. */
+      OR: [
+        { refreshedAt: null },
+        { refreshedAt: { lt: new Date(nowMs - DEAD_ACCOUNT_RECHECK_MS) } },
+        {
+          refreshedAt: { lt: new Date(nowMs - PROFILE_REFRESH_MS) },
+          OR: [{ refreshError: null }, { NOT: HANDLE_PROBLEM_WHERE }],
+        },
+      ],
     },
     orderBy: [{ refreshedAt: { sort: "asc", nulls: "first" } }, { createdAt: "asc" }],
     take: limit,

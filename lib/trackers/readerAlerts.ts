@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { alertOps } from "@/lib/alerts";
+import { trackerSweepableWhere } from "@/lib/creators/handleCheck";
 import { trackerSourceTablesReady, type TrackerPosition } from "./sourceSwitch";
 
 /**
@@ -86,13 +87,16 @@ export async function checkReaderAlerts(input: {
           .catch(() => null)
       : null;
     /* Never-attempted rows are left out: Track all stamps new rows "now"
-       (plan F3), so a null here is a row from before that, not a stuck queue. */
+       (plan F3), so a null here is a row from before that, not a stuck queue.
+       So is an account the platform said is gone: the sweep asks it weekly by
+       design (DEAD_ACCOUNT_RECHECK_MS), and that wait is not a stuck queue. */
     const oldest = await db.creator
       .findFirst({
         where: {
           deletedAt: null,
           trackedSince: { not: null },
           trackerLastAttemptAt: { not: null },
+          AND: [trackerSweepableWhere(nowMs)],
           ...(input.scopeOrgIds.length ? { orgId: { in: input.scopeOrgIds } } : {}),
         },
         orderBy: { trackerLastAttemptAt: "asc" },
