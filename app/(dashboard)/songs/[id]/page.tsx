@@ -5,6 +5,9 @@ import { NOT_REMOVED } from "@/lib/posts/removed";
 import { fieldMetricValue, postEngagementPercent, rollupEngagement } from "@/lib/metricDisplay";
 import { oneCopyPerVideo } from "@/lib/posts/duplicates";
 import { viewTotals } from "@/lib/posts/viewTotals";
+import { songArtwork } from "@/lib/campaignArtwork";
+import { storedSoundCoverVersions } from "@/lib/sounds/coverStore";
+import { soundCoverPath } from "@/lib/postMedia";
 import SongDashboard from "./SongDashboard";
 
 export default async function SongPage({ params }: { params: Promise<{ id: string }> }) {
@@ -21,6 +24,7 @@ export default async function SongPage({ params }: { params: Promise<{ id: strin
       title: true,
       artist: true,
       coverUrl: true,
+      sound: { select: { id: true, coverImageUrl: true } },
       releaseDate: true,
       campaigns: {
         where: { deletedAt: null },
@@ -86,6 +90,11 @@ export default async function SongPage({ params }: { params: Promise<{ id: strin
     }),
   );
 
+  // Our own copy of the sound's cover; see songArtwork.
+  const coverVersion = song.sound
+    ? (await storedSoundCoverVersions([song.sound.id], orgId)).get(song.sound.id)
+    : undefined;
+
   return (
     <SongDashboard
       attachable={orgCampaigns}
@@ -94,7 +103,7 @@ export default async function SongPage({ params }: { params: Promise<{ id: strin
           id: song.id,
           title: song.title,
           artist: song.artist,
-          coverUrl: song.coverUrl,
+          coverUrl: songArtwork(song, coverVersion !== undefined && song.sound ? soundCoverPath(song.sound.id, coverVersion) : null),
           releaseDate: song.releaseDate ? song.releaseDate.toISOString() : null,
         },
         summary: {

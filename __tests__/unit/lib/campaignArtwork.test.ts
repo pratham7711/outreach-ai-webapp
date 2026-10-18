@@ -1,4 +1,4 @@
-import { campaignArtwork } from "@/lib/campaignArtwork";
+import { campaignArtwork, songArtwork } from "@/lib/campaignArtwork";
 
 /**
  * The new-campaign form stopped asking for a thumbnail URL, so a campaign's
@@ -106,5 +106,30 @@ describe("campaignArtwork and stored copies", () => {
 
   it("normalises a protocol-relative upload the way the screens do", () => {
     expect(campaignArtwork({ thumbnailUrl: "//x.cdn.bubble.io/f1/a.png" }, {}, NOW)).toBe("https://x.cdn.bubble.io/f1/a.png");
+  });
+});
+
+describe("songArtwork", () => {
+  const NOW = Date.parse("2026-10-18T12:00:00Z");
+  const igExpired = "https://scontent.xx.fbcdn.net/v/t39/a.jpg?_nc_ht=y&oe=" + Math.floor((NOW - 86_400_000) / 1000).toString(16);
+
+  it("shows the sound's stored cover when the song has none catalogued, as every prod song does", () => {
+    expect(songArtwork({ coverUrl: null, sound: { id: "s1", coverImageUrl: igExpired } }, "/api/sounds/s1/cover?v=1", NOW)).toBe(
+      "/api/sounds/s1/cover?v=1"
+    );
+  });
+
+  it("keeps a catalogued cover ahead of the sound's", () => {
+    expect(songArtwork({ coverUrl: "https://cdn.example/release.jpg", sound: { id: "s1" } }, "/api/sounds/s1/cover?v=1", NOW)).toBe(
+      "https://cdn.example/release.jpg"
+    );
+  });
+
+  it("draws the placeholder rather than a link past its signature", () => {
+    expect(songArtwork({ coverUrl: null, sound: { id: "s1", coverImageUrl: igExpired } }, null, NOW)).toBeNull();
+  });
+
+  it("has nothing to show for a song with no sound", () => {
+    expect(songArtwork({ coverUrl: null, sound: null }, null, NOW)).toBeNull();
   });
 });

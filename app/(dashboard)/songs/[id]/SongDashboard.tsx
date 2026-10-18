@@ -7,6 +7,7 @@ import { PostAnalysisTable, type AnalysisPost } from "@/components/posts/PostAna
 import { PostingTimeHeatmap } from "@/app/(dashboard)/analytics/PostingTimeHeatmap";
 import { platformLabel, formatFull, fitFigureSize } from "@/lib/format";
 import { asOfCaption } from "@/lib/dataAge";
+import { imgSrc } from "@/lib/postMedia";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import AttachCampaigns, { type AttachableCampaign } from "./AttachCampaigns";
 import { noun } from "@/lib/ui/noun";
@@ -137,6 +138,7 @@ export default function SongDashboard({
     noun: "video",
     what: "views",
   });
+  const cover = imgSrc(song.coverUrl, 128);
 
   const phaseOptions = useMemo(
     () => phases.map((p) => ({ id: p.id, name: p.name, campaignTitle: p.campaignTitle })),
@@ -150,12 +152,12 @@ export default function SongDashboard({
           aria-hidden="true"
           style={{
             width: 64, height: 64, borderRadius: 12, flexShrink: 0,
-            background: song.coverUrl ? `url(${song.coverUrl}) center/cover` : "var(--cc-bg)",
+            background: cover ? `url("${cover}") center/cover` : "var(--cc-bg)",
             border: "1px solid var(--cc-border)",
             display: "flex", alignItems: "center", justifyContent: "center",
           }}
         >
-          {!song.coverUrl && <Music size={26} color="var(--cc-text-subtle)" />}
+          {!cover && <Music size={26} color="var(--cc-text-subtle)" />}
         </div>
         <div>
           <h1 className="cc-page-title" data-mb="tight">

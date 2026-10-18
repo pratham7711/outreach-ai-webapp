@@ -45,3 +45,15 @@ export function isCoverUrlStale(url: string | null | undefined, now: number = Da
   if (expiresAt === null) return false;
   return expiresAt - now <= REFRESH_MARGIN_MS;
 }
+
+/**
+ * The link, or null once it is past its signature. An expired link can only
+ * draw a broken box, and null is what lets a screen show its placeholder.
+ * Instagram audio readings return no cover at all, so an Instagram sound's link
+ * is never renewed and expires a few days after the sound is added.
+ */
+export function unexpiredCoverUrl(url: string | null | undefined, now: number = Date.now()): string | null {
+  if (!url) return null;
+  const expiresAt = signedUrlExpiry(url);
+  return expiresAt === null || expiresAt > now ? url : null;
+}

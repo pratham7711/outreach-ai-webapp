@@ -74,3 +74,16 @@ export function campaignArtwork(
     ) ?? null
   );
 }
+
+/**
+ * The picture a song shows, by the same rules: its catalogued cover stands
+ * where a campaign's own picture does, then our copy of its sound's cover, then
+ * whichever link is still inside its signature.
+ */
+export function songArtwork(
+  song: { coverUrl?: string | null; sound?: { id?: string; coverImageUrl?: string | null } | null },
+  storedSoundCover: string | null = null,
+  now: number = Date.now()
+): string | null {
+  return campaignArtwork({ thumbnailUrl: song.coverUrl, song: { sound: song.sound } }, { soundCover: storedSoundCover }, now);
+}

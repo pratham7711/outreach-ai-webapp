@@ -28,6 +28,7 @@ import { trackerLimitError, trackerUsage } from "@/lib/trackers/limit";
 import { requirePermission } from "@/lib/authz";
 import { captureSoundCover, storedSoundCoverVersions } from "@/lib/sounds/coverStore";
 import { soundCoverPath } from "@/lib/postMedia";
+import { unexpiredCoverUrl } from "@/lib/sounds/coverUrl";
 
 const SORTS = ["velocity", "uses", "added"] as const;
 type SortKey = (typeof SORTS)[number];
@@ -119,7 +120,11 @@ export async function GET(req: NextRequest) {
       const coverVersion = coverVersions.get(sound.id);
       return {
         ...sound,
-        coverImageUrl: coverVersion === undefined ? sound.coverImageUrl : soundCoverPath(sound.id, coverVersion),
+        // A link past its signature would only draw a broken box; null draws the placeholder.
+        coverImageUrl:
+          coverVersion === undefined
+            ? unexpiredCoverUrl(sound.coverImageUrl, now.getTime())
+            : soundCoverPath(sound.id, coverVersion),
         latestSnapshot: latest,
         change,
         health,

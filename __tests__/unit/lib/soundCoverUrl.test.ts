@@ -6,7 +6,7 @@
  * sound keeps taking readings, and a campaign report simply loses its artwork.
  * These are the rules for deciding a stored one is worth replacing.
  */
-import { isCoverUrlStale, signedUrlExpiry } from "@/lib/sounds/coverUrl";
+import { isCoverUrlStale, signedUrlExpiry, unexpiredCoverUrl } from "@/lib/sounds/coverUrl";
 
 const NOW = Date.UTC(2026, 8, 11, 12, 0, 0);
 const HOUR = 60 * 60 * 1000;
@@ -70,4 +70,30 @@ it("reads Meta's hex expiry the same way", () => {
   expect(isCoverUrlStale(`https://scontent-sin6-2.cdninstagram.com/v/t39/x.jpg?_nc_ht=y&oe=${oe}`, NOW)).toBe(true);
   // A query value that merely ends in "oe" is not the parameter.
   expect(signedUrlExpiry("https://cdn.example/x.jpg?shoe=ABCDEF12")).toBeNull();
+});
+
+describe("unexpiredCoverUrl", () => {
+  const oe = (ms: number) => Math.floor(ms / 1000).toString(16);
+
+  it("drops an Instagram link past its oe, which nothing renews", () => {
+    expect(unexpiredCoverUrl(`https://scontent.xx.fbcdn.net/v/t39/x.jpg?_nc_ht=y&oe=${oe(NOW - HOUR)}`, NOW)).toBeNull();
+  });
+
+  it("drops a TikTok link past its x-expires", () => {
+    expect(unexpiredCoverUrl(at(-HOUR), NOW)).toBeNull();
+  });
+
+  it("keeps a link still inside its signature, and an unsigned one", () => {
+    expect(unexpiredCoverUrl(at(HOUR), NOW)).toBe(at(HOUR));
+    expect(unexpiredCoverUrl("https://cdn.example/release.jpg", NOW)).toBe("https://cdn.example/release.jpg");
+  });
+
+  it("passes our own stored path through", () => {
+    expect(unexpiredCoverUrl("/api/sounds/s1/cover?v=1", NOW)).toBe("/api/sounds/s1/cover?v=1");
+  });
+
+  it("is null for no link", () => {
+    expect(unexpiredCoverUrl(null, NOW)).toBeNull();
+    expect(unexpiredCoverUrl("", NOW)).toBeNull();
+  });
 });

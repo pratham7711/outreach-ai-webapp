@@ -7,6 +7,7 @@ import { Card, EmptyState, Input } from "@pratham7711/ui";
 import { PageHeader, Button } from "@/components/ds";
 import { platformLabel, formatFull } from "@/lib/format";
 import { asOfCaption } from "@/lib/dataAge";
+import { imgSrc } from "@/lib/postMedia";
 import { action } from "@/lib/ui/actions";
 
 export type SongRow = {
@@ -139,6 +140,7 @@ export default function SongsClient({ songs: initial }: { songs: SongRow[] }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" style={{ gap: 20 }}>
           {filtered.map((s) => {
             const viewsNote = asOfCaption(s.viewsAsOf, { known: s.viewsKnown, total: s.videoCount, noun: "video", what: "views" });
+            const cover = imgSrc(s.coverUrl, 104);
             return (
             <Link key={s.id} href={`/songs/${s.id}`} style={{ textDecoration: "none" }}>
               <Card variant="solid" className="ui-card-clickable" style={{ padding: 20 }}>
@@ -147,12 +149,12 @@ export default function SongsClient({ songs: initial }: { songs: SongRow[] }) {
                     aria-hidden="true"
                     style={{
                       width: 52, height: 52, borderRadius: 10, flexShrink: 0,
-                      background: s.coverUrl ? `url(${s.coverUrl}) center/cover` : "var(--cc-bg)",
+                      background: cover ? `url("${cover}") center/cover` : "var(--cc-bg)",
                       border: "1px solid var(--cc-border)",
                       display: "flex", alignItems: "center", justifyContent: "center",
                     }}
                   >
-                    {!s.coverUrl && <Music size={20} color="var(--cc-text-subtle)" />}
+                    {!cover && <Music size={20} color="var(--cc-text-subtle)" />}
                   </div>
                   <div style={{ minWidth: 0 }}>
                     <p style={{ fontWeight: 700, fontSize: "var(--cc-t-16)", color: "var(--cc-text)", marginBottom: 2 }}>{s.title}</p>

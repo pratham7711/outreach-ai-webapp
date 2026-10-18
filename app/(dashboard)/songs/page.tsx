@@ -4,6 +4,9 @@ import { db } from "@/lib/db";
 import { NOT_REMOVED } from "@/lib/posts/removed";
 import { oneCopyPerVideo } from "@/lib/posts/duplicates";
 import { viewTotals } from "@/lib/posts/viewTotals";
+import { songArtwork } from "@/lib/campaignArtwork";
+import { storedSoundCoverVersions } from "@/lib/sounds/coverStore";
+import { soundCoverPath } from "@/lib/postMedia";
 import SongsClient from "./SongsClient";
 
 export default async function SongsPage() {
@@ -19,6 +22,7 @@ export default async function SongsPage() {
       title: true,
       artist: true,
       coverUrl: true,
+      sound: { select: { id: true, coverImageUrl: true } },
       releaseDate: true,
       campaigns: {
         where: { deletedAt: null },
@@ -39,6 +43,13 @@ export default async function SongsPage() {
     },
   });
 
+  // Our own copy of each song's sound cover; see songArtwork.
+  const coverVersions = await storedSoundCoverVersions(songs.map((s) => s.sound?.id ?? ""), orgId);
+  const storedCover = (soundId: string | undefined) => {
+    const version = soundId ? coverVersions.get(soundId) : undefined;
+    return soundId && version !== undefined ? soundCoverPath(soundId, version) : null;
+  };
+
   return (
     <SongsClient
       songs={songs.map((s) => {
@@ -50,7 +61,7 @@ export default async function SongsPage() {
           id: s.id,
           title: s.title,
           artist: s.artist,
-          coverUrl: s.coverUrl,
+          coverUrl: songArtwork(s, storedCover(s.sound?.id)),
           releaseDate: s.releaseDate ? s.releaseDate.toISOString() : null,
           campaignCount: s.campaigns.length,
           activeCampaignCount: s.campaigns.filter((c) => c.status === "IN_PROGRESS").length,
