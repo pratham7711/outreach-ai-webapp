@@ -194,10 +194,12 @@ export async function POST(request: NextRequest) {
     // One reading, one snapshot per tracker row: each org's delta is computed
     // against its OWN previous reading, which is what recordSoundSnapshot does.
     for (const sound of tracked) {
-      /* The worker reads /api/music/detail's stats, which are exact. The
-         shared validation gate runs inside the writer (plan A3): a worker that
-         was served a challenge page sends that page's title. */
-      if (await recordSoundSnapshot(sound, reading, { precision: "exact", writer: "sounds-ingest" })) recorded += 1;
+      /* The worker reads /api/music/detail's stats, which carry TikTok's
+         rounding from 10K like the embed's (lib/platforms/tiktokSoundBrowser),
+         so the reading's precision is read off its value. The shared
+         validation gate runs inside the writer (plan A3): a worker that was
+         served a challenge page sends that page's title. */
+      if (await recordSoundSnapshot(sound, reading, { writer: "sounds-ingest" })) recorded += 1;
       else skipped += 1;
     }
   }

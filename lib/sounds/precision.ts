@@ -9,9 +9,12 @@ import { velocityBetween } from "@/lib/trackers/metrics";
  * prints an exact count for a small sound ("videoCount":44) but, measured on
  * production 2026-10-03, every one of the 33 readings of a sound near 74K was a
  * multiple of 100 (73,500 to 74,100, six distinct values, wandering both ways):
- * the K-rounded figure, not a count. The exact one is in /api/music/detail's
- * `stats.videoCount`, which only a browser (the sync-trackers browser rung, or
- * the sound worker) can read.
+ * the K-rounded figure, not a count. /api/music/detail, which only a browser
+ * can read, carries the same figure: measured 2026-10-18 from a sin1 Vercel
+ * Sandbox, `stats.videoCount` was 268,700 and 73,800 for two sounds, the
+ * embed said 73,800 for the second in the same minute, and no other count is
+ * in that answer or in /api/music/item_list's. Above 10K TikTok shows a
+ * logged-out reader no exact count for a sound.
  *
  * Nothing in the schema records which a stored reading was -- SoundTrackerSnapshot
  * has no source column and adding one is prod DDL -- so a stored reading's
@@ -40,9 +43,9 @@ export function usesPrecisionOf(uses: number): UsesPrecision {
 }
 
 /**
- * The reader's word when it has one -- Instagram's parser sees the "K", the
- * browser and the worker read /api/music/detail -- and the value's own shape
- * otherwise, which is the TikTok embed's case.
+ * The reader's word when it has one -- Instagram's parser sees the "K" -- and
+ * the value's own shape otherwise, which is every TikTok reader's case: the
+ * embed, the browser and the worker all carry TikTok's rounding.
  */
 export function readingPrecision(uses: number, reported?: UsesPrecision | null): UsesPrecision {
   return reported ?? usesPrecisionOf(uses);

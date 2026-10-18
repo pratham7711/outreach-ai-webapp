@@ -128,6 +128,17 @@ describe("what it does with a reading", () => {
     expect(written.deltaUses24h).toBe(5);
   });
 
+  it("does not write a rounded reading over the exact count it agrees with", async () => {
+    /* The worker reads /api/music/detail, whose count above 10K is TikTok's
+       rounding like the embed's. */
+    mockDb.tikTokSound.findMany.mockResolvedValue([{ ...TRACKED, snapshots: [{ usesCount: 73_812 }] }]);
+
+    const res = await POST(post({ readings: [{ tiktokSoundId: TRACKED.tiktokSoundId, usesCount: 73_900 }] }));
+
+    expect(await res.json()).toMatchObject({ recorded: 0, skipped: 1 });
+    expect(mockDb.soundTrackerSnapshot.create).not.toHaveBeenCalled();
+  });
+
   it("backfills a title and cover the operator never filled in", async () => {
     await POST(
       post({

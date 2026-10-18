@@ -438,32 +438,23 @@ it("still records the snapshot when the cover write fails", async () => {
   expect((await res.json()).snapshotted).toBe(1);
 });
 
-/* lib/sounds/precision: the embed's count above 10K is TikTok's display
-   rounding; /api/music/detail, which the browser reads, has the exact one. */
-describe("a rounded embed figure", () => {
-  it("is replaced by the browser's exact count when the browser answers", async () => {
-    mockDb.tikTokSound.findMany.mockResolvedValue(soundWithHistory(73_812));
+/* lib/sounds/precision: above 10K every TikTok reader -- the embed, and the
+   browser on /api/music/detail -- carries TikTok's display rounding. */
+describe("a rounded figure", () => {
+  it("is not sent to the browser, which has only the same rounded figure", async () => {
+    mockDb.tikTokSound.findMany.mockResolvedValue(soundWithHistory(73_500));
     mockEmbed.mockResolvedValue({ usesCount: 73_900, title: null, artist: null, coverImageUrl: null });
-    mockBrowserRead.mockResolvedValue({ usesCount: 73_961, title: null, artist: null, coverImageUrl: null });
+    mockBrowserRead.mockResolvedValue({ usesCount: 73_900, title: null, artist: null, coverImageUrl: null });
 
     const body = await (await runCron()).json();
 
-    expect(written().usesCount).toBe(73_961);
-    expect(written().videosAdded24h).toBe(149);
-    expect(body.decisions).toContainEqual(
-      expect.objectContaining({ soundId: "sound-1", action: "snapshot", reason: "ingested:browser" }),
-    );
-  });
-
-  it("stands, with no change recorded, when the browser cannot answer", async () => {
-    mockDb.tikTokSound.findMany.mockResolvedValue(soundWithHistory(73_500));
-    mockEmbed.mockResolvedValue({ usesCount: 73_900, title: null, artist: null, coverImageUrl: null });
-
-    await runCron();
-
+    expect(mockBrowserRead).not.toHaveBeenCalled();
     expect(written().usesCount).toBe(73_900);
     expect(written().videosAdded24h).toBe(0);
     expect(written().velocityScore).toBe(0);
+    expect(body.decisions).toContainEqual(
+      expect.objectContaining({ soundId: "sound-1", action: "snapshot", reason: "ingested:embed-direct" }),
+    );
   });
 
   it("is not written over the exact count it agrees with", async () => {
@@ -478,6 +469,31 @@ describe("a rounded embed figure", () => {
     );
   });
 
+  it("from the browser is judged by its value, as the embed's is", async () => {
+    mockDb.tikTokSound.findMany.mockResolvedValue(soundWithHistory(73_812));
+    mockBrowserRead.mockResolvedValue({ usesCount: 73_900, title: null, artist: null, coverImageUrl: null });
+
+    const body = await (await runCron()).json();
+
+    expect(mockDb.soundTrackerSnapshot.create).not.toHaveBeenCalled();
+    expect(body.decisions).toContainEqual(
+      expect.objectContaining({ soundId: "sound-1", action: "skip", reason: "rounded-agrees:browser" }),
+    );
+  });
+
+  it("from the browser records no videos added between two roundings", async () => {
+    mockDb.tikTokSound.findMany.mockResolvedValue(soundWithHistory(73_500));
+    mockBrowserRead.mockResolvedValue({ usesCount: 73_900, title: null, artist: null, coverImageUrl: null });
+
+    const body = await (await runCron()).json();
+
+    expect(written().usesCount).toBe(73_900);
+    expect(written().videosAdded24h).toBe(0);
+    expect(body.decisions).toContainEqual(
+      expect.objectContaining({ soundId: "sound-1", action: "snapshot", reason: "ingested:browser" }),
+    );
+  });
+
   it("does not ask the browser about an exact embed figure", async () => {
     mockDb.tikTokSound.findMany.mockResolvedValue(soundWithHistory(40));
     mockEmbed.mockResolvedValue({ usesCount: 52, title: null, artist: null, coverImageUrl: null });
@@ -485,6 +501,20 @@ describe("a rounded embed figure", () => {
     await runCron();
 
     expect(mockBrowserRead).not.toHaveBeenCalled();
+  });
+
+  it("reads through the browser when the embed has no figure, and keeps an exact one's change", async () => {
+    mockDb.tikTokSound.findMany.mockResolvedValue(soundWithHistory(40));
+    mockBrowserRead.mockResolvedValue({ usesCount: 52, title: null, artist: null, coverImageUrl: null });
+
+    const body = await (await runCron()).json();
+
+    expect(mockBrowserRead).toHaveBeenCalledTimes(1);
+    expect(written().usesCount).toBe(52);
+    expect(written().videosAdded24h).toBe(12);
+    expect(body.decisions).toContainEqual(
+      expect.objectContaining({ soundId: "sound-1", action: "snapshot", reason: "ingested:browser" }),
+    );
   });
 });
 

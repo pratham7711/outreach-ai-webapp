@@ -1,5 +1,5 @@
 import type { TikTokSoundStats } from "./tiktokSound";
-import { createBrowserSession, type BrowserSession, type LaunchedBrowser } from "./tiktokBrowser";
+import { launch, withTimeout, type BrowserSession, type LaunchedBrowser } from "./tiktokBrowser";
 
 /**
  * Read a TikTok sound's use-count from inside a serverless function.
@@ -20,6 +20,22 @@ import { createBrowserSession, type BrowserSession, type LaunchedBrowser } from 
  * the cheaper thing to try first, since a browser is the requirement and Vercel
  * can run one.
  *
+ * The count is the same figure the music embed carries, rounding included:
+ * from 10K it is a multiple of 100 (lib/sounds/precision). Measured 2026-10-18
+ * from a sin1 Vercel Sandbox: 268,700 and 73,800 for two sounds, the embed
+ * saying 73,800 for the second in the same minute, and `stats.videoCount` the
+ * only count anywhere in the answer. A reading from here is not more precise
+ * than the embed's; it is a reading when the embed has none.
+ *
+ * One page per run, navigated from sound to sound, as lib/platforms/spotifyWeb
+ * does and for the same reason. The shared session in lib/platforms/tiktokBrowser
+ * keeps a never-navigated keeper page in a second browser context, and with it
+ * open the production Chromium (--single-process) died on the first music page:
+ * "page.waitForTimeout: Target page, context or browser has been closed", on
+ * production 2026-10-17 and in a sin1 Sandbox with the same build 2026-10-18.
+ * Reusing one page there read 6 sounds of 6 at 1 vCPU, twice over. That page
+ * also keeps the page count above zero, which is what the keeper is for.
+ *
  * The parsing below is deliberately identical to
  * scripts/dev/tiktokSoundViaBrowser.mjs. Two copies of arithmetic is what put a
  * percentage into videosAdded24h once already, so if this diverges from that
@@ -31,22 +47,174 @@ const UA =
 
 /** How long to wait for the page to make its own API call once loaded. */
 const PAYLOAD_WAIT_MS = 25_000;
-
-
+const DEFAULT_TIMEOUT_MS = 45_000;
+const LAUNCH_TIMEOUT_MS = 60_000;
+const READ_CAP_MS = 90_000;
 
 export type SoundBrowserSession = BrowserSession<string, TikTokSoundStats>;
 
+type DetailResponse = { url: () => string; text: () => Promise<string> };
+type OnResponse = (res: DetailResponse) => void;
+type SoundPage = {
+  on: (event: "response", fn: OnResponse) => unknown;
+  off: (event: "response", fn: OnResponse) => unknown;
+  goto: (url: string, opts: { waitUntil: "domcontentloaded"; timeout: number }) => Promise<unknown>;
+};
+
+/** The sound a /api/music/detail answer is about: the id it was asked for, or the one it names. */
+export function detailAnswers(tiktokSoundId: string, url: string, payload: unknown): boolean {
+  try {
+    if (new URL(url).searchParams.get("musicId") === tiktokSoundId) return true;
+  } catch {
+    /* not a URL; fall through to the body */
+  }
+  const p = payload as { musicInfo?: { music?: { id?: unknown } }; music_info?: { music?: { id?: unknown } } } | null;
+  const id = (p?.musicInfo ?? p?.music_info)?.music?.id;
+  return id !== undefined && id !== null && String(id) === tiktokSoundId;
+}
+
+type MusicFields = {
+  title?: unknown;
+  authorName?: unknown;
+  coverLarge?: unknown;
+  coverMedium?: unknown;
+  coverThumb?: unknown;
+  videoCount?: unknown;
+};
+type MusicInfo = MusicFields & { music?: MusicFields; stats?: { videoCount?: unknown } };
+
+export function parseMusicDetail(payload: unknown): TikTokSoundStats | null {
+  const p = payload as { musicInfo?: MusicInfo; music_info?: MusicInfo } | null;
+  const info = p?.musicInfo ?? p?.music_info;
+  const music = info?.music ?? info;
+  const uses = info?.stats?.videoCount ?? music?.videoCount;
+  if (typeof uses !== "number" || !Number.isFinite(uses)) return null;
+
+  const cover = music?.coverLarge ?? music?.coverMedium ?? music?.coverThumb ?? null;
+  return {
+    usesCount: uses,
+    title: typeof music?.title === "string" && music.title ? music.title : null,
+    artist: typeof music?.authorName === "string" && music.authorName ? music.authorName : null,
+    coverImageUrl: typeof cover === "string" ? cover : null,
+  };
+}
+
 /**
- * One browser for a whole sweep.
+ * Navigates the run's page to the sound and takes the JSON the page fetches for
+ * itself rather than scraping the DOM: same numbers, plus title, artist and
+ * cover, and no dependence on how TikTok happens to word "46 videos" this month.
+ * The answer must be about this sound: on a reused page the previous sound's
+ * call can still land after the next navigation has started.
+ */
+async function readOnce(
+  page: SoundPage,
+  tiktokSoundId: string,
+  timeoutMs: number,
+  payloadWaitMs: number
+): Promise<TikTokSoundStats | null> {
+  let onResponse: OnResponse = () => {};
+  const answer = new Promise<unknown>((resolve) => {
+    onResponse = (res) => {
+      const url = String(res.url());
+      if (!url.includes("/api/music/detail/")) return;
+      void res.text().then(
+        (body) => {
+          let payload: unknown = null;
+          try {
+            payload = body ? JSON.parse(body) : null;
+          } catch {
+            /* a truncated or non-JSON body is just not the answer; keep waiting */
+            return;
+          }
+          if (payload && detailAnswers(tiktokSoundId, url, payload)) resolve(payload);
+        },
+        () => {}
+      );
+    };
+  });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const gaveUp = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), payloadWaitMs);
+  });
+  page.on("response", onResponse);
+  try {
+    await page.goto(`https://www.tiktok.com/music/x-${encodeURIComponent(tiktokSoundId)}`, {
+      waitUntil: "domcontentloaded",
+      timeout: timeoutMs,
+    });
+    const payload = await Promise.race([answer, gaveUp]);
+    return payload ? parseMusicDetail(payload) : null;
+  } finally {
+    clearTimeout(timer);
+    page.off("response", onResponse);
+  }
+}
+
+/**
+ * One browser and one page for a whole sweep, opened on the first read.
  *
  * Launching per sound pays the launch -- about half of each read -- once per
  * sound, and the creator sweep proved the sharper failure: two launches close
  * together race on the binary @sparticuz/chromium extracts to /tmp and die
  * with ETXTBSY. Launch is lazy so a sweep where every sound is skipped, or
- * where the plain fetch answers first, never starts a browser at all.
+ * where the embed answers first, never starts a browser at all.
+ *
+ * A read whose page never sends the answer returns null and keeps the page. A
+ * read that throws -- a navigation that failed, a browser that died or wedged
+ * -- closes that browser and rethrows, and the next read opens a fresh one.
+ * Every browser call is under a timeout, because a wedged --single-process
+ * Chromium neither answers nor fails (lib/platforms/tiktokBrowser, rule 2).
  */
-export function openSoundBrowserSession(): SoundBrowserSession {
-  return createBrowserSession(readWith);
+export function openSoundBrowserSession(
+  opts: { launchBrowser?: () => Promise<LaunchedBrowser>; payloadWaitMs?: number } = {}
+): SoundBrowserSession {
+  const launchBrowser = opts.launchBrowser ?? launch;
+  const payloadWaitMs = opts.payloadWaitMs ?? PAYLOAD_WAIT_MS;
+  let open: Promise<{ browser: LaunchedBrowser; page: SoundPage }> | null = null;
+
+  const dispose = () => {
+    const dead = open;
+    open = null;
+    dead?.then(({ browser }) => browser.close()).catch(() => {});
+  };
+
+  const pageForRun = () => {
+    if (!open) {
+      const launching = launchBrowser();
+      const opening = withTimeout(
+        launching.then(async (browser) => {
+          const page: SoundPage = await browser.newPage({ userAgent: UA, viewport: { width: 1400, height: 1000 } });
+          return { browser, page };
+        }),
+        LAUNCH_TIMEOUT_MS,
+        "browser launch"
+      );
+      opening.catch(() => {
+        if (open === opening) open = null;
+        launching.then((b) => b.close()).catch(() => {});
+      });
+      open = opening;
+    }
+    return open;
+  };
+
+  return {
+    async read(tiktokSoundId, { timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+      try {
+        const { page } = await pageForRun();
+        return await withTimeout(readOnce(page, tiktokSoundId, timeoutMs, payloadWaitMs), READ_CAP_MS, "browser read");
+      } catch (e) {
+        dispose();
+        throw e instanceof Error ? e : new Error(String(e));
+      }
+    },
+    async close() {
+      const dead = open;
+      open = null;
+      if (!dead) return;
+      await withTimeout(dead.then(({ browser }) => browser.close()), 10_000, "browser close").catch(() => {});
+    },
+  };
 }
 
 /** One-shot form for callers reading a single sound. */
@@ -59,55 +227,5 @@ export async function fetchSoundStatsViaBrowser(
     return await session.read(tiktokSoundId, opts);
   } finally {
     await session.close();
-  }
-}
-
-async function readWith(
-  browser: LaunchedBrowser,
-  tiktokSoundId: string,
-  timeoutMs: number
-): Promise<TikTokSoundStats | null> {
-  let page: any = null;
-  try {
-    page = await browser.newPage({ userAgent: UA, viewport: { width: 1400, height: 1000 } });
-
-    // Take the JSON the page fetches for itself rather than scraping the DOM:
-    // same numbers, plus title, artist and cover, and no dependence on how
-    // TikTok happens to word "46 videos" this month.
-    let payload: any = null;
-    page.on("response", async (res: any) => {
-      if (payload || !res.url().includes("/api/music/detail/")) return;
-      try {
-        const body = await res.text();
-        if (body) payload = JSON.parse(body);
-      } catch {
-        /* a truncated or non-JSON body is just not the answer; keep waiting */
-      }
-    });
-
-    await page.goto(`https://www.tiktok.com/music/x-${encodeURIComponent(tiktokSoundId)}`, {
-      waitUntil: "domcontentloaded",
-      timeout: timeoutMs,
-    });
-
-    const deadline = Date.now() + PAYLOAD_WAIT_MS;
-    while (!payload && Date.now() < deadline) await page.waitForTimeout(500);
-    if (!payload) return null;
-
-    const info = payload.musicInfo ?? payload.music_info;
-    const music = info?.music ?? info;
-    const uses = info?.stats?.videoCount ?? music?.videoCount;
-    if (typeof uses !== "number" || !Number.isFinite(uses)) return null;
-
-    return {
-      usesCount: uses,
-      title: typeof music?.title === "string" && music.title ? music.title : null,
-      artist: typeof music?.authorName === "string" && music.authorName ? music.authorName : null,
-      coverImageUrl: music?.coverLarge ?? music?.coverMedium ?? music?.coverThumb ?? null,
-    };
-  } finally {
-    /* Only the page. The browser belongs to the session, and closing it here
-       would end a sweep after its first sound. */
-    await page?.close().catch(() => {});
   }
 }

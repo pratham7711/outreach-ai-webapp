@@ -18,8 +18,6 @@ import {
   readingPrecision,
   roundedAddsNothing,
   soundReadingChange,
-  usesPrecisionOf,
-  type UsesPrecision,
 } from "@/lib/sounds/precision";
 import { alertOps, shouldAlertOnBatch } from "@/lib/alerts";
 import {
@@ -293,39 +291,21 @@ async function cronHandler(request: NextRequest) {
       let stats = embed?.ok ? embed.stats : null;
       // Which rung answered, so a strange reading can be traced to its source.
       let rung: string = embed?.ok ? embed.rung : "none";
-      let precision: UsesPrecision | undefined;
-
-      /* The embed's count is TikTok's display rounding once a sound passes
-         10K -- every reading of a 74K sound on production was a multiple of 100
-         (lib/sounds/precision). The browser reads /api/music/detail, whose
-         stats are the exact count, so a rounded-looking embed figure is the one
-         case worth a browser read even though the embed answered. If the
-         browser cannot answer, the embed's figure stands and is written as the
-         rounded figure it is. */
-      if (stats && usesPrecisionOf(stats.usesCount) === "rounded") {
-        const exact = await tiktok.read(sound.tiktokSoundId).catch((e) => {
-          log.warn("browser read failed", { soundId: sound.id, error: String(e).slice(0, 120) });
-          return null;
-        });
-        if (exact && exact.usesCount > 0) {
-          stats = exact;
-          rung = "browser";
-          precision = "exact";
-        }
-      }
 
       /* Both kept behind the embed rather than deleted: the browser is the only
          path that can read a sound the embed refuses, and the plain fetch costs
-         nothing when neither answers. */
+         nothing when neither answers.
+
+         Only when the embed has no figure. A rounded embed figure used to be
+         sent to the browser too, for /api/music/detail's count, believed exact;
+         it is the same rounded figure (lib/platforms/tiktokSoundBrowser), so a
+         reading from either is judged by its value (lib/sounds/precision). */
       if (!stats) {
         stats = await tiktok.read(sound.tiktokSoundId).catch((e) => {
           log.warn("browser read failed", { soundId: sound.id, error: String(e).slice(0, 120) });
           return null;
         });
-        if (stats) {
-          rung = "browser";
-          precision = "exact";
-        }
+        if (stats) rung = "browser";
       }
       if (!stats) {
         stats = await fetchTikTokSoundStats(sound.tiktokSoundId);
@@ -387,7 +367,7 @@ async function cronHandler(request: NextRequest) {
 
       /* A rounded figure that agrees with the exact reading already stored
          says nothing new, and writing it would replace 73,912 with 74,000. */
-      const readPrecision = readingPrecision(stats.usesCount, precision);
+      const readPrecision = readingPrecision(stats.usesCount);
       if (roundedAddsNothing(newestStored?.usesCount, stats.usesCount, readPrecision)) {
         decisions.push({ soundId: sound.id, action: "skip", reason: `rounded-agrees:${rung}`, usesCount: stats.usesCount });
         skipped++;
