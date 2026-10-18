@@ -14,6 +14,7 @@ import { z } from "zod";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { STATUS_DEF_SELECT, defaultStatusDefFor } from "@/lib/campaigns/statusDefaults";
 import { primeSongAudio } from "@/lib/sounds/snapshot";
+import { captureCampaignThumbnail } from "@/lib/campaigns/thumbnailCopy";
 import { ensureSongForAudio, identifyAudioLink } from "@/lib/campaigns/audioLink";
 import { ROSTER_CREATOR_SELECT, buildRoster, summarizeCampaignPosts } from "@/lib/campaigns/detailSummary";
 import { withoutImportCopy } from "@/lib/serialization/importCopy";
@@ -393,6 +394,16 @@ export async function PATCH(
         });
       } catch (error) {
         console.error("Could not schedule the campaign's first audio reading:", error);
+      }
+    }
+
+    /* A new picture is copied while its link still draws (lib/campaigns/
+       thumbnailCopy); the copy is what the list and the client report show. */
+    if (campaign.thumbnailUrl && rest.thumbnailUrl !== undefined && campaign.thumbnailUrl !== existing.thumbnailUrl) {
+      try {
+        after(() => captureCampaignThumbnail(campaign.id));
+      } catch (error) {
+        console.error("Could not schedule the campaign picture copy:", error);
       }
     }
 

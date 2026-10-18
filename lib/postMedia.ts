@@ -179,7 +179,7 @@ export function imgSrc(
   width = 96,
   height?: number
 ): string | null {
-  if (raw && (OWN_POST_THUMBNAIL.test(raw) || OWN_SOUND_COVER.test(raw))) return withBox(raw, width, height);
+  if (raw && OWN_COPIES.some((re) => re.test(raw))) return withBox(raw, width, height);
   const url = mediaUrl(raw);
   if (!url) return null;
 
@@ -217,7 +217,7 @@ export function shareImgSrc(
   width = 96,
   height?: number
 ): string | null {
-  if (raw && (SHARE_POST_THUMBNAIL.test(raw) || SHARE_SOUND_COVER.test(raw))) return withBox(raw, width, height);
+  if (raw && SHARE_COPIES.some((re) => re.test(raw))) return withBox(raw, width, height);
   const url = mediaUrl(raw);
   if (!url) return null;
 
@@ -278,6 +278,25 @@ export function soundCoverPath(soundId: string, version: number): string {
 export function shareSoundCoverPath(token: string, version: number): string {
   return `/api/share/${encodeURIComponent(token)}/sound-cover?v=${version}`;
 }
+
+/**
+ * Our own copy of a campaign's picture (lib/campaigns/thumbnailCopy), the same
+ * way again. The share path names no campaign: the link's own one is served.
+ */
+const OWN_CAMPAIGN_THUMBNAIL = /^\/api\/campaigns\/[^/?#]+\/thumbnail(\?|$)/;
+const SHARE_ARTWORK = /^\/api\/share\/[^/?#]+\/artwork(\?|$)/;
+
+export function campaignThumbnailPath(campaignId: string, version: number): string {
+  return `/api/campaigns/${encodeURIComponent(campaignId)}/thumbnail?v=${version}`;
+}
+
+export function shareArtworkPath(token: string, version: number): string {
+  return `/api/share/${encodeURIComponent(token)}/artwork?v=${version}`;
+}
+
+/** Paths that are already one of our stored copies, so they skip the proxy. */
+const OWN_COPIES = [OWN_POST_THUMBNAIL, OWN_SOUND_COVER, OWN_CAMPAIGN_THUMBNAIL];
+const SHARE_COPIES = [SHARE_POST_THUMBNAIL, SHARE_SOUND_COVER, SHARE_ARTWORK];
 
 /** The box, in the proxy's own snapped widths, appended to one of our paths. */
 function withBox(path: string, width: number, height?: number): string {

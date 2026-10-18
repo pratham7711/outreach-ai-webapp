@@ -1,4 +1,5 @@
 import { signedUrlExpiry } from "@/lib/sounds/coverUrl";
+import { pictureLink } from "@/lib/campaigns/pictureLink";
 
 /**
  * The picture a campaign shows.
@@ -13,13 +14,29 @@ import { signedUrlExpiry } from "@/lib/sounds/coverUrl";
  * TikTokSound's cover is fetched from the live sound page, while Song.coverUrl
  * is whatever was entered when the release was catalogued.
  *
- * A signed CDN link is a picture with a shelf life. The audio setup copied the
- * sound's signed cover into thumbnailUrl, where nothing ever renews it, so our
- * own copy of the sound's cover (`storedCover`, lib/sounds/coverStore) beats
- * any signed link, and a link past its signature is skipped rather than
- * painted as a broken box. A thumbnail with no signature is somebody's own
- * choice and still comes first.
+ * A link is a picture only for as long as the server behind it keeps it. The
+ * audio setup copied the sound's signed cover into thumbnailUrl, where nothing
+ * renews it; CreatorCore uploads disappear; and a TikTok music page or YouTube
+ * video pasted into the thumbnail was never a picture at all. So, in order:
+ *
+ *   1. our copy of the campaign's own picture (lib/campaigns/thumbnailCopy);
+ *   2. its link, when unsigned and not already known not to draw -- somebody's
+ *      own choice, kept ahead of the sound's cover;
+ *   3. our copy of the sound's cover (lib/sounds/coverStore);
+ *   4. whichever link is still inside its signature.
+ *
+ * Every link goes through pictureLink: a YouTube video becomes the picture
+ * YouTube serves for it, and any other page link is dropped.
  */
+export type StoredArtwork = {
+  /** Path to our copy of the campaign's picture, when one is held. */
+  thumbnail?: string | null;
+  /** The campaign's picture failed to download and nothing is held. */
+  thumbnailDead?: boolean;
+  /** Path to our copy of the sound's cover, when one is held. */
+  soundCover?: string | null;
+};
+
 export type CampaignArtworkSource = {
   thumbnailUrl?: string | null;
   song?: {
@@ -44,11 +61,16 @@ function isLive(url: string | null | undefined, now: number): url is string {
 
 export function campaignArtwork(
   campaign: CampaignArtworkSource,
-  storedCover: string | null = null,
+  stored: StoredArtwork = {},
   now: number = Date.now()
 ): string | null {
-  const thumbnail = campaign.thumbnailUrl;
-  if (thumbnail && signedUrlExpiry(thumbnail) === null) return thumbnail;
-  if (storedCover) return storedCover;
-  return [thumbnail, campaign.song?.sound?.coverImageUrl, campaign.song?.coverUrl].find((u) => isLive(u, now)) ?? null;
+  if (stored.thumbnail) return stored.thumbnail;
+  const link = stored.thumbnailDead ? null : pictureLink(campaign.thumbnailUrl);
+  if (link && signedUrlExpiry(link) === null) return link;
+  if (stored.soundCover) return stored.soundCover;
+  return (
+    [link, pictureLink(campaign.song?.sound?.coverImageUrl), pictureLink(campaign.song?.coverUrl)].find((u) =>
+      isLive(u, now)
+    ) ?? null
+  );
 }

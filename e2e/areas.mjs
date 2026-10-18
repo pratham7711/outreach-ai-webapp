@@ -255,6 +255,10 @@ export const AREAS = {
       // A sound's stored cover: the trackers page, the campaigns list and the audio card read it.
       "app/api/sounds/",
       "app/api/admin/migrate-sound-covers/",
+      "app/api/admin/upload-sound-cover/",
+      // Stored campaign pictures: the table, and the one-off copy of the backlog.
+      "app/api/admin/migrate-campaign-thumbnails/",
+      "app/api/admin/backfill-artwork/",
       "app/api/admin/migrate-tracker-indexes/",
       "app/api/admin/instagram-access/",
       "app/api/admin/integration-health/",

@@ -561,6 +561,7 @@ model Campaign {
   org               Organization         @relation(fields: [orgId], references: [id])
   client            Client?              @relation(fields: [clientId], references: [id])
   song              Song?                @relation(fields: [songId], references: [id])
+  thumbnailCopy     CampaignThumbnail?
   phases            CampaignPhase[]
   folder            Folder?              @relation(fields: [folderId], references: [id])
   teamMembers       CampaignTeamMember[]
@@ -1342,6 +1343,29 @@ model SoundCover {
   failure   String?
 
   sound TikTokSound @relation(fields: [soundId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+}
+
+/// A campaign's picture, held as bytes rather than as a link.
+///
+/// Campaign.thumbnailUrl points at somebody else's server: a CreatorCore
+/// (Bubble) upload, or a TikTok cover the audio setup copied in, signed to
+/// expire. Measured 2026-10-18 on one tenant, 18 of 528 such links no longer
+/// drew a picture. The copy is kept against the link it was taken from
+/// (sourceUrl) and shown only while the campaign still points at that picture,
+/// so changing or clearing the thumbnail needs no clean-up here. Read through
+/// /api/campaigns/[id]/thumbnail and /api/share/[token]/artwork.
+model CampaignThumbnail {
+  campaignId String    @id
+  orgId      String
+  data       Bytes?
+  sourceUrl  String?
+  fetchedAt  DateTime?
+  failedAt   DateTime?
+  failure    String?
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
   @@index([orgId])
 }

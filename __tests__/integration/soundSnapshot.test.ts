@@ -13,7 +13,7 @@ jest.mock("@/lib/db", () => ({
   },
 }));
 
-jest.mock("@/lib/sounds/coverStore", () => ({ captureSoundCover: jest.fn().mockResolvedValue(true) }));
+jest.mock("@/lib/sounds/coverStore", () => ({ captureSoundCover: jest.fn().mockResolvedValue(null) }));
 
 import { db } from "@/lib/db";
 import { captureSoundCover } from "@/lib/sounds/coverStore";
@@ -170,15 +170,16 @@ describe("artwork on a reading that writes no snapshot", () => {
 
   it("renews the link and keeps a copy even when the rounded figure adds nothing", async () => {
     const fresh = expiring(72);
+    const expired = expiring(-24);
     const written = await recordSoundSnapshot(
-      { id: "sound-1", title: "T", artist: "A", coverImageUrl: expiring(-24), snapshots: [{ usesCount: 263_312 }] },
+      { id: "sound-1", title: "T", artist: "A", coverImageUrl: expired, snapshots: [{ usesCount: 263_312 }] },
       { usesCount: 263_300, coverImageUrl: fresh },
     );
 
     expect(written).toBe(false);
     expect(mockDb.soundTrackerSnapshot.create).not.toHaveBeenCalled();
     expect(mockDb.tikTokSound.update).toHaveBeenCalledWith({ where: { id: "sound-1" }, data: { coverImageUrl: fresh } });
-    expect(mockCapture).toHaveBeenCalledWith("sound-1", fresh, expect.any(Number));
+    expect(mockCapture).toHaveBeenCalledWith("sound-1", [fresh, expired], expect.any(Number));
   });
 
   it("copies the stored link when the reading brought no cover and the link still works", async () => {
@@ -187,7 +188,32 @@ describe("artwork on a reading that writes no snapshot", () => {
       { id: "sound-1", title: "T", artist: "A", coverImageUrl: live, snapshots: [{ usesCount: 10 }] },
       { usesCount: 12, coverImageUrl: null },
     );
-    expect(mockCapture).toHaveBeenCalledWith("sound-1", live, expect.any(Number));
+    expect(mockCapture).toHaveBeenCalledWith("sound-1", [null, live], expect.any(Number));
+  });
+
+  /* An unsigned link never reads as expiring, so soundMetadataPatch never
+     replaced one that had died -- a 404 from TikTok's CDN on 2026-10-18 kept a
+     client report on a music note. A link we just downloaded from works. */
+  it("points the row at the link it just copied when the row's own link is dead", async () => {
+    const dead = "https://p16-sg.tiktokcdn.com/aweme/720x720/tos-alisg-v-2774/old.jpeg";
+    const working = "https://p19-common.tiktokcdn-us.com/tos-alisg-v-2774/new~tplv-obj.jpeg";
+    mockCapture.mockResolvedValueOnce(working);
+    await recordSoundSnapshot(
+      { id: "sound-1", title: "T", artist: "A", coverImageUrl: dead, snapshots: [{ usesCount: 10 }] },
+      { usesCount: 12, coverImageUrl: working },
+    );
+    expect(mockCapture).toHaveBeenCalledWith("sound-1", [working, dead], expect.any(Number));
+    expect(mockDb.tikTokSound.update).toHaveBeenCalledWith({ where: { id: "sound-1" }, data: { coverImageUrl: working } });
+  });
+
+  it("leaves the row's link alone when nothing new was copied", async () => {
+    const link = "https://p16-sg.tiktokcdn.com/aweme/720x720/tos-alisg-v-2774/old.jpeg";
+    mockCapture.mockResolvedValueOnce(null);
+    await recordSoundSnapshot(
+      { id: "sound-1", title: "T", artist: "A", coverImageUrl: link, snapshots: [{ usesCount: 10 }] },
+      { usesCount: 12, coverImageUrl: "https://p19-common.tiktokcdn-us.com/tos-alisg-v-2774/new~tplv-obj.jpeg" },
+    );
+    expect(mockDb.tikTokSound.update).not.toHaveBeenCalled();
   });
 
   it("keeps nothing from a reading the gate refused", async () => {

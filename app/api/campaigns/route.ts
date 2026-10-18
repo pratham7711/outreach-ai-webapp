@@ -11,6 +11,7 @@ import { z } from "zod";
 import { pageParam, pageSizeParam, parseQuery } from "@/lib/http/queryParams";
 import { ensureSongForAudio, identifyAudioLink, type ResolvedAudio } from "@/lib/campaigns/audioLink";
 import { primeSongAudio } from "@/lib/sounds/snapshot";
+import { captureCampaignThumbnail } from "@/lib/campaigns/thumbnailCopy";
 import { CAMPAIGN_STATUSES, CAMPAIGN_TYPES, campaignFilterSchema, campaignWhere } from "@/lib/listFilters";
 import { CAMPAIGN_START_STATUS, STATUS_DEF_SELECT, defaultStatusDefFor } from "@/lib/campaigns/statusDefaults";
 import type { PaymentMode, PaymentRelease, PostApprovalMode, Prisma } from "@/lib/generated/prisma/client";
@@ -239,6 +240,15 @@ export async function POST(request: NextRequest) {
         });
       } catch (error) {
         console.error("Could not schedule the campaign's first audio reading:", error);
+      }
+    }
+
+    // Copied while its link still draws; see lib/campaigns/thumbnailCopy.
+    if (campaign.thumbnailUrl) {
+      try {
+        after(() => captureCampaignThumbnail(campaign.id));
+      } catch (error) {
+        console.error("Could not schedule the campaign picture copy:", error);
       }
     }
 

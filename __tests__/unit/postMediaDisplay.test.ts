@@ -1,4 +1,4 @@
-import { mediaUrl, embedSrcFor, imgSrc, shareImgSrc, youtubeVideoId, postThumbnailUrl, postThumbnailPath, sharePostThumbnailPath, soundCoverPath, shareSoundCoverPath } from "@/lib/postMedia";
+import { mediaUrl, embedSrcFor, imgSrc, shareImgSrc, youtubeVideoId, postThumbnailUrl, postThumbnailPath, sharePostThumbnailPath, soundCoverPath, shareSoundCoverPath, campaignThumbnailPath, shareArtworkPath } from "@/lib/postMedia";
 import { metricValue, engagementRateValue } from "@/lib/metricDisplay";
 
 /**
@@ -250,5 +250,22 @@ describe("stored sound covers", () => {
   it("lets each family through only its own door", () => {
     expect(shareImgSrc("tok", soundCoverPath("s1", 7), 302)).toBeNull();
     expect(imgSrc(shareSoundCoverPath("tok", 7), 88)).toBeNull();
+  });
+});
+
+describe("stored campaign pictures", () => {
+  it("names the copy by campaign and version, and the share copy by link alone", () => {
+    expect(campaignThumbnailPath("c 1", 1000)).toBe("/api/campaigns/c%201/thumbnail?v=1000");
+    expect(shareArtworkPath("tok", 1000)).toBe("/api/share/tok/artwork?v=1000");
+  });
+
+  it("adds the box, snapped, without going through the proxy", () => {
+    expect(imgSrc(campaignThumbnailPath("c1", 7), 56)).toBe("/api/campaigns/c1/thumbnail?v=7&w=64");
+    expect(shareImgSrc("tok", shareArtworkPath("tok", 7), 302)).toBe("/api/share/tok/artwork?v=7&w=384");
+  });
+
+  it("lets each family through only its own door", () => {
+    expect(shareImgSrc("tok", campaignThumbnailPath("c1", 7), 302)).toBeNull();
+    expect(imgSrc(shareArtworkPath("tok", 7), 56)).toBeNull();
   });
 });

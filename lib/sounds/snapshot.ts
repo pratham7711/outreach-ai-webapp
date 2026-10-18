@@ -1,7 +1,6 @@
 import { db } from "@/lib/db";
 import { isCoverUrlStale } from "@/lib/sounds/coverUrl";
 import { captureSoundCover } from "@/lib/sounds/coverStore";
-import { isFetchableAvatarUrl as isFetchableImageUrl } from "@/lib/creators/avatarStore";
 import { readTikTokAudioUsage, isMeasuredRung } from "@/lib/platforms/tiktokAudioUsage";
 import { readInstagramAudioUsage } from "@/lib/platforms/instagramAudioUsage";
 import { createLogger } from "@/lib/observability/logger";
@@ -399,11 +398,25 @@ export async function keepSoundArtwork(
       });
     }
   }
-  /* The reading's own cover first; failing that, the stored link while it is
-     still live -- a reading from a rung that returns no artwork should not
-     leave a sound uncopied while its row still points at a good picture. */
-  const url = [stats.coverImageUrl, sound.coverImageUrl].find((u) => isFetchableImageUrl(u, now));
-  await captureSoundCover(sound.id, url, now);
+  /* The reading's own cover first; failing that, the stored link -- a reading
+     from a rung that returns no artwork should not leave a sound uncopied
+     while its row still points at a good picture. */
+  const kept = await captureSoundCover(sound.id, [stats.coverImageUrl, sound.coverImageUrl], now);
+
+  /* A link we have just downloaded from is known to work; the row's may not
+     be. soundMetadataPatch renews only a link that reads as expiring, and an
+     unsigned link never does, so a dead one stayed on the row for good. */
+  const rowLink = patch.coverImageUrl ?? sound.coverImageUrl;
+  if (typeof kept === "string" && kept !== rowLink) {
+    try {
+      await db.tikTokSound.update({ where: { id: sound.id }, data: { coverImageUrl: kept } });
+    } catch (e) {
+      createLogger({ context: { module: "sounds/snapshot" } }).warn("sound cover link write failed", {
+        soundId: sound.id,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
 }
 
 /**

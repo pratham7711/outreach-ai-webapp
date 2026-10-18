@@ -4,6 +4,7 @@ import { createLogger } from "@/lib/observability/logger";
 import { alertOps, shouldAlertOnBatch } from "@/lib/alerts";
 import { cronRoute } from "@/lib/ops/cronRoute";
 import { bearerMatches } from "@/lib/http/bearer";
+import { soundsWithoutCover } from "@/lib/sounds/coverStore";
 
 /* Declared, not inherited: the sweep's own deadline is four minutes plus a
    30s backstop (lib/ops/waitUntil), and both are sized against this. */
@@ -42,6 +43,28 @@ async function cronHandler(request: NextRequest) {
         severity: "critical",
         facts: { snapshots, failed, skipped, dryRun },
       });
+    }
+    /* A sound's cover is kept once and then never lost, so the only way a
+       report shows a music note is a cover that was never downloaded. Say so
+       once a day rather than finding out from a client. */
+    if (!dryRun) {
+      try {
+        const missing = await soundsWithoutCover();
+        if (missing.length) {
+          await alertOps({
+            source: "cron/snapshot-sounds",
+            title: `Sound covers missing: ${missing.length}`,
+            severity: "warn",
+            facts: {
+              sounds: missing.length,
+              soundIds: missing.slice(0, 20).join(", "),
+              remedy: "POST /api/admin/upload-sound-cover?soundId=&source= with the picture",
+            },
+          });
+        }
+      } catch (e) {
+        log.warn("sound cover check failed", { error: e instanceof Error ? e.message : String(e) });
+      }
     }
     return NextResponse.json({ ...result, dryRun });
   } catch (error) {

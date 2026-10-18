@@ -9,7 +9,8 @@ import SharedPerformanceReport from "./SharedPerformanceReport";
 import { BRAND } from "@/lib/brand";
 import { withStoredShareThumbnails } from "@/lib/posts/thumbnailStore";
 import { storedSoundCoverVersions } from "@/lib/sounds/coverStore";
-import { shareSoundCoverPath } from "@/lib/postMedia";
+import { shareArtworkPath, shareSoundCoverPath } from "@/lib/postMedia";
+import { storedCampaignThumbnails } from "@/lib/campaigns/thumbnailCopy";
 
 const SHARE_KIND = "campaign-performance";
 
@@ -126,15 +127,19 @@ export default async function SharedReportPage({
     visibility.platforms
   );
 
-  /* Our own copy of the sound's cover (lib/sounds/coverStore), outside the
-     report's cache like the post pictures: a copy taken after the report was
-     cached must not wait out the entry. It replaces the audio's stored link,
-     which TikTok signs with an expiry; artworkUrl stays the link chain, so the
-     header still has a fallback if our copy cannot be served. */
-  const soundId = link.campaign.song?.sound?.id;
-  const coverVersion = soundId
-    ? (await storedSoundCoverVersions([soundId], link.campaign.orgId)).get(soundId)
-    : undefined;
+  /* Our own copies of the sound's cover (lib/sounds/coverStore) and of the
+     campaign's picture (lib/campaigns/thumbnailCopy), outside the report's
+     cache like the post pictures: a copy taken after the report was cached
+     must not wait out the entry. The sound's copy replaces the audio's stored
+     link, which TikTok signs with an expiry; artworkUrl prefers either copy
+     and keeps the links behind them, so the header still has a fallback if a
+     copy cannot be served. */
+  const campaign = link.campaign;
+  const soundId = campaign.song?.sound?.id;
+  const [coverVersion, thumbnailCopy] = await Promise.all([
+    soundId ? storedSoundCoverVersions([soundId], campaign.orgId).then((m) => m.get(soundId)) : undefined,
+    storedCampaignThumbnails([campaign], campaign.orgId).then((m) => m.get(campaign.id)),
+  ]);
   const withThumbnails = await withStoredShareThumbnails(redactForShare(performance, visibility), {
     token,
     orgId: link.campaign.orgId,
@@ -158,7 +163,11 @@ export default async function SharedReportPage({
         campaignStatus={link.campaign.status}
         // The audio's cover leads the header; this is what stands in when the
         // campaign has no tracked sound, the same picture the campaigns list shows.
-        artworkUrl={campaignArtwork(link.campaign)}
+        artworkUrl={campaignArtwork(link.campaign, {
+          thumbnail: thumbnailCopy?.version !== undefined ? shareArtworkPath(token, thumbnailCopy.version) : null,
+          thumbnailDead: thumbnailCopy?.dead ?? false,
+          soundCover: coverVersion !== undefined ? shareSoundCoverPath(token, coverVersion) : null,
+        })}
         visibility={visibility}
         // Only reaches the client when the link is allowed to show it, so a
         // hidden budget is absent from the payload rather than merely unrendered.
