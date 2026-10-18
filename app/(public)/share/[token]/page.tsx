@@ -8,6 +8,8 @@ import { CAMPAIGN_ARTWORK_INCLUDE, campaignArtwork } from "@/lib/campaignArtwork
 import SharedPerformanceReport from "./SharedPerformanceReport";
 import { BRAND } from "@/lib/brand";
 import { withStoredShareThumbnails } from "@/lib/posts/thumbnailStore";
+import { storedSoundCoverVersions } from "@/lib/sounds/coverStore";
+import { shareSoundCoverPath } from "@/lib/postMedia";
 
 const SHARE_KIND = "campaign-performance";
 
@@ -124,6 +126,25 @@ export default async function SharedReportPage({
     visibility.platforms
   );
 
+  /* Our own copy of the sound's cover (lib/sounds/coverStore), outside the
+     report's cache like the post pictures: a copy taken after the report was
+     cached must not wait out the entry. It replaces the audio's stored link,
+     which TikTok signs with an expiry; artworkUrl stays the link chain, so the
+     header still has a fallback if our copy cannot be served. */
+  const soundId = link.campaign.song?.sound?.id;
+  const coverVersion = soundId
+    ? (await storedSoundCoverVersions([soundId], link.campaign.orgId)).get(soundId)
+    : undefined;
+  const withThumbnails = await withStoredShareThumbnails(redactForShare(performance, visibility), {
+    token,
+    orgId: link.campaign.orgId,
+    showCreators: visibility.showCreators,
+  });
+  const data =
+    withThumbnails.audio && coverVersion !== undefined
+      ? { ...withThumbnails, audio: { ...withThumbnails.audio, coverUrl: shareSoundCoverPath(token, coverVersion) } }
+      : withThumbnails;
+
   return (
     <>
       <SharedPerformanceReport
@@ -133,11 +154,7 @@ export default async function SharedReportPage({
         // Redacted here rather than in the component: props cross into the RSC
         // payload, so a conditionally-rendered leaderboard still publishes every
         // creator name to anyone who reads the HTML.
-        data={await withStoredShareThumbnails(redactForShare(performance, visibility), {
-          token,
-          orgId: link.campaign.orgId,
-          showCreators: visibility.showCreators,
-        })}
+        data={data}
         campaignStatus={link.campaign.status}
         // The audio's cover leads the header; this is what stands in when the
         // campaign has no tracked sound, the same picture the campaigns list shows.

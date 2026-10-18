@@ -1,5 +1,7 @@
 import { db } from "@/lib/db";
 import { isCoverUrlStale } from "@/lib/sounds/coverUrl";
+import { captureSoundCover } from "@/lib/sounds/coverStore";
+import { isFetchableAvatarUrl as isFetchableImageUrl } from "@/lib/creators/avatarStore";
 import { readTikTokAudioUsage, isMeasuredRung } from "@/lib/platforms/tiktokAudioUsage";
 import { readInstagramAudioUsage } from "@/lib/platforms/instagramAudioUsage";
 import { createLogger } from "@/lib/observability/logger";
@@ -311,6 +313,9 @@ export function gateSoundReading(
  * writing it would replace 73,912 with "74K" and chart the difference -- nor
  * when the validation gate refuses it (gateSoundReading), which says why in
  * the log.
+ *
+ * The artwork is kept either way once the gate passes (keepSoundArtwork): a
+ * rounded figure that adds nothing to the count is still a fresh cover.
  */
 export async function recordSoundSnapshot(
   sound: {
@@ -325,6 +330,7 @@ export async function recordSoundSnapshot(
   options: RecordSnapshotOptions = {},
 ): Promise<boolean> {
   if (gateSoundReading(sound, stats, options.writer ?? "sound-snapshot").rejected) return false;
+  await keepSoundArtwork(sound, stats);
   const precision = readingPrecision(stats.usesCount, options.precision);
   const previous = sound.snapshots[0]?.usesCount;
   if (roundedAddsNothing(previous, stats.usesCount, precision)) return false;
@@ -356,12 +362,48 @@ export async function recordSoundSnapshot(
       velocityScore: change.velocityScore,
     },
   });
-
-  const patch = soundMetadataPatch(sound, stats);
-  if (Object.keys(patch).length > 0) {
-    await db.tikTokSound.update({ where: { id: sound.id }, data: patch });
-  }
   return true;
+}
+
+/**
+ * What an accepted reading does for the sound's name and artwork, whether or
+ * not it goes on to write a snapshot. Called after the validation gate, which
+ * refuses a WAF shell's labels -- and with them its picture -- and before the
+ * rounded-agrees and held-drop exits, which say only that the COUNT adds
+ * nothing.
+ *
+ * Those exits used to come first, so a sound taking them was read every hour
+ * and never renewed its cover: the signed link died and the client report lost
+ * its artwork with nothing anywhere going red.
+ *
+ * Two things, neither able to fail the reading: the row's own fields
+ * (soundMetadataPatch), and a copy of the picture in our database
+ * (lib/sounds/coverStore), which is what the screens show from now on. The
+ * stored link is the fallback for a reading whose cover would not download.
+ *
+ * Exported for app/api/cron/sync-trackers, which keeps its own write path.
+ */
+export async function keepSoundArtwork(
+  sound: { id: string; title?: string | null; artist?: string | null; coverImageUrl?: string | null },
+  stats: { title?: string | null; artist?: string | null; coverImageUrl?: string | null },
+  now: number = Date.now(),
+): Promise<void> {
+  const patch = soundMetadataPatch(sound, stats, now);
+  if (Object.keys(patch).length > 0) {
+    try {
+      await db.tikTokSound.update({ where: { id: sound.id }, data: patch });
+    } catch (e) {
+      createLogger({ context: { module: "sounds/snapshot" } }).warn("sound metadata write failed", {
+        soundId: sound.id,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+  /* The reading's own cover first; failing that, the stored link while it is
+     still live -- a reading from a rung that returns no artwork should not
+     leave a sound uncopied while its row still points at a good picture. */
+  const url = [stats.coverImageUrl, sound.coverImageUrl].find((u) => isFetchableImageUrl(u, now));
+  await captureSoundCover(sound.id, url, now);
 }
 
 /**

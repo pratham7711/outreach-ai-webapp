@@ -42,3 +42,41 @@ describe("campaignArtwork", () => {
     expect(campaignArtwork({ thumbnailUrl: null, song: { coverUrl: null, sound: null } })).toBeNull();
   });
 });
+
+/**
+ * A signed CDN link is a picture with a shelf life. The audio setup copied the
+ * sound's signed cover into thumbnailUrl, where nothing renews it, so the
+ * client report's header went to a music note once it expired. Our own copy of
+ * the sound's cover (lib/sounds/coverStore) is what lasts.
+ */
+describe("campaignArtwork and signed links", () => {
+  const NOW = Date.parse("2026-10-18T12:00:00Z");
+  const signed = (hoursFromNow: number) =>
+    `https://p16-sign-sg.tiktokcdn.com/c.jpeg?x-expires=${Math.floor(NOW / 1000) + hoursFromNow * 3600}&x-signature=z`;
+  const stored = "/api/sounds/sound-1/cover?v=1";
+
+  it("prefers our stored copy over a signed thumbnail, live or not", () => {
+    const campaign = { thumbnailUrl: signed(48), song: { coverUrl: null, sound: { coverImageUrl: signed(48) } } };
+    expect(campaignArtwork(campaign, stored, NOW)).toBe(stored);
+    expect(campaignArtwork({ ...campaign, thumbnailUrl: signed(-48) }, stored, NOW)).toBe(stored);
+  });
+
+  it("still lets a thumbnail somebody chose, with no signature, come first", () => {
+    expect(campaignArtwork({ thumbnailUrl: "https://cdn/stored.jpg" }, stored, NOW)).toBe("https://cdn/stored.jpg");
+  });
+
+  it("skips a link past its signature instead of painting a broken box", () => {
+    expect(
+      campaignArtwork(
+        { thumbnailUrl: signed(-1), song: { coverUrl: "https://cdn/song.jpg", sound: { coverImageUrl: signed(72) } } },
+        null,
+        NOW
+      )
+    ).toBe(signed(72));
+    expect(campaignArtwork({ thumbnailUrl: signed(-1), song: { coverUrl: null, sound: { coverImageUrl: signed(-1) } } }, null, NOW)).toBeNull();
+  });
+
+  it("keeps a live signed thumbnail when nothing is stored yet", () => {
+    expect(campaignArtwork({ thumbnailUrl: signed(2), song: { coverUrl: "https://cdn/song.jpg" } }, null, NOW)).toBe(signed(2));
+  });
+});

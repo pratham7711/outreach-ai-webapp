@@ -2,7 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
 import { campaignScopeWhereFor } from "@/lib/campaignScope";
-import { computeCampaignPerformance, loadCampaignAudio, type CampaignPerformance } from "@/lib/reports/campaignPerformance";
+import { computeCampaignPerformance, loadCampaignAudio, type CampaignAudio, type CampaignPerformance } from "@/lib/reports/campaignPerformance";
+import { storedSoundCoverVersions } from "@/lib/sounds/coverStore";
+import { soundCoverPath } from "@/lib/postMedia";
+
+/**
+ * The audio card's cover from our own copy where there is one
+ * (lib/sounds/coverStore). Applied outside the report's cache, like the share
+ * page does, so a copy taken after the report was cached shows at once.
+ */
+async function withStoredCover(
+  audio: CampaignAudio | null | undefined,
+  soundId: string | null | undefined,
+  orgId: string
+): Promise<CampaignAudio | null> {
+  if (!audio || !soundId) return audio ?? null;
+  const version = (await storedSoundCoverVersions([soundId], orgId)).get(soundId);
+  return version === undefined ? audio : { ...audio, coverUrl: soundCoverPath(soundId, version) };
+}
 
 export async function GET(
   req: NextRequest,
@@ -20,7 +37,7 @@ export async function GET(
        else, including OWNER/ADMIN and machine callers. */
     const campaign = await db.campaign.findFirst({
       where: { id, orgId, deletedAt: null, ...campaignScopeWhereFor(result) },
-      select: { id: true, orgId: true, budget: true, currency: true },
+      select: { id: true, orgId: true, budget: true, currency: true, song: { select: { soundId: true } } },
     });
     if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
 
@@ -30,7 +47,7 @@ export async function GET(
        the same loader the report uses, minus the chart. */
     if (req.nextUrl.searchParams.get("only") === "audio") {
       const audio = await loadCampaignAudio(campaign.id, campaign.orgId, { series: false });
-      return NextResponse.json({ audio });
+      return NextResponse.json({ audio: await withStoredCover(audio, campaign.song?.soundId, campaign.orgId) });
     }
 
     /* Everything but the per-post rows. The Performance tab renders kpis, the
@@ -40,6 +57,7 @@ export async function GET(
        computeCampaignPerformance directly and still get every row. */
     const performance: Partial<CampaignPerformance> = { ...(await computeCampaignPerformance(campaign)) };
     delete performance.posts;
+    performance.audio = await withStoredCover(performance.audio, campaign.song?.soundId, campaign.orgId);
     return NextResponse.json(performance);
   } catch (error) {
     console.error("Failed to fetch campaign performance:", error);

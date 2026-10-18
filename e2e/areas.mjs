@@ -252,6 +252,9 @@ export const AREAS = {
       "app/api/notifications/",
       "app/api/cron/snapshot-sounds/",
       "app/api/cron/sync-trackers/",
+      // A sound's stored cover: the trackers page, the campaigns list and the audio card read it.
+      "app/api/sounds/",
+      "app/api/admin/migrate-sound-covers/",
       "app/api/admin/migrate-tracker-indexes/",
       "app/api/admin/instagram-access/",
       "app/api/admin/integration-health/",

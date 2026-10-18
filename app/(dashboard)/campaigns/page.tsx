@@ -8,6 +8,8 @@ import { CAMPAIGNS_PAGE_SIZE } from "@/lib/listPageSize";
 import { campaignWhere, countCampaignFilters, readCampaignFilters, campaignOrderBy, CAMPAIGNS_DEFAULT_STATUS } from "@/lib/listFilters";
 import { campaignScopeWhere, scopeSubjectFromSession } from "@/lib/campaignScope";
 import { campaignArtwork, CAMPAIGN_ARTWORK_INCLUDE } from "@/lib/campaignArtwork";
+import { storedSoundCoverVersions } from "@/lib/sounds/coverStore";
+import { soundCoverPath } from "@/lib/postMedia";
 import { firstParam, readCampaignSort } from "@/lib/listParams";
 import { hasPermission } from "@/lib/rbac";
 
@@ -141,10 +143,16 @@ export default async function CampaignsPage({
   // (campaign, creator) pairs, so this stays small even for a campaign with
   // thousands of posts, and only covers the page being shown.
   const visibleIds = campaigns.map((c) => c.id);
-  const [postPairs, activationPairs] = await Promise.all([
+  const [postPairs, activationPairs, coverVersions] = await Promise.all([
     db.post.groupBy({ by: ["campaignId", "creatorId"], where: { campaignId: { in: visibleIds }, ...NOT_REMOVED, creator: { NOT: UNATTRIBUTED_CREATOR_WHERE } } }),
     db.activation.groupBy({ by: ["campaignId", "creatorId"], where: { campaignId: { in: visibleIds } } }),
+    // Our own copy of each campaign's sound cover; see campaignArtwork.
+    storedSoundCoverVersions(campaigns.map((c) => c.song?.sound?.id ?? ""), orgId),
   ]);
+  const storedCover = (soundId: string | undefined) => {
+    const version = soundId ? coverVersions.get(soundId) : undefined;
+    return soundId && version !== undefined ? soundCoverPath(soundId, version) : null;
+  };
   const creatorsByCampaign = new Map<string, Set<string>>();
   for (const pair of [...postPairs, ...activationPairs]) {
     const set = creatorsByCampaign.get(pair.campaignId) ?? new Set<string>();
@@ -160,7 +168,7 @@ export default async function CampaignsPage({
         status: c.status,
         currency: c.currency,
         client: c.client,
-        thumbnailUrl: campaignArtwork(c),
+        thumbnailUrl: campaignArtwork(c, storedCover(c.song?.sound?.id)),
         _count: c._count,
         creatorCount: creatorsByCampaign.get(c.id)?.size ?? 0,
         updatedAt: c.updatedAt.toISOString(),

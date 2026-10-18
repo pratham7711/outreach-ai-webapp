@@ -1,4 +1,4 @@
-import { mediaUrl, embedSrcFor, imgSrc, shareImgSrc, youtubeVideoId, postThumbnailUrl, postThumbnailPath, sharePostThumbnailPath } from "@/lib/postMedia";
+import { mediaUrl, embedSrcFor, imgSrc, shareImgSrc, youtubeVideoId, postThumbnailUrl, postThumbnailPath, sharePostThumbnailPath, soundCoverPath, shareSoundCoverPath } from "@/lib/postMedia";
 import { metricValue, engagementRateValue } from "@/lib/metricDisplay";
 
 /**
@@ -229,5 +229,26 @@ describe("stored post pictures", () => {
   it("still sends every CDN link through the proxy", () => {
     expect(imgSrc("https://scontent.cdninstagram.com/v/t51/1_n.jpg?oe=6A000000", 320, 568)).toMatch(/^\/api\/img\?u=/);
     expect(shareImgSrc("tok", "https://p16-sign.tiktokcdn.com/obj/a.jpeg", 478, 490)).toMatch(/^\/api\/share\/tok\/img\?u=/);
+  });
+});
+
+/* A sound's cover, kept by lib/sounds/coverStore, travels the same way: the
+   server puts our path where the cover's link went, and the surfaces that
+   paint it (the audio card, the campaigns list, the report header) take it
+   through imgSrc or shareImgSrc unchanged but for the box. */
+describe("stored sound covers", () => {
+  it("names the copy by sound and version, and the share copy by link alone", () => {
+    expect(soundCoverPath("s 1", 1000)).toBe("/api/sounds/s%201/cover?v=1000");
+    expect(shareSoundCoverPath("tok", 1000)).toBe("/api/share/tok/sound-cover?v=1000");
+  });
+
+  it("adds the box, snapped", () => {
+    expect(imgSrc(soundCoverPath("s1", 7), 88)).toBe("/api/sounds/s1/cover?v=7&w=96");
+    expect(shareImgSrc("tok", shareSoundCoverPath("tok", 7), 302)).toBe("/api/share/tok/sound-cover?v=7&w=384");
+  });
+
+  it("lets each family through only its own door", () => {
+    expect(shareImgSrc("tok", soundCoverPath("s1", 7), 302)).toBeNull();
+    expect(imgSrc(shareSoundCoverPath("tok", 7), 88)).toBeNull();
   });
 });

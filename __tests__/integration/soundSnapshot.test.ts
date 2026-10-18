@@ -13,8 +13,13 @@ jest.mock("@/lib/db", () => ({
   },
 }));
 
+jest.mock("@/lib/sounds/coverStore", () => ({ captureSoundCover: jest.fn().mockResolvedValue(true) }));
+
 import { db } from "@/lib/db";
+import { captureSoundCover } from "@/lib/sounds/coverStore";
 import { recordSoundSnapshot, soundMetadataPatch } from "@/lib/sounds/snapshot";
+
+const mockCapture = captureSoundCover as jest.Mock;
 
 const mockDb = db as unknown as {
   soundTrackerSnapshot: { create: jest.Mock };
@@ -152,5 +157,56 @@ describe("rounded figures", () => {
     await recordSoundSnapshot(sound([{ usesCount: 11_987 }]), { usesCount: 12_000 }, { precision: "exact" });
 
     expect(written().videosAdded24h).toBe(13);
+  });
+});
+
+/* The cover used to be renewed only after a snapshot was written, so a
+   reading that wrote none -- a rounded figure agreeing with the exact count
+   already stored -- left a signed link to die. A cover is not a count, and the
+   artwork no longer waits for one. */
+describe("artwork on a reading that writes no snapshot", () => {
+  const expiring = (hoursFromNow: number) =>
+    `https://p16-sign-sg.tiktokcdn.com/c.jpeg?x-expires=${Math.floor(Date.now() / 1000) + hoursFromNow * 3600}&x-signature=z`;
+
+  it("renews the link and keeps a copy even when the rounded figure adds nothing", async () => {
+    const fresh = expiring(72);
+    const written = await recordSoundSnapshot(
+      { id: "sound-1", title: "T", artist: "A", coverImageUrl: expiring(-24), snapshots: [{ usesCount: 263_312 }] },
+      { usesCount: 263_300, coverImageUrl: fresh },
+    );
+
+    expect(written).toBe(false);
+    expect(mockDb.soundTrackerSnapshot.create).not.toHaveBeenCalled();
+    expect(mockDb.tikTokSound.update).toHaveBeenCalledWith({ where: { id: "sound-1" }, data: { coverImageUrl: fresh } });
+    expect(mockCapture).toHaveBeenCalledWith("sound-1", fresh, expect.any(Number));
+  });
+
+  it("copies the stored link when the reading brought no cover and the link still works", async () => {
+    const live = expiring(48);
+    await recordSoundSnapshot(
+      { id: "sound-1", title: "T", artist: "A", coverImageUrl: live, snapshots: [{ usesCount: 10 }] },
+      { usesCount: 12, coverImageUrl: null },
+    );
+    expect(mockCapture).toHaveBeenCalledWith("sound-1", live, expect.any(Number));
+  });
+
+  it("keeps nothing from a reading the gate refused", async () => {
+    // A fall to 0 from a real count is a reader that could not see the page.
+    await recordSoundSnapshot(
+      { id: "sound-1", title: "T", artist: "A", coverImageUrl: null, snapshots: [{ usesCount: 5_000 }] },
+      { usesCount: 0, coverImageUrl: expiring(72) },
+    );
+    expect(mockCapture).not.toHaveBeenCalled();
+    expect(mockDb.tikTokSound.update).not.toHaveBeenCalled();
+  });
+
+  it("still writes the snapshot when the metadata write fails", async () => {
+    mockDb.tikTokSound.update.mockRejectedValueOnce(new Error("deadlock detected"));
+    const written = await recordSoundSnapshot(
+      { id: "sound-1", title: null, artist: "A", coverImageUrl: null, snapshots: [{ usesCount: 10 }] },
+      { usesCount: 12, title: "Learned" },
+    );
+    expect(written).toBe(true);
+    expect(mockDb.soundTrackerSnapshot.create).toHaveBeenCalledTimes(1);
   });
 });

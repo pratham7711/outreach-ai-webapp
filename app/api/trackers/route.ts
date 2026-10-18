@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
 import { z } from "zod";
@@ -26,6 +26,8 @@ import { readOneInstagramAudio } from "@/lib/platforms/instagramAudioUsage";
 import { expandShortLink } from "@/lib/trackers/expandShortLink";
 import { trackerLimitError, trackerUsage } from "@/lib/trackers/limit";
 import { requirePermission } from "@/lib/authz";
+import { captureSoundCover, storedSoundCoverVersions } from "@/lib/sounds/coverStore";
+import { soundCoverPath } from "@/lib/postMedia";
 
 const SORTS = ["velocity", "uses", "added"] as const;
 type SortKey = (typeof SORTS)[number];
@@ -86,6 +88,11 @@ export async function GET(req: NextRequest) {
     // Clamped, so a chart is never drawn finer than the reader samples.
     const chartAt = effectiveChartGranularity(granularity);
 
+    /* Our own copy of each cover where there is one (lib/sounds/coverStore):
+       the stored link is signed by TikTok's CDN and stops answering on a
+       timer, so it is only the fallback for a sound not yet copied. */
+    const coverVersions = await storedSoundCoverVersions(sounds.map((s) => s.id), orgId);
+
     const mapped = sounds.map((sound) => {
       const history: TrackerSnapshot[] = sound.snapshots.map((s) => ({
         value: s.usesCount,
@@ -109,8 +116,10 @@ export async function GET(req: NextRequest) {
       const health = readHealthFor(lastReadAt, now);
       const measurable = isMeasurable(health);
 
+      const coverVersion = coverVersions.get(sound.id);
       return {
         ...sound,
+        coverImageUrl: coverVersion === undefined ? sound.coverImageUrl : soundCoverPath(sound.id, coverVersion),
         latestSnapshot: latest,
         change,
         health,
@@ -346,6 +355,18 @@ export async function POST(req: NextRequest) {
     const sound = await db.tikTokSound.create({
       data: { orgId, platform, tiktokSoundId, title, artist, coverImageUrl },
     });
+
+    /* Keep the cover while its link is fresh (lib/sounds/coverStore). After
+       the response, so a slow CDN delays nobody; and guarded, because after()
+       throws with no request scope and a picture must never cost the caller
+       the tracker that was just written. The next reading captures it anyway. */
+    if (coverImageUrl) {
+      try {
+        after(() => captureSoundCover(sound.id, coverImageUrl));
+      } catch (error) {
+        console.error("Could not schedule the sound's cover capture:", error);
+      }
+    }
 
     return NextResponse.json(sound, { status: 201 });
   } catch (error) {

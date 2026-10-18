@@ -1318,8 +1318,31 @@ model TikTokSound {
   org       Organization           @relation(fields: [orgId], references: [id])
   snapshots SoundTrackerSnapshot[]
   songs     Song[]
+  cover     SoundCover?
 
   /// The tenant key: every trackers page and the sound sweep filter on it.
+  @@index([orgId])
+}
+
+/// A sound's cover art, held as bytes rather than as a link.
+///
+/// TikTok signs coverImageUrl with an `x-expires=` and the CDN answers 403 once
+/// it passes. The URL was only renewed by a reading that wrote a snapshot and
+/// brought a cover back, so a sound that stopped getting those kept a dead link
+/// and the client report lost its artwork. Every accepted reading now keeps the
+/// picture here, the way PostThumbnail keeps post covers. Read through
+/// /api/sounds/[id]/cover and /api/share/[token]/sound-cover.
+model SoundCover {
+  soundId   String    @id
+  orgId     String
+  data      Bytes?
+  sourceUrl String?
+  fetchedAt DateTime?
+  failedAt  DateTime?
+  failure   String?
+
+  sound TikTokSound @relation(fields: [soundId], references: [id], onDelete: Cascade)
+
   @@index([orgId])
 }
 

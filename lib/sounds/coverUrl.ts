@@ -14,6 +14,9 @@
    TikTok URL percent-encoded inside the query string, so the separator arrives
    as either "=" or "%3D". */
 const EXPIRES_RE = /x-expires(?:=|%3D)(\d{9,12})/i;
+/* Instagram's audio covers come off Meta's CDN, which signs the same way with
+   a hex `oe=` (lib/creators/avatarStore reads it for profile pictures). */
+const META_EXPIRES_RE = /[?&](?:amp;)?oe(?:=|%3D)([0-9A-Fa-f]{6,})/;
 
 /* One cadence of slack. The hourly sweep gets many chances to renew a cover
    before it dies, and a reader that only runs nightly still gets one. */
@@ -22,8 +25,9 @@ const REFRESH_MARGIN_MS = 12 * 60 * 60 * 1000;
 /** The moment a signed URL stops working, or null if it is not signed. */
 export function signedUrlExpiry(url: string): number | null {
   const match = EXPIRES_RE.exec(url);
-  if (!match) return null;
-  const seconds = Number(match[1]);
+  const meta = match ? null : META_EXPIRES_RE.exec(url);
+  if (!match && !meta) return null;
+  const seconds = match ? Number(match[1]) : parseInt(meta![1], 16);
   return Number.isFinite(seconds) ? seconds * 1000 : null;
 }
 

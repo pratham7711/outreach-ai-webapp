@@ -179,7 +179,7 @@ export function imgSrc(
   width = 96,
   height?: number
 ): string | null {
-  if (raw && OWN_POST_THUMBNAIL.test(raw)) return withBox(raw, width, height);
+  if (raw && (OWN_POST_THUMBNAIL.test(raw) || OWN_SOUND_COVER.test(raw))) return withBox(raw, width, height);
   const url = mediaUrl(raw);
   if (!url) return null;
 
@@ -217,7 +217,7 @@ export function shareImgSrc(
   width = 96,
   height?: number
 ): string | null {
-  if (raw && SHARE_POST_THUMBNAIL.test(raw)) return withBox(raw, width, height);
+  if (raw && (SHARE_POST_THUMBNAIL.test(raw) || SHARE_SOUND_COVER.test(raw))) return withBox(raw, width, height);
   const url = mediaUrl(raw);
   if (!url) return null;
 
@@ -260,6 +260,23 @@ export function postThumbnailPath(postId: string, version: number): string {
 
 export function sharePostThumbnailPath(token: string, postId: string, version: number): string {
   return `/api/share/${encodeURIComponent(token)}/thumbnail/${encodeURIComponent(postId)}?v=${version}`;
+}
+
+/**
+ * Our own copy of a sound's cover (lib/sounds/coverStore), on the same terms
+ * as a post's: the server puts it where the cover's URL goes whenever a copy
+ * exists, and the version is the copy's fetchedAt. The share path names no
+ * sound -- the link's own campaign decides which one it serves.
+ */
+const OWN_SOUND_COVER = /^\/api\/sounds\/[^/?#]+\/cover(\?|$)/;
+const SHARE_SOUND_COVER = /^\/api\/share\/[^/?#]+\/sound-cover(\?|$)/;
+
+export function soundCoverPath(soundId: string, version: number): string {
+  return `/api/sounds/${encodeURIComponent(soundId)}/cover?v=${version}`;
+}
+
+export function shareSoundCoverPath(token: string, version: number): string {
+  return `/api/share/${encodeURIComponent(token)}/sound-cover?v=${version}`;
 }
 
 /** The box, in the proxy's own snapped widths, appended to one of our paths. */

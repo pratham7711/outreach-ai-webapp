@@ -12,7 +12,7 @@ import { openSoundBrowserSession } from "@/lib/platforms/tiktokSoundBrowser";
 import { isMeasuredRung, readTikTokAudioUsage, type UsageRung } from "@/lib/platforms/tiktokAudioUsage";
 import { openSandboxProfileFetcher } from "@/lib/platforms/tiktokProfileSandbox";
 import { readInstagramAudioUsage } from "@/lib/platforms/instagramAudioUsage";
-import { gateSoundReading, recordSoundSnapshot, soundMetadataPatch } from "@/lib/sounds/snapshot";
+import { gateSoundReading, keepSoundArtwork, recordSoundSnapshot } from "@/lib/sounds/snapshot";
 import { holdSoundReading, type TrackerSnapshot } from "@/lib/trackers/metrics";
 import {
   readingPrecision,
@@ -246,7 +246,7 @@ async function cronHandler(request: NextRequest) {
              arithmetic in this file is already documented as its third copy,
              and the one thing Instagram adds -- withholding a delta between two
              rounded levels -- belongs beside the other two, not in a fourth.
-             recordSoundSnapshot also applies soundMetadataPatch, which is why
+             recordSoundSnapshot also applies keepSoundArtwork, which is why
              this branch returns before the TikTok tail does it again. */
           if (
             !(await recordSoundSnapshot(sound, outcome.reading, {
@@ -364,6 +364,11 @@ async function cronHandler(request: NextRequest) {
         continue;
       }
 
+      /* The name and the cover, before either exit below: both say only that
+         the COUNT adds nothing, and a sound that kept taking those exits used
+         to keep a dead cover link for good (keepSoundArtwork). */
+      await keepSoundArtwork(sound, stats);
+
       /* A fall far below the last reading waits for the next read rather than
          being charted as half the sound's uses vanishing (see holdSoundReading).
          The sound stays due, so the next run reads it again. */
@@ -431,22 +436,6 @@ async function cronHandler(request: NextRequest) {
         decisions.push({ soundId: sound.id, action: "fail", reason: "write-failed" });
         failed++;
         continue;
-      }
-
-      /* Renew the artwork while a fresh reading is in hand. This sweep runs
-         hourly and had no metadata write at all, so a cover signed by TikTok's
-         CDN could expire between one nightly job and the next with nothing to
-         replace it. soundMetadataPatch decides: a name the operator typed is
-         never touched, and an unsigned cover is left alone. */
-      const patch = soundMetadataPatch(sound, stats);
-      if (Object.keys(patch).length > 0) {
-        // A cover is not worth failing a snapshot that already landed.
-        await db.tikTokSound.update({ where: { id: sound.id }, data: patch }).catch((e) => {
-          log.warn("sound metadata write failed", {
-            soundId: sound.id,
-            error: e instanceof Error ? e.message : String(e),
-          });
-        });
       }
 
       decisions.push({

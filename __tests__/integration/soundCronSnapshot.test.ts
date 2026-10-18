@@ -53,8 +53,11 @@ jest.mock("@/lib/platforms/tiktokProfileSandbox", () => ({
   }),
 }));
 
+jest.mock("@/lib/sounds/coverStore", () => ({ captureSoundCover: jest.fn().mockResolvedValue(true) }));
+
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
+import { captureSoundCover } from "@/lib/sounds/coverStore";
 import { fetchTikTokSoundStats } from "@/lib/platforms/tiktokSound";
 import { alertOps } from "@/lib/alerts";
 import { GET } from "@/app/api/cron/sync-trackers/route";
@@ -388,6 +391,32 @@ it("leaves a cover alone while its signature is still good", async () => {
   await runCron();
 
   // Hourly readings would otherwise rewrite the row 24 times a day for nothing.
+  expect(mockDb.tikTokSound.update).not.toHaveBeenCalled();
+});
+
+/* The rounded-agrees and held-drop exits came before the renewal, so a sound
+   taking either of them was read every hour and kept a dying cover link. */
+it("renews and copies the cover on a rounded reading that writes no snapshot", async () => {
+  const [only] = soundWithHistory(263_312);
+  mockDb.tikTokSound.findMany.mockResolvedValue([{ ...only, title: "T", artist: "A", coverImageUrl: signedCover(-24) }]);
+  const fresh = signedCover(72);
+  mockEmbed.mockResolvedValue({ usesCount: 263_300, title: "T", artist: "A", coverImageUrl: fresh });
+
+  const body = await (await runCron()).json();
+
+  expect(mockDb.soundTrackerSnapshot.create).not.toHaveBeenCalled();
+  expect(body.decisions).toContainEqual(expect.objectContaining({ soundId: "sound-1", reason: expect.stringMatching(/^rounded-agrees/) }));
+  expect(mockDb.tikTokSound.update).toHaveBeenCalledWith({ where: { id: "sound-1" }, data: { coverImageUrl: fresh } });
+  expect(captureSoundCover).toHaveBeenCalledWith("sound-1", fresh, expect.any(Number));
+});
+
+it("keeps no artwork from a reading the gate refused", async () => {
+  mockDb.tikTokSound.findMany.mockResolvedValue(soundWithCover(signedCover(1)));
+  mockEmbed.mockResolvedValue({ usesCount: 46, title: "TikTok - Make Your Day", artist: null, coverImageUrl: signedCover(72) });
+
+  await runCron();
+
+  expect(captureSoundCover).not.toHaveBeenCalled();
   expect(mockDb.tikTokSound.update).not.toHaveBeenCalled();
 });
 

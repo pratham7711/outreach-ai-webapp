@@ -58,3 +58,16 @@ it("replaces a signed cover inside the refresh margin", () => {
   expect(isCoverUrlStale(at(2 * HOUR), NOW)).toBe(true);
   expect(isCoverUrlStale(at(13 * HOUR), NOW)).toBe(false);
 });
+
+/* Instagram's audio covers come off Meta's CDN, signed with a hex `oe=`. They
+   were read as unsigned, so they were never renewed and never treated as
+   expiring. */
+it("reads Meta's hex expiry the same way", () => {
+  const oe = (Math.floor(NOW / 1000) - 3600).toString(16).toUpperCase();
+  expect(signedUrlExpiry(`https://scontent-sin6-2.cdninstagram.com/v/t39/x.jpg?_nc_ht=y&oe=${oe}`)).toBe(
+    (Math.floor(NOW / 1000) - 3600) * 1000
+  );
+  expect(isCoverUrlStale(`https://scontent-sin6-2.cdninstagram.com/v/t39/x.jpg?_nc_ht=y&oe=${oe}`, NOW)).toBe(true);
+  // A query value that merely ends in "oe" is not the parameter.
+  expect(signedUrlExpiry("https://cdn.example/x.jpg?shoe=ABCDEF12")).toBeNull();
+});
