@@ -14,6 +14,21 @@ jest.mock("@/lib/db", () => ({
 jest.mock("@/lib/creator-auth", () => ({ getCreatorSession: jest.fn() }));
 
 import { db } from "@/lib/db";
+
+/* Answers creator.findMany the way the database would: the ownership check
+   (lib/portal/creatorLink.ts) asks only for rows naming the portal login, and
+   gets only those; every other query gets the rows as given. */
+function roster(rows: any[]) {
+  (db as any).creator.findMany.mockImplementation((args: any) =>
+    Promise.resolve(
+      args?.where && "creatorUserId" in args.where
+        ? rows
+            .filter((r) => r.deletedAt == null && r.creatorUserId === args.where.creatorUserId)
+            .map(({ id, orgId }) => ({ id, orgId }))
+        : rows,
+    ),
+  );
+}
 import { getCreatorSession } from "@/lib/creator-auth";
 
 const mockGetCreatorSession = getCreatorSession as jest.Mock;
@@ -31,7 +46,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockGetCreatorSession.mockResolvedValue(authedCreatorSession);
   // c1 names this portal account as its creator, so it is a proven-ownership row.
-  mockDb.creator.findMany.mockResolvedValue([
+  roster([
     { id: "c1", orgId: "org-1", creatorUserId: "cu-1" },
   ]);
   mockDb.creatorSocialAccount.findMany.mockResolvedValue([]);
@@ -66,7 +81,7 @@ describe("GET /api/portal/reviews", () => {
   });
 
   it("returns empty array when no creator records match handle", async () => {
-    mockDb.creator.findMany.mockResolvedValue([]);
+    roster([]);
     const res = await getPortalReviews();
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -89,7 +104,7 @@ describe("GET /api/portal/reviews", () => {
    See lib/portal/creatorLink.ts. */
 describe("GET /api/portal/reviews — ownership", () => {
   it("returns no reviews for a bare handle match with no proof", async () => {
-    mockDb.creator.findMany.mockResolvedValue([
+    roster([
       { id: "c1", orgId: "org-1", creatorUserId: "cu-someone-else" },
     ]);
     const res = await getPortalReviews();

@@ -117,6 +117,8 @@ export async function DELETE(req: NextRequest) {
         creatorId: true,
         platform: true,
         accessToken: true,
+        refreshToken: true,
+        tokenExpiry: true,
         origin: true,
       },
     });

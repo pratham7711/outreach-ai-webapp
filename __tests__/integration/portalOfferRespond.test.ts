@@ -41,6 +41,21 @@ jest.mock("@/lib/negotiation/engine", () => ({
 }));
 
 import { db } from "@/lib/db";
+
+/* Answers creator.findMany the way the database would: the ownership check
+   (lib/portal/creatorLink.ts) asks only for rows naming the portal login, and
+   gets only those; every other query gets the rows as given. */
+function roster(rows: any[]) {
+  (db as any).creator.findMany.mockImplementation((args: any) =>
+    Promise.resolve(
+      args?.where && "creatorUserId" in args.where
+        ? rows
+            .filter((r) => r.deletedAt == null && r.creatorUserId === args.where.creatorUserId)
+            .map(({ id, orgId }) => ({ id, orgId }))
+        : rows,
+    ),
+  );
+}
 import { getCreatorSession } from "@/lib/creator-auth";
 
 const mockDb = db as any;
@@ -91,7 +106,7 @@ beforeEach(() => {
   });
   /* The roster row names this portal login (proof 1, identity): the row the
      creator linked by accepting the agency's invite. */
-  mockDb.creator.findMany.mockResolvedValue([
+  roster([
     { id: "cr-1", orgId: "org-1", creatorUserId: "cu-1" },
   ]);
   mockDb.creatorSocialAccount.findMany.mockResolvedValue([]);
@@ -169,7 +184,7 @@ describe("POST /api/portal/offers/[id]/respond — acceptance is terminal", () =
 describe("POST /api/portal/offers/[id]/respond — ownership must be proven", () => {
   it("404s a portal login that only shares the roster handle, and writes nothing", async () => {
     // Same handle, not linked to this login, no connected account: a handle match only.
-    mockDb.creator.findMany.mockResolvedValue([{ id: "cr-1", orgId: "org-1", creatorUserId: null }]);
+    roster([{ id: "cr-1", orgId: "org-1", creatorUserId: null }]);
     mockDb.creatorSocialAccount.findMany.mockResolvedValue([]);
     const res = await respond({ action: "accept" });
     expect(res.status).toBe(404);
@@ -178,7 +193,7 @@ describe("POST /api/portal/offers/[id]/respond — ownership must be proven", ()
   });
 
   it("404s a row linked to a DIFFERENT portal login", async () => {
-    mockDb.creator.findMany.mockResolvedValue([{ id: "cr-1", orgId: "org-1", creatorUserId: "cu-other" }]);
+    roster([{ id: "cr-1", orgId: "org-1", creatorUserId: "cu-other" }]);
     mockDb.creatorSocialAccount.findMany.mockResolvedValue([]);
     expect((await respond({ action: "accept" })).status).toBe(404);
   });
@@ -190,16 +205,20 @@ describe("POST /api/portal/offers/[id]/respond — ownership must be proven", ()
       name: "Blessing",
       email: "the-real-creator@example.com",
     });
-    mockDb.creator.findMany.mockResolvedValue([
+    roster([
       { id: "cr-1", orgId: "org-1", creatorUserId: null, contactEmail: "the-real-creator@example.com" },
     ]);
     mockDb.creatorSocialAccount.findMany.mockResolvedValue([]);
     expect((await respond({ action: "accept" })).status).toBe(404);
   });
 
-  it("accepts the OAuth proof: a connected account whose platform handle is this portal handle", async () => {
-    mockDb.creator.findMany.mockResolvedValue([{ id: "cr-1", orgId: "org-1", creatorUserId: null }]);
+  it("does not take a stored connection under this handle as proof", async () => {
+    /* A creator who connected through the agency's connect link and never
+       registered: whoever registered the handle first must not answer the
+       creator's offers. */
+    roster([{ id: "cr-1", orgId: "org-1", creatorUserId: null }]);
     mockDb.creatorSocialAccount.findMany.mockResolvedValue([{ creatorId: "cr-1", handle: "@BlessingJolie" }]);
-    expect((await respond({ action: "accept" })).status).toBe(200);
+    expect((await respond({ action: "accept" })).status).toBe(404);
+    expect(mockDb.negotiationOffer.updateMany).not.toHaveBeenCalled();
   });
 });

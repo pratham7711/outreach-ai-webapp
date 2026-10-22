@@ -1,5 +1,4 @@
 import { db } from "@/lib/db";
-import { stripAt } from "@/lib/format";
 
 /**
  * Which org-side Creator rows a portal CreatorUser has PROVEN they own.
@@ -16,19 +15,28 @@ import { stripAt } from "@/lib/format";
  * roster first and expect that person to sign up later with the same handle and
  * find their campaigns waiting. So the handle match survives for what it is
  * good for — showing a creator the campaigns they are on — and everything that
- * is the creator's own private data is gated on one of these proofs instead:
+ * is the creator's own private data is gated on one proof instead:
  *
- *  1. IDENTITY. The roster row's creatorUserId is this portal account. The
- *     marketplace join writes it when the creator's own join creates the row
- *     (lib/marketplace/join.ts), and accepting an agency's per-creator invite
- *     link writes it on the invited row (lib/portal/campaignInvite.ts) -- the
- *     token is the agency's own grant to that creator, handed over through the
- *     agency's channel. Either way it is only ever set by the person it names.
- *  2. OAUTH. The roster row carries a CreatorSocialAccount whose handle — the
- *     one the PLATFORM returned at connect time (lib/platforms/accountSync.ts),
- *     never the portal username — is this portal handle. Connecting somebody
- *     else's account proves nothing, because the handle stored is the handle of
- *     the account that actually authorised.
+ *  IDENTITY. The roster row's creatorUserId is this portal account. It is only
+ *  ever written by the person it names:
+ *   - the marketplace join, when the creator's own join creates the row
+ *     (lib/marketplace/join.ts);
+ *   - accepting an agency's per-creator invite link (lib/portal/campaignInvite.ts)
+ *     or connect link (lib/portal/connectLinkClaim.ts) -- the token is the
+ *     agency's own grant to that creator, handed over through the agency's
+ *     channel;
+ *   - a Connect made while signed in, where the account the platform just
+ *     authenticated carries this portal handle
+ *     (app/api/portal/connections/[platform]/callback).
+ *
+ * A stored connection whose handle equals the portal handle is NOT a proof, and
+ * was one until 2026-10-23. It shows that the owner of that platform account
+ * authorised it once, not that this portal account is that person: a creator
+ * who connects through an agency's connect link never needs a portal account,
+ * registration does not verify the email, and handles can be changed, so
+ * whoever registered the handle first was handed the creator's stats, offers
+ * and earnings and could revoke their grants. The live consent above is the
+ * same evidence taken at the one moment it does belong to this login.
  *
  * An email is not a proof. A roster row's contactEmail is typed in by the
  * agency or imported from a sign-up sheet, and portal registration never
@@ -37,7 +45,7 @@ import { stripAt } from "@/lib/format";
  * only as a VERIFIED address, once registration proves the account owns it.
  *
  * CampaignInvite itself carries a creatorId and no portal identity; who
- * accepted it is recorded on the roster row (proof 1), not on the invite. When a
+ * accepted it is recorded on the roster row, not on the invite. When a
  * new proof is added, add it here — this is the only place that decides.
  */
 export type LinkedCreator = { id: string; orgId: string };
@@ -46,54 +54,19 @@ export type LinkedCreator = { id: string; orgId: string };
    read: see "An email is not a proof" above. */
 export type LinkSubject = { handle: string; email?: string | null; creatorUserId?: string | null };
 
-function handleVariants(handle: string): string[] {
-  const bare = stripAt(handle);
-  return [bare, `@${bare}`];
-}
-
-function norm(value: string | null | undefined): string {
-  return stripAt(value ?? "").trim().toLowerCase();
-}
-
-/** Every Creator row this portal user has proven they own, across all orgs. */
+/**
+ * Every Creator row this portal user has proven they own, across all orgs.
+ * The handle is not consulted: a row is the account's because it names the
+ * account, whatever handle either of them carries.
+ */
 export async function findLinkedCreatorsForHandle(
   subject: LinkSubject,
 ): Promise<LinkedCreator[]> {
-  const bareHandle = norm(subject.handle);
-  if (!bareHandle) return [];
-
-  /* A row that names this portal account is a candidate whatever its handle:
-     an invite or a connect link links the row without touching the handle the
-     agency typed, and proof 1 does not depend on it. */
-  const candidates = await db.creator.findMany({
-    where: {
-      deletedAt: null,
-      OR: [
-        ...handleVariants(subject.handle).map((handle) => ({ handle })),
-        ...(subject.creatorUserId ? [{ creatorUserId: subject.creatorUserId }] : []),
-      ],
-    },
-    select: { id: true, orgId: true, creatorUserId: true },
+  if (!subject.creatorUserId) return [];
+  return db.creator.findMany({
+    where: { deletedAt: null, creatorUserId: subject.creatorUserId },
+    select: { id: true, orgId: true },
   });
-  if (candidates.length === 0) return [];
-
-  const self = subject.creatorUserId ?? null;
-  const proven = new Set(self ? candidates.filter((c) => c.creatorUserId === self).map((c) => c.id) : []);
-
-  const unproven = candidates.filter((c) => !proven.has(c.id));
-  if (unproven.length > 0) {
-    const accounts = await db.creatorSocialAccount.findMany({
-      where: { creatorId: { in: unproven.map((c) => c.id) } },
-      select: { creatorId: true, handle: true },
-    });
-    for (const account of accounts) {
-      if (norm(account.handle) === bareHandle) proven.add(account.creatorId);
-    }
-  }
-
-  return candidates
-    .filter((c) => proven.has(c.id))
-    .map((c) => ({ id: c.id, orgId: c.orgId }));
 }
 
 /** The same answer for one row, e.g. the creator named on a negotiation offer. */
@@ -112,28 +85,15 @@ export async function isCreatorLinked(
  * negotiations/start-batch used to pick the portal account by handle alone and
  * open the offer's conversation with it, so the rate, the campaign and the
  * agency's name went to whoever had registered that handle first, proof or
- * not. The portal's own offer routes are gated on the proofs above; the message
+ * not. The portal's own offer routes are gated on the proof above; the message
  * that announces the offer has to be addressed by the same rule or it leaks
- * what the gate protects.
- *
- * Proof 1 is read straight off the row. Proof 2 starts from the portal account
- * holding the roster handle and asks the same question findLinkedCreatorsForHandle
- * answers, so the two directions cannot disagree.
+ * what the gate protects. The proof is read straight off the row, so the two
+ * directions cannot disagree.
  */
-export async function findProvenCreatorUserForCreator(creator: {
+export function findProvenCreatorUserForCreator(creator: {
   id: string;
   handle: string;
   creatorUserId: string | null;
 }): Promise<{ id: string } | null> {
-  if (creator.creatorUserId) return { id: creator.creatorUserId };
-  const candidate = await db.creatorUser.findFirst({
-    where: { handle: { in: handleVariants(creator.handle) } },
-    select: { id: true, handle: true },
-  });
-  if (!candidate) return null;
-  const proven = await isCreatorLinked(creator.id, {
-    handle: candidate.handle,
-    creatorUserId: candidate.id,
-  });
-  return proven ? { id: candidate.id } : null;
+  return Promise.resolve(creator.creatorUserId ? { id: creator.creatorUserId } : null);
 }

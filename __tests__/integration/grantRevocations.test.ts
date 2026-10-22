@@ -72,6 +72,8 @@ const mockDb = db as unknown as {
 };
 
 const ENV_KEYS = [
+  "TIKTOK_CLIENT_KEY",
+  "TIKTOK_USE_SANDBOX",
   "TIKTOK_CLIENT_SECRET",
   "TIKTOK_SANDBOX_CLIENT_SECRET",
   "INSTAGRAM_CLIENT_ID",
@@ -144,6 +146,55 @@ describe("Disconnect", () => {
     tableExists(false);
     await disconnectSocialAccount(account, "org-1", { alreadyRevoked: true });
     expect(mockDb.creatorGrant.updateMany).not.toHaveBeenCalled();
+    expect(mockDb.creatorSocialAccount.delete).toHaveBeenCalledWith({ where: { id: "conn-1" } });
+  });
+});
+
+describe("Disconnect revokes at TikTok with a live token", () => {
+  beforeEach(() => {
+    process.env.TIKTOK_CLIENT_KEY = "tt-key";
+    delete process.env.TIKTOK_USE_SANDBOX;
+  });
+  const tiktok = {
+    id: "conn-1",
+    creatorId: "creator-1",
+    platform: "TIKTOK",
+    origin: "oauth",
+    accessToken: encrypt("stored-token", "org-1"),
+    refreshToken: encrypt("rt-1", "org-1"),
+  };
+
+  it("refreshes an expired access token and revokes with the new one", async () => {
+    (global.fetch as jest.Mock)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ access_token: "fresh-token", refresh_token: "rt-2", expires_in: 86_400 }),
+      })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+    await disconnectSocialAccount({ ...tiktok, tokenExpiry: new Date(Date.now() - 60 * 60 * 1000) }, "org-1");
+    const calls = (global.fetch as jest.Mock).mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[0][0]).toContain("/oauth/token/");
+    expect(String(calls[1][1].body)).toContain("token=fresh-token");
+    expect(mockDb.creatorSocialAccount.delete).toHaveBeenCalledWith({ where: { id: "conn-1" } });
+  });
+
+  it("revokes with the stored token while it is still valid, without refreshing", async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+    await disconnectSocialAccount({ ...tiktok, tokenExpiry: new Date(Date.now() + 6 * 60 * 60 * 1000) }, "org-1");
+    const calls = (global.fetch as jest.Mock).mock.calls;
+    expect(calls).toHaveLength(1);
+    expect(calls[0][0]).toContain("/oauth/revoke/");
+    expect(String(calls[0][1].body)).toContain("token=stored-token");
+  });
+
+  it("still revokes with the stored token when the refresh fails, and still disconnects", async () => {
+    (global.fetch as jest.Mock)
+      .mockResolvedValueOnce({ ok: false, status: 400, json: async () => ({ error: "invalid_grant" }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+    await disconnectSocialAccount({ ...tiktok, tokenExpiry: new Date(Date.now() - 60 * 60 * 1000) }, "org-1");
+    const calls = (global.fetch as jest.Mock).mock.calls;
+    expect(String(calls[calls.length - 1][1].body)).toContain("token=stored-token");
     expect(mockDb.creatorSocialAccount.delete).toHaveBeenCalledWith({ where: { id: "conn-1" } });
   });
 });
@@ -240,6 +291,57 @@ describe("the agency removing a connection", () => {
     );
     expect(res.status).toBe(200);
     expect(revokedWith()).toEqual([{ ids: ["conn-1"], reason: "agency_removed" }]);
+  });
+
+  const removeAs = (account: Record<string, unknown>) => {
+    (authenticateRequest as jest.Mock).mockResolvedValue({ orgId: "org-1", actorType: "user", role: "OWNER" });
+    mockDb.creator.findFirst.mockResolvedValue({ id: "creator-1" });
+    mockDb.creatorSocialAccount.findFirst.mockResolvedValue(account);
+    return removeSocialAccount(
+      new NextRequest("http://localhost:3009/api/creators/creator-1/social-accounts?accountId=conn-1", { method: "DELETE" }),
+      { params: Promise.resolve({ id: "creator-1" }) },
+    );
+  };
+
+  it("revokes a TikTok connection at TikTok too, refreshing an expired token first", async () => {
+    process.env.TIKTOK_CLIENT_KEY = "tt-key";
+    delete process.env.TIKTOK_USE_SANDBOX;
+    (global.fetch as jest.Mock)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ access_token: "fresh-token", refresh_token: "rt-2", expires_in: 86_400 }),
+      })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+    const res = await removeAs({
+      id: "conn-1",
+      creatorId: "creator-1",
+      platform: "TIKTOK",
+      origin: "oauth",
+      accessToken: encrypt("expired-token", "org-1"),
+      refreshToken: encrypt("rt-1", "org-1"),
+      tokenExpiry: new Date(Date.now() - 60 * 60 * 1000),
+    });
+    expect(res.status).toBe(200);
+    const calls = (global.fetch as jest.Mock).mock.calls;
+    expect(calls[0][0]).toContain("/oauth/token/");
+    expect(calls[1][0]).toContain("/oauth/revoke/");
+    expect(String(calls[1][1].body)).toContain("token=fresh-token");
+    expect(revokedWith()).toEqual([{ ids: ["conn-1"], reason: "agency_removed" }]);
+    expect(mockDb.creatorSocialAccount.delete).toHaveBeenCalledWith({ where: { id: "conn-1" } });
+  });
+
+  it("deletes a row the agency typed in without calling any platform", async () => {
+    const res = await removeAs({
+      id: "conn-1",
+      creatorId: "creator-1",
+      platform: "TIKTOK",
+      origin: "manual",
+      accessToken: encrypt("manual-entry", "org-1"),
+    });
+    expect(res.status).toBe(200);
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(revokedWith()).toEqual([{ ids: ["conn-1"], reason: "agency_removed" }]);
+    expect(mockDb.creatorSocialAccount.delete).toHaveBeenCalledWith({ where: { id: "conn-1" } });
   });
 });
 

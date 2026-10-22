@@ -112,7 +112,7 @@ describe("listJoinedCampaigns", () => {
 
   /* The campaign is public; the agency's note on a declined draft is not. A
      login that only shares the roster handle sees the campaign without it. */
-  it("withholds draft feedback on a handle-only row until the login proves it owns the row", async () => {
+  it("withholds draft feedback on a handle-only row until the row names the login", async () => {
     roster({ byHandle: ["cr-same-name"] });
     mdb.activation.findMany.mockResolvedValue([
       activation({ creatorId: "cr-same-name", status: "DECLINED", feedbackNotes: "Shorter intro please" }),
@@ -124,6 +124,10 @@ describe("listJoinedCampaigns", () => {
     mdb.creatorSocialAccount.findMany.mockResolvedValue([
       { creatorId: "cr-same-name", handle: "@Fake_Creator_One" },
     ]);
+    const [storedConnection] = await listJoinedCampaigns(session, NOW);
+    expect(storedConnection.feedback).toBeNull();
+
+    roster({ identity: ["cr-same-name"] });
     const [proven] = await listJoinedCampaigns(session, NOW);
     expect(proven.feedback).toBe("Shorter intro please");
   });

@@ -14,7 +14,7 @@ import { OAUTH_PLATFORMS } from "@/lib/oauth/providers";
 
 jest.mock("@/lib/db", () => ({
   db: {
-    creator: { findMany: jest.fn(), findFirst: jest.fn() },
+    creator: { findMany: jest.fn(), findFirst: jest.fn(), updateMany: jest.fn() },
     creatorSocialAccount: {
       findMany: jest.fn(),
       findFirst: jest.fn(),
@@ -43,6 +43,21 @@ jest.mock("@/lib/platforms/instagramBusinessToken", () => ({
 }));
 
 import { db } from "@/lib/db";
+
+/* Answers creator.findMany the way the database would: the ownership check
+   (lib/portal/creatorLink.ts) asks only for rows naming the portal login, and
+   gets only those; every other query gets the rows as given. */
+function roster(rows: any[]) {
+  (db as any).creator.findMany.mockImplementation((args: any) =>
+    Promise.resolve(
+      args?.where && "creatorUserId" in args.where
+        ? rows
+            .filter((r) => r.deletedAt == null && r.creatorUserId === args.where.creatorUserId)
+            .map(({ id, orgId }) => ({ id, orgId }))
+        : rows,
+    ),
+  );
+}
 import { getCreatorSession } from "@/lib/creator-auth";
 import { accountIdsForGrantor, accountStatesFor } from "@/lib/platforms/accountState";
 import { otherAgencyGrantors } from "@/lib/platforms/instagramAgencyCredential";
@@ -50,7 +65,7 @@ import { getInstagramBusinessToken } from "@/lib/platforms/instagramBusinessToke
 
 const mockGetCreatorSession = getCreatorSession as jest.Mock;
 const mockDb = db as unknown as {
-  creator: { findMany: jest.Mock; findFirst: jest.Mock };
+  creator: { findMany: jest.Mock; findFirst: jest.Mock; updateMany: jest.Mock };
   creatorSocialAccount: {
     findMany: jest.Mock;
     findFirst: jest.Mock;
@@ -94,7 +109,7 @@ beforeEach(() => {
   /* c1 names this portal account as its creator, so it is a LINKED row — proven ownership.
      A bare handle match no longer reaches any of this; see
      lib/portal/creatorLink.ts. */
-  mockDb.creator.findMany.mockResolvedValue([
+  roster([
     { id: "c1", orgId: "org-1", creatorUserId: "cu-1" },
   ]);
   mockDb.creator.findFirst.mockResolvedValue({ id: "c1", orgId: "org-1" });
@@ -164,7 +179,7 @@ describe("GET /api/portal/connections", () => {
   });
 
   it("returns an empty list when no org-side creator matches the handle", async () => {
-    mockDb.creator.findMany.mockResolvedValue([]);
+    roster([]);
     const res = await listConnections();
     const body = await res.json();
     expect(body.accounts).toEqual([]);
@@ -677,7 +692,7 @@ describe("GET /api/portal/connections/[platform]/callback", () => {
 describe("portal connections — ownership of the roster row", () => {
   /** A handle match that names some other portal account: no proof. */
   const unproven = () => {
-    mockDb.creator.findMany.mockResolvedValue([
+    roster([
       { id: "c1", orgId: "org-1", creatorUserId: "cu-someone-else" },
     ]);
     mockDb.creatorSocialAccount.findMany.mockResolvedValue([]);
@@ -687,8 +702,8 @@ describe("portal connections — ownership of the roster row", () => {
     unproven();
     const res = await listConnections();
     expect((await res.json()).accounts).toEqual([]);
-    // No creatorId set to query with, so the account read never happens.
-    expect(mockDb.creatorSocialAccount.findMany).toHaveBeenCalledTimes(1);
+    // No linked row, so no account is ever read.
+    expect(mockDb.creatorSocialAccount.findMany).not.toHaveBeenCalled();
   });
 
   it("refuses to revoke a connection on a row it has not proven it owns", async () => {
@@ -707,8 +722,11 @@ describe("portal connections — ownership of the roster row", () => {
     expect(mockDb.creatorSocialAccount.delete).not.toHaveBeenCalled();
   });
 
-  it("still revokes once an OAuth connection under this handle proves the row", async () => {
-    mockDb.creator.findMany.mockResolvedValue([
+  it("refuses to revoke on a stored connection under this handle alone", async () => {
+    /* The takeover: the creator connected through the agency's connect link
+       and never registered, so the row names no login; whoever registered the
+       handle first must not be able to revoke the creator's grant. */
+    roster([
       { id: "c1", orgId: "org-1", creatorUserId: null },
     ]);
     mockDb.creatorSocialAccount.findMany.mockResolvedValue([
@@ -720,15 +738,14 @@ describe("portal connections — ownership of the roster row", () => {
       platform: "TIKTOK",
       accessToken: encrypt("tok", "org-1"),
     });
-    mockDb.creatorSocialAccount.count.mockResolvedValue(0);
-    mockDb.creatorSocialAccount.delete.mockResolvedValue({ id: "acc-1" });
     global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
 
     const res = await deleteConnection(
       makeRequest("http://localhost:3009/api/portal/connections?id=acc-1", { method: "DELETE" }),
     );
-    expect(res.status).toBe(200);
-    expect(mockDb.creatorSocialAccount.delete).toHaveBeenCalledWith({ where: { id: "acc-1" } });
+    expect(res.status).toBe(404);
+    expect(mockDb.creatorSocialAccount.delete).not.toHaveBeenCalled();
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });
 
@@ -778,7 +795,7 @@ describe("GET /api/portal/connections/[platform]/callback — where the token ma
 
   beforeEach(() => {
     // A bare handle match that names some other portal account.
-    mockDb.creator.findMany.mockResolvedValue([
+    roster([
       { id: "c1", orgId: "org-1", creatorUserId: "cu-someone-else" },
     ]);
     mockDb.creatorSocialAccount.findMany.mockResolvedValue([]);
@@ -795,6 +812,19 @@ describe("GET /api/portal/connections/[platform]/callback — where the token ma
     const res = await runCallback("BlessingJolie");
     expect(res.headers.get("location")).toContain("connected=instagram");
     expect(mockDb.creatorSocialAccount.upsert).toHaveBeenCalled();
+    /* The link is written onto the roster row, because the stored connection
+       cannot say later which login made it. */
+    expect(mockDb.creator.updateMany).toHaveBeenCalledWith({
+      where: { id: "c1", orgId: "org-1", creatorUserId: null },
+      data: { creatorUserId: "cu-1" },
+    });
+  });
+
+  it("does not link the row when the authorised account is somebody else's", async () => {
+    mockDb.creator.findFirst.mockResolvedValue({ id: "c1", orgId: "org-1", creatorUserId: "cu-1" });
+    const res = await runCallback("a_different_instagram_name");
+    expect(res.headers.get("location")).toContain("connected=instagram");
+    expect(mockDb.creator.updateMany).not.toHaveBeenCalled();
   });
 
   it("attaches to the row that names this portal account, whatever handle either carries", async () => {

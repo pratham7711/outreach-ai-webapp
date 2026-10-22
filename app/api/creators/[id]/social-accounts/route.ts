@@ -7,6 +7,7 @@ import { REVOKE_REASONS, revokeGrantsForConnections } from "@/lib/creators/grant
 import { requirePermission } from "@/lib/authz";
 import { ACCOUNT_ORIGINS } from "@/lib/platforms/accountOrigin";
 import { BACKFILL_SKIPS, classifyForBackfill } from "@/lib/creators/grantBackfill";
+import { disconnectSocialAccount } from "@/lib/portal/disconnect";
 
 // ─── GET — list social accounts (secrets excluded) ───────────────────────────
 
@@ -163,9 +164,20 @@ export async function DELETE(
       { status: 404 },
     );
 
-  /* The agency removing a connection ends this org's right to read it, and
-     the record says who ended it. Never throws; absent table, no-op. */
-  await revokeGrantsForConnections([accountId], REVOKE_REASONS.AGENCY_REMOVED);
-  await db.creatorSocialAccount.delete({ where: { id: accountId } });
+  /* A row the agency typed in holds no credential and fed no reading: ending
+     its grant record and deleting it is all there is. */
+  if (account.origin === ACCOUNT_ORIGINS.MANUAL) {
+    await revokeGrantsForConnections([accountId], REVOKE_REASONS.AGENCY_REMOVED);
+    await db.creatorSocialAccount.delete({ where: { id: accountId } });
+    return NextResponse.json({ success: true });
+  }
+  /* A real connection ends the way the creator's own Disconnect ends it:
+     revoked at the platform, grant closed (recorded as the agency's doing),
+     connected readings deleted, row gone. Deleting only the row left our
+     grant standing in the creator's TikTok or Google settings with nothing
+     here able to withdraw it, and kept the figures read through it. */
+  await disconnectSocialAccount(account, orgId, {
+    revokeReason: REVOKE_REASONS.AGENCY_REMOVED,
+  });
   return NextResponse.json({ success: true });
 }

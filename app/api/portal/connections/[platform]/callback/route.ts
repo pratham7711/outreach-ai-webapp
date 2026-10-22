@@ -275,21 +275,23 @@ export async function GET(
     /* Where the token is allowed to land. The handle fallback matches on the
        handle alone, so without this an account that signed up as an existing
        roster creator's handle could staple its own OAuth token onto that
-       creator's row. Two ways through, and they are the two proofs in
-       lib/portal/creatorLink.ts:
-         - the row is already linked (contactEmail match, or an earlier
-           connection), or
+       creator's row. Two ways through:
+         - the row is already linked to this portal account
+           (lib/portal/creatorLink.ts), or
          - the account that just authorised IS this handle, which is what makes
            the very first connection able to establish the link. */
     /* A connect link needs no such proof: the agency bound it to this row and
        handed it to the creator, and the link is the credential. */
+    const identityProvesHandle = Boolean(
+      session &&
+        identity.handle &&
+        stripAt(identity.handle).trim().toLowerCase() ===
+          stripAt(session.handle).trim().toLowerCase(),
+    );
     if (session) {
       const linkedIds = new Set(
         (await findLinkedCreatorsForHandle(session)).map((c) => c.id),
       );
-      const identityProvesHandle =
-        stripAt(identity.handle ?? "").trim().toLowerCase() ===
-        stripAt(session.handle).trim().toLowerCase();
       /* Proof 1 by itself: the row names this portal account, whatever handle
          either of them carries. */
       const linkedByIdentity = Boolean(creator.creatorUserId) && creator.creatorUserId === session.creatorUserId;
@@ -373,6 +375,17 @@ export async function GET(
         platformAccountId: identity.platformUserId,
         ...grantedScopes(platform, tokens.scope),
         source: binding ? GRANT_SOURCES.CONNECT_LINK : GRANT_SOURCES.PORTAL,
+      });
+    }
+    /* This consent is the proof lib/portal/creatorLink.ts reads: signed in as
+       this portal account, the person authorised the platform account that
+       carries this exact handle. Written onto the roster row now, because the
+       stored connection cannot say later which login made it. Only an unlinked
+       row: one that already names another login is left as it is. */
+    if (saved?.id && session && !binding && identityProvesHandle && !creator.creatorUserId) {
+      await db.creator.updateMany({
+        where: { id: creator.id, orgId: creator.orgId, creatorUserId: null },
+        data: { creatorUserId: session.creatorUserId },
       });
     }
     if (binding) await markConnectTokenUsed(binding.tokenId);

@@ -50,8 +50,9 @@ export async function POST(request: NextRequest) {
 
        What the handle no longer buys is access to that roster row's private
        data. Connections, insights, reviews, offers and earnings are gated on
-       proven ownership — an email match or an OAuth connection for this exact
-       handle — in lib/portal/creatorLink.ts. */
+       proven ownership — a roster row that names this account, written only
+       by the creator's own join, invite, connect link or signed-in Connect —
+       in lib/portal/creatorLink.ts. */
     const existingHandle = await db.creatorUser.findUnique({ where: { handle } });
     if (existingHandle) {
       return NextResponse.json({ error: "Handle already taken" }, { status: 409 });

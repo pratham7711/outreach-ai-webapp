@@ -16,7 +16,7 @@ import { connectState, hashConnectToken, newConnectToken } from "@/lib/creators/
 
 jest.mock("@/lib/db", () => ({
   db: {
-    creator: { findFirst: jest.fn(), findMany: jest.fn() },
+    creator: { findFirst: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
     creatorSocialAccount: { findUnique: jest.fn(), upsert: jest.fn() },
     creatorConnectToken: { findUnique: jest.fn(), update: jest.fn() },
   },
@@ -45,7 +45,7 @@ import { findLinkedCreatorsForHandle } from "@/lib/portal/creatorLink";
 import { recordGrant } from "@/lib/creators/grants";
 
 const mockDb = db as unknown as {
-  creator: { findFirst: jest.Mock; findMany: jest.Mock };
+  creator: { findFirst: jest.Mock; findMany: jest.Mock; updateMany: jest.Mock };
   creatorSocialAccount: { findUnique: jest.Mock; upsert: jest.Mock };
   creatorConnectToken: { findUnique: jest.Mock; update: jest.Mock };
 };

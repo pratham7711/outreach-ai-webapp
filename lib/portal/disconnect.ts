@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { decrypt } from "@/lib/crypto/encrypt";
 import { revokeTikTokToken } from "@/lib/platforms/tiktokDisplay";
+import { ensureFreshTikTokToken } from "@/lib/platforms/tiktokToken";
 import { revokeInstagramToken } from "@/lib/platforms/instagramAccount";
 import { revokeYouTubeToken } from "@/lib/platforms/youtube";
 import { revokeFacebookToken } from "@/lib/platforms/facebookPage";
@@ -28,6 +29,10 @@ export type DisconnectableAccount = {
   platform: string;
   accessToken: string;
   origin: string | null;
+  /** TikTok only: lets a revoke refresh the access token first. A caller that
+   *  leaves these out revokes with the stored token, as before. */
+  refreshToken?: string | null;
+  tokenExpiry?: Date | null;
 };
 
 export async function disconnectSocialAccount(
@@ -95,7 +100,23 @@ async function revokeAtPlatform(account: DisconnectableAccount, orgId: string): 
 
   try {
     const token = decrypt(account.accessToken, orgId);
-    if (account.platform === "TIKTOK") await revokeTikTokToken(token);
+    /* TikTok's revoke wants a live access token, and those last 24 hours: a
+       connection nobody has read for a day held an expired one, so the revoke
+       failed into the catch below and the grant stayed in the creator's TikTok
+       settings after we told them it was gone. Refreshed first; the stored
+       token is the fallback when no refresh is possible. */
+    if (account.platform === "TIKTOK") {
+      const fresh = await ensureFreshTikTokToken(
+        {
+          id: account.id,
+          accessToken: account.accessToken,
+          refreshToken: account.refreshToken ?? null,
+          tokenExpiry: account.tokenExpiry ?? null,
+        },
+        orgId,
+      );
+      await revokeTikTokToken(fresh ?? token);
+    }
     /* Instagram Login publishes no revoke endpoint, so there is nothing to
        call — see revokeInstagramLoginToken. Deliberately not routed to
        revokeInstagramToken: that DELETEs me/permissions on graph.facebook.com
