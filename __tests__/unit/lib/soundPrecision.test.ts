@@ -97,8 +97,10 @@ describe("soundSeries", () => {
   });
 
   /* Instagram prints a count up to 10K and "12K" after: the rounded tail is the
-     only record of that stretch, and is kept -- without a change across it. */
-  it("keeps a rounded run after the last exact reading, with no velocity", () => {
+     only record of that stretch, and is kept. 12K is 11.5 hours after the count
+     -- too close to scale to a day -- and 3K past 12K is under five 1K steps;
+     15K against the exact 8,659 is wide enough, so it gets an estimate. */
+  it("keeps a rounded run after the last exact reading, measuring only changes wider than the rounding", () => {
     const series = soundSeries(
       [
         { recordedAt: at("2026-09-23T16:30:00Z"), usesCount: 8_659 },
@@ -107,11 +109,66 @@ describe("soundSeries", () => {
       ],
       { bucketHours: 24 },
     );
-    expect(series.map((p) => [p.usesCount, p.precision, p.velocity])).toEqual([
-      [8_659, "exact", null],
-      [12_000, "rounded", null],
-      [15_000, "rounded", null],
+    expect(series.map((p) => [p.usesCount, p.precision, p.velocity, p.velocityApprox])).toEqual([
+      [8_659, "exact", null, false],
+      [12_000, "rounded", null, false],
+      // (15,000 / 8,659) ^ (24h / 35.5h) - 1, per day.
+      [15_000, "rounded", 44.98, true],
     ]);
+  });
+
+  /* What TikTok gives for a sound past 10K: every reading a multiple of 100.
+     Before, every point's velocity was null and the chart was empty. */
+  it("measures velocity on a TikTok sound whose every reading is rounded", () => {
+    const rows = Array.from({ length: 6 }, (_, d) => ({
+      recordedAt: new Date(Date.UTC(2026, 9, 11 + d, 20)),
+      usesCount: 268_700 + d * 1_800,
+    }));
+    const series = soundSeries(rows, { bucketHours: 24 });
+    expect(series.every((p) => p.precision === "rounded")).toBe(true);
+    expect(series[0].velocity).toBeNull();
+    for (const p of series.slice(1)) {
+      expect(p.velocityApprox).toBe(true);
+      expect(p.velocity).toBeGreaterThan(0.6);
+      expect(p.velocity).toBeLessThan(0.7);
+    }
+  });
+
+  it("looks back past a day too slow to beat the rounding, and no further than three", () => {
+    const day = (d: number, usesCount: number) => ({ recordedAt: new Date(Date.UTC(2026, 9, 1 + d, 20)), usesCount });
+    // +400 a day against a 100 step on each end: two days is under 5 x 200, three is not.
+    const slow = soundSeries([0, 1, 2, 3, 4].map((d) => day(d, 268_700 + d * 400)), { bucketHours: 24 });
+    expect(slow.map((p) => p.velocity)).toEqual([null, null, null, expect.any(Number), expect.any(Number)]);
+    // Per day, not per three days: 1,200 over three days is about 0.15% a day.
+    expect(slow[3].velocity).toBeCloseTo(0.15, 2);
+    // Never further back than three days: a sound that crawls gets no velocity at all.
+    const crawl = soundSeries([0, 1, 2, 3, 4, 5].map((d) => day(d, 268_700 + d * 100)), { bucketHours: 24 });
+    expect(crawl.every((p) => p.velocity === null)).toBe(true);
+  });
+
+  it("reads a round thousand at the rounding its neighbours show", () => {
+    const day = (d: number, usesCount: number) => ({ recordedAt: new Date(Date.UTC(2026, 9, 12 + d, 20)), usesCount });
+    // 273,000 alone could be "273K"; beside 271,200 and 274,800 it is "273.0K".
+    const series = soundSeries([267_600, 269_400, 271_200, 273_000, 274_800].map((u, d) => day(d, u)), { bucketHours: 24 });
+    expect(series.slice(1).map((p) => p.velocity !== null && p.velocityApprox)).toEqual([true, true, true, true]);
+    expect(series[3].velocity).toBeCloseTo(0.66, 1);
+  });
+
+  it("keeps a thousand's rounding for a sound only ever printed to the thousand", () => {
+    const day = (d: number, usesCount: number) => ({ recordedAt: new Date(Date.UTC(2026, 9, 1 + d, 20)), usesCount });
+    const series = soundSeries([15_000, 16_000, 17_000, 18_000].map((u, d) => day(d, u)), { bucketHours: 24 });
+    expect(series.every((p) => p.velocity === null)).toBe(true);
+  });
+
+  it("keeps a velocity between exact counts exact", () => {
+    const series = soundSeries(
+      [
+        { recordedAt: at("2026-09-01T04:00:00Z"), usesCount: 8_001 },
+        { recordedAt: at("2026-09-02T04:00:00Z"), usesCount: 8_401 },
+      ],
+      { bucketHours: 24 },
+    );
+    expect(series[1]).toMatchObject({ velocity: 5, velocityApprox: false });
   });
 
   it("does not depend on the order rows arrive in", () => {

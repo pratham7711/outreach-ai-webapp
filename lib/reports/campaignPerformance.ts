@@ -230,9 +230,19 @@ export type CampaignAudio = {
    *
    * It is NULL on a sound's very first point (the stored 0 there is the absence
    * of a baseline, and charted it pulled the line down to "0.00%"), across a run
-   * of empty buckets, and wherever either end is a rounded figure.
+   * of empty buckets between exact counts, and where a rounded figure has not
+   * moved enough for the change to be more than the rounding.
+   * `velocityApprox` marks a velocity measured across a rounded figure.
    */
-  usageSeries: { date: string; at: string; t: number; uses: number; rounded: boolean; velocity: number | null }[];
+  usageSeries: {
+    date: string;
+    at: string;
+    t: number;
+    uses: number;
+    rounded: boolean;
+    velocity: number | null;
+    velocityApprox: boolean;
+  }[];
 };
 
 /**
@@ -910,7 +920,15 @@ export async function loadCampaignAudio(
     videosAdded24h: videosAddedSinceLast(rows),
     usageSeries: series.map((p) => {
       const at = new Date(p.t).toISOString();
-      return { date: at.slice(0, 10), at, t: p.t, uses: p.usesCount, rounded: p.precision === "rounded", velocity: p.velocity };
+      return {
+        date: at.slice(0, 10),
+        at,
+        t: p.t,
+        uses: p.usesCount,
+        rounded: p.precision === "rounded",
+        velocity: p.velocity,
+        velocityApprox: p.velocityApprox,
+      };
     }),
   };
 }

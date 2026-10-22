@@ -11,6 +11,7 @@ import { creatorHandleVariants } from "@/lib/creator-auth";
 import { DEFAULT_CREATOR_SORT } from "@/lib/listParams";
 import { rosterTablesReady } from "@/lib/creators/rosterTables";
 import { lookupNewCreatorViaAgency } from "@/lib/creators/agencyLookup";
+import { creatorsByProfileLink } from "@/lib/creators/linkLookup";
 
 const listCreatorsQuerySchema = creatorFilterSchema.extend({
   page: pageParam,
@@ -127,6 +128,17 @@ export async function POST(request: NextRequest) {
     if (clash) {
       return NextResponse.json(
         { error: `A creator with the handle ${handle} already exists`, creatorId: clash.id },
+        { status: 409 }
+      );
+    }
+    /* The same account kept as another creator's profile link -- their
+       Instagram on a creator filed under TikTok. A second row here would hold
+       nothing anyway: the Instagram lookup below writes its link with
+       skipDuplicates, and the existing link wins. */
+    const [linked] = await creatorsByProfileLink(orgId, handle, platform ?? "TIKTOK", 1);
+    if (linked) {
+      return NextResponse.json(
+        { error: `${handle} is already on the roster as one of ${linked.name}'s accounts`, creatorId: linked.id },
         { status: 409 }
       );
     }

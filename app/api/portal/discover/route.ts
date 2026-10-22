@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { NOT_REMOVED } from "@/lib/posts/removed";
 import { withoutImportCopy } from "@/lib/serialization/importCopy";
 import { getCreatorSession } from "@/lib/creator-auth";
+import { isUploadedThumbnailUrl } from "@/lib/campaigns/uploadedPicture";
 import { z } from "zod";
 import { moneyParam, pageParam, pageSizeParam, parseQuery } from "@/lib/http/queryParams";
 
@@ -84,6 +85,8 @@ export async function GET(request: NextRequest) {
 
     const enriched = campaigns.map(c => ({
       ...c,
+      // An uploaded picture is served to the agency's own session only.
+      thumbnailUrl: isUploadedThumbnailUrl(c.thumbnailUrl, c.id) ? null : c.thumbnailUrl,
       typeConfig: withoutImportCopy(c.typeConfig),
       alreadyProposed: proposedCampaignIds.has(c.id),
     }));

@@ -47,12 +47,43 @@ function readingInstant(v: number | string): string {
   })} UTC`;
 }
 
-/** A rounded point is the platform's "74K", and says so in its tooltip. */
+/** A rounded point is the platform's "74K", and says so in its tooltip; so
+ *  does a velocity measured across one. */
 function usageTooltipValue(view: "usage" | "velocity") {
-  return (v: unknown, _name: unknown, item: { payload?: { rounded?: boolean } } | undefined) =>
+  return (v: unknown, _name: unknown, item: { payload?: { rounded?: boolean; velocityApprox?: boolean } } | undefined) =>
     view === "velocity"
-      ? `${Number(v).toFixed(2)}%`
+      ? `${item?.payload?.velocityApprox ? "≈" : ""}${Number(v).toFixed(2)}%`
       : `${item?.payload?.rounded ? "≈" : ""}${formatFull(Number(v))}`;
+}
+
+/* Velocity on a large sound is a fraction of a percent a day, so whole-number
+   ticks printed "0%" three times up the axis. Up to two decimals, trailing
+   zeros dropped. */
+function velocityTick(v: unknown): string {
+  return `${parseFloat(Number(v).toFixed(2))}%`;
+}
+
+/* An approximate velocity can stand alone between two gaps, and an area needs
+   two neighbours to draw anything, so a lone point gets a dot. */
+function loneVelocityDot(series: CampaignAudio["usageSeries"], fill: string) {
+  return function LoneDot(props: { cx?: number; cy?: number; index?: number }) {
+    const i = props.index ?? -1;
+    const lone =
+      series[i]?.velocity != null && series[i - 1]?.velocity == null && series[i + 1]?.velocity == null;
+    if (!lone || props.cx == null || props.cy == null) return <g key={`d${i}`} />;
+    return <circle key={`d${i}`} cx={props.cx} cy={props.cy} r={3} fill={fill} />;
+  };
+}
+
+/** What the Velocity view says when it has nothing to draw, or draws an estimate. */
+function velocityNotes(audio: CampaignAudio) {
+  const where = audio.platform === "INSTAGRAM" ? "Instagram" : "TikTok";
+  return {
+    has: audio.usageSeries.some((p) => p.velocity !== null),
+    approx: audio.usageSeries.some((p) => p.velocityApprox),
+    empty: `No measurable change yet. ${where} shows this sound's count rounded, so velocity appears once the count moves by more than the rounding.`,
+    approxNote: `Approximate: ${where} rounds this sound's count, so each change is measured over enough time to be larger than the rounding.`,
+  };
 }
 
 /**
@@ -134,6 +165,7 @@ export function AudioCard({
      CreatorCore puts both behind this toggle over one chart, and they are two
      questions about the same series rather than two datasets. */
   const [view, setView] = useState<"usage" | "velocity">("usage");
+  const notes = velocityNotes(audio);
 
   if (variant === "report") {
     return (
@@ -222,9 +254,10 @@ export function AudioCard({
 
         {/* One point is not a curve; the chart appears once there are two. */}
         {audio.usageSeries.length > 1 ? (
+          <>
           <div style={{ height: 210 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
-              <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>Audio Usage</span>
+              <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{view === "usage" ? "Audio Usage" : "Audio Velocity"}</span>
               <div role="tablist" aria-label="Audio chart view" style={{ display: "flex", gap: 4 }}>
                 {(["usage", "velocity"] as const).map((key) => (
                   <button
@@ -246,8 +279,11 @@ export function AudioCard({
                 ))}
               </div>
             </div>
+            {view === "velocity" && !notes.has ? (
+              <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: "24px 0 0" }}>{notes.empty}</p>
+            ) : (
             <ResponsiveContainer width="100%" height="82%">
-              <AreaChart data={audio.usageSeries} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
+              <AreaChart data={audio.usageSeries} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                 <XAxis
                   {...TIME_AXIS}
                   tick={{ fontSize: 11, fill: "var(--cc-text-muted)" }}
@@ -259,6 +295,9 @@ export function AudioCard({
                   tick={{ fontSize: 11, fill: "var(--cc-text-muted)" }}
                   tickLine={false}
                   axisLine={false}
+                  /* Sized to its own labels. A fixed width with the chart pulled
+                     left to hide the gutter cut "280K" to "80K" at larger type. */
+                  width="auto"
                   /* Velocity is a signed percentage and has to be allowed below
                      zero. Recharts defaults a numeric axis to [0, 'auto'], so
                      the view that exists to show a sound losing pace was the
@@ -267,7 +306,7 @@ export function AudioCard({
                      for a count is what you want. */
                   domain={view === "velocity" ? ["auto", "auto"] : [0, "auto"]}
                   allowDecimals={view === "velocity"}
-                  tickFormatter={(v) => (view === "velocity" ? `${Number(v).toFixed(0)}%` : formatCompact(Number(v)))}
+                  tickFormatter={(v) => (view === "velocity" ? velocityTick(v) : formatCompact(Number(v)))}
                 />
                 <Tooltip
                   formatter={usageTooltipValue(view)}
@@ -283,10 +322,16 @@ export function AudioCard({
                   fill="var(--cc-primary)"
                   fillOpacity={0.14}
                   strokeWidth={2}
+                  dot={view === "velocity" ? loneVelocityDot(audio.usageSeries, "var(--cc-primary)") : false}
                 />
               </AreaChart>
             </ResponsiveContainer>
+            )}
           </div>
+          {view === "velocity" && notes.has && notes.approx ? (
+            <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "8px 0 0" }}>{notes.approxNote}</p>
+          ) : null}
+          </>
         ) : (
           <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>
             Usage over time appears once this sound has been synced more than once.
@@ -368,6 +413,7 @@ function ReportAudio({
   axisLabel: (v: number | string) => string;
 }) {
   const hasCurve = audio.usageSeries.length > 1;
+  const notes = velocityNotes(audio);
   /* A month-old figure rendered as a bare number claims to be current, and this
      document goes to a brand. The reference shows nothing here because its
      tracker is running; ours says so when it is not. Only when stale -- a
@@ -449,8 +495,13 @@ function ReportAudio({
           </h3>
 
           <div className="spr-audio-chart">
+            {view === "velocity" && !notes.has ? (
+              <p className="spr-note" style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "0 16px" }}>
+                {notes.empty}
+              </p>
+            ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={audio.usageSeries} margin={{ top: 4, right: 30, left: -8, bottom: 0 }}>
+              <AreaChart data={audio.usageSeries} margin={{ top: 4, right: 30, left: 0, bottom: 0 }}>
                 <XAxis
                   {...TIME_AXIS}
                   tick={{ fontSize: 14, fill: "var(--spr-audio-axis)" }}
@@ -463,13 +514,15 @@ function ReportAudio({
                   tick={{ fontSize: 14, fill: "var(--spr-audio-axis)" }}
                   tickLine={false}
                   axisLine={false}
-                  width={46}
+                  /* Sized to its own labels: 46px with the chart pulled 8px
+                     left cut "280K" to "80K" at this 14px type. */
+                  width="auto"
                   /* Velocity is a signed percentage and has to be allowed below
                      zero; a count keeps its zero baseline. Same reasoning as the
                      dashboard card above. */
                   domain={view === "velocity" ? ["auto", "auto"] : [0, "auto"]}
                   allowDecimals={view === "velocity"}
-                  tickFormatter={(v) => (view === "velocity" ? `${Number(v).toFixed(0)}%` : formatCompact(Number(v)))}
+                  tickFormatter={(v) => (view === "velocity" ? velocityTick(v) : formatCompact(Number(v)))}
                 />
                 <Tooltip
                   formatter={usageTooltipValue(view)}
@@ -488,10 +541,13 @@ function ReportAudio({
                   fill="var(--spr-audio-area)"
                   fillOpacity={1}
                   strokeWidth={3}
+                  dot={view === "velocity" ? loneVelocityDot(audio.usageSeries, "var(--spr-audio-line)") : false}
                 />
               </AreaChart>
             </ResponsiveContainer>
+            )}
           </div>
+          {view === "velocity" && notes.has && notes.approx ? <p className="spr-audio-stale">{notes.approxNote}</p> : null}
           </div>
         </>
       ) : (

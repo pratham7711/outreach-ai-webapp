@@ -1,10 +1,12 @@
+import { createHash } from "node:crypto";
 import { db } from "@/lib/db";
-import { loadImage } from "@/lib/media/loadImage";
+import { loadImage, resizeImage } from "@/lib/media/loadImage";
 import { createLogger } from "@/lib/observability/logger";
 import { isFetchableAvatarUrl as isFetchableImageUrl } from "@/lib/creators/avatarStore";
 import { isProxyableHost } from "@/lib/postMedia";
 import { linkKey, pictureKey, pictureLink } from "@/lib/campaigns/pictureLink";
 import { describeImageLink } from "@/lib/sounds/coverStore";
+import { uploadedThumbnailUrl } from "@/lib/campaigns/uploadedPicture";
 
 /**
  * A campaign's picture, kept as bytes (CampaignThumbnail).
@@ -217,4 +219,63 @@ export async function captureCampaignThumbnail(
     }
     return "failed";
   }
+}
+
+/* ─── A picture uploaded from the new-campaign form or the Edit tab ─── */
+
+/** Largest upload accepted. The forms shrink a picture before sending it, so
+ *  this only meets one they could not decode (HEIC); it sits under Vercel's
+ *  4.5 MB request cap. */
+export const CAMPAIGN_THUMBNAIL_UPLOAD_MAX_BYTES = 4 * 1024 * 1024;
+
+export type CampaignThumbnailUploadResult =
+  | { stored: true; bytes: number; thumbnailUrl: string }
+  | { stored: false; status: 413 | 422; failure: string };
+
+/**
+ * Keep an uploaded picture as the campaign's own. It goes ahead of a sound's
+ * cover (lib/campaignArtwork), and nothing fetched later replaces it: the
+ * capture never downloads from this app's own address, and the campaign route
+ * leaves an uploaded thumbnail alone when the sound changes.
+ *
+ * The caller has checked the campaign belongs to the org; the campaign row and
+ * the copy are written together, so neither names a picture the other lacks.
+ */
+export async function storeCampaignThumbnailUpload(
+  campaign: { id: string; orgId: string },
+  bytes: Buffer,
+  origin: string,
+  isHeic = false
+): Promise<CampaignThumbnailUploadResult> {
+  if (bytes.byteLength > CAMPAIGN_THUMBNAIL_UPLOAD_MAX_BYTES) return { stored: false, status: 413, failure: "too large" };
+  let encoded: Buffer;
+  try {
+    encoded = await resizeImage(bytes, isHeic, CAMPAIGN_THUMBNAIL_STORE_PX, CAMPAIGN_THUMBNAIL_STORE_PX, "inside", "avif");
+  } catch {
+    return { stored: false, status: 422, failure: "not an image" };
+  }
+  const digest = createHash("sha256").update(bytes).digest("hex").slice(0, 16);
+  const thumbnailUrl = uploadedThumbnailUrl(origin, campaign.id, digest);
+  const data = new Uint8Array(encoded);
+  const now = new Date();
+  await db.$transaction([
+    db.campaign.updateMany({ where: { id: campaign.id, orgId: campaign.orgId }, data: { thumbnailUrl } }),
+    db.campaignThumbnail.upsert({
+      where: { campaignId: campaign.id },
+      create: { campaignId: campaign.id, orgId: campaign.orgId, data, sourceUrl: thumbnailUrl, fetchedAt: now },
+      update: { data, sourceUrl: thumbnailUrl, fetchedAt: now, failedAt: null, failure: null },
+    }),
+  ]);
+  return { stored: true, bytes: data.byteLength, thumbnailUrl };
+}
+
+/**
+ * Take the campaign's own picture away. A campaign with a sound shows the
+ * sound's cover again; any other shows its initials.
+ */
+export async function removeCampaignThumbnail(campaign: { id: string; orgId: string }): Promise<void> {
+  await db.$transaction([
+    db.campaign.updateMany({ where: { id: campaign.id, orgId: campaign.orgId }, data: { thumbnailUrl: null } }),
+    db.campaignThumbnail.deleteMany({ where: { campaignId: campaign.id, orgId: campaign.orgId } }),
+  ]);
 }

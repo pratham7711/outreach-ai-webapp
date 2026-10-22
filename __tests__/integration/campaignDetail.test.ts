@@ -631,3 +631,64 @@ describe('PATCH /api/campaigns/[id] audio link', () => {
     expect(data).not.toHaveProperty('audioUrl');
   });
 });
+
+/* A picture uploaded for the campaign (./thumbnail) is the team's choice.
+   Attaching a sound later sends the sound's cover through this PATCH, and that
+   must not replace it. */
+describe('PATCH /api/campaigns/[id] uploaded picture', () => {
+  const UPLOAD = 'http://localhost/api/campaigns/camp-1/thumbnail?upload=0123456789abcdef';
+  const COVER = 'https://p16-sg.tiktokcdn.com/aweme/720x720/cover.jpeg';
+  const base = { id: 'camp-1', orgId: 'org-1', title: 'Drop', deletedAt: null, status: 'IN_PROGRESS', statusDefId: 'def-active' };
+
+  const patch = (body: Record<string, unknown>) =>
+    PATCH(
+      makeRequest('http://localhost/api/campaigns/camp-1', {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+        headers: { 'Content-Type': 'application/json' },
+      }),
+      makeParams('camp-1')
+    );
+
+  it("keeps an uploaded picture when a sound's cover is sent", async () => {
+    mockDb.campaign.findFirst.mockResolvedValue({ ...base, thumbnailUrl: UPLOAD });
+    mockDb.campaign.update.mockResolvedValue({ ...base, title: 'Drop 2', thumbnailUrl: UPLOAD, tags: [], teamMembers: [], _count: { activations: 0, posts: 0 } });
+
+    const res = await patch({ title: 'Drop 2', thumbnailUrl: COVER });
+
+    expect(res.status).toBe(200);
+    const { data } = mockDb.campaign.update.mock.calls[0][0];
+    expect(data).toEqual({ title: 'Drop 2' });
+  });
+
+  it('keeps an uploaded picture when the sound is taken away', async () => {
+    mockDb.campaign.findFirst.mockResolvedValue({ ...base, thumbnailUrl: UPLOAD });
+    mockDb.campaign.update.mockResolvedValue({ ...base, thumbnailUrl: UPLOAD, tags: [], teamMembers: [], _count: { activations: 0, posts: 0 } });
+
+    await patch({ thumbnailUrl: null });
+
+    const { data } = mockDb.campaign.update.mock.calls[0][0];
+    expect(data).not.toHaveProperty('thumbnailUrl');
+  });
+
+  it("takes the sound's cover when nothing was uploaded", async () => {
+    mockDb.campaign.findFirst.mockResolvedValue({ ...base, thumbnailUrl: null });
+    mockDb.campaign.update.mockResolvedValue({ ...base, thumbnailUrl: COVER, tags: [], teamMembers: [], _count: { activations: 0, posts: 0 } });
+
+    await patch({ thumbnailUrl: COVER });
+
+    const { data } = mockDb.campaign.update.mock.calls[0][0];
+    expect(data).toEqual({ thumbnailUrl: COVER });
+  });
+
+  it("does not count another campaign's upload as this one's", async () => {
+    const theirs = 'http://localhost/api/campaigns/camp-2/thumbnail?upload=0123456789abcdef';
+    mockDb.campaign.findFirst.mockResolvedValue({ ...base, thumbnailUrl: theirs });
+    mockDb.campaign.update.mockResolvedValue({ ...base, thumbnailUrl: COVER, tags: [], teamMembers: [], _count: { activations: 0, posts: 0 } });
+
+    await patch({ thumbnailUrl: COVER });
+
+    const { data } = mockDb.campaign.update.mock.calls[0][0];
+    expect(data).toEqual({ thumbnailUrl: COVER });
+  });
+});

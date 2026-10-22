@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { stripAt } from "@/lib/format";
 import { handleProblem } from "@/lib/creators/handleCheck";
+import { accountIdTablesReady } from "@/lib/creators/accountIdTables";
 
 /**
  * A read-only health check of one org's roster, for the admin audit route.
@@ -18,6 +19,9 @@ export type RosterAudit = {
   withPicture: number;
   links: { total: number; byPlatform: Record<string, number> };
   checks: Record<AuditCheckName, AuditCheck>;
+  /** Every duplicate row (all but the oldest of each set), counted by the day
+      it was created and by what created it -- which is the "why". */
+  duplicateOrigins: Record<string, number>;
 };
 
 export const AUDIT_CHECKS = [
@@ -34,6 +38,10 @@ export const AUDIT_CHECKS = [
   "handleProblem",
   "pictureMissing",
   "duplicateEmail",
+  "duplicateHandle",
+  "duplicateViaProfileLink",
+  "duplicatePlatformAccount",
+  "sameHandleOtherPlatform",
 ] as const;
 
 export type AuditCheckName = (typeof AUDIT_CHECKS)[number];
@@ -43,19 +51,40 @@ const MIXED_CASE = /\p{Ll}\p{Lu}/u;
 const NOT_A_HANDLE = /[\s/?#=]|https?:|\.com\b/i;
 
 const at = (h: string) => `@${stripAt(h)}`;
+const bare = (h: string) => stripAt(h).trim().toLowerCase();
+
+/* Prisma's cuid() leads with the creation time in base 36. Creator has no
+   createdAt column, and this is the only record of when a row appeared. */
+export function cuidDay(id: string): string | null {
+  if (!/^c[a-z0-9]{24}$/.test(id)) return null;
+  const ms = parseInt(id.slice(1, 9), 36);
+  return Number.isFinite(ms) && ms > 1.5e12 && ms < 4e12 ? new Date(ms).toISOString().slice(0, 10) : null;
+}
+
+type Row = { id: string; name: string; handle: string; platform: string | null; source: string | null };
+
+/* What most likely made a row, from what each path leaves behind: a post link
+   names the creator by their handle (ensureCreatorForHandle), and an import or
+   sign-up records its source on the detail row. */
+function origin(r: Row): string {
+  if (r.source) return `source:${r.source}`;
+  if (bare(r.name) === bare(r.handle)) return "named-by-handle (post link or DM join)";
+  return "no source";
+}
 
 export async function auditRoster(orgId: string): Promise<RosterAudit> {
   const creators = await db.creator.findMany({
-    where: { orgId },
+    where: { orgId, deletedAt: null },
     select: {
       id: true,
       name: true,
       handle: true,
+      platform: true,
       contactEmail: true,
       rate: true,
       avatarUrl: true,
       avatar: { select: { fetchedAt: true } },
-      detail: { select: { country: true, audienceCountry: true } },
+      detail: { select: { country: true, audienceCountry: true, source: true } },
       profileLinks: {
         select: { platform: true, handle: true, followersCount: true, averageViews: true, isPrimary: true, refreshError: true },
       },
@@ -119,5 +148,88 @@ export async function auditRoster(orgId: string): Promise<RosterAudit> {
     if (whos.length > 1) for (const who of whos) hit("duplicateEmail", who);
   }
 
-  return { creators: creators.length, withEmail, withPicture, links: { total: links, byPlatform }, checks };
+  const rows: Row[] = creators.map((c) => ({
+    id: c.id,
+    name: c.name,
+    handle: c.handle,
+    platform: c.platform ?? null,
+    source: c.detail?.source ?? null,
+  }));
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const duplicateOrigins: Record<string, number> = {};
+  const extra = new Set<string>();
+  /* Oldest first, so the row a set keeps counting as "the" creator is the one
+     that was there before; every later one is a duplicate and is explained. */
+  const oldestFirst = (ids: string[]) => [...new Set(ids)].sort();
+  const explain = (ids: string[]) => {
+    for (const id of oldestFirst(ids).slice(1)) {
+      if (extra.has(id)) continue;
+      extra.add(id);
+      const r = byId.get(id);
+      if (!r) continue;
+      const key = `${cuidDay(id) ?? "unknown day"} · ${origin(r)}`;
+      duplicateOrigins[key] = (duplicateOrigins[key] ?? 0) + 1;
+    }
+  };
+
+  // Same platform, same handle, two roster rows.
+  const byHandle = new Map<string, string[]>();
+  const platformsByHandle = new Map<string, Set<string>>();
+  for (const r of rows) {
+    const h = bare(r.handle);
+    if (!h || !r.platform) continue;
+    const key = `${r.platform}:${h}`;
+    byHandle.set(key, [...(byHandle.get(key) ?? []), r.id]);
+    platformsByHandle.set(h, (platformsByHandle.get(h) ?? new Set()).add(r.platform));
+  }
+  for (const [key, ids] of byHandle) {
+    if (ids.length < 2) continue;
+    const cut = key.indexOf(":");
+    const platform = key.slice(0, cut);
+    const h = key.slice(cut + 1);
+    hit("duplicateHandle", `${platform.toLowerCase()} @${h} x${ids.length}`);
+    explain(ids);
+  }
+  // One handle on several platforms: often one person, sometimes two. Not explained as duplicates.
+  for (const [h, platforms] of platformsByHandle) {
+    if (platforms.size > 1) hit("sameHandleOtherPlatform", `@${h} ${[...platforms].sort().join("+").toLowerCase()}`);
+  }
+
+  // A creator whose own account is already another creator's profile link.
+  const linkHolder = new Map<string, string>();
+  for (const c of creators) for (const l of c.profileLinks) linkHolder.set(`${l.platform}:${bare(l.handle)}`, c.id);
+  for (const r of rows) {
+    if (!r.platform) continue;
+    const holder = linkHolder.get(`${r.platform}:${bare(r.handle)}`);
+    if (holder && holder !== r.id) {
+      hit("duplicateViaProfileLink", `${r.platform.toLowerCase()} @${bare(r.handle)}`);
+      explain([holder, r.id]);
+    }
+  }
+
+  // The platform's own account id, read by the tracker, under two creators.
+  if (await accountIdTablesReady()) {
+    try {
+      const ids = await db.creatorPlatformAccountId.findMany({
+        where: { orgId, creator: { deletedAt: null } },
+        select: { creatorId: true, platform: true, platformAccountId: true, handle: true },
+      });
+      const byAccount = new Map<string, { creators: Set<string>; handle: string | null }>();
+      for (const a of ids) {
+        const key = `${a.platform}:${a.platformAccountId}`;
+        const e = byAccount.get(key) ?? { creators: new Set<string>(), handle: a.handle };
+        e.creators.add(a.creatorId);
+        byAccount.set(key, e);
+      }
+      for (const [key, e] of byAccount) {
+        if (e.creators.size < 2) continue;
+        hit("duplicatePlatformAccount", `${key.split(":")[0].toLowerCase()} ${e.handle ? at(e.handle) : "(no handle)"} x${e.creators.size}`);
+        explain([...e.creators]);
+      }
+    } catch {
+      /* The account-id read is a bonus; the handle checks above stand alone. */
+    }
+  }
+
+  return { creators: creators.length, withEmail, withPicture, links: { total: links, byPlatform }, checks, duplicateOrigins };
 }

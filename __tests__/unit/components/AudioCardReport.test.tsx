@@ -25,7 +25,7 @@ jest.mock(
   { virtual: true }
 );
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { AudioCard } from "@/components/campaigns/AudioCard";
 import type { CampaignAudio } from "@/lib/reports/campaignPerformance";
 
@@ -35,7 +35,7 @@ const DAY = 24 * 60 * 60 * 1000;
 function audio(over: Partial<CampaignAudio> = {}, points = 3, daysAgo = 0): CampaignAudio {
   const usageSeries = Array.from({ length: points }, (_, i) => {
     const at = new Date(Date.now() - (daysAgo + (points - 1 - i)) * DAY).toISOString();
-    return { date: at.slice(0, 10), at, t: Date.parse(at), uses: 30 + i * 10, rounded: false, velocity: i === 0 ? null : 12.5 };
+    return { date: at.slice(0, 10), at, t: Date.parse(at), uses: 30 + i * 10, rounded: false, velocity: i === 0 ? null : 12.5, velocityApprox: false };
   });
   return {
     title: "Roots",
@@ -125,4 +125,39 @@ it("marks a display-rounded use count as approximate, and names Instagram's audi
   expect(screen.getByText("Instagram Audio")).toBeInTheDocument();
   expect(screen.getByText("≈15,000")).toBeInTheDocument();
   expect(screen.getByText("—")).toBeInTheDocument();
+});
+
+/* Every TikTok sound past 10K uses reads as a rounded figure, so these are the
+   states a campaign sound's Velocity view is normally in. */
+const rounded = (velocity: number | null, i: number) => ({ rounded: true, velocity, velocityApprox: velocity !== null, uses: 270_000 + i * 1_800 });
+
+it("says why Velocity is empty instead of drawing an empty chart", () => {
+  const a = audio();
+  a.usageSeries = a.usageSeries.map((p, i) => ({ ...p, ...rounded(null, i) }));
+  for (const variant of ["report", "dashboard"] as const) {
+    const { unmount } = render(<AudioCard audio={a} variant={variant} />);
+    fireEvent.click(screen.getByRole("tab", { name: /velocity/i }));
+    expect(screen.queryByTestId("area-chart")).not.toBeInTheDocument();
+    expect(screen.getByText(/No measurable change yet\. TikTok shows this sound's count rounded/)).toBeInTheDocument();
+    unmount();
+  }
+});
+
+it("draws an approximate velocity and says it is one", () => {
+  const a = audio();
+  a.usageSeries = a.usageSeries.map((p, i) => ({ ...p, ...rounded(i === 0 ? null : 0.66, i) }));
+  for (const variant of ["report", "dashboard"] as const) {
+    const { unmount } = render(<AudioCard audio={a} variant={variant} />);
+    fireEvent.click(screen.getByRole("tab", { name: /velocity/i }));
+    expect(screen.getByTestId("area-chart")).toBeInTheDocument();
+    expect(screen.getByText(/^Approximate: TikTok rounds this sound's count/)).toBeInTheDocument();
+    unmount();
+  }
+});
+
+it("adds no approximation note to a velocity measured between exact counts", () => {
+  render(<AudioCard audio={audio()} variant="report" />);
+  fireEvent.click(screen.getByRole("tab", { name: /velocity/i }));
+  expect(screen.getByTestId("area-chart")).toBeInTheDocument();
+  expect(screen.queryByText(/^Approximate:/)).not.toBeInTheDocument();
 });

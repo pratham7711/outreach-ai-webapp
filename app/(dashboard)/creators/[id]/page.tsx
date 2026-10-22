@@ -3,13 +3,14 @@ import { useState, useEffect, use } from "react";
 import { motion } from "framer-motion";
 import {
   Eye, Heart, MessageCircle, Share2, Play, ChevronRight, ExternalLink, DollarSign, Pencil, Plus, Trash2, Users,
-  User, Video, ClipboardList, Link2, Combine,
+  User, Video, ClipboardList, Link2, Combine, Megaphone, Image as ImageIcon, Activity, StickyNote, Tag, Flag, ListChecks,
+  type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, Badge, EmptyState, Skeleton, Modal, Input, Tooltip } from "@pratham7711/ui";
 import { NotFoundState } from "@/components/errors/NotFoundState";
-import { Dropdown, MetricTile } from "@/components/ds";
+import { Dropdown, MetricTile, useConfirm } from "@/components/ds";
 import { formatDateAbs, platformLabel, formatFull, formatFullCurrency } from "@/lib/format";
 import { campaignStatusLabel } from "@/lib/statusColors";
 import { ACTIVATION_STATUS_LABEL } from "@/lib/activationQueues";
@@ -189,6 +190,16 @@ type LabelDef = { id: string; name: string; emoji?: string | null };
  * already knows the full selection, and a set means clicking the same tag twice
  * cannot leave a duplicate or a half-applied state behind.
  */
+/** A card's title with the mark for what the card holds. */
+function PanelTitle({ icon: Icon, children }: { icon: LucideIcon; children: React.ReactNode }) {
+  return (
+    <span className="cc-panel-title" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+      <Icon size={15} aria-hidden="true" style={{ color: "var(--cc-text-muted)", flexShrink: 0 }} />
+      {children}
+    </span>
+  );
+}
+
 function LabelCard({
   creatorId,
   kind,
@@ -247,9 +258,7 @@ function LabelCard({
 
   return (
     <Card variant="outlined" style={{ padding: 24 }}>
-      <span className="cc-panel-title" style={{ display: "block", marginBottom: 12 }}>
-        {title}
-      </span>
+      <PanelTitle icon={kind === "tags" ? Tag : Flag}>{title}</PanelTitle>
 
       {selected.length === 0 ? (
         <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", lineHeight: 1.6 }}>{emptyLabel}</p>
@@ -348,9 +357,7 @@ function ListsCard({ creatorId, lists, onSaved }: { creatorId: string; lists: { 
 
   return (
     <Card variant="outlined" style={{ padding: 24 }}>
-      <span className="cc-panel-title" style={{ display: "block", marginBottom: 12 }}>
-        On lists
-      </span>
+      <PanelTitle icon={ListChecks}>On lists</PanelTitle>
       {shown.length === 0 ? (
         <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", lineHeight: 1.6 }}>Not on any list yet.</p>
       ) : (
@@ -747,6 +754,8 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const confirm = useConfirm();
   const [socialAccounts, setSocialAccounts] = useState<SocialAccount[]>([]);
   const [socialLoading, setSocialLoading] = useState(false);
   const [showAddSocial, setShowAddSocial] = useState(false);
@@ -830,6 +839,34 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
       toast.error("The request didn't go through. The account is still linked.");
     } finally {
       setRemovingSocial(null);
+    }
+  };
+
+  const deleteCreator = async () => {
+    if (!creator || deleting) return;
+    const posts = creator._count.posts;
+    const ok = await confirm({
+      title: `Delete ${creator.name}?`,
+      description:
+        "They come off the roster and out of every list, and their profiles stop refreshing. " +
+        (posts > 0
+          ? `Their ${formatFull(posts)} ${posts === 1 ? "post stays" : "posts stay"} in the campaigns they ran in. `
+          : "") +
+        "This can't be undone from the app.",
+      confirmLabel: "Delete creator",
+      tone: "danger",
+    });
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/creators/${id}`, { method: "DELETE" });
+      if (res.status === 403) throw new Error("Your role can't delete creators. Ask an admin or manager.");
+      if (!res.ok && res.status !== 404) throw new Error("Couldn't delete this creator. Try again.");
+      toast.success(`${creator.name} deleted`);
+      router.push("/creators");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't delete this creator. Try again.");
+      setDeleting(false);
     }
   };
 
@@ -977,6 +1014,21 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
               >
                 <Combine size={14} /> Merge duplicate
               </button>
+              <button
+                onClick={deleteCreator}
+                disabled={deleting}
+                aria-busy={deleting}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "6px 14px", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)",
+                  color: "var(--cc-danger-fg)", background: "var(--cc-card)",
+                  border: "1.5px solid var(--cc-border)", borderRadius: 8,
+                  cursor: deleting ? "progress" : "pointer", opacity: deleting ? 0.6 : 1,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <Trash2 size={14} /> {deleting ? "Deleting…" : "Delete"}
+              </button>
             </div>
           </div>
 
@@ -999,6 +1051,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
           <div className="cd-stats-grid">
             <MetricTile
               metric="followers"
+              icon={Users}
               value={<MetricFigure value={followers} format={formatNumber} />}
               footer={
                 followersAt && !isUnknownMetric(followers) ? (
@@ -1019,10 +1072,11 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                 ) : undefined
               }
             />
-            <MetricTile metric="creatorCampaigns" value={String(creator.campaignCount)} />
-            <MetricTile metric="posts" label="Posts" value={formatNumber(creator._count.posts)} />
+            <MetricTile metric="creatorCampaigns" icon={Megaphone} value={String(creator.campaignCount)} />
+            <MetricTile metric="posts" label="Posts" icon={ImageIcon} value={formatNumber(creator._count.posts)} />
             <MetricTile
               metric="engagementRate"
+              icon={Activity}
               label="Avg engagement"
               value={<MetricFigure value={avgEngagement} format={percent} />}
               footer={
@@ -1066,7 +1120,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
         {activeTab === "profile" && (
           <div className="cd-profile-cards">
             <Card variant="outlined" style={{ padding: 24 }}>
-              <span className="cc-panel-title" style={{ display: "block", marginBottom: 12 }}>About</span>
+              <PanelTitle icon={User}>About</PanelTitle>
               {/* Their bio or nothing. The fallback was a sentence nobody wrote,
                   printed where the creator's own words go. */}
               {creator.bio?.trim() ? (
@@ -1097,7 +1151,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                 ))}
             </Card>
             <Card variant="outlined" style={{ padding: 24 }}>
-              <span className="cc-panel-title" style={{ display: "block", marginBottom: 12 }}>Notes</span>
+              <PanelTitle icon={StickyNote}>Notes</PanelTitle>
               <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", lineHeight: 1.6 }}>
                 {creator.notes ?? "No notes added yet."}
               </p>

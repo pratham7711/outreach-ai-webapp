@@ -1,4 +1,4 @@
-import { usesPrecisionOf, type UsesPrecision } from "@/lib/sounds/precision";
+import { roundingStep, usesPrecisionOf, type UsesPrecision } from "@/lib/sounds/precision";
 import { velocityBetween } from "@/lib/trackers/metrics";
 
 /**
@@ -18,9 +18,13 @@ import { velocityBetween } from "@/lib/trackers/metrics";
  *    wins over a later rounded one. A rounded run before the first exact reading
  *    or after the last one is kept -- it is the only record of that stretch,
  *    and Instagram never prints more than "15K" for a sound past 10K.
- *  - A change needs both ends exact and adjacent. Velocity across a precision
- *    change, or across empty buckets, is null rather than a figure that is the
- *    rounding or several buckets' worth of growth drawn as one.
+ *  - Between two exact readings, velocity is the change from the adjacent
+ *    bucket; across empty buckets it is null rather than several buckets'
+ *    growth drawn as one.
+ *  - Where an end is rounded, the change is only the rounding until it is
+ *    several rounding steps wide -- see approxVelocity. That case is every
+ *    TikTok sound past 10K uses, which is nearly every campaign sound, so a
+ *    rule of "exact on both ends" left the Velocity chart empty for all of them.
  *
  * Each point keeps its reading's own time (`t`), so a time-scaled axis puts it
  * where it happened rather than at its bucket's edge.
@@ -33,11 +37,72 @@ export type SoundSeriesPoint = {
   t: number;
   usesCount: number;
   precision: UsesPrecision;
-  /** Percent change from the previous point; null where that is not knowable. */
+  /** Percent change per bucket; null where that is not knowable. */
   velocity: number | null;
+  /** True when velocity was measured across a rounded figure (see approxVelocity). */
+  velocityApprox: boolean;
 };
 
 const HOUR_MS = 60 * 60 * 1000;
+
+/* A rounded end can be off by up to its own rounding step -- a full step, not
+   half, because a platform that truncates ("15K" for 15,999) is off by that
+   much. A change five times the combined uncertainty keeps the rounding under
+   a fifth of it. */
+const RESOLVE_STEPS = 5;
+/* How far back a rounded reading may look for a change that wide: three days,
+   or three buckets where a bucket is longer than a day. */
+const REACH_MIN_MS = 72 * HOUR_MS;
+
+type Uncertainty = (p: { usesCount: number; precision: UsesPrecision }) => number;
+
+/* A figure's own digits give only the worst case: 273,000 read alone could be
+   "273K", rounded to the thousand. A platform prints one sound's figures of one
+   size in one format, so beside 271,200 and 274,800 it is "273.0K", rounded to
+   the hundred like them. Figures printed to the hundred land on a round
+   thousand one time in ten, and each such day left a gap in the chart. */
+function roundingBySize(readings: readonly { usesCount: number; precision: UsesPrecision }[]): Uncertainty {
+  const size = (uses: number) => String(Math.trunc(uses)).length;
+  const finest = new Map<number, number>();
+  for (const r of readings) {
+    if (r.precision !== "rounded") continue;
+    finest.set(size(r.usesCount), Math.min(finest.get(size(r.usesCount)) ?? Infinity, roundingStep(r.usesCount)));
+  }
+  return (p) =>
+    p.precision === "rounded" ? Math.min(roundingStep(p.usesCount), finest.get(size(p.usesCount)) ?? Infinity) : 0;
+}
+
+/**
+ * Velocity at point `i` when an end of the change is a rounded figure: the
+ * nearest earlier point, within reach, whose difference is at least
+ * RESOLVE_STEPS times the rounding on both ends, with the change expressed per
+ * bucket so a span of three days reads on the same scale as a span of one.
+ *
+ * At 281,900 TikTok rounds to the hundred, so a day that adds 1,800 videos is
+ * measured day on day; a slow day looks further back until the change is wide
+ * enough, and one that never gets there within reach has no velocity.
+ */
+function approxVelocity(
+  points: readonly SoundSeriesPoint[],
+  i: number,
+  bucketMs: number,
+  uncertainty: Uncertainty,
+): number | null {
+  const cur = points[i];
+  const reach = Math.max(3 * bucketMs, REACH_MIN_MS);
+  for (let j = i - 1; j >= 0; j--) {
+    const ref = points[j];
+    const elapsed = cur.t - ref.t;
+    if (elapsed > reach) break;
+    /* Two readings an hour apart either side of a bucket edge, scaled up to a
+       whole bucket, would be noise multiplied. */
+    if (elapsed < bucketMs / 2 || ref.usesCount <= 0) continue;
+    if (Math.abs(cur.usesCount - ref.usesCount) < RESOLVE_STEPS * (uncertainty(cur) + uncertainty(ref))) continue;
+    const perBucket = (Math.pow(cur.usesCount / ref.usesCount, bucketMs / elapsed) - 1) * 100;
+    return Math.round(perBucket * 100) / 100;
+  }
+  return null;
+}
 
 export function soundSeries(
   rows: readonly SoundReadingRow[],
@@ -48,6 +113,8 @@ export function soundSeries(
     .map((r) => ({ t: r.recordedAt.getTime(), usesCount: r.usesCount, precision: usesPrecisionOf(r.usesCount) }))
     .filter((r) => Number.isFinite(r.t) && Number.isFinite(r.usesCount))
     .sort((a, b) => a.t - b.t);
+
+  const uncertainty = roundingBySize(readings);
 
   let firstExact = -1;
   let lastExact = -1;
@@ -76,15 +143,18 @@ export function soundSeries(
     const prevKey = i > 0 ? keys[i - 1] : null;
     const prev = prevKey === null ? null : byBucket.get(prevKey)!;
     const adjacent = prevKey !== null && key - prevKey === 1;
+    const exact = prev && adjacent && prev.precision === "exact" && r.precision === "exact";
     out.push({
       t: r.t,
       usesCount: r.usesCount,
       precision: r.precision,
-      velocity:
-        prev && adjacent && prev.precision === "exact" && r.precision === "exact"
-          ? velocityBetween(prev.usesCount, r.usesCount)
-          : null,
+      velocity: exact ? velocityBetween(prev.usesCount, r.usesCount) : null,
+      velocityApprox: false,
     });
+    if (!exact && (r.precision === "rounded" || prev?.precision === "rounded")) {
+      const v = approxVelocity(out, out.length - 1, bucketMs, uncertainty);
+      if (v !== null) Object.assign(out[out.length - 1], { velocity: v, velocityApprox: true });
+    }
   });
   return out;
 }

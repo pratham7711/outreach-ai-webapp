@@ -1,11 +1,13 @@
 "use client";
 
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Modal, Input } from "@pratham7711/ui";
 import { Check, Download, Music2 } from "lucide-react";
+import { toast } from "sonner";
 import { Dropdown, Button } from "@/components/ds";
 import { SOUND_URL_ERRORS, parseSoundUrl } from "@/lib/trackers/soundUrl";
+import { ThumbnailDrop, prepareThumbnail, uploadCampaignThumbnail, type PreparedThumbnail } from "@/components/campaigns/ThumbnailDrop";
 
 type Client = { id: string; name: string };
 
@@ -189,6 +191,11 @@ export default function CampaignWizard({
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [imported, setImported] = useState<ImportedAudio | null>(null);
+  /* A picture chosen for the campaign. Saved once the campaign exists, and
+     then it, not the sound's cover, is what the campaign shows. */
+  const [picture, setPicture] = useState<PreparedThumbnail | null>(null);
+  const [pictureError, setPictureError] = useState<string | null>(null);
+  const [preparingPicture, setPreparingPicture] = useState(false);
   const [form, setForm] = useState<WizardForm>({
     title: "",
     clientId: "",
@@ -201,6 +208,23 @@ export default function CampaignWizard({
   });
 
   const set = (patch: Partial<WizardForm>) => setForm((f) => ({ ...f, ...patch }));
+
+  const preview = picture?.preview ?? null;
+  useEffect(() => () => {
+    if (preview) URL.revokeObjectURL(preview);
+  }, [preview]);
+
+  const pickPicture = async (file: File) => {
+    setPreparingPicture(true);
+    setPictureError(null);
+    const prepared = await prepareThumbnail(file);
+    setPreparingPicture(false);
+    if (!prepared.ok) {
+      setPictureError(prepared.error);
+      return;
+    }
+    setPicture(prepared.picture);
+  };
 
   /* The same parser the server runs, so the form cannot accept a link the API
      will reject -- and a post link is named as one before a request is made. */
@@ -309,11 +333,20 @@ export default function CampaignWizard({
              sound this campaign promotes. */
           typeConfig: buildTypeConfig(),
           ...(form.hasAudio && form.audioUrl.trim() ? { audioUrl: form.audioUrl.trim() } : {}),
-          ...(form.hasAudio && imported?.coverImageUrl ? { thumbnailUrl: imported.coverImageUrl } : {}),
+          /* Not when a picture was chosen: it is saved next, and a cover
+             sent here would be downloaded in the background and could land
+             after it. */
+          ...(form.hasAudio && imported?.coverImageUrl && !picture ? { thumbnailUrl: imported.coverImageUrl } : {}),
         }),
       });
       if (res.ok) {
         const data = await res.json();
+        if (picture) {
+          const saved = await uploadCampaignThumbnail(data.id, picture.blob);
+          if (!saved.ok) {
+            toast.error(`Campaign created, but the picture didn't save: ${saved.error} Add it from the campaign's Edit tab.`);
+          }
+        }
         router.push(`/campaigns/${data.id}`);
         router.refresh();
         onClose();
@@ -336,7 +369,7 @@ export default function CampaignWizard({
   const budgetError =
     budgetValue !== null && (!Number.isFinite(budgetValue) || budgetValue < 0) ? "Budget can't be negative." : null;
 
-  const canCreate = form.title.trim().length > 0 && !audioError && !budgetError;
+  const canCreate = form.title.trim().length > 0 && !audioError && !budgetError && !preparingPicture;
 
   return (
     <Modal
@@ -473,7 +506,11 @@ export default function CampaignWizard({
                       {[
                         imported.artist || null,
                         imported.usesCount !== null ? `${imported.usesCount.toLocaleString()} videos` : null,
-                        imported.coverImageUrl ? "Cover art will be the campaign thumbnail" : null,
+                        imported.coverImageUrl
+                          ? picture
+                            ? "Your picture is used instead of this cover"
+                            : "Cover art will be the campaign thumbnail"
+                          : null,
                       ]
                         .filter(Boolean)
                         .join(" · ")}
@@ -499,6 +536,27 @@ export default function CampaignWizard({
             </div>
           )}
         </div>
+
+        <ThumbnailDrop
+          hint={
+            form.hasAudio
+              ? "Optional. JPG, PNG, WebP or HEIC. Leave it empty to use the sound's cover art."
+              : "Optional. JPG, PNG, WebP or HEIC. Shown on the campaigns list and on client links."
+          }
+          preview={preview}
+          caption={
+            picture
+              ? `${picture.name}. Shown on the campaigns list and on client links${form.hasAudio ? ", instead of the sound's cover" : ""}.`
+              : undefined
+          }
+          busy={preparingPicture}
+          error={pictureError}
+          onFile={pickPicture}
+          onRemove={() => {
+            setPicture(null);
+            setPictureError(null);
+          }}
+        />
 
         <div>
           <label htmlFor="wz-notes" style={labelStyle}>Notes</label>

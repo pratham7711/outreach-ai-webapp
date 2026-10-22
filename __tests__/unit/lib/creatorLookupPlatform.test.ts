@@ -11,6 +11,8 @@
  */
 const mockCreatorFindFirst = jest.fn();
 const mockSocialFindFirst = jest.fn();
+const mockByLink = jest.fn();
+jest.mock("@/lib/creators/linkLookup", () => ({ creatorsByProfileLink: (...a: unknown[]) => mockByLink(...a) }));
 jest.mock("@/lib/db", () => ({
   db: {
     creator: { findFirst: (...a: any[]) => mockCreatorFindFirst(...a) },
@@ -26,6 +28,7 @@ describe("findCreatorByHandle", () => {
   beforeEach(() => {
     mockCreatorFindFirst.mockReset().mockResolvedValue(null);
     mockSocialFindFirst.mockReset().mockResolvedValue(null);
+    mockByLink.mockReset().mockResolvedValue([]);
   });
 
   it("narrows the roster lookup to the platform the URL named", async () => {
@@ -79,6 +82,24 @@ describe("findCreatorByHandle", () => {
       id: "c2", name: "Jane", handle: "jane",
     });
     expect(mockSocialFindFirst.mock.calls[0][0].where.platform).toBe("TIKTOK");
+  });
+
+  it("finds a creator by an account kept on their roster profile, before inventing a second one", async () => {
+    /* Filed under TikTok, Instagram on a profile link (Roster -> Import, a
+       merge): the first Instagram post added for them used to come back "not
+       on the roster" and ensureCreatorForHandle created a duplicate. */
+    mockByLink.mockResolvedValue([{ id: "c-tiktok", name: "Jane", handle: "@jane" }]);
+    await expect(findCreatorByHandle(ORG, "jane.ig", "INSTAGRAM")).resolves.toEqual({
+      id: "c-tiktok", name: "Jane", handle: "@jane",
+    });
+    expect(mockByLink).toHaveBeenCalledWith(ORG, "jane.ig", "INSTAGRAM", 1);
+    expect(mockSocialFindFirst).not.toHaveBeenCalled();
+  });
+
+  it("asks the profile links only after the roster row missed", async () => {
+    mockCreatorFindFirst.mockResolvedValue({ id: "c1", name: "Jane", handle: "jane" });
+    await findCreatorByHandle(ORG, "jane", "TIKTOK");
+    expect(mockByLink).not.toHaveBeenCalled();
   });
 
   it("reports nobody rather than guessing when neither column matches", async () => {

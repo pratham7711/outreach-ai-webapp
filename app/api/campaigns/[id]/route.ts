@@ -15,6 +15,7 @@ import { Prisma } from "@/lib/generated/prisma/client";
 import { STATUS_DEF_SELECT, defaultStatusDefFor } from "@/lib/campaigns/statusDefaults";
 import { primeSongAudio } from "@/lib/sounds/snapshot";
 import { captureCampaignThumbnail } from "@/lib/campaigns/thumbnailCopy";
+import { isUploadedThumbnailUrl } from "@/lib/campaigns/uploadedPicture";
 import { ensureSongForAudio, identifyAudioLink } from "@/lib/campaigns/audioLink";
 import { ROSTER_CREATOR_SELECT, buildRoster, summarizeCampaignPosts } from "@/lib/campaigns/detailSummary";
 import { withoutImportCopy } from "@/lib/serialization/importCopy";
@@ -246,6 +247,13 @@ export async function PATCH(
 
     const { regenerateInviteCode, contentAssetsUrl, submissionDeadline, ratePerThousand, audioUrl, ...rest } =
       parsed.data;
+
+    /* An uploaded picture changes only through its own route (./thumbnail).
+       Attaching a sound sends the sound's cover here, and that must not
+       replace the picture the team chose for the campaign. */
+    if (rest.thumbnailUrl !== undefined && isUploadedThumbnailUrl(existing.thumbnailUrl, id)) {
+      delete rest.thumbnailUrl;
+    }
 
     // songId, clientId and folderId all arrive in the body, so each has to be
     // proven to belong to this org. Without it a caller could attach their

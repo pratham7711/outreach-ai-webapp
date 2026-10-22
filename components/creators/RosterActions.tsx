@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Modal, Input } from "@pratham7711/ui";
-import { ListPlus, Tag } from "lucide-react";
+import { ListPlus, Tag, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import ExportMenu from "@/components/creators/ExportMenu";
 import { TrackSelectedButton } from "@/components/creators/TrackCreators";
-import { Button } from "@/components/ds";
+import { Button, useConfirm } from "@/components/ds";
 import { formatFull } from "@/lib/format";
 
 /**
@@ -84,6 +85,7 @@ export default function RosterActions({ total, filtered, selection, query, sugge
               is the action, and tracking "whatever this filter matches" from
               here would read as the same button with a different count. */}
           {picked && <TrackSelectedButton selection={payloadFor(selection, query)} count={count} />}
+          {selection.mode === "ids" && <DeleteSelectedButton ids={selection.ids} onDone={onClear} />}
         </div>
       </div>
 
@@ -99,6 +101,49 @@ export default function RosterActions({ total, filtered, selection, query, sugge
         <TagDialog count={count} payload={payloadFor(selection, query)} tagOptions={tagOptions} onClose={() => setDialog(null)} />
       )}
     </>
+  );
+}
+
+/* Ticked rows only, never "all matching": see app/api/creators/delete. */
+const MAX_BULK_DELETE = 500;
+
+function DeleteSelectedButton({ ids, onDone }: { ids: string[]; onDone: () => void }) {
+  const router = useRouter();
+  const confirm = useConfirm();
+  const [busy, setBusy] = useState(false);
+
+  async function run() {
+    if (ids.length > MAX_BULK_DELETE) {
+      toast.error(`Delete up to ${formatFull(MAX_BULK_DELETE)} creators at a time. ${formatFull(ids.length)} are ticked.`);
+      return;
+    }
+    const ok = await confirm({
+      title: `Delete ${plural(ids.length)}?`,
+      description:
+        "They come off the roster and out of every list, and their profiles stop refreshing. " +
+        "Their posts stay in the campaigns they ran in. This can't be undone from the app.",
+      confirmLabel: `Delete ${plural(ids.length)}`,
+      tone: "danger",
+    });
+    if (!ok) return;
+    setBusy(true);
+    const out = await send("/api/creators/delete", { creatorIds: ids });
+    setBusy(false);
+    if (!out.ok) {
+      toast.error(out.error === "Forbidden" ? "Your role can't delete creators. Ask an admin or manager." : out.error);
+      return;
+    }
+    const { deleted, requested } = out.data as { deleted: number; requested: number };
+    const gone = requested - deleted;
+    toast.success(`Deleted ${plural(deleted)}${gone ? `; ${formatFull(gone)} ${gone === 1 ? "was" : "were"} already gone` : ""}.`);
+    onDone();
+    router.refresh();
+  }
+
+  return (
+    <Button variant="danger" size="sm" iconLeft={<Trash2 size={15} />} loading={busy} onClick={run}>
+      Delete
+    </Button>
   );
 }
 

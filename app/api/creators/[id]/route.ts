@@ -14,6 +14,7 @@ import { readThroughOwnAccount } from "@/lib/creators/agencyLookup";
 import { latestTrackerReadings } from "@/lib/creators/latestReadings";
 import { requirePermission } from "@/lib/authz";
 import { PAYOUTS_ENABLED } from "@/lib/payouts/switch";
+import { deleteCreators } from "@/lib/creators/deleteCreators";
 
 const updateCreatorSchema = z.object({
   name: z.string().optional(),
@@ -230,6 +231,61 @@ export async function PATCH(
     });
 
     return NextResponse.json(creator);
+  } catch (e) {
+    return NextResponse.json({ error: "Failed" }, { status: 500 });
+  }
+}
+
+/**
+ * DELETE /api/creators/[id] — take a creator off the roster. What that keeps
+ * and what it removes is lib/creators/deleteCreators.
+ */
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const gate = await requirePermission(req, "creators:delete");
+    if (!gate.ok) return gate.response;
+    const { orgId } = gate.auth;
+    const { id } = await params;
+    const counts = await db.creator.findFirst({
+      where: { id, orgId, deletedAt: null },
+      select: { _count: { select: { activations: { where: { deletedAt: null } }, posts: { where: NOT_REMOVED } } } },
+    });
+    if (!counts) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    const now = new Date();
+    const out = await deleteCreators(orgId, [id], now);
+    const existing = out.deleted[0];
+    if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    await logAudit({
+      orgId,
+      ...getAuditActor(gate.auth),
+      action: "creator.delete",
+      entityType: "creator",
+      entityId: existing.id,
+      entityLabel: existing.name,
+      ipAddress: getRequestIp(req),
+      before: {
+        id: existing.id,
+        name: existing.name,
+        handle: existing.handle,
+        platform: existing.platform,
+        portalLinked: Boolean(existing.creatorUserId),
+        activations: counts._count.activations,
+        posts: counts._count.posts,
+      },
+      after: {
+        id: existing.id,
+        deletedAt: now.toISOString(),
+        profileLinksRemoved: out.profileLinksRemoved,
+        listEntriesRemoved: out.listEntriesRemoved,
+      },
+    });
+
+    return NextResponse.json({ deleted: true, id: existing.id });
   } catch (e) {
     return NextResponse.json({ error: "Failed" }, { status: 500 });
   }

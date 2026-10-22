@@ -15,17 +15,20 @@ import { detectPlatform } from "@/lib/platforms/postUrl";
 import { matchFacebookPost } from "@/lib/platforms/facebookPost";
 import { readCreatorProfile } from "@/lib/platforms/creatorProfile";
 import { isUnattributedCreator } from "@/lib/posts/unattributedName";
+import { creatorsByProfileLink } from "@/lib/creators/linkLookup";
 import type { Platform, Prisma } from "@/lib/generated/prisma/client";
 
 /**
  * The creator a URL's handle names, or null if the roster has nobody by that
  * name.
  *
- * Two places are consulted, not one. `Creator.handle` is the roster's own
- * spelling, and `CreatorSocialAccount.handle` is what each connected platform
- * calls them -- a creator whose roster entry reads "jane" but who connected
- * TikTok as "@jane.official" is the same person, and matching only the first
- * column reported them as missing. Case-insensitive and "@"-tolerant on both,
+ * Three places are consulted, not one. `Creator.handle` is the roster's own
+ * spelling; `CreatorProfileLink.handle` is each of the creator's other accounts
+ * the roster knows (an import's extra columns, a merged duplicate); and
+ * `CreatorSocialAccount.handle` is what each connected platform calls them -- a
+ * creator whose roster entry reads "jane" but who connected TikTok as
+ * "@jane.official" is the same person, and matching only the first column
+ * reported them as missing. Case-insensitive and "@"-tolerant on both,
  * via the same creatorHandleVariants() the portal and the creators route use.
  *
  * Always scoped to the org: a pasted URL is untrusted input and must never
@@ -61,7 +64,13 @@ export async function findCreatorByHandle(
   });
   if (direct) return direct;
 
-  /* The linked-account spelling. Platform-narrowed when the URL said which one
+  /* The roster's other accounts for this creator. Skipping these is how a
+     creator filed under TikTok, with their Instagram on their profile, was
+     given a second roster row by the first Instagram post added for them. */
+  const [linked] = await creatorsByProfileLink(orgId, handle, platform, 1);
+  if (linked) return linked;
+
+  /* The connected-account spelling. Platform-narrowed when the URL said which one
      it is, so an Instagram "@jane" cannot be answered with the creator who
      happens to hold that name on YouTube. */
   const social = await db.creatorSocialAccount.findFirst({

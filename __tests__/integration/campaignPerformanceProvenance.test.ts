@@ -287,8 +287,8 @@ describe("computeCampaignPerformance audio provenance", () => {
        rather than read off the stored column, so it is null wherever the pair
        cannot say (lib/sounds/usageSeries). */
     expect(result.audio!.usageSeries).toEqual([
-      { date: "2026-08-21", at: "2026-08-21T00:00:00.000Z", t: Date.UTC(2026, 7, 21), uses: 23, rounded: false, velocity: null },
-      { date: "2026-08-22", at: "2026-08-22T00:00:00.000Z", t: Date.UTC(2026, 7, 22), uses: 44, rounded: false, velocity: 91.3 },
+      { date: "2026-08-21", at: "2026-08-21T00:00:00.000Z", t: Date.UTC(2026, 7, 21), uses: 23, rounded: false, velocity: null, velocityApprox: false },
+      { date: "2026-08-22", at: "2026-08-22T00:00:00.000Z", t: Date.UTC(2026, 7, 22), uses: 44, rounded: false, velocity: 91.3, velocityApprox: false },
     ]);
     expect(result.audio!.usesRounded).toBe(false);
     expect(result.audio!.platform).toBe("TIKTOK");
@@ -579,7 +579,7 @@ describe("first-reading velocity", () => {
   /* Production, 2026-10-03: a TikTok sound near 74K read 33 times, every
      reading a multiple of 100 -- the embed's "73.9K" -- and the card showed the
      wobble between roundings as "+400 videos added". */
-  it("withholds videos added and velocity when the readings are the platform's rounded figures", async () => {
+  it("withholds videos added, and velocity while the rounded figures move by less than their rounding", async () => {
     const at = (d: number) => new Date(Date.UTC(2026, 8, d, 4));
     mockDb.soundTrackerSnapshot.findMany.mockResolvedValue([
       { usesCount: 74_100, recordedAt: at(28) },

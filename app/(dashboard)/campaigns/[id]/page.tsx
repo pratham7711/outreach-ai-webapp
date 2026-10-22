@@ -16,6 +16,7 @@ import { readCampaignSection } from "@/lib/campaignSections";
 import { SHOW_MONEY } from "@/lib/moneyUi";
 import { useCampaignNavPublish } from "@/components/providers/CampaignNavProvider";
 import { CampaignAudioSetup } from "@/components/campaigns/CampaignAudioSetup";
+import { CampaignPictureCard } from "@/components/campaigns/CampaignPictureCard";
 import { CAMPAIGN_HEADER_ACTIONS_ID } from "@/components/campaigns/CampaignHeaderActions";
 import { CampaignShareButton } from "@/components/campaigns/CampaignShareButton";
 import { NotFoundState } from "@/components/errors/NotFoundState";
@@ -175,6 +176,8 @@ type Campaign = {
   notes: string | null;
   clientId: string | null;
   client?: { id: string; name: string } | null;
+  thumbnailUrl?: string | null;
+  songId?: string | null;
   createdAt: string;
   updatedAt: string;
   // Marketplace (Phase 2M)
@@ -1021,6 +1024,15 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         {/* Edit Tab */}
         {activeTab === "edit" && (
           <div style={{ maxWidth: 640 }}>
+            <div style={{ marginBottom: 24 }}>
+              <CampaignPictureCard
+                key={`${campaign.id}:${campaign.thumbnailUrl ?? ""}`}
+                campaignId={id}
+                thumbnailUrl={campaign.thumbnailUrl ?? null}
+                hasSound={Boolean(campaign.songId)}
+                version={campaign.updatedAt}
+              />
+            </div>
             <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 24 }}>
               <h3 style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 20 }}>Edit Campaign</h3>
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>

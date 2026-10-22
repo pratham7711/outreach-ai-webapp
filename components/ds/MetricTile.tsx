@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Minus, type LucideIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { MetricHint } from "./MetricHint";
 import { METRIC_DEFINITIONS, type MetricKey } from "@/lib/metric-definitions";
@@ -26,6 +26,8 @@ type MetricTileProps = {
   /** Step the figure's size as if it were this many characters long. A row
    *  passes its longest value here so every tile in it shares one size. */
   fitTo?: number;
+  /** A mark for what is counted, drawn before the label. */
+  icon?: LucideIcon;
 };
 
 const TREND_ICON = {
@@ -44,6 +46,7 @@ export function MetricTile({
   footer,
   variant = "card",
   fitTo,
+  icon: Icon,
 }: MetricTileProps) {
   const definition = metric ? METRIC_DEFINITIONS[metric] : undefined;
   const displayLabel = label ?? definition?.label ?? "";
@@ -92,6 +95,7 @@ export function MetricTile({
           read "AVG ENGA…", "ACTIVE CAM…" and "NEW USES / 2…" (MEASURED
           2026-10-13 at 390) -- a label cut mid-word is a guess, not a label. */}
       <div className="flex min-w-0 items-center gap-1.5">
+        {Icon ? <Icon aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" /> : null}
         <span className="cc-metric-label min-w-0 break-words">
           {displayLabel}
         </span>
