@@ -28,6 +28,7 @@ import {
   type Tone,
 } from "@/components/portal/app/ui";
 import { portalSignInHere } from "@/lib/callbackPath";
+import { connectFailureText } from "@/lib/portal/connectFailureText";
 
 type Connection = {
   id: string;
@@ -94,12 +95,7 @@ function readConnectResult(): { tone: "success" | "danger"; text: string } | nul
     };
   if (reason === "provider")
     return { tone: "danger", text: `${name} sign-in isn't switched on yet. You can still submit post links on your campaigns.` };
-  return {
-    tone: "danger",
-    text: reason
-      ? `Couldn't connect ${name} (${reason.replace(/_/g, " ")}). Try again, and tell the agency if it keeps failing.`
-      : `Couldn't connect ${name}. Try again, and tell the agency if it keeps failing.`,
-  };
+  return { tone: "danger", text: connectFailureText(name, reason, "the agency") };
 }
 
 /* A button rather than <details>/<summary>: the phone touch rule in

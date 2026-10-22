@@ -162,10 +162,11 @@ export default function PrivacyPage() {
 
       <LegalSection heading="TikTok data handling">
         <p>
-          Data obtained through TikTok is used solely to display and report on campaign performance
-          to the organisation that the connected creator is working with. We do not sell it, we do
-          not share it with advertising networks, and we do not combine it with data from other
-          creators to build profiles.
+          Data obtained through TikTok is used solely to show the connected creator their own
+          profile, counts and recent videos on the My stats screen, and to display and report on
+          campaign performance to the organisation that the creator is working with. We do not sell
+          it, we do not share it with advertising networks, and we do not combine it with data from
+          other creators to build profiles.
         </p>
         <p>
           You can disconnect a TikTok account at any time from the My accounts screen inside{" "}

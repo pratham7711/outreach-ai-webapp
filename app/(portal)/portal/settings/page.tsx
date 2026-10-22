@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Save } from "lucide-react";
 import type { PlatformCapability } from "@/lib/capabilities";
 import { isInstagramLoginRow } from "@/lib/platforms/accountOrigin";
+import { connectFailureText } from "@/lib/portal/connectFailureText";
 import {
   OAUTH_PLATFORMS,
   toPlatformEnum,
@@ -146,8 +147,7 @@ export default function PortalSettingsPage() {
     const failed = params.get("error");
     if (!connected && !failed) return null;
     /* The callback names which step failed (state, token_exchange, identity…);
-       showing it turns "Failed to connect facebook" into something a reader
-       can act on without opening the server log. */
+       lib/portal/connectFailureText.ts turns it into what to do next. */
     const reason = params.get("reason");
     const platform = connected ?? failed ?? "";
     /* PLATFORM_LABELS is how the rest of the screen names these, so
@@ -167,12 +167,7 @@ export default function PortalSettingsPage() {
         tone: "error" as const,
         message: `${name} sign-in is not configured yet. Submit your post URL on the campaign instead and we will still track it.`,
       };
-    return {
-      tone: "error" as const,
-      message: reason
-        ? `Couldn't connect ${name} (${reason.replace(/_/g, " ")}). Try again, and tell us if it keeps failing.`
-        : `Couldn't connect ${name}. Try again, and tell us if it keeps failing.`,
-    };
+    return { tone: "error" as const, message: connectFailureText(name, reason, "us") };
   });
   const [connectResultShown, setConnectResultShown] = useState(true);
 
