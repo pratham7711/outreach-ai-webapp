@@ -287,6 +287,7 @@ export async function DELETE(
 
     return NextResponse.json({ deleted: true, id: existing.id });
   } catch (e) {
+    console.error("Failed to delete creator:", e);
     return NextResponse.json({ error: "Failed" }, { status: 500 });
   }
 }
