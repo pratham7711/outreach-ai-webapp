@@ -342,7 +342,7 @@ export default function CampaignWizard({
       if (res.ok) {
         const data = await res.json();
         if (picture) {
-          const saved = await uploadCampaignThumbnail(data.id, picture.blob);
+          const saved = await uploadCampaignThumbnail(data.id, picture);
           if (!saved.ok) {
             toast.error(`Campaign created, but the picture didn't save: ${saved.error} Add it from the campaign's Edit tab.`);
           }
@@ -540,8 +540,8 @@ export default function CampaignWizard({
         <ThumbnailDrop
           hint={
             form.hasAudio
-              ? "Optional. JPG, PNG, WebP or HEIC. Leave it empty to use the sound's cover art."
-              : "Optional. JPG, PNG, WebP or HEIC. Shown on the campaigns list and on client links."
+              ? "Optional. Any picture: JPG, PNG, HEIC, SVG and more. Leave it empty to use the sound's cover art."
+              : "Optional. Any picture: JPG, PNG, HEIC, SVG and more. Shown on the campaigns list and on client links."
           }
           preview={preview}
           caption={

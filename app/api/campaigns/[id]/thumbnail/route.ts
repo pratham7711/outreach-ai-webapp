@@ -1,3 +1,4 @@
+import { gunzipSync } from "node:zlib";
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateRequest, getAuditActor, type AuthResult } from "@/lib/authenticate";
 import { requirePermission } from "@/lib/authz";
@@ -10,6 +11,7 @@ import { imageDimension, resizeImage } from "@/lib/media/proxyImage";
 import { serveThumbnail } from "@/lib/posts/thumbnailResponse";
 import { isUploadedThumbnailUrl } from "@/lib/campaigns/uploadedPicture";
 import {
+  CAMPAIGN_THUMBNAIL_UNPACKED_MAX_BYTES,
   CAMPAIGN_THUMBNAIL_UPLOAD_MAX_BYTES,
   readStoredCampaignThumbnail,
   removeCampaignThumbnail,
@@ -63,18 +65,36 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const found = await editableCampaign(gate.auth, id);
   if ("error" in found) return found.error;
 
-  const type = req.headers.get("content-type") ?? "";
-  if (!type.toLowerCase().startsWith("image/")) {
-    return NextResponse.json({ error: "Send a picture: JPG, PNG, WebP or HEIC." }, { status: 415 });
+  /* application/octet-stream is a picture file the browser gave no type, sent
+     as it is; the decoder reads the format from the bytes. */
+  const type = (req.headers.get("content-type") ?? "").toLowerCase();
+  if (!type.startsWith("image/") && !type.startsWith("application/octet-stream")) {
+    return NextResponse.json({ error: "Send a picture file, such as a JPG, PNG, HEIC or SVG." }, { status: 415 });
   }
   if (Number(req.headers.get("content-length")) > CAMPAIGN_THUMBNAIL_UPLOAD_MAX_BYTES) {
     return NextResponse.json({ error: "That picture is over 4 MB." }, { status: 413 });
   }
 
-  const bytes = Buffer.from(await req.arrayBuffer());
-  const result = await storeCampaignThumbnailUpload(found.campaign, bytes, req.nextUrl.origin, HEIC_TYPES.test(type));
+  /* A picture the browser could neither shrink nor send under the cap comes
+     gzipped; unpacked, it may be up to CAMPAIGN_THUMBNAIL_UNPACKED_MAX_BYTES,
+     and the unpacking stops there so a small body cannot inflate without end. */
+  const packed = req.headers.get("x-picture-encoding") === "gzip";
+  const maxBytes = packed ? CAMPAIGN_THUMBNAIL_UNPACKED_MAX_BYTES : CAMPAIGN_THUMBNAIL_UPLOAD_MAX_BYTES;
+  const tooLarge = packed ? "That picture is over 64 MB." : "That picture is over 4 MB.";
+  let bytes = Buffer.from(await req.arrayBuffer());
+  if (packed) {
+    try {
+      bytes = gunzipSync(bytes, { maxOutputLength: maxBytes });
+    } catch (err) {
+      const overCap = err instanceof RangeError || (err as { code?: string })?.code === "ERR_BUFFER_TOO_LARGE";
+      return overCap
+        ? NextResponse.json({ error: tooLarge }, { status: 413 })
+        : NextResponse.json({ error: "That file could not be read as a picture." }, { status: 422 });
+    }
+  }
+  const result = await storeCampaignThumbnailUpload(found.campaign, bytes, req.nextUrl.origin, HEIC_TYPES.test(type), maxBytes);
   if (!result.stored) {
-    const message = result.status === 413 ? "That picture is over 4 MB." : "That file could not be read as a picture.";
+    const message = result.status === 413 ? tooLarge : "That file could not be read as a picture.";
     return NextResponse.json({ error: message }, { status: result.status });
   }
 

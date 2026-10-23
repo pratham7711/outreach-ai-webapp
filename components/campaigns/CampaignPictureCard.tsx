@@ -41,7 +41,7 @@ export function CampaignPictureCard({
         return;
       }
       if (prepared.picture.preview) URL.revokeObjectURL(prepared.picture.preview);
-      const saved = await uploadCampaignThumbnail(campaignId, prepared.picture.blob);
+      const saved = await uploadCampaignThumbnail(campaignId, prepared.picture);
       if (!saved.ok) {
         setError(saved.error);
         return;
@@ -87,8 +87,8 @@ export function CampaignPictureCard({
         asCard
         hint={
           hasSound
-            ? "Optional. JPG, PNG, WebP or HEIC. Until you add one, the sound's cover art is used."
-            : "Optional. JPG, PNG, WebP or HEIC. Without one, the campaign shows its initials."
+            ? "Optional. Any picture: JPG, PNG, HEIC, SVG and more. Until you add one, the sound's cover art is used."
+            : "Optional. Any picture: JPG, PNG, HEIC, SVG and more. Without one, the campaign shows its initials."
         }
         preview={caption !== undefined ? stored : null}
         caption={caption}

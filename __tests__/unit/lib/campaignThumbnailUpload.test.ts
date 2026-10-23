@@ -99,6 +99,13 @@ describe("storeCampaignThumbnailUpload", () => {
     expect(resize.mock.calls[0][1]).toBe(true);
   });
 
+  it("knows a HEIC from its bytes when it was sent as image/jpeg (saved as photo.jpg)", async () => {
+    resize.mockResolvedValue(Buffer.from("avif"));
+    const heicAsJpeg = Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from("ftypheic\0\0\0\0mif1heic", "latin1")]);
+    await storeCampaignThumbnailUpload(campaign, heicAsJpeg, ORIGIN, false);
+    expect(resize.mock.calls[0][1]).toBe(true);
+  });
+
   it("refuses a file over the cap, and one that is not a picture, writing nothing", async () => {
     const big = await storeCampaignThumbnailUpload(campaign, Buffer.alloc(CAMPAIGN_THUMBNAIL_UPLOAD_MAX_BYTES + 1), ORIGIN);
     expect(big).toEqual({ stored: false, status: 413, failure: "too large" });

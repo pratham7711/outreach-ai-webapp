@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { db } from "@/lib/db";
 import { loadImage, resizeImage } from "@/lib/media/loadImage";
+import { isHeifContainer } from "@/lib/media/heifSniff";
 import { createLogger } from "@/lib/observability/logger";
 import { isFetchableAvatarUrl as isFetchableImageUrl } from "@/lib/creators/avatarStore";
 import { isProxyableHost } from "@/lib/postMedia";
@@ -223,10 +224,15 @@ export async function captureCampaignThumbnail(
 
 /* ─── A picture uploaded from the new-campaign form or the Edit tab ─── */
 
-/** Largest upload accepted. The forms shrink a picture before sending it, so
- *  this only meets one they could not decode (HEIC); it sits under Vercel's
- *  4.5 MB request cap. */
+/** Largest upload accepted. The forms shrink a picture before sending it where
+ *  the browser can, so this only meets a file sent as it is: one the browser
+ *  could not shrink (HEIC, TIFF, a HEIC saved as .jpg), or the original resent
+ *  after its shrunk copy was refused. It sits under Vercel's 4.5 MB request cap. */
 export const CAMPAIGN_THUMBNAIL_UPLOAD_MAX_BYTES = 4 * 1024 * 1024;
+
+/** Largest picture accepted once a gzipped upload is unpacked: a large TIFF or
+ *  BMP the browser could not shrink is sent packed (components/campaigns/ThumbnailDrop). */
+export const CAMPAIGN_THUMBNAIL_UNPACKED_MAX_BYTES = 64 * 1024 * 1024;
 
 export type CampaignThumbnailUploadResult =
   | { stored: true; bytes: number; thumbnailUrl: string }
@@ -245,12 +251,16 @@ export async function storeCampaignThumbnailUpload(
   campaign: { id: string; orgId: string },
   bytes: Buffer,
   origin: string,
-  isHeic = false
+  isHeic = false,
+  maxBytes = CAMPAIGN_THUMBNAIL_UPLOAD_MAX_BYTES
 ): Promise<CampaignThumbnailUploadResult> {
-  if (bytes.byteLength > CAMPAIGN_THUMBNAIL_UPLOAD_MAX_BYTES) return { stored: false, status: 413, failure: "too large" };
+  if (bytes.byteLength > maxBytes) return { stored: false, status: 413, failure: "too large" };
   let encoded: Buffer;
   try {
-    encoded = await resizeImage(bytes, isHeic, CAMPAIGN_THUMBNAIL_STORE_PX, CAMPAIGN_THUMBNAIL_STORE_PX, "inside", "avif");
+    /* The bytes decide, not only the declared type: a HEIC saved as photo.jpg
+       is sent as image/jpeg, and sharp cannot read its pixels. */
+    const heic = isHeic || isHeifContainer(bytes);
+    encoded = await resizeImage(bytes, heic, CAMPAIGN_THUMBNAIL_STORE_PX, CAMPAIGN_THUMBNAIL_STORE_PX, "inside", "avif");
   } catch {
     return { stored: false, status: 422, failure: "not an image" };
   }
