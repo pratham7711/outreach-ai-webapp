@@ -59,7 +59,7 @@ export const authConfig = {
       // directory under public/ means adding it here — the failure mode is a
       // missing image, which you see, rather than a silent auth bypass.
       const isPublicFile =
-        /^\/(?:[^/]+|(?:fonts|landing)\/[^/]+)\.(?:jpg|jpeg|png|gif|svg|webp|avif|ico|woff2?|txt|xml|webmanifest)$/i.test(
+        /^\/(?:[^/]+|(?:fonts|landing|\.well-known)\/[^/]+)\.(?:jpg|jpeg|png|gif|svg|webp|avif|ico|woff2?|txt|xml|webmanifest)$/i.test(
           nextUrl.pathname
         );
       if (isPublicFile) return true;

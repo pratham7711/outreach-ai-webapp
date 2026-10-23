@@ -30,7 +30,7 @@ describe("privacy policy matches what the code reads", () => {
   it.each([
     ["Facebook Pages", /Facebook Pages/],
     ["Threads", /<strong>Threads<\/strong>/],
-    ["Instagram Login", /Through Instagram Login/],
+    ["Instagram Login, as not offered", /Instagram Login<\/em>, which needs no Facebook Page, is not offered/],
     ["Google's Limited Use wording", /Google API Services User Data Policy[\s\S]*Limited Use requirements/],
     ["public lookups of unconnected creators", /Creators who have not connected an account/],
   ])("covers %s", (_label, pattern) => {

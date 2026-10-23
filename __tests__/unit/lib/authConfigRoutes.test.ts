@@ -112,3 +112,14 @@ describe("and the app is still protected", () => {
     expect(redirectsTo(visit("/campaigns/abc123/posts", false))).toBe("/login");
   });
 });
+
+describe("the security contact file", () => {
+  it("is reachable signed out at /.well-known/security.txt", () => {
+    expect(allowed(visit("/.well-known/security.txt", false))).toBe(true);
+  });
+
+  it("opens nothing deeper under /.well-known, and no dashboard route that looks like a file", () => {
+    expect(allowed(visit("/.well-known/nested/security.txt", false))).toBe(false);
+    expect(allowed(visit("/campaigns/abc.txt", false))).toBe(false);
+  });
+});

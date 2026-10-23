@@ -74,8 +74,8 @@ export default function PrivacyPage() {
             do not post, edit, or delete content.
           </li>
           <li>
-            <strong>Instagram</strong> &mdash; a professional (Business or Creator) account can be
-            connected in either of two ways.
+            <strong>Instagram</strong> &mdash; a professional (Business or Creator) account is
+            connected through Facebook Login.
             <ul>
               <li>
                 <em>Through Facebook Login</em>, via the Facebook Page the Instagram account is
@@ -84,14 +84,14 @@ export default function PrivacyPage() {
                 to it. With <code>instagram_basic</code> we read the username, name, bio, profile
                 picture, follower, following and post counts, and recent posts (caption, link,
                 image, date, likes and comments). With <code>instagram_manage_insights</code> we
-                read views and shares on recent posts, and reach, views, shares and saves on the
-                posts the creator submits to a campaign.
+                read views, reach and shares on recent posts, and reach, views, shares and saves on
+                the posts the creator submits to a campaign.
               </li>
               <li>
-                <em>Through Instagram Login</em>, with no Facebook Page needed. With{" "}
-                <code>instagram_business_basic</code> we read the same profile fields and recent
-                posts, and with <code>instagram_business_manage_insights</code> the views, reach and
-                shares on recent posts.
+                <em>Instagram Login</em>, which needs no Facebook Page, is not offered at the
+                moment. If we offer it, it will read the same profile fields and recent posts with{" "}
+                <code>instagram_business_basic</code>, and the views, reach and shares on recent
+                posts with <code>instagram_business_manage_insights</code>.
               </li>
             </ul>
           </li>
@@ -101,7 +101,10 @@ export default function PrivacyPage() {
             that Page&rsquo;s name, username, link, about text, picture, follower count and verified
             status, and its recent posts with their text, date, link, picture, and like, comment and
             share counts. With <code>pages_read_user_content</code>{" "}we read the comments left on
-            those posts: the comment, its date, its likes and the commenter&rsquo;s name. With{" "}
+            those posts: the comment, its date, its likes and the commenter&rsquo;s name. You read
+            them on My stats in your creator portal, and the organisation running your campaign can
+            read them on that campaign&rsquo;s post. They are read from Facebook each time someone
+            asks to see them and are never saved. With{" "}
             <code>read_insights</code> we read how many views each post got.
           </li>
           <li>
@@ -274,6 +277,13 @@ export default function PrivacyPage() {
           Traffic is served over TLS. Passwords are hashed. Platform access tokens are encrypted at
           rest with AES-256-GCM. Access is scoped per organisation, and every query is filtered by
           organisation so one customer cannot read another&rsquo;s data.
+        </p>
+        <p>
+          To report a security vulnerability, email{" "}
+          <a href={`mailto:${LEGAL.privacyEmail}?subject=Security%20report`}>{LEGAL.privacyEmail}</a>{" "}
+          with &ldquo;Security report&rdquo; in the subject. Please give us a reasonable time to fix
+          it before you disclose it publicly. The same contact is published at{" "}
+          <a href="/.well-known/security.txt">/.well-known/security.txt</a>.
         </p>
       </LegalSection>
 
