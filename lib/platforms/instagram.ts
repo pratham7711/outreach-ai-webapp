@@ -132,11 +132,11 @@ const NO_SUCH_ACCOUNT_CODE = 110;
  */
 const GRAPH_REQUEST_TIMEOUT_MS = 5000;
 
-function requestSignal(walk?: AbortSignal): AbortSignal | undefined {
+function requestSignal(walk: AbortSignal | undefined, timeoutMs: number): AbortSignal | undefined {
   if (typeof AbortSignal === "undefined" || typeof AbortSignal.timeout !== "function") {
     return walk;
   }
-  const perRequest = AbortSignal.timeout(GRAPH_REQUEST_TIMEOUT_MS);
+  const perRequest = AbortSignal.timeout(timeoutMs);
   if (!walk) return perRequest;
   return typeof AbortSignal.any === "function" ? AbortSignal.any([walk, perRequest]) : perRequest;
 }
@@ -156,19 +156,28 @@ export type GraphGetOptions = {
   rateLimitThrows?: boolean;
   noSuchAccountThrows?: boolean;
   onHeaders?: GraphHeadersListener;
+  /* The per-request budget, for a call Meta is known to answer slowly. An IG
+     User's count fields took 4.1-8.7s on 2026-10-25 while the same object's
+     other fields answered in ~0.5s, so one deadline cannot suit both. */
+  timeoutMs?: number;
 };
 
 export async function graphGet(
   path: string,
   params: Record<string, string>,
   signal?: AbortSignal,
-  { rateLimitThrows = false, noSuchAccountThrows = false, onHeaders }: GraphGetOptions = {},
+  {
+    rateLimitThrows = false,
+    noSuchAccountThrows = false,
+    onHeaders,
+    timeoutMs = GRAPH_REQUEST_TIMEOUT_MS,
+  }: GraphGetOptions = {},
 ): Promise<any | null> {
   const url = new URL(`${GRAPH_BASE}/${path}`);
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
   const log = createLogger({ context: { platform: "INSTAGRAM", call: `graph.${path}` } });
   try {
-    const res = await fetch(url.toString(), { signal: requestSignal(signal) });
+    const res = await fetch(url.toString(), { signal: requestSignal(signal, timeoutMs) });
     if (onHeaders && typeof res.headers?.get === "function") {
       /* A listener is monitoring. Whatever it does wrong must not turn a good
          answer into a failed read. */
@@ -238,7 +247,7 @@ export async function graphGet(
        an explicitly aborted caller signal raises AbortError. */
     const name = err instanceof Error ? err.name : "";
     if (name === "TimeoutError" || name === "AbortError") {
-      log.warn("Graph request timed out", { timeoutMs: GRAPH_REQUEST_TIMEOUT_MS, error: name });
+      log.warn("Graph request timed out", { timeoutMs, error: name });
       throw new InstagramTimeoutError(path);
     }
     log.error("Graph request threw", {

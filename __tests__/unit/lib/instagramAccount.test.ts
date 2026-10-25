@@ -19,20 +19,30 @@ const IG_ACCOUNT = {
         profile_picture_url: "https://cdn.example/a.jpg",
         followers_count: 8421,
         follows_count: 310,
-        media_count: 214,
       },
     },
   ],
 };
 
+/** me/accounts answers `accounts`; the IG User's own media_count read answers `mediaCount`. */
+function routeFetch(accounts: unknown, mediaCount: (() => Promise<Response>) | unknown = { id: "17841400000000000", media_count: 214 }) {
+  return jest.fn((url: string) => {
+    if (new URL(url).pathname.endsWith("/me/accounts")) return Promise.resolve(jsonResponse(accounts));
+    return typeof mediaCount === "function"
+      ? (mediaCount as () => Promise<Response>)()
+      : Promise.resolve(jsonResponse(mediaCount));
+  });
+}
+
 describe("fetchInstagramAccount", () => {
   const realFetch = global.fetch;
   afterEach(() => {
     global.fetch = realFetch;
+    jest.restoreAllMocks();
   });
 
   it("maps the identity behind the creator's token", async () => {
-    global.fetch = jest.fn().mockResolvedValue(jsonResponse(IG_ACCOUNT));
+    global.fetch = routeFetch(IG_ACCOUNT) as unknown as typeof fetch;
     await expect(fetchInstagramAccount("token")).resolves.toEqual({
       igUserId: "17841400000000000",
       username: "boringbrand",
@@ -49,12 +59,52 @@ describe("fetchInstagramAccount", () => {
     });
   });
 
+  it("keeps media_count out of me/accounts and reads it from the IG User with a longer budget", async () => {
+    const signalCtor = AbortSignal as unknown as { timeout?: (ms: number) => AbortSignal };
+    const hadTimeout = Object.prototype.hasOwnProperty.call(signalCtor, "timeout");
+    const realTimeout = signalCtor.timeout;
+    const timeouts = jest.fn((_ms: number) => new AbortController().signal);
+    signalCtor.timeout = timeouts;
+    const fetchMock = routeFetch(IG_ACCOUNT);
+    global.fetch = fetchMock as unknown as typeof fetch;
+    try {
+      await fetchInstagramAccount("token");
+    } finally {
+      if (hadTimeout) signalCtor.timeout = realTimeout;
+      else delete signalCtor.timeout;
+    }
+
+    const urls = fetchMock.mock.calls.map(([u]) => new URL(u as string));
+    expect(urls).toHaveLength(2);
+    expect(urls[0].pathname).toMatch(/\/me\/accounts$/);
+    expect(urls[0].searchParams.get("fields")).not.toContain("media_count");
+    expect(urls[0].searchParams.get("fields")).toContain("followers_count");
+    expect(urls[1].pathname).toMatch(/\/17841400000000000$/);
+    expect(urls[1].searchParams.get("fields")).toBe("media_count");
+    expect(timeouts.mock.calls.map(([ms]) => ms)).toEqual([5000, 15000]);
+  });
+
+  it("a media_count that times out costs the count, not the connection", async () => {
+    global.fetch = routeFetch(IG_ACCOUNT, () =>
+      Promise.reject(Object.assign(new Error("The operation was aborted due to timeout"), { name: "TimeoutError" })),
+    ) as unknown as typeof fetch;
+    await expect(fetchInstagramAccount("token")).resolves.toMatchObject({
+      igUserId: "17841400000000000",
+      username: "boringbrand",
+      followerCount: 8421,
+      mediaCount: null,
+    });
+  });
+
+  it("still surfaces an auth failure on the media_count read", async () => {
+    global.fetch = routeFetch(IG_ACCOUNT, () =>
+      Promise.resolve(jsonResponse({ error: { code: 190, message: "Session has expired" } }, false, 400)),
+    ) as unknown as typeof fetch;
+    await expect(fetchInstagramAccount("token")).rejects.toMatchObject({ name: "InstagramAuthError" });
+  });
+
   it("skips pages with no Instagram Business account and uses the first that has one", async () => {
-    global.fetch = jest.fn().mockResolvedValue(
-      jsonResponse({
-        data: [{ id: "page-no-ig" }, ...IG_ACCOUNT.data],
-      }),
-    );
+    global.fetch = routeFetch({ data: [{ id: "page-no-ig" }, ...IG_ACCOUNT.data] }) as unknown as typeof fetch;
     const info = await fetchInstagramAccount("token");
     expect(info?.igUserId).toBe("17841400000000000");
   });
@@ -62,26 +112,24 @@ describe("fetchInstagramAccount", () => {
   it("reports a count the Graph response omitted as null, never 0 (plan A9)", async () => {
     const rest: Record<string, unknown> = { ...IG_ACCOUNT.data[0].instagram_business_account };
     delete rest.followers_count;
-    delete rest.media_count;
-    global.fetch = jest
-      .fn()
-      .mockResolvedValue(jsonResponse({ data: [{ instagram_business_account: rest }] }));
+    global.fetch = routeFetch(
+      { data: [{ instagram_business_account: rest }] },
+      { id: "17841400000000000" },
+    ) as unknown as typeof fetch;
     const info = await fetchInstagramAccount("token");
     expect(info).toMatchObject({ followerCount: null, followingCount: 310, mediaCount: null });
   });
 
   it("keeps a measured 0 (a brand-new account with no posts)", async () => {
-    global.fetch = jest.fn().mockResolvedValue(
-      jsonResponse({
-        data: [{ instagram_business_account: { ...IG_ACCOUNT.data[0].instagram_business_account, media_count: 0 } }],
-      }),
-    );
+    global.fetch = routeFetch(IG_ACCOUNT, { id: "17841400000000000", media_count: 0 }) as unknown as typeof fetch;
     expect((await fetchInstagramAccount("token"))?.mediaCount).toBe(0);
   });
 
   it("returns null when the token carries no Instagram Business account at all", async () => {
-    global.fetch = jest.fn().mockResolvedValue(jsonResponse({ data: [{ id: "p1" }] }));
+    const fetchMock = routeFetch({ data: [{ id: "p1" }] });
+    global.fetch = fetchMock as unknown as typeof fetch;
     await expect(fetchInstagramAccount("token")).resolves.toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
 

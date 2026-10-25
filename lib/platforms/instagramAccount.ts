@@ -1,4 +1,4 @@
-import { graphGet, InstagramAuthError } from "./instagram";
+import { graphGet, InstagramAuthError, InstagramTimeoutError } from "./instagram";
 import { createLogger } from "@/lib/observability/logger";
 
 /**
@@ -24,8 +24,17 @@ const ACCOUNT_FIELDS = [
   "profile_picture_url",
   "followers_count",
   "follows_count",
-  "media_count",
 ].join(",");
+
+/**
+ * Read in a second call, apart from the rest of the account. Measured
+ * 2026-10-25 against the live API: `me/accounts` nesting it took 4.1-5.5s,
+ * while the same call without it answered in 0.7-1.3s and `media_count` alone
+ * took 4.0-4.6s. Nested, it pushed the connect callback's identity read past
+ * the 5s Graph deadline, so a creator who had just granted every permission
+ * saw "Public only" -- twice in a row on prod (13:09 and 13:11 UTC).
+ */
+const MEDIA_COUNT_TIMEOUT_MS = 15_000;
 
 const MEDIA_FIELDS = [
   "id",
@@ -129,6 +138,7 @@ export async function fetchInstagramAccount(
     const ig = page.instagram_business_account;
     if (!ig || typeof ig.id !== "string") continue;
 
+    const mediaCount = await fetchMediaCount(ig.id, token, signal);
     const username = typeof ig.username === "string" ? ig.username : "";
     return {
       igUserId: ig.id,
@@ -141,7 +151,7 @@ export async function fetchInstagramAccount(
       isVerified: false,
       followerCount: optNum(ig.followers_count) ?? null,
       followingCount: optNum(ig.follows_count) ?? null,
-      mediaCount: optNum(ig.media_count) ?? null,
+      mediaCount,
     };
   }
 
@@ -152,6 +162,32 @@ export async function fetchInstagramAccount(
     pagesSeen: pages.length,
   });
   return null;
+}
+
+/**
+ * The account's post count, or null when Meta did not answer it in time.
+ *
+ * A timeout here costs the count, not the connection: the identity is still
+ * returned and stored, and the next refresh fills the count. Only an auth
+ * failure, or the caller's own abort, propagates.
+ */
+async function fetchMediaCount(
+  igUserId: string,
+  token: string,
+  signal?: AbortSignal,
+): Promise<number | null> {
+  try {
+    const data = await graphGet(
+      igUserId,
+      { fields: "media_count", access_token: token },
+      signal,
+      { timeoutMs: MEDIA_COUNT_TIMEOUT_MS },
+    );
+    return optNum(data?.media_count) ?? null;
+  } catch (err) {
+    if (err instanceof InstagramTimeoutError && !signal?.aborted) return null;
+    throw err;
+  }
 }
 
 type MediaInsights = { views?: number; reach?: number; shares?: number };

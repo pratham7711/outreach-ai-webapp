@@ -77,7 +77,7 @@ export async function pickInstagramAccount(
   token: string,
 ): Promise<(Omit<AgencyIgAccount, "fbUserId"> & { pageName: string | null }) | null> {
   const data = await graphGet("me/accounts", {
-    fields: "id,name,instagram_business_account{id,username,profile_picture_url,followers_count}",
+    fields: "id,name,instagram_business_account{id,username}",
     access_token: token,
     limit: "50",
   });
