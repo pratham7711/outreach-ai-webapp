@@ -689,6 +689,53 @@ describe("GET /api/portal/connections/[platform]/callback", () => {
     expect(res.headers.get("location")).toContain("/portal/settings?error=instagram&reason=token_exchange");
     expect(mockDb.creatorSocialAccount.upsert).not.toHaveBeenCalled();
   });
+
+  /* Facebook Login that found no account: on 2026-10-25 Facebook's own default
+     in its Page picker shared no Page, and the banner's "Press Connect again"
+     only repeated it. The two causes need different fixes, so each is named. */
+  describe("a Meta consent that found no account", () => {
+    const callbackWithPages = async (platform: "instagram" | "facebook", pages: unknown[]) => {
+      process.env.INSTAGRAM_CLIENT_ID = "ig-id";
+      process.env.INSTAGRAM_CLIENT_SECRET = "ig-secret";
+      global.fetch = jest.fn(async (input: string | URL) => {
+        const u = new URL(String(input));
+        const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body, headers: { get: () => null } });
+        if (u.pathname.endsWith("/oauth/access_token"))
+          return ok(
+            u.searchParams.get("grant_type") === "fb_exchange_token"
+              ? { access_token: "long-lived-token", expires_in: 60 * 24 * 3600 }
+              : { access_token: "real-provider-token", expires_in: 3600 },
+          );
+        if (u.pathname.endsWith("/me/accounts")) return ok({ data: pages });
+        return ok({});
+      }) as unknown as typeof fetch;
+      return oauthCallback(
+        makeRequest(
+          `http://localhost:3009/api/portal/connections/${platform}/callback?state=st-ok&code=code-1`,
+          { headers: { cookie: "portal_oauth_state=st-ok" } },
+        ),
+        makeParams(platform),
+      );
+    };
+
+    it("says Facebook shared no Page when the grant reaches none", async () => {
+      const res = await callbackWithPages("instagram", []);
+      expect(res.headers.get("location")).toContain("/portal/settings?error=instagram&reason=no_page");
+      expect(mockDb.creatorSocialAccount.upsert).not.toHaveBeenCalled();
+    });
+
+    it("says no shared Page has Instagram when Pages came back without one", async () => {
+      const res = await callbackWithPages("instagram", [{ id: "page-1" }]);
+      expect(res.headers.get("location")).toContain("/portal/settings?error=instagram&reason=no_instagram");
+      expect(mockDb.creatorSocialAccount.upsert).not.toHaveBeenCalled();
+    });
+
+    it("says the same for the Facebook Page card", async () => {
+      const res = await callbackWithPages("facebook", []);
+      expect(res.headers.get("location")).toContain("/portal/settings?error=facebook&reason=no_page");
+      expect(mockDb.creatorSocialAccount.upsert).not.toHaveBeenCalled();
+    });
+  });
 });
 
 /* The highest-severity hole in the portal: /api/portal/auth/register checks the

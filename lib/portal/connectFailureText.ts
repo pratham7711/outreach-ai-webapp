@@ -20,6 +20,13 @@ export function connectFailureText(name: string, reason: string | null, contact:
       return `${name} didn't finish signing you in. Press Connect again.`;
     case "identity":
       return `${name} signed you in, but we couldn't read which account it was. Press Connect again.`;
+    /* "Press Connect again" alone repeats the failure: Facebook remembers the
+       choice, and its default ("all current and future Pages") is the one that
+       shared nothing. The fix is a choice in Facebook's dialog, so name it. */
+    case "no_page":
+      return `Facebook didn't share any Page with us. Press Connect again, choose “Opt in to current Pages only” and tick ${/instagram/i.test(name) ? "the Page your Instagram account is linked to" : "your Page"}.`;
+    case "no_instagram":
+      return "None of the Pages you shared has an Instagram professional account linked to it. Link your Instagram to your Facebook Page, then press Connect again and tick that Page.";
     case "link":
       return "This connect link was turned off before you finished. Ask the agency for a new one.";
     case "exception":

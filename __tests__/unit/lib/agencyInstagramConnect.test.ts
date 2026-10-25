@@ -220,6 +220,16 @@ describe("callback for an owner or admin", () => {
     expect(res.headers.get("location")).toContain("reason=no_instagram_account");
     expect(mockUpsert).not.toHaveBeenCalled();
   });
+
+  it("says Facebook shared no Page when the grant reaches none", async () => {
+    mockAuth.mockResolvedValue(session("OWNER"));
+    fakeGraph({ pages: [] });
+
+    const res = await callback(callbackRequest("code=c&state=s", `s.${ORG}`));
+
+    expect(res.headers.get("location")).toContain("reason=no_page");
+    expect(mockUpsert).not.toHaveBeenCalled();
+  });
 });
 
 describe("disconnect's revoke", () => {

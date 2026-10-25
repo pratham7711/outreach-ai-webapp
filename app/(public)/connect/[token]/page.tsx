@@ -9,6 +9,7 @@ import { PlatformGlyph } from "@/components/ui/PlatformGlyph";
 import { resolvePlatformCapability } from "@/lib/capabilities";
 import { isInstagramLoginRow } from "@/lib/platforms/accountOrigin";
 import { CONNECT_READS, NEVER_DONE } from "@/lib/portal/permissionCopy";
+import { connectFailureText } from "@/lib/portal/connectFailureText";
 
 export const dynamic = "force-dynamic";
 
@@ -87,6 +88,7 @@ function errorText(agency: string, error: string | undefined, reason: string | u
   const label = isOAuthPlatform(error) ? CONNECT_READS[error].label : "That account";
   if (reason === "provider") return `${label} can't be connected right now. Try again later.`;
   if (reason === "identity") return `${label} didn't tell us which account you connected. Try again.`;
+  if (reason === "no_page" || reason === "no_instagram") return connectFailureText(label, reason, agency);
   return `Connecting ${label} didn't finish. Try again.`;
 }
 

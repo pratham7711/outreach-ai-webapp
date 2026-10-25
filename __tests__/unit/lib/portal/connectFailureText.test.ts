@@ -6,7 +6,16 @@
 import { connectFailureText } from "@/lib/portal/connectFailureText";
 import type { CallbackFailure } from "@/app/api/portal/connections/[platform]/callback/route";
 
-const HANDLED: CallbackFailure[] = ["state", "token_exchange", "token_missing", "identity", "exception", "link"];
+const HANDLED: CallbackFailure[] = [
+  "state",
+  "token_exchange",
+  "token_missing",
+  "identity",
+  "no_page",
+  "no_instagram",
+  "exception",
+  "link",
+];
 
 describe("connectFailureText", () => {
   it.each(HANDLED)("words %s without the step code", (reason) => {
@@ -27,6 +36,13 @@ describe("connectFailureText", () => {
       const text = connectFailureText("TikTok", reason, "us");
       expect(text).toBe("Couldn't connect TikTok. Press Connect again, and tell us if it keeps happening.");
     }
+  });
+
+  it("names the choice in Facebook's dialog when no Page was shared, not just Connect again", () => {
+    expect(connectFailureText("Instagram (via Facebook Page)", "no_page", "the agency")).toBe(
+      "Facebook didn't share any Page with us. Press Connect again, choose “Opt in to current Pages only” and tick the Page your Instagram account is linked to.",
+    );
+    expect(connectFailureText("Facebook Page", "no_page", "the agency")).toContain("tick your Page.");
   });
 
   it("tells the creator who to contact", () => {

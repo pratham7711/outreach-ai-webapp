@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { appBaseUrl, clientCredentialsFor, requestedScopes } from "@/lib/oauth/providers";
 import { exchangeForLongLivedToken, graphGet } from "@/lib/platforms/instagram";
 import { fetchMetaGrantorId } from "@/lib/platforms/metaGrantor";
+import { hasSharedFacebookPage } from "@/lib/platforms/facebookPage";
 import { revokeInstagramToken } from "@/lib/platforms/instagramAccount";
 import { ASSUMED_LIFETIME_DAYS, getInstagramBusinessToken } from "@/lib/platforms/instagramBusinessToken";
 import { TOKEN_B_ENV } from "@/lib/platforms/instagramDiscoveryTokens";
@@ -60,7 +61,13 @@ export function buildAgencyAuthorizeUrl(state: string): string | null {
   return url.toString();
 }
 
-export type AgencyConnectFailure = "provider" | "token_exchange" | "token_missing" | "no_instagram_account" | "store";
+export type AgencyConnectFailure =
+  | "provider"
+  | "token_exchange"
+  | "token_missing"
+  | "no_page"
+  | "no_instagram_account"
+  | "store";
 
 export type AgencyConnectResult =
   | { ok: true; account: AgencyIgAccount & { pageName: string | null } }
@@ -143,7 +150,12 @@ export async function connectAgencyInstagram(orgId: string, code: string): Promi
         : new Date(Date.now() + 2 * 60 * 60 * 1000));
 
   const picked = await pickInstagramAccount(accessToken).catch(() => null);
-  if (!picked) return { ok: false, reason: "no_instagram_account" };
+  if (!picked) {
+    /* Facebook sharing no Page and sharing Pages with no Instagram on them are
+       fixed differently, so they are told apart (see hasSharedFacebookPage). */
+    const shared = await hasSharedFacebookPage(accessToken);
+    return { ok: false, reason: shared === false ? "no_page" : "no_instagram_account" };
+  }
   const fbUserId = await fetchMetaGrantorId("instagram", accessToken);
 
   const account: AgencyIgAccount = {

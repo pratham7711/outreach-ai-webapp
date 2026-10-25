@@ -30,6 +30,7 @@ import {
 import { connectTablesReady } from "@/lib/creators/connectTables";
 import { recordConnectionState } from "@/lib/platforms/accountState";
 import { fetchMetaGrantorId, isGrantorPlatform } from "@/lib/platforms/metaGrantor";
+import { hasSharedFacebookPage } from "@/lib/platforms/facebookPage";
 import type { AccountIdentity } from "@/lib/platforms/accountSync";
 import { GRANT_SOURCES, grantedScopes, recordGrant } from "@/lib/creators/grants";
 
@@ -57,6 +58,12 @@ export type CallbackFailure =
   | "token_missing"
   | "creator"
   | "identity"
+  /* Instagram or Facebook through Facebook Login: Facebook shared no Page at
+     all, or shared Pages without an Instagram professional account on them.
+     Each needs a different thing done before Connect can work, so neither is
+     reported as the generic "identity". */
+  | "no_page"
+  | "no_instagram"
   | "exception"
   /* A connect link that was revoked, or whose roster row is gone, between
      the creator pressing Continue and coming back from consent. */
@@ -269,6 +276,12 @@ export async function GET(
       }).warn("Authorised but no account identity could be read; not storing", {
         creatorId: creator.id,
       });
+      if (platform === "instagram" || platform === "facebook") {
+        const shared = await hasSharedFacebookPage(storedToken);
+        if (shared === false) return failureRedirect(req, platform, "no_page");
+        if (shared && platform === "instagram")
+          return failureRedirect(req, platform, "no_instagram");
+      }
       return failureRedirect(req, platform, "identity");
     }
 

@@ -190,6 +190,33 @@ export async function fetchFacebookPage(
 }
 
 /**
+ * Whether the grant reaches any Page at all, or null when Meta did not say.
+ *
+ * A connect that found no account fails one of two ways, and the person fixes
+ * them differently: Facebook shared no Page, or it shared Pages without an
+ * Instagram account on them. The first is what Facebook's own default produces
+ * here: measured 2026-10-25 on Page Morax, me/accounts listed it after
+ * "Opt in to current Pages only" with the Page ticked and answered [] after
+ * "Opt in to all current and future Pages", twice, with pages_show_list granted
+ * on both tokens.
+ */
+export async function hasSharedFacebookPage(
+  token: string,
+  signal?: AbortSignal,
+): Promise<boolean | null> {
+  try {
+    const data = await graphGet(
+      "me/accounts",
+      { fields: "id", access_token: token, limit: "1" },
+      signal,
+    );
+    return Array.isArray(data?.data) ? data.data.length > 0 : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * `post_media_view` for one post (post_impressions is deprecated above Graph v25
  * and answers 400, which is why Facebook views rendered null on prod).
  *

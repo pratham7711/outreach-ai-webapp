@@ -34,6 +34,8 @@ const CONNECT_ERRORS: Record<string, string> = {
   provider: "Instagram is not set up on this deployment yet.",
   token_exchange: "Facebook did not accept the sign-in. Try Connect again.",
   token_missing: "Facebook did not accept the sign-in. Try Connect again.",
+  no_page:
+    "Facebook didn't share any Page with us. Connect again, choose “Opt in to current Pages only” and tick the Page your Instagram account is linked to.",
   no_instagram_account:
     "None of the Pages you shared has an Instagram professional account linked. Link one to a Page in Meta Business Suite, then connect again and pick that Page.",
   store: "The account could not be saved. Try again in a moment.",
