@@ -660,6 +660,15 @@ export async function syncPost(
     if (found) return syncPost({ ...post, creatorId: found.creatorId }, orgId, { ...options, afterDetection: true });
   }
 
+  /* A Facebook post read on none of its creator's Pages may be one filed under
+     nobody, whose Page somebody in the org has connected since. Detection asks
+     the org's Pages and, found, the post is read again under that Page's
+     creator, so this refresh brings its numbers and its Graph id. */
+  if (post.platform === "FACEBOOK" && metrics.fetchReason === "page-not-connected" && !options.afterDetection) {
+    const found = await detectPostCreator({ id: post.id, postUrl: post.postUrl }, orgId);
+    if (found) return syncPost({ ...post, creatorId: found.creatorId }, orgId, { ...options, afterDetection: true });
+  }
+
   /* A Facebook post added before its Page connected is stored under the link's
      own id. The first read that finds it on the Page hands back the Graph id,
      which the comments edge and every later read need. */

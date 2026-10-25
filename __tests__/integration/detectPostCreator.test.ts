@@ -4,13 +4,16 @@
  * A post filed with no creator gets one without anybody being asked: from the
  * read that just ran, from another copy of the same post, from the post's own
  * public page, or from the campaign's own creators' media -- in that order.
+ * A Facebook post is the connected Page's it sits on.
  */
 jest.mock("@/lib/db", () => ({
   db: {
     post: { findFirst: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
     activation: { findMany: jest.fn() },
+    creator: { findFirst: jest.fn() },
   },
 }));
+jest.mock("@/lib/platforms/facebookPost", () => ({ matchFacebookPost: jest.fn() }));
 jest.mock("@/lib/audit", () => ({ logAudit: jest.fn().mockResolvedValue(undefined) }));
 jest.mock("@/lib/posts/addPostChecks", () => ({
   ensureCreatorForHandle: jest.fn(),
@@ -31,6 +34,7 @@ import { ensureCreatorForHandle, findExistingPosts } from "@/lib/posts/addPostCh
 import { findInstagramPostOwner } from "@/lib/platforms/instagramBusinessDiscovery";
 import { readInstagramPostPageOwner } from "@/lib/platforms/instagramPostPage";
 import { InstagramRateLimitError } from "@/lib/platforms/instagram";
+import { matchFacebookPost } from "@/lib/platforms/facebookPost";
 import { detectPostCreator, MAX_OWNER_CANDIDATES } from "@/lib/posts/detectCreator";
 
 const mockDb = db as any;
@@ -38,6 +42,7 @@ const ensure = ensureCreatorForHandle as jest.Mock;
 const existing = findExistingPosts as jest.Mock;
 const owner = findInstagramPostOwner as jest.Mock;
 const postPage = readInstagramPostPageOwner as jest.Mock;
+const pageMatch = matchFacebookPost as jest.Mock;
 
 const URL = "https://www.instagram.com/reel/ABC123/";
 const HOLDING = { name: "Unattributed Instagram posts", handle: "" };
@@ -56,6 +61,7 @@ beforeEach(() => {
   existing.mockResolvedValue([]);
   owner.mockResolvedValue(null);
   postPage.mockResolvedValue(null);
+  pageMatch.mockResolvedValue(null);
 });
 
 describe("detectPostCreator", () => {
@@ -208,6 +214,57 @@ describe("detectPostCreator", () => {
     expect(await detectPostCreator({ id: "p1", postUrl: "https://youtu.be/abc" }, "org-1")).toBeNull();
     expect(owner).not.toHaveBeenCalled();
     expect(postPage).not.toHaveBeenCalled();
+  });
+
+  describe("on Facebook", () => {
+    const FB_URL = "https://www.facebook.com/100000000000077/posts/1234567890";
+    const FB_ROW = {
+      ...ROW,
+      platform: "FACEBOOK",
+      creatorId: "unattr-fb",
+      creator: { name: "Unattributed Facebook posts", handle: "" },
+    };
+    beforeEach(() => {
+      mockDb.post.findFirst.mockResolvedValue(FB_ROW);
+      mockDb.creator.findFirst.mockResolvedValue({ handle: "boringbrand" });
+    });
+
+    it("files the post under the creator whose connected Page has it", async () => {
+      pageMatch.mockResolvedValue({ creatorId: "c-brand", pageId: "1122334455", graphPostId: "1122334455_1234567890", post: {} });
+      const out = await detectPostCreator({ id: "p1", postUrl: FB_URL }, "org-1");
+
+      expect(pageMatch).toHaveBeenCalledWith("org-1", FB_URL);
+      expect(mockDb.creator.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: "c-brand", orgId: "org-1" } }),
+      );
+      expect(mockDb.post.updateMany).toHaveBeenCalledWith({
+        where: { id: "p1", creatorId: "unattr-fb" },
+        data: { creatorId: "c-brand" },
+      });
+      expect(out).toMatchObject({ creatorId: "c-brand", handle: "boringbrand", source: "page", created: false });
+      expect(ensure).not.toHaveBeenCalled();
+      expect(postPage).not.toHaveBeenCalled();
+      expect(owner).not.toHaveBeenCalled();
+    });
+
+    it("leaves the post where it is when no connected Page has it", async () => {
+      expect(await detectPostCreator({ id: "p1", postUrl: FB_URL }, "org-1")).toBeNull();
+      expect(mockDb.post.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("does not ask the Pages again right after the add asked them", async () => {
+      expect(await detectPostCreator({ id: "p1", postUrl: FB_URL, facebookPagesTried: true }, "org-1")).toBeNull();
+      expect(pageMatch).not.toHaveBeenCalled();
+    });
+
+    it("still takes the creator from another copy of the same post first", async () => {
+      existing.mockResolvedValue([
+        { id: "p2", campaignId: "camp-2", creatorId: "c-brand", creatorName: "Boring Brand", creatorHandle: "boringbrand" },
+      ]);
+      const out = await detectPostCreator({ id: "p1", postUrl: FB_URL }, "org-1");
+      expect(out?.source).toBe("same-post");
+      expect(pageMatch).not.toHaveBeenCalled();
+    });
   });
 
   it("never fails the read it rides on: an error is a miss", async () => {

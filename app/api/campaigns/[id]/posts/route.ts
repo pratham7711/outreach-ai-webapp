@@ -575,7 +575,13 @@ export async function POST(
     if (unattributed) {
       try {
         detection = await detectPostCreator(
-          { id: post.id, postUrl, authorHandle: metrics?.authorHandle, timeoutMs: 6_000 },
+          {
+            id: post.id,
+            postUrl,
+            authorHandle: metrics?.authorHandle,
+            timeoutMs: 6_000,
+            ...(detected?.platform === "FACEBOOK" ? { facebookPagesTried: true } : {}),
+          },
           orgId,
         );
         if (detection) {

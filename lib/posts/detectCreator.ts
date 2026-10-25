@@ -9,6 +9,7 @@ import { INSTAGRAM_HANDLE_SELECT, instagramLookupHandle } from "@/lib/platforms/
 import { findInstagramPostOwner } from "@/lib/platforms/instagramBusinessDiscovery";
 import { readWithDiscoveryToken } from "@/lib/platforms/instagramDiscoveryTokens";
 import { readInstagramPostPageOwner } from "@/lib/platforms/instagramPostPage";
+import { matchFacebookPost } from "@/lib/platforms/facebookPost";
 
 /**
  * Finding whose post it is, for a post filed with no creator.
@@ -18,7 +19,7 @@ import { readInstagramPostPageOwner } from "@/lib/platforms/instagramPostPage";
  * (lib/posts/unattributedCreator) so it is tracked at all. Nobody is ever asked
  * to fill the creator in: the agency adds links, and the app works out whose
  * they are. That is the rule, and this is where it is kept -- every read of
- * such a post tries again, four ways, cheapest first:
+ * such a post tries again, cheapest first:
  *
  *   1. post-read     The read that just ran named the owner. Instagram's embed
  *                    carries the username beside the counters, and a post it
@@ -36,6 +37,10 @@ import { readInstagramPostPageOwner } from "@/lib/platforms/instagramPostPage";
  *   4. creator-media The post is in one of the campaign's own creators' newest
  *                    Instagram media. Business Discovery lists a professional
  *                    account's posts whether or not the embed will show them.
+ *   5. page          (Facebook) The post is on a Page somebody in this org
+ *                    connected. The Page decides whose post it is, as when the
+ *                    post is added (lib/platforms/facebookPost); this catches a
+ *                    Page connected after the post was added.
  *
  * Found, the creator is taken from the roster or added to it, exactly as for a
  * link that named its creator, and the post -- with every other unattributed
@@ -43,7 +48,7 @@ import { readInstagramPostPageOwner } from "@/lib/platforms/instagramPostPage";
  * doing. Not found, nothing changes and the next read asks again.
  */
 
-export type CreatorDetectionSource = "post-read" | "same-post" | "post-page" | "creator-media";
+export type CreatorDetectionSource = "post-read" | "same-post" | "post-page" | "creator-media" | "page";
 
 export type CreatorDetection = {
   creatorId: string;
@@ -69,6 +74,9 @@ type DetectInput = {
   /** The whole media lookup's budget. A person waiting on an add gets less
    *  than a sweep; running out is a miss, and the next read asks again. */
   timeoutMs?: number;
+  /** The org's connected Facebook Pages were just asked about this link and
+   *  none had it, so asking them again here would only repeat the calls. */
+  facebookPagesTried?: boolean;
 };
 
 const log = () => createLogger({ context: { module: "detectCreator" } });
@@ -125,6 +133,15 @@ async function detect(post: DetectInput, orgId: string): Promise<CreatorDetectio
   );
   if (copy) {
     return file(row, orgId, post.postUrl, { creatorId: copy.creatorId, handle: bare(copy.creatorHandle), created: false }, "same-post");
+  }
+
+  if (platform === "FACEBOOK" && !post.facebookPagesTried) {
+    const match = await matchFacebookPost(orgId, post.postUrl);
+    if (match) {
+      const creator = await db.creator.findFirst({ where: { id: match.creatorId, orgId }, select: { handle: true } });
+      return file(row, orgId, post.postUrl, { creatorId: match.creatorId, handle: bare(creator?.handle), created: false }, "page");
+    }
+    return null;
   }
 
   if (platform === "INSTAGRAM") {

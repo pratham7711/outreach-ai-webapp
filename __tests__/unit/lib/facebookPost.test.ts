@@ -162,6 +162,21 @@ describe("resolveFacebookPost", () => {
     expect(pageRead).not.toHaveBeenCalled();
   });
 
+  it("matches Facebook's own permalink, which names a new-style Page by its profile id rather than its Page id", async () => {
+    postRead.mockImplementation(async (id: string) => (id === "1122334455_1234567890" ? postWith(id) : null));
+    permalinks.mockResolvedValue([]);
+    const match = await resolveFacebookPost("https://www.facebook.com/100000000000077/posts/1234567890", [OTHER, BRAND]);
+    expect(match).toMatchObject({ creatorId: "creator-brand", pageId: "1122334455", graphPostId: "1122334455_1234567890" });
+  });
+
+  it("still asks only the named Page when a numeric id in the link is a connected Page's id", async () => {
+    postRead.mockImplementation(async (id: string) => postWith(id));
+    const match = await resolveFacebookPost("https://www.facebook.com/9988776655/posts/1234567890", [BRAND, OTHER]);
+    expect(match?.creatorId).toBe("creator-other");
+    expect(pageRead).toHaveBeenCalledTimes(1);
+    expect(pageRead).toHaveBeenCalledWith(OTHER.userToken, undefined);
+  });
+
   it("tries every Page when the link names none, and takes the one that has the post", async () => {
     permalinks.mockImplementation(async (pageId: string) =>
       pageId === OTHER.pageId ? [{ id: "9988776655_333", permalink: "https://www.facebook.com/reel/888999000/" }] : [],

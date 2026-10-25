@@ -159,11 +159,19 @@ export async function resolveFacebookPost(
 
   const knownPage = known?.split("_")[0];
   const ref = link.pageRef?.toLowerCase();
-  const candidates = pages.filter((p) => {
+  const named = pages.filter((p) => {
     if (knownPage) return p.pageId === knownPage;
     if (!ref) return true;
     return p.pageId === target.pageRef || p.handle?.toLowerCase() === ref;
   });
+  /* A numeric id in the path is not always the Page id. Facebook's own
+     permalink for a post on a new-style Page names the Page's profile id
+     (measured 2026-10-25: /122146626993134008/posts/… for Page 872463439283803),
+     which no stored connection carries, so a numeric id that names no
+     connected Page is treated like a link that names none. A vanity name
+     that matches nobody still costs no calls. */
+  const candidates =
+    named.length === 0 && !knownPage && ref && /^\d+$/.test(ref) ? pages : named;
 
   const log = createLogger({ context: { platform: "FACEBOOK", call: "post.resolve" } });
   let authFailures = 0;
