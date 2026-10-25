@@ -8,8 +8,10 @@ import type { DiscoveryProfileView } from "@/lib/platforms/instagramDiscoveryPro
 /**
  * The creator's public Instagram profile and recent posts, read live through
  * Business Discovery on behalf of the agency's own Instagram account
- * (/api/creators/[id]/instagram-discovery). Renders nothing for a creator with
- * no Instagram handle.
+ * (/api/creators/[id]/instagram-discovery). Renders nothing until the read
+ * answers, nothing for a creator with no Instagram handle, and nothing in a
+ * workspace that has not connected an Instagram account of its own: the card
+ * appears only where it has something to show or something to fix.
  */
 
 type Body = { profile: DiscoveryProfileView; via: { username: string }; readAt: string; stored: false };
@@ -48,7 +50,8 @@ export default function InstagramDiscoveryPanel({ creatorId }: { creatorId: stri
     };
   }, [creatorId]);
 
-  if (state.status === "failed" && state.error === "no_instagram_handle") return null;
+  if (state.status === "loading") return null;
+  if (state.status === "failed" && (state.error === "no_instagram_handle" || state.error === "no_agency_account")) return null;
 
   return (
     <section
@@ -58,11 +61,10 @@ export default function InstagramDiscoveryPanel({ creatorId }: { creatorId: stri
       <h2 id="ig-discovery-title" style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
         Public Instagram profile
       </h2>
-      {state.status === "loading" && <p style={{ ...muted, marginTop: 8 }}>Reading the public profile from Instagram…</p>}
       {state.status === "failed" && (
         <p role="alert" style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: "8px 0 0" }}>
           {state.reason}
-          {state.error === "no_agency_account" || state.error === "agency_reauthorize" ? (
+          {state.error === "agency_reauthorize" ? (
             <>
               {" "}
               <Link href="/settings/integrations" style={{ color: "var(--cc-primary)", fontWeight: 600 }}>

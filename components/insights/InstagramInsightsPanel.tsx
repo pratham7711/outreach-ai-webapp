@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useId } from "react";
 import { SkeletonBlock } from "@/components/portal/app/ui";
 import type { InstagramInsightsBody } from "@/lib/portal/instagramInsightsRead";
 import { FigureStrip, SectionHeading, muted } from "@/components/insights/parts";
@@ -20,6 +20,7 @@ import {
   instagramWindowFigures,
   noStoriesNote,
   useInstagramInsights,
+  type IgInsightsState,
 } from "@/components/insights/instagramSections";
 
 /**
@@ -80,33 +81,26 @@ export default function InstagramInsightsPanel({
 }: {
   url: string;
   hideWhen?: string[];
-  /** Given, the panel draws its own card with this heading, and draws nothing at all when hidden. */
+  /** Given, the panel draws its own card with this heading, and draws nothing until the read answers,
+      nor when it is hidden -- so a creator with nothing to show never flashes an empty card. */
   title?: string;
   subtitle?: string;
 }) {
-  if (!title) return <InsightsBody url={url} hideWhen={hideWhen} />;
-  return <Framed url={url} hideWhen={hideWhen} title={title} subtitle={subtitle} />;
-}
-
-function Framed({ url, hideWhen, title, subtitle }: { url: string; hideWhen: string[]; title: string; subtitle?: string }) {
-  const [hidden, setHidden] = useState(false);
+  const state = useInstagramInsights(url);
+  const hidden = state.status === "failed" && state.error !== null && hideWhen.includes(state.error);
   if (hidden) return null;
+  if (!title) return <InsightsBody state={state} />;
+  if (state.status === "loading") return null;
   return (
     <section style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 24, marginTop: 16 }}>
       <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>{title}</h2>
       {subtitle && <p style={{ ...muted, fontSize: 12, marginTop: 4 }}>{subtitle}</p>}
-      <InsightsBody url={url} hideWhen={hideWhen} onHidden={() => setHidden(true)} />
+      <InsightsBody state={state} />
     </section>
   );
 }
 
-function InsightsBody({ url, hideWhen, onHidden }: { url: string; hideWhen: string[]; onHidden?: () => void }) {
-  const state = useInstagramInsights(url);
-  const hide = state.status === "failed" && state.error !== null && hideWhen.includes(state.error);
-  useEffect(() => {
-    if (hide) onHidden?.();
-  }, [hide, onHidden]);
-
+function InsightsBody({ state }: { state: IgInsightsState }) {
   if (state.status === "loading")
     return (
       <div role="status" style={{ marginTop: 20 }}>
@@ -115,7 +109,7 @@ function InsightsBody({ url, hideWhen, onHidden }: { url: string; hideWhen: stri
       </div>
     );
   if (state.status === "failed")
-    return hide ? null : (
+    return (
       <p role="alert" style={{ ...muted, marginTop: 20 }}>
         {state.reason}
       </p>
