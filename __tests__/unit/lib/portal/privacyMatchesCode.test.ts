@@ -37,8 +37,13 @@ describe("privacy policy matches what the code reads", () => {
     expect(privacy).toMatch(pattern);
   });
 
-  it("claims no audience demographics", () => {
-    expect(privacy).toMatch(/do not read audience demographics/);
+  it("discloses Instagram follower demographics and claims none elsewhere", () => {
+    expect(privacy).toMatch(/followers&rsquo; country, age and gender/);
+    expect(privacy).toMatch(/Apart from the Instagram follower demographics above[\s\S]*we do not read audience\s+demographics from any platform/);
+  });
+
+  it("discloses account and story insights under instagram_manage_insights", () => {
+    expect(privacy).toMatch(/insights\s+on stories while they are live/);
   });
 });
 

@@ -58,14 +58,17 @@ export function Screen({
   subtitle,
   action,
   children,
+  maxWidth = 760,
 }: {
   title: string;
   subtitle?: ReactNode;
   action?: ReactNode;
   children: ReactNode;
+  /** A screen of dashboards (My stats) takes the desktop's width; the rest read as one column. */
+  maxWidth?: number;
 }) {
   return (
-    <main style={{ maxWidth: 760, margin: "0 auto", padding: "20px 16px 24px" }}>
+    <main style={{ maxWidth, margin: "0 auto", padding: "20px 16px 24px" }}>
       <header
         style={{
           display: "flex",

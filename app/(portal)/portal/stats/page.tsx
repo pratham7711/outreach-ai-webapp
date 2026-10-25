@@ -1,41 +1,32 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import type { InsightsPost, PlatformInsights } from "@/lib/portal/creatorInsights";
-import { META_MINIMUM_SIZE_NOTE, META_UNAVAILABLE, isMetaPlatform } from "@/lib/metricDisplay";
-import {
-  ButtonLink,
-  Card,
-  EmptyState,
-  LoadFailed,
-  Screen,
-  SectionTitle,
-  SkeletonBlock,
-  SourceLabel,
-  StatusPill,
-  formatCount,
-  formatDay,
-  platformLabel,
-  secondaryButtonStyle,
-} from "@/components/portal/app/ui";
+import type { PlatformInsights } from "@/lib/portal/creatorInsights";
+import { medianEngagementPerView, timesMedian, trendForAccount, type Trend } from "@/lib/portal/statsMath";
+import { ButtonLink, EmptyState, LoadFailed, Screen, SkeletonBlock, SourceLabel, formatDay, platformLabel } from "@/components/portal/app/ui";
 import { portalSignInHere } from "@/lib/callbackPath";
-
-type TrendPoint = { day: string; followers: number };
-type Trend = { platform: string; handle: string; source: "public_profile"; points: TrendPoint[] };
-type CampaignPost = {
-  id: string;
-  platform: string;
-  postUrl: string;
-  caption: string | null;
-  postedAt: string;
-  campaignTitle: string;
-  views: number | null;
-  likes: number | null;
-  comments: number | null;
-  reach: number | null;
-  saves: number | null;
-};
+import { FigureStrip, Panel, SectionHeading, formatPercent, formatTimes, listWords, muted, type Figure } from "@/components/insights/parts";
+import {
+  AUDIENCE_MINIMUM_NOTE,
+  AudienceSection,
+  INSTAGRAM_LAG_NOTE,
+  INSTAGRAM_LIVE_NOTE,
+  InteractionsSection,
+  StoriesSection,
+  hasAudience,
+  hasInteractions,
+  hasLiveStories,
+  instagramMissingNote,
+  instagramWindowFigures,
+  noStoriesNote,
+  useInstagramInsights,
+  type IgInsightsState,
+} from "@/components/insights/instagramSections";
+import { AccountHero, AccountSwitcher, atHandle, followerWord } from "@/components/portal/stats/AccountChrome";
+import GrowthPanel from "@/components/portal/stats/GrowthPanel";
+import PostGrid from "@/components/portal/stats/PostGrid";
+import CampaignPosts, { type CampaignPost } from "@/components/portal/stats/CampaignPosts";
 
 /** Every block says where its numbers came from, in the creator's words. */
 const INSIGHTS_SOURCE: Record<PlatformInsights["platform"], string> = {
@@ -46,402 +37,203 @@ const INSIGHTS_SOURCE: Record<PlatformInsights["platform"], string> = {
   THREADS: "From Threads · your connected account",
 };
 
-const RECENT_POSTS = 5;
-
-/** What the platform calls the account's post count. */
-const MEDIA_LABEL: Record<PlatformInsights["platform"], string> = {
-  TIKTOK: "Videos",
-  INSTAGRAM: "Posts",
-  YOUTUBE: "Videos",
-  FACEBOOK: "Posts",
-  THREADS: "Posts",
-};
-
-const PROFILE_LINK_LABEL: Record<PlatformInsights["platform"], string> = {
-  TIKTOK: "Open on TikTok",
-  INSTAGRAM: "Open on Instagram",
-  YOUTUBE: "Open on YouTube",
-  FACEBOOK: "Open on Facebook",
-  THREADS: "Open on Threads",
-};
-
-/** A figure, or on Instagram and Facebook one Meta did not return, which
-    says so rather than showing a dash that reads as a failed fetch. */
-function Figure({ label, value, meta = false }: { label: string; value: number | null; meta?: boolean }) {
-  const withheld = meta && value === null;
-  return (
-    <div style={{ minWidth: 0 }} title={withheld ? META_MINIMUM_SIZE_NOTE : undefined}>
-      {withheld ? (
-        <div style={{ fontSize: 13, fontWeight: 600, lineHeight: "26px", color: "var(--cc-text-muted)" }}>{META_UNAVAILABLE}</div>
-      ) : (
-        <div style={{ fontSize: 20, fontWeight: 700, color: "var(--cc-text)" }}>{formatCount(value)}</div>
-      )}
-      <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{label}</div>
-    </div>
-  );
-}
-
-/** "Oct 2 · 1.2K views · 40 likes · 3 comments · 2 shares · 900 reach". Views
-    stay in the line as a dash when unmeasured, so rows line up; shares and
-    reach are only reported on some media, so an unmeasured one is left out
-    rather than written as 0. */
-function counted(n: number | null, noun: string): string {
-  return `${formatCount(n)} ${n === 1 ? noun : `${noun}s`}`;
-}
-
-function postCounters(post: InsightsPost): string {
-  const parts = [
-    formatDay(post.postedAt),
-    counted(post.views, "view"),
-    counted(post.likes, "like"),
-    counted(post.comments, "comment"),
+/** The headline figures from the account's recent posts: what a typical post
+    gets, the best one against it, how much of an audience acts, and the total.
+    A figure the platform's posts did not carry has no value, and the strip
+    leaves it out (Facebook returns no views on a post it has no insights for). */
+function postFigures(block: PlatformInsights): Figure[] {
+  const n = block.sampleSize;
+  const best = block.bestPost;
+  const times = best ? timesMedian(best.views, block.medianViews, n) : null;
+  const epv = medianEngagementPerView(block.posts);
+  const last = `your last ${n} ${n === 1 ? "post" : "posts"}`;
+  /* YouTube's Data API has no share count, so its rate is likes and comments only. */
+  const counted = block.posts.some((p) => typeof p.shares === "number") ? "Likes, comments and shares" : "Likes and comments";
+  return [
+    { label: "Median views", value: block.medianViews, note: `A typical post, of ${last}` },
+    {
+      label: "Best post views",
+      value: best?.views ?? null,
+      note: times !== null ? `${formatTimes(times)} your typical post` : best ? `Posted ${formatDay(best.postedAt)}` : undefined,
+    },
+    {
+      label: "Engagement per view",
+      value: null,
+      display: epv === null ? undefined : formatPercent(epv),
+      note: `${counted} per view, median`,
+      hint: `For each post, ${counted.toLowerCase()} divided by views; the median across your recent posts`,
+    },
+    block.platform === "INSTAGRAM"
+      ? { label: "Median reach", value: block.medianReach, note: "Accounts reached by a typical post" }
+      : { label: "Views in all", value: block.totalViews, note: `Across ${last}` },
   ];
-  if (typeof post.shares === "number") parts.push(counted(post.shares, "share"));
-  if (typeof post.reach === "number") parts.push(`${formatCount(post.reach)} reach`);
-  return parts.join(" · ");
 }
 
-type PageComment = { id: string; message: string; authorName: string | null; createdAt: string | null; likeCount: number | null };
-type PageComments = { total: number | null; preview: PageComment[]; pageName: string; readAt: string; stored: boolean };
-type CommentsState =
-  | { status: "idle" }
-  | { status: "loading" }
-  | { status: "failed"; reason: string }
-  | { status: "read"; comments: PageComments };
+const postsMissingNote = (platform: PlatformInsights["platform"]) => (labels: string[]) =>
+  `${platformLabel(platform)} did not return ${listWords(labels).toLowerCase()} on these posts, so ${labels.length === 1 ? "it is" : "they are"} not shown.`;
 
-/** What people wrote on one of the creator's own Facebook Page posts, read
-    live from Facebook when they ask and never saved (pages_read_user_content,
-    app/api/portal/insights/comments). */
-function PageCommentsPanel({ postId }: { postId: string }) {
-  const [state, setState] = useState<CommentsState>({ status: "idle" });
-  const failed = "We couldn't read this post's comments. Try again.";
+function igData(ig: IgInsightsState | null) {
+  return ig?.status === "read" ? ig.data : null;
+}
 
-  const read = async () => {
-    setState({ status: "loading" });
-    try {
-      const res = await fetch(`/api/portal/insights/comments?post=${encodeURIComponent(postId)}`, { cache: "no-store" });
-      const body = await res.json().catch(() => null);
-      if (!res.ok || !body) setState({ status: "failed", reason: body?.reason ?? failed });
-      else setState({ status: "read", comments: body as PageComments });
-    } catch {
-      setState({ status: "failed", reason: failed });
-    }
-  };
+/** One account's dashboard: who it is and its headline figures, how its
+    audience has grown, its recent posts, and -- for Instagram -- who follows
+    it, what they did, and the stories live now. */
+function Dashboard({ block, trend, ig }: { block: PlatformInsights; trend: Trend | null; ig: IgInsightsState | null }) {
+  const data = igData(ig);
+  const epv = medianEngagementPerView(block.posts);
+  const instagramLoading = ig?.status === "loading";
+  const instagramFailed = ig?.status === "failed" ? ig.reason : null;
+  const n = block.sampleSize;
+  const audience = hasAudience(data);
+  const interactions = hasInteractions(data);
+  const side = instagramLoading || audience || interactions;
 
-  const shown = state.status === "read" ? state.comments : null;
-  return (
-    <div style={{ marginTop: 8 }}>
-      <button
-        type="button"
-        onClick={shown ? () => setState({ status: "idle" }) : read}
-        disabled={state.status === "loading"}
-        aria-expanded={Boolean(shown)}
-        style={{ ...secondaryButtonStyle, padding: "6px 12px", fontSize: 13 }}
-      >
-        {state.status === "loading" ? "Reading comments…" : shown ? "Hide comments" : "Show comments"}
-      </button>
-      {state.status === "failed" && (
-        <p role="alert" style={{ fontSize: 13, color: "var(--cc-danger)", margin: "8px 0 0" }}>{state.reason}</p>
-      )}
-      {shown && (
-        <div style={{ marginTop: 10 }}>
-          <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: "0 0 8px" }}>
-            {shown.total === null ? "Comments" : `${formatCount(shown.total)} ${shown.total === 1 ? "comment" : "comments"}`}
-            {shown.pageName ? ` on ${shown.pageName}` : ""}
+  let figures: ReactNode;
+  if (data) {
+    figures = (
+      <>
+        <SectionHeading title={`Account insights, last ${data.account.days} days`} aside={INSIGHTS_SOURCE.INSTAGRAM} />
+        <FigureStrip figures={instagramWindowFigures(data, block.followers)} missing={instagramMissingNote} />
+      </>
+    );
+  } else if (instagramLoading) {
+    figures = (
+      <div role="status">
+        <SectionHeading title="Account insights" aside="Reading account and story insights from Instagram…" />
+        <SkeletonBlock height={104} />
+      </div>
+    );
+  } else {
+    figures = (
+      <>
+        {instagramFailed && (
+          <p role="alert" style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: "0 0 12px" }}>
+            {instagramFailed}
           </p>
-          {shown.preview.length === 0 ? (
-            <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}>
-              {shown.total === 0
-                ? "Nobody has commented on this post yet."
-                : "Facebook returned the count but no comment text for this post."}
-            </p>
-          ) : (
-            <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 10 }}>
-              {shown.preview.map((c) => (
-                <li key={c.id} style={{ borderLeft: "2px solid var(--cc-border)", paddingLeft: 10, minWidth: 0 }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{c.authorName ?? "Facebook user"}</span>
-                  {c.createdAt && (
-                    <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}> · {formatDay(c.createdAt)}</span>
-                  )}
-                  <p style={{ fontSize: 14, color: "var(--cc-text)", margin: "2px 0 0", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
-                    {c.message || "(no text: a photo or sticker)"}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
-          <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "8px 0 0" }}>
-            {shown.total !== null && shown.total > shown.preview.length && shown.preview.length > 0
-              ? `The ${shown.preview.length} most recent. `
-              : ""}
-            Read live from Facebook just now{shown.stored ? "" : ", not saved"}.
-          </p>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function PostLine({ post, platform }: { post: InsightsPost; platform: PlatformInsights["platform"] }) {
-  const caption = post.caption?.trim() || "Untitled post";
-  const body = (
-    <>
-      <span style={{ display: "block", fontSize: 14, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-        {caption}
-      </span>
-      <span style={{ display: "block", fontSize: 12, color: "var(--cc-text-muted)" }}>{postCounters(post)}</span>
-    </>
-  );
-  return (
-    <li style={{ padding: "10px 0", borderBottom: "1px solid var(--cc-border)", minWidth: 0 }}>
-      {post.shareUrl ? (
-        <a href={post.shareUrl} target="_blank" rel="noreferrer" style={{ textDecoration: "none", display: "block" }}>
-          {body}
-        </a>
-      ) : (
-        body
-      )}
-      {platform === "FACEBOOK" && <PageCommentsPanel postId={post.id} />}
-    </li>
-  );
-}
-
-/** The account's picture. Platform avatar URLs are signed and expire (TikTok's
-    within days), so a dead one falls back to the name's first letter instead
-    of a broken image. */
-function Avatar({ src, name }: { src: string | null; name: string }) {
-  const [broken, setBroken] = useState(false);
-  const size = 44;
-  if (src && !broken) {
-    return (
-      /* eslint-disable-next-line @next/next/no-img-element */
-      <img
-        src={src}
-        alt=""
-        width={size}
-        height={size}
-        onError={() => setBroken(true)}
-        style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover", flexShrink: 0, background: "var(--cc-bg)" }}
-      />
+        )}
+        <SectionHeading title={`Your last ${n} ${n === 1 ? "post" : "posts"}`} aside={INSIGHTS_SOURCE[block.platform]} />
+        <FigureStrip figures={postFigures(block)} missing={postsMissingNote(block.platform)} />
+      </>
     );
   }
-  return (
-    <span
-      aria-hidden="true"
-      style={{
-        width: size,
-        height: size,
-        borderRadius: "50%",
-        flexShrink: 0,
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "var(--cc-bg)",
-        border: "1px solid var(--cc-border)",
-        fontSize: 16,
-        fontWeight: 700,
-        color: "var(--cc-text-muted)",
-      }}
-    >
-      {name.replace(/^@/, "").charAt(0).toUpperCase() || "?"}
-    </span>
-  );
-}
 
-/** Who the connected account is, as the platform describes it: picture, name,
-    username, verified status, bio and a link out to the profile. */
-function ProfileHeader({ block }: { block: PlatformInsights }) {
-  /* A Facebook Page with no username is stored under its name, which is not
-     an @handle. */
-  const handle = block.handle.startsWith("@") || /\s/.test(block.handle) ? block.handle : `@${block.handle}`;
-  const name = block.displayName?.trim() || handle;
   return (
-    <div style={{ display: "flex", gap: 12, alignItems: "flex-start", minWidth: 0 }}>
-      <Avatar src={block.avatarUrl} name={name} />
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", overflowWrap: "anywhere" }}>{name}</span>
-          {block.isVerified && <StatusPill tone="info">Verified</StatusPill>}
-        </div>
-        <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: "2px 0 0", overflowWrap: "anywhere" }}>
-          {platformLabel(block.platform)} · {handle}
-          {block.profileUrl && (
-            <>
-              {" · "}
-              <a href={block.profileUrl} target="_blank" rel="noreferrer" style={{ color: "var(--cc-primary)", fontWeight: 600, textDecoration: "none" }}>
-                {PROFILE_LINK_LABEL[block.platform]}
-              </a>
-            </>
-          )}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function AccountBlock({ block }: { block: PlatformInsights }) {
-  const posts = block.posts.slice(0, RECENT_POSTS);
-  const meta = isMetaPlatform(block.platform);
-  /* Lifetime counts the platform publishes, shown only when it did: Facebook
-     Pages and Threads have no following or like total, and a dash there would
-     read as a number we failed to fetch. Instagram publishes following and
-     posts, so those stay on screen even when Meta withheld them. */
-  const lifetime: Array<[string, number | null]> = (
-    [
-      ["Following", block.following, block.platform === "INSTAGRAM"],
-      ["Total likes", block.totalLikes, false],
-      [MEDIA_LABEL[block.platform], block.mediaCount, block.platform === "INSTAGRAM"],
-    ] as Array<[string, number | null, boolean]>
-  )
-    .filter(([, value, published]) => published || typeof value === "number")
-    .map(([label, value]) => [label, value]);
-  const figures: Array<[string, number | null]> = [
-    [block.platform === "YOUTUBE" ? "Subscribers" : "Followers", block.followers],
-    ...lifetime,
-    [`Median views, last ${block.sampleSize}`, block.medianViews],
-    ["Best post views", block.bestPost?.views ?? null],
-    ...(block.platform === "INSTAGRAM"
-      ? ([[`Median reach, last ${block.sampleSize}`, block.medianReach]] as Array<[string, number | null]>)
-      : []),
-  ];
-  const withheld = meta && figures.some(([, value]) => value === null);
-  return (
-    <Card>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
-        <ProfileHeader block={block} />
-        {block.needsReconnect && <StatusPill tone="warning">Reconnect needed</StatusPill>}
-      </div>
-      {block.bio?.trim() && (
-        <p style={{ fontSize: 13, color: "var(--cc-text)", margin: "10px 0 0", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{block.bio.trim()}</p>
-      )}
-
-      {block.needsReconnect ? (
-        <div style={{ marginTop: 12 }}>
-          <p style={{ fontSize: 14, color: "var(--cc-text)", margin: "0 0 10px" }}>
-            Access to this account has lapsed, so we can&apos;t read its numbers. Reconnect it to see them again.
-          </p>
-          <ButtonLink href="/portal/accounts">Go to My accounts</ButtonLink>
-        </div>
-      ) : (
-        <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12, marginTop: 14 }}>
-            {figures.map(([label, value]) => (
-              <Figure key={label} label={label} value={value} meta={meta} />
-            ))}
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <Panel>
+        <AccountHero block={block} />
+        {block.needsReconnect ? (
+          <div style={{ marginTop: 20, paddingTop: 18, borderTop: "1px solid var(--cc-border)" }}>
+            <p style={{ fontSize: 14, color: "var(--cc-text)", lineHeight: 1.5, margin: "0 0 14px" }}>
+              Access to this account has lapsed, so we can&apos;t read its numbers. Reconnect it to see them again.
+            </p>
+            <ButtonLink href="/portal/accounts">Go to My accounts</ButtonLink>
           </div>
-          {withheld && (
-            <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "8px 0 0" }}>{META_MINIMUM_SIZE_NOTE}.</p>
-          )}
-          {posts.length > 0 ? (
-            <>
-              <h3 style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)", margin: "16px 0 0" }}>Recent posts</h3>
-              <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-                {posts.map((p) => (
-                  <PostLine key={p.id} post={p} platform={block.platform} />
-                ))}
-              </ul>
-            </>
-          ) : (
-            <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: "14px 0 0" }}>No recent posts came back from this account.</p>
-          )}
-        </>
-      )}
-      <SourceLabel>{INSIGHTS_SOURCE[block.platform]}</SourceLabel>
-    </Card>
-  );
-}
+        ) : (
+          <div style={{ marginTop: 24 }}>{n > 0 || data || instagramLoading ? figures : null}</div>
+        )}
+      </Panel>
 
-/** A plain line for the followers trend. No chart library: one series, drawn
-    in the theme's own primary, with the first and last readings written out
-    so the line never has to be read for a number. */
-function TrendLine({ trend }: { trend: Trend }) {
-  const pts = trend.points;
-  const first = pts[0];
-  const last = pts[pts.length - 1];
-  const W = 320;
-  const H = 72;
-  const values = pts.map((p) => p.followers);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const span = max - min || 1;
-  const path = pts
-    .map((p, i) => {
-      const x = pts.length === 1 ? W / 2 : (i / (pts.length - 1)) * W;
-      const y = H - 4 - ((p.followers - min) / span) * (H - 8);
-      return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
-  const change = last.followers - first.followers;
+      <GrowthPanel trend={trend} instagram={block.needsReconnect ? null : data} unit={followerWord(block.platform)} />
 
-  return (
-    <div style={{ padding: "12px 0", borderBottom: "1px solid var(--cc-border)" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
-        <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflowWrap: "anywhere" }}>
-          {platformLabel(trend.platform)} · {trend.handle}
-        </span>
-        <span style={{ fontSize: 13, color: "var(--cc-text)" }}>
-          {formatCount(last.followers)} followers
-          {pts.length > 1 && (
-            <span style={{ color: "var(--cc-text-muted)" }}>
-              {" "}
-              ({change >= 0 ? "+" : "−"}
-              {formatCount(Math.abs(change))} since {formatDay(first.day)})
-            </span>
-          )}
-        </span>
-      </div>
-      {pts.length > 1 ? (
-        <svg
-          viewBox={`0 0 ${W} ${H}`}
-          preserveAspectRatio="none"
-          role="img"
-          aria-label={`Followers from ${formatDay(first.day)} to ${formatDay(last.day)}`}
-          style={{ width: "100%", height: H, marginTop: 8, display: "block" }}
-        >
-          <path d={path} fill="none" style={{ stroke: "var(--cc-primary)" }} strokeWidth={2} vectorEffect="non-scaling-stroke" />
-        </svg>
-      ) : (
-        <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "6px 0 0" }}>One reading so far, on {formatDay(first.day)}. The line starts with the next.</p>
-      )}
+      {!block.needsReconnect &&
+        (data || instagramLoading ? (
+          <>
+            <div className={`grid grid-cols-1 ${side ? "lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]" : ""}`} style={{ gap: 16, alignItems: "start" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
+                <Panel>
+                  <PostGrid block={block} engagement={epv} />
+                  {data && !hasLiveStories(data) && (
+                    <p style={{ ...muted, fontSize: 12, marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--cc-border)" }}>{noStoriesNote(data)}</p>
+                  )}
+                </Panel>
+                {data ? (
+                  hasLiveStories(data) && (
+                    <Panel>
+                      <StoriesSection data={data} />
+                    </Panel>
+                  )
+                ) : (
+                  <SkeletonBlock height={160} />
+                )}
+              </div>
+              {side && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
+                  {data ? (
+                    <>
+                      {audience && (
+                        <Panel>
+                          <AudienceSection data={data} />
+                        </Panel>
+                      )}
+                      {interactions && (
+                        <Panel>
+                          <InteractionsSection data={data} />
+                        </Panel>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <SkeletonBlock height={300} />
+                      <SkeletonBlock height={220} />
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <Panel>
+            <PostGrid block={block} engagement={epv} />
+          </Panel>
+        ))}
+
+      <SourceLabel>
+        {INSIGHTS_SOURCE[block.platform]}
+        {data && (
+          <>
+            {" "}· {INSTAGRAM_LIVE_NOTE} {INSTAGRAM_LAG_NOTE}
+            {!audience && <> {AUDIENCE_MINIMUM_NOTE}</>}
+          </>
+        )}
+      </SourceLabel>
     </div>
   );
 }
 
-function CampaignPostLine({ post }: { post: CampaignPost }) {
-  const parts = [
-    `${formatCount(post.views)} views`,
-    `${formatCount(post.likes)} likes`,
-    `${formatCount(post.comments)} comments`,
-  ];
-  if (post.platform === "INSTAGRAM") {
-    parts.push(`${formatCount(post.reach)} reach`, `${formatCount(post.saves)} saves`);
-  }
-  return (
-    <li style={{ padding: "10px 0", borderBottom: "1px solid var(--cc-border)", minWidth: 0 }}>
-      <a href={post.postUrl} target="_blank" rel="noreferrer" style={{ textDecoration: "none", display: "block" }}>
-        <span style={{ display: "block", fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {post.campaignTitle}
-        </span>
-        <span style={{ display: "block", fontSize: 12, color: "var(--cc-text-muted)" }}>
-          {platformLabel(post.platform)} · {formatDay(post.postedAt)}
-        </span>
-        <span style={{ display: "block", fontSize: 13, color: "var(--cc-text)", marginTop: 2 }}>{parts.join(" · ")}</span>
-      </a>
-    </li>
-  );
+/** An Instagram account reads its insights on mount. One read through Instagram
+    Login has none to give, so it shows like any other platform. */
+function InstagramDashboard({ block, trend }: { block: PlatformInsights; trend: Trend | null }) {
+  const ig = useInstagramInsights(`/api/portal/insights/instagram?account=${encodeURIComponent(block.accountId)}`);
+  const hidden = ig.status === "failed" && ig.error === "unsupported_login";
+  return <Dashboard block={block} trend={trend} ig={hidden ? null : ig} />;
+}
+
+function AccountDashboard({ block, trends }: { block: PlatformInsights; trends: Trend[] }) {
+  const trend = trendForAccount(trends, block.platform, block.handle);
+  if (block.platform === "INSTAGRAM" && !block.needsReconnect) return <InstagramDashboard block={block} trend={trend} />;
+  return <Dashboard block={block} trend={trend} ig={null} />;
 }
 
 /**
  * My stats: the creator's own numbers, each block labelled with where it came
  * from. Connected accounts are read live (/api/portal/insights); the followers
  * trend and campaign posts come from our own readings (/api/portal/stats). A
- * number the platform did not measure is a dash, never 0 (lib/metricDisplay).
+ * figure or chart the platform returned nothing for is left out, never drawn
+ * as 0 or as an empty frame; where a headline figure is missing, one line says
+ * which and why.
+ *
+ * With more than one account connected, the accounts are tabs and one is shown
+ * at a time; every panel stays mounted (hidden, not unmounted), so switching
+ * back never re-reads a platform. The chosen account is kept in ?account= so a
+ * reload lands on it.
  */
 export default function MyStatsPage() {
   const router = useRouter();
   const [insights, setInsights] = useState<PlatformInsights[] | null>(null);
   const [stats, setStats] = useState<{ trends: Trend[]; campaignPosts: CampaignPost[] } | null>(null);
   const [failed, setFailed] = useState(false);
+  const [chosen, setChosen] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setFailed(false);
@@ -461,20 +253,36 @@ export default function MyStatsPage() {
   }, [router]);
 
   useEffect(() => {
+    setChosen(new URLSearchParams(window.location.search).get("account"));
     load();
   }, [load]);
 
+  const choose = (accountId: string) => {
+    setChosen(accountId);
+    const url = new URL(window.location.href);
+    url.searchParams.set("account", accountId);
+    window.history.replaceState(window.history.state, "", url);
+  };
+
   const loading = !failed && (!insights || !stats);
   const nothing = insights && stats && insights.length === 0 && stats.trends.length === 0 && stats.campaignPosts.length === 0;
-  const hasInstagramPosts = stats?.campaignPosts.some((p) => p.platform === "INSTAGRAM") ?? false;
+  /* Without a choice, open on the first account that has numbers to show
+     rather than one waiting to be reconnected. */
+  const active =
+    insights?.find((b) => b.accountId === chosen) ?? insights?.find((b) => !b.needsReconnect) ?? insights?.[0] ?? null;
+  const tabbed = (insights?.length ?? 0) > 1;
+  /* Profiles our tracker reads that are not one of the connected accounts,
+     drawn on their own so none of the creator's history goes missing. */
+  const otherTrends = stats && insights ? stats.trends.filter((t) => !insights.some((b) => trendForAccount([t], b.platform, b.handle))) : [];
 
   return (
-    <Screen title="My stats" subtitle="Your numbers, and where each one came from.">
+    <Screen title="My stats" subtitle="Your numbers, and where each one came from." maxWidth={1200}>
       {failed && <LoadFailed what="your stats" onRetry={load} />}
       {loading && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <SkeletonBlock height={160} />
-          <SkeletonBlock height={120} />
+        <div aria-hidden="true" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <SkeletonBlock height={40} />
+          <SkeletonBlock height={240} />
+          <SkeletonBlock height={300} />
         </div>
       )}
       {nothing && (
@@ -485,11 +293,20 @@ export default function MyStatsPage() {
         />
       )}
       {insights && stats && !nothing && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          {insights.length > 0 ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+          {insights.length > 0 && active ? (
+            <div>
+              {tabbed && <AccountSwitcher blocks={insights} selected={active.accountId} onSelect={choose} />}
               {insights.map((block) => (
-                <AccountBlock key={block.accountId} block={block} />
+                <div
+                  key={block.accountId}
+                  hidden={block.accountId !== active.accountId}
+                  {...(tabbed
+                    ? { role: "tabpanel", id: `stats-panel-${block.accountId}`, "aria-labelledby": `stats-tab-${block.accountId}` }
+                    : {})}
+                >
+                  <AccountDashboard block={block} trends={stats.trends} />
+                </div>
               ))}
             </div>
           ) : (
@@ -500,30 +317,21 @@ export default function MyStatsPage() {
             />
           )}
 
-          {stats.trends.length > 0 && (
-            <Card>
-              <SectionTitle>Followers over time</SectionTitle>
-              {stats.trends.map((t) => (
-                <TrendLine key={`${t.platform}-${t.handle}`} trend={t} />
+          {otherTrends.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {otherTrends.map((t) => (
+                <GrowthPanel
+                  key={`${t.platform}-${t.handle}`}
+                  trend={t}
+                  instagram={null}
+                  unit={followerWord(t.platform)}
+                  title={`${platformLabel(t.platform)} · ${atHandle(t.handle)}`}
+                />
               ))}
-              <SourceLabel>From your public profile · read by our tracker</SourceLabel>
-            </Card>
+            </div>
           )}
 
-          {stats.campaignPosts.length > 0 && (
-            <Card>
-              <SectionTitle>Your campaign posts</SectionTitle>
-              <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-                {stats.campaignPosts.map((p) => (
-                  <CampaignPostLine key={p.id} post={p} />
-                ))}
-              </ul>
-              <SourceLabel>
-                From each post as we read it for the campaign
-                {hasInstagramPosts && <> · reach and saves from Instagram insights on your campaign posts</>}
-              </SourceLabel>
-            </Card>
-          )}
+          {stats.campaignPosts.length > 0 && <CampaignPosts posts={stats.campaignPosts} />}
         </div>
       )}
     </Screen>

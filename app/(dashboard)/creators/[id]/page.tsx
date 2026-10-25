@@ -32,6 +32,8 @@ import {
 } from "@/lib/creators/metricValue";
 import MetricFigure from "@/components/creators/MetricFigure";
 import CreatorAccess from "@/components/creators/CreatorAccess";
+import InstagramDiscoveryPanel from "@/components/creators/InstagramDiscoveryPanel";
+import InstagramInsightsPanel from "@/components/insights/InstagramInsightsPanel";
 import { AgeLabel } from "@/components/ds/AgeLabel";
 import PostStatusChip from "@/components/posts/PostStatusChip";
 import { postAgeContext, postMeasuredAt, postStatus } from "@/lib/posts/postStatus";
@@ -1176,6 +1178,17 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
             />
             <ListsCard creatorId={id} lists={creator.lists ?? []} onSaved={refreshCreator} />
           </div>
+        )}
+        {activeTab === "profile" && (
+          <>
+            <InstagramDiscoveryPanel creatorId={id} />
+            <InstagramInsightsPanel
+              url={`/api/creators/${encodeURIComponent(id)}/instagram-insights`}
+              hideWhen={["not_connected"]}
+              title="Instagram account insights"
+              subtitle="From the Instagram professional account this creator connected to your campaigns."
+            />
+          </>
         )}
 
         {/* Posts Tab */}

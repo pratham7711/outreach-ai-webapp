@@ -126,6 +126,7 @@ export const AREAS = {
       // Track all / Track selected on the roster (plan §04); the endpoint
       // itself is app/api/trackers/, under settings.
       "components/creators/TrackCreators.tsx",
+      "components/creators/InstagramDiscoveryPanel.tsx",
       "components/lists/",
       "lib/lists/",
       "lib/creators/creatorName.ts",
@@ -368,6 +369,7 @@ const IMPORTED_BY = {
   "components/modals/PayoutDetailModal.tsx": ["settings"],
   "components/integrations/": ["settings"],
   "components/creators/MetricFigure.tsx": ["creators", "settings"],
+  "components/insights/": ["creators", "portal"],
   "components/LegalLinks.tsx": ["portal"],
   "components/LegalShell.tsx": ["portal"],
 

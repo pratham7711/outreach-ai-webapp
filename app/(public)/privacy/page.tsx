@@ -85,7 +85,14 @@ export default function PrivacyPage() {
                 picture, follower, following and post counts, and recent posts (caption, link,
                 image, date, likes and comments). With <code>instagram_manage_insights</code> we
                 read views, reach and shares on recent posts, and reach, views, shares and saves on
-                the posts the creator submits to a campaign.
+                the posts the creator submits to a campaign. With the same permission we read the
+                account&rsquo;s insights for the last 28 days (accounts reached, views, accounts
+                engaged, interactions, and follows and unfollows), its new followers by day, its
+                followers&rsquo; country, age and gender as Instagram groups them, and the insights
+                on stories while they are live (reach, views, replies, shares, taps and exits).
+                The creator sees these on My stats, and the organisation running their campaigns
+                sees them on the creator&rsquo;s page. They are read from Instagram each time the
+                screen is opened and are not saved.
               </li>
               <li>
                 <em>Instagram Login</em>, which needs no Facebook Page, is not offered at the
@@ -121,7 +128,9 @@ export default function PrivacyPage() {
           </li>
         </ul>
         <p>
-          We do not read audience demographics from any platform. The creator portal&rsquo;s My
+          Apart from the Instagram follower demographics above, which Instagram reports as
+          totals per country, age band and gender and never per person, we do not read audience
+          demographics from any platform. The creator portal&rsquo;s My
           accounts screen lists the same reads, permission by permission, beside each Connect
           button.
         </p>
@@ -141,9 +150,11 @@ export default function PrivacyPage() {
         <ul>
           <li>
             <strong>Instagram</strong> &mdash; through Meta&rsquo;s Business Discovery API, which
-            answers for Business and Creator accounts only: the username, follower and post counts,
-            profile picture, and recent public posts with their public view, like and comment
-            counts. Personal and private accounts return nothing.
+            answers for Business and Creator accounts only: the username, name, biography, website,
+            follower, following and post counts, profile picture, and recent public posts with their
+            public view, like and comment counts. The organisation reads these through its own
+            connected Instagram professional account. Personal and private accounts return
+            nothing.
           </li>
           <li>
             <strong>YouTube</strong> &mdash; through the YouTube Data API: the channel&rsquo;s public

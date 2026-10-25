@@ -60,8 +60,17 @@ describe("WHAT_WE_READ", () => {
     }
   });
 
-  it("claims no audience data, which no connect flow reads", () => {
-    const text = JSON.stringify(WHAT_WE_READ).toLowerCase();
-    expect(text).not.toMatch(/\b(audience|demographics?|ages?|gender|country|countries)\b/);
+  it("names follower demographics only under instagram_manage_insights, the one permission that reads them", () => {
+    const audience = /\b(audience|demographics?|ages?|gender|country|countries)\b/;
+    for (const platform of OAUTH_PLATFORMS) {
+      for (const read of WHAT_WE_READ[platform]) {
+        const claims = audience.test(read.reads.toLowerCase());
+        expect([platform, read.scope, claims]).toEqual([
+          platform,
+          read.scope,
+          platform === "instagram" && read.scope === "instagram_manage_insights",
+        ]);
+      }
+    }
   });
 });

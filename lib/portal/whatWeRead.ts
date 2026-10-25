@@ -23,8 +23,10 @@ export type PermissionRead = {
 
 export const WHAT_WE_READ: Record<OAuthPlatform, PermissionRead[]> = {
   /* Facebook Login for Business, through the Page the account is linked to.
-     lib/platforms/instagramAccount.ts (account + media + media insights) and
-     lib/platforms/instagram.ts (insights on posts submitted to a campaign). */
+     lib/platforms/instagramAccount.ts (account + media + media insights),
+     lib/platforms/instagramAccountInsights.ts (account, follower and story
+     insights) and lib/platforms/instagram.ts (insights on posts submitted to a
+     campaign). */
   instagram: [
     {
       scope: "instagram_basic",
@@ -34,7 +36,7 @@ export const WHAT_WE_READ: Record<OAuthPlatform, PermissionRead[]> = {
     {
       scope: "instagram_manage_insights",
       reads:
-        "Views, reach and shares on your recent posts, and reach, views, shares and saves on the posts you submit to a campaign.",
+        "Views, reach and shares on your recent posts, and reach, views, shares and saves on the posts you submit to a campaign. Your account's insights for the last 28 days (accounts reached, views, engagement, follows and unfollows), your new followers by day, where your followers are and their age and gender, and the insights on stories while they are live.",
     },
     {
       scope: "pages_show_list",
