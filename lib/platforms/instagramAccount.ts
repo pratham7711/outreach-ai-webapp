@@ -1,4 +1,4 @@
-import { graphGet, InstagramAuthError, InstagramTimeoutError } from "./instagram";
+import { graphGet, InstagramAuthError, InstagramTimeoutError, listGrantedPages } from "./instagram";
 import { createLogger } from "@/lib/observability/logger";
 
 /**
@@ -121,18 +121,11 @@ export async function fetchInstagramAccount(
     context: { platform: "INSTAGRAM", call: "account.fetch" },
   });
 
-  const pagesData = await graphGet(
-    "me/accounts",
-    {
-      fields: `instagram_business_account{${ACCOUNT_FIELDS}}`,
-      access_token: token,
-      limit: "50",
-    },
+  const pages = (await listGrantedPages(
+    token,
+    `instagram_business_account{${ACCOUNT_FIELDS}}`,
     signal,
-  );
-
-  const pages: Array<{ instagram_business_account?: Record<string, unknown> }> =
-    pagesData?.data ?? [];
+  )) as Array<{ instagram_business_account?: Record<string, unknown> }>;
 
   for (const page of pages) {
     const ig = page.instagram_business_account;

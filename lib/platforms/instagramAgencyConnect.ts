@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { appBaseUrl, clientCredentialsFor, requestedScopes } from "@/lib/oauth/providers";
-import { exchangeForLongLivedToken, graphGet } from "@/lib/platforms/instagram";
+import { exchangeForLongLivedToken, listGrantedPages } from "@/lib/platforms/instagram";
 import { fetchMetaGrantorId } from "@/lib/platforms/metaGrantor";
 import { hasSharedFacebookPage } from "@/lib/platforms/facebookPage";
 import { revokeInstagramToken } from "@/lib/platforms/instagramAccount";
@@ -83,12 +83,7 @@ type PageWithIg = {
 export async function pickInstagramAccount(
   token: string,
 ): Promise<(Omit<AgencyIgAccount, "fbUserId"> & { pageName: string | null }) | null> {
-  const data = await graphGet("me/accounts", {
-    fields: "id,name,instagram_business_account{id,username}",
-    access_token: token,
-    limit: "50",
-  });
-  const pages: PageWithIg[] = Array.isArray(data?.data) ? data.data : [];
+  const pages = (await listGrantedPages(token, "id,name,instagram_business_account{id,username}")) as PageWithIg[];
   for (const page of pages) {
     const ig = page.instagram_business_account;
     if (ig && typeof ig.id === "string" && ig.id && typeof ig.username === "string" && ig.username) {

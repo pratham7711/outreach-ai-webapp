@@ -1,4 +1,5 @@
 import { createLogger } from "@/lib/observability/logger";
+import { clientCredentialsFor } from "@/lib/oauth/providers";
 
 // v19.0 stopped being usable 2026-05-21. An expired version does not error —
 // Graph silently serves the next-oldest usable one, so a stale pin here is
@@ -318,6 +319,71 @@ export async function exchangeForLongLivedToken(
   };
 }
 
+/** More than any one creator or agency grants; a cap on the reads an empty me/accounts can cost. */
+const MAX_GRANTED_PAGES = 10;
+
+/**
+ * The Pages a Facebook Login grant reaches, in me/accounts' shape (each read
+ * with `fields`, plus its id).
+ *
+ * me/accounts can answer [] for a grant that names its Pages. Measured
+ * 2026-10-25 for a review Page after its admin re-authorised: the token's
+ * granular_scopes targeted the Page and /{page-id} returned it with a Page
+ * token and its Instagram account, while me/accounts answered [] on v23 and
+ * v26 alike, so every connect failed as "no Instagram account". An empty
+ * me/accounts therefore falls back to the Pages the grant itself names. A
+ * grant opted in to "all current and future Pages" names none, so it stays
+ * empty -- the connect copy (no_page) tells the person which choice to make.
+ */
+export async function listGrantedPages(
+  token: string,
+  fields: string,
+  signal?: AbortSignal,
+  options: Pick<GraphGetOptions, "rateLimitThrows" | "onHeaders"> = {},
+): Promise<Array<Record<string, unknown>>> {
+  const data = await graphGet(
+    "me/accounts",
+    { fields, access_token: token, limit: "50" },
+    signal,
+    options,
+  );
+  const listed: unknown[] = Array.isArray(data?.data) ? data.data : [];
+  if (listed.length > 0) return listed as Array<Record<string, unknown>>;
+
+  const pages: Array<Record<string, unknown>> = [];
+  for (const id of (await grantedPageIds(token, signal)).slice(0, MAX_GRANTED_PAGES)) {
+    const page = await graphGet(id, { fields, access_token: token }, signal, options);
+    if (page && typeof page.id === "string") pages.push(page);
+  }
+  return pages;
+}
+
+/**
+ * The Page ids a user token's granular scopes name, or [] when it names none
+ * or Meta will not say. debug_token needs the app's own token; the secret
+ * travels only in this request and graphGet never logs params.
+ */
+async function grantedPageIds(token: string, signal?: AbortSignal): Promise<string[]> {
+  const creds = clientCredentialsFor("instagram") ?? clientCredentialsFor("facebook");
+  if (!creds) return [];
+  try {
+    const data = await graphGet(
+      "debug_token",
+      { input_token: token, access_token: `${creds.clientId}|${creds.clientSecret}` },
+      signal,
+    );
+    const scopes: unknown[] = Array.isArray(data?.data?.granular_scopes) ? data.data.granular_scopes : [];
+    const ids = new Set<string>();
+    for (const s of scopes as Array<{ scope?: unknown; target_ids?: unknown }>) {
+      if (typeof s?.scope !== "string" || !s.scope.startsWith("pages_") || !Array.isArray(s.target_ids)) continue;
+      for (const id of s.target_ids) if (typeof id === "string" && /^\d+$/.test(id)) ids.add(id);
+    }
+    return [...ids];
+  } catch {
+    return [];
+  }
+}
+
 /**
  * The IG user id behind a token, from the Pages it manages.
  *
@@ -331,13 +397,12 @@ export async function resolveIgUserId(
   signal?: AbortSignal,
   options: Pick<GraphGetOptions, "rateLimitThrows" | "onHeaders"> = {},
 ): Promise<string | null> {
-  const data = await graphGet(
-    "me/accounts",
-    { fields: "instagram_business_account{id}", access_token: token, limit: "50" },
+  const pages = (await listGrantedPages(
+    token,
+    "instagram_business_account{id}",
     signal,
     options,
-  );
-  const pages: Array<{ instagram_business_account?: { id?: string } }> = data?.data ?? [];
+  )) as Array<{ instagram_business_account?: { id?: string } }>;
   for (const page of pages) {
     const igId = page.instagram_business_account?.id;
     if (igId) return igId;

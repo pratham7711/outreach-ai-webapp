@@ -1,4 +1,4 @@
-import { graphGet, InstagramAuthError } from "./instagram";
+import { graphGet, InstagramAuthError, listGrantedPages } from "./instagram";
 import { createLogger } from "@/lib/observability/logger";
 
 /**
@@ -130,13 +130,7 @@ export async function fetchFacebookPage(
     context: { platform: "FACEBOOK", call: "page.fetch" },
   });
 
-  const data = await graphGet(
-    "me/accounts",
-    { fields: PAGE_FIELDS, access_token: token, limit: "50" },
-    signal,
-  );
-
-  const pages: unknown[] = Array.isArray(data?.data) ? data.data : [];
+  const pages: unknown[] = await listGrantedPages(token, PAGE_FIELDS, signal);
   const page = pages.find(
     (p): p is Record<string, unknown> =>
       typeof p === "object" && p !== null && typeof (p as { id?: unknown }).id === "string",
@@ -193,24 +187,17 @@ export async function fetchFacebookPage(
  * Whether the grant reaches any Page at all, or null when Meta did not say.
  *
  * A connect that found no account fails one of two ways, and the person fixes
- * them differently: Facebook shared no Page, or it shared Pages without an
- * Instagram account on them. The first is what Facebook's own default produces
- * here: measured 2026-10-25 on Page Morax, me/accounts listed it after
- * "Opt in to current Pages only" with the Page ticked and answered [] after
- * "Opt in to all current and future Pages", twice, with pages_show_list granted
- * on both tokens.
+ * them differently: Facebook shared no Page we can reach, or it shared Pages
+ * without an Instagram account on them. Counted the same way the connect
+ * looks for Pages (listGrantedPages), so "no Page" here means the connect
+ * could not have found one either.
  */
 export async function hasSharedFacebookPage(
   token: string,
   signal?: AbortSignal,
 ): Promise<boolean | null> {
   try {
-    const data = await graphGet(
-      "me/accounts",
-      { fields: "id", access_token: token, limit: "1" },
-      signal,
-    );
-    return Array.isArray(data?.data) ? data.data.length > 0 : null;
+    return (await listGrantedPages(token, "id", signal)).length > 0;
   } catch {
     return null;
   }
