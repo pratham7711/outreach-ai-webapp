@@ -589,11 +589,16 @@ describe("GET /api/portal/connections/[platform]/callback", () => {
                 profile_picture_url: "https://cdn.example/avatar.jpg",
                 followers_count: 4321,
                 follows_count: 120,
-                media_count: 88,
               },
             },
           ],
         }),
+      })
+      // media_count, read from the IG User on its own: nested in me/accounts it
+      // pushed the identity read past Graph's 5s deadline (measured 2026-10-25).
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ id: "ig-17841400000000000", media_count: 88 }),
       });
 
     const res = await oauthCallback(
@@ -605,11 +610,11 @@ describe("GET /api/portal/connections/[platform]/callback", () => {
     );
 
     expect(res.headers.get("location")).toContain("/portal/settings?connected=instagram");
-    // Three calls: the code exchange, the trade for a long-lived token, then
-    // the identity read. The short-lived token lasts about an hour and Facebook
-    // issues no refresh_token, so storing the first one would leave the
-    // connection dead by the next cron run.
-    expect(global.fetch).toHaveBeenCalledTimes(3);
+    // Four calls: the code exchange, the trade for a long-lived token, the
+    // identity read, then the post count. The short-lived token lasts about an
+    // hour and Facebook issues no refresh_token, so storing the first one would
+    // leave the connection dead by the next cron run.
+    expect(global.fetch).toHaveBeenCalledTimes(4);
     const [tokenUrl, fetchInit] = (global.fetch as jest.Mock).mock.calls[0];
     expect(tokenUrl).toContain("graph.facebook.com");
     expect((fetchInit.body as URLSearchParams).get("code")).toBe("code-1");
@@ -633,6 +638,10 @@ describe("GET /api/portal/connections/[platform]/callback", () => {
     const [identityUrl] = (global.fetch as jest.Mock).mock.calls[2];
     expect(String(identityUrl)).toContain("me/accounts");
     expect(String(identityUrl)).toContain("instagram_business_account");
+    expect(new URL(String(identityUrl)).searchParams.get("fields")).not.toContain("media_count");
+    const [countUrl] = (global.fetch as jest.Mock).mock.calls[3];
+    expect(new URL(String(countUrl)).pathname).toMatch(/\/ig-17841400000000000$/);
+    expect(new URL(String(countUrl)).searchParams.get("fields")).toBe("media_count");
 
     // The identity is resolved BEFORE the write, because platformUserId is part
     // of the account's unique key — that is what lets a creator link a second
@@ -778,12 +787,12 @@ describe("GET /api/portal/connections/[platform]/callback — where the token ma
                 username: identityUsername,
                 followers_count: 1,
                 follows_count: 1,
-                media_count: 1,
               },
             },
           ],
         }),
-      });
+      })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ id: "ig-1", media_count: 1 }) });
     return oauthCallback(
       makeRequest(
         "http://localhost:3009/api/portal/connections/instagram/callback?state=st-ok&code=code-1",
