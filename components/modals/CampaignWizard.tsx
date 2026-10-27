@@ -1,13 +1,37 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type ClipboardEvent, type FocusEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Modal, Input } from "@pratham7711/ui";
-import { Check, Download, Music2 } from "lucide-react";
+import { Check, Music2 } from "lucide-react";
 import { toast } from "sonner";
 import { Dropdown, Button } from "@/components/ds";
 import { SOUND_URL_ERRORS, parseSoundUrl } from "@/lib/trackers/soundUrl";
 import { ThumbnailDrop, prepareThumbnail, uploadCampaignThumbnail, type PreparedThumbnail } from "@/components/campaigns/ThumbnailDrop";
+import {
+  SPOTIFY_LINK_LABEL,
+  SPOTIFY_LINK_PLACEHOLDER,
+  SpotifyLinkStatus,
+  useSpotifyLinkCheck,
+  type SpotifyCheck,
+} from "@/components/campaigns/SpotifyLinkCheck";
+import {
+  INSTAGRAM_AUDIO_LABEL,
+  INSTAGRAM_AUDIO_PLACEHOLDER,
+  InstagramAudioStatus,
+  useInstagramAudioCheck,
+  type InstagramAudioCheck,
+} from "@/components/campaigns/InstagramAudioCheck";
+import { AudioFieldNotice } from "@/components/campaigns/AudioFieldNotice";
+import {
+  audioFieldFor,
+  droppedNotice,
+  isLastingRefusal,
+  isLinkLike,
+  movedNotice,
+  type AudioField,
+  type AudioFieldNoticeValue,
+} from "@/lib/campaigns/audioLinkField";
 
 type Client = { id: string; name: string };
 
@@ -32,12 +56,25 @@ type ImportedAudio = {
 
 type PostApprovalMode = "MANUAL" | "AUTO_APPROVED";
 
+/** Which form value holds each audio field's link. */
+const FIELD_KEY = { TIKTOK: "audioUrl", INSTAGRAM: "instagramAudioUrl", SPOTIFY: "spotifyUrl" } as const;
+
+type FieldSnapshot =
+  | { field: "TIKTOK"; imported: ImportedAudio | null; importError: string | null; last: string; busy: boolean }
+  | { field: "INSTAGRAM"; check: InstagramAudioCheck }
+  | { field: "SPOTIFY"; check: SpotifyCheck };
+/** The link a paste replaced, and what had been found for it. */
+type Before = { value: string; snapshot: FieldSnapshot } | null;
+
 type WizardForm = {
   title: string;
   clientId: string;
   notes: string;
   hasAudio: boolean;
+  /** The TikTok sound. */
   audioUrl: string;
+  instagramAudioUrl: string;
+  spotifyUrl: string;
   budget: string;
   currency: WizardCurrency;
   postApprovalMode: PostApprovalMode;
@@ -202,6 +239,8 @@ export default function CampaignWizard({
     notes: "",
     hasAudio: false,
     audioUrl: "",
+    instagramAudioUrl: "",
+    spotifyUrl: "",
     budget: "",
     currency: resolveCurrency(defaultCurrency),
     postApprovalMode: "MANUAL",
@@ -226,46 +265,118 @@ export default function CampaignWizard({
     setPicture(prepared.picture);
   };
 
-  /* The same parser the server runs, so the form cannot accept a link the API
-     will reject -- and a post link is named as one before a request is made. */
-  const audioError = useMemo(() => {
-    if (!form.hasAudio) return null;
-    const raw = form.audioUrl.trim();
-    if (!raw) return null;
-    const parsed = parseSoundUrl(raw);
-    if (parsed.kind === "sound" || parsed.kind === "short-link") return null;
-    const reason = parsed.kind === "video" ? "video_url" : parsed.reason;
-    return SOUND_URL_ERRORS[reason] ?? SOUND_URL_ERRORS.unrecognised;
-  }, [form.hasAudio, form.audioUrl]);
+  /* The three links, placed and checked the moment one is pasted or a field
+     is left (lib/campaigns/audioLinkField). A link goes to the field its site
+     belongs to, whichever field it was pasted into, and is checked there: the
+     TikTok sound and the Instagram audio against their own pages, which hand
+     back the cover, title and usage shown under the field; the Spotify link
+     against Spotify. A link that can never give a number to follow -- a post,
+     original audio, an album -- is left out with a line saying why, so nothing
+     here holds Create back. A platform that did not answer keeps the link: the
+     server checks it again on create. */
+  const instagram = useInstagramAudioCheck();
+  const spotify = useSpotifyLinkCheck();
+  const { run: runInstagram, edited: instagramEdited, restore: restoreInstagram } = instagram;
+  const { run: runSpotify, edited: spotifyEdited, restore: restoreSpotify } = spotify;
+  const [notices, setNotices] = useState<Partial<Record<AudioField, AudioFieldNoticeValue>>>({});
+  const setNotice = (field: AudioField, notice: AudioFieldNoticeValue | null) =>
+    setNotices((n) => ({ ...n, [field]: notice ?? undefined }));
 
-  /* The link is edited -> whatever was imported describes a different sound.
-     Kept in one place so every path that changes the URL forgets the artwork,
-     rather than each caller remembering to. */
-  const setAudioUrl = (audioUrl: string) => {
-    setForm((f) => ({ ...f, audioUrl }));
-    setImported(null);
-    setImportError(null);
+  const instagramFound = instagram.check.status === "found" && instagram.check.raw === form.instagramAudioUrl.trim()
+    ? instagram.check.audio
+    : null;
+
+  /* The newest TikTok check wins, as in the two hooks. */
+  const tiktokSeq = useRef(0);
+  const tiktokLast = useRef("");
+
+  /* Whatever was checked for a field described a link that is no longer in it. */
+  const forgetCheck = (field: AudioField) => {
+    if (field === "TIKTOK") {
+      tiktokLast.current = "";
+      tiktokSeq.current++;
+      setImported(null);
+      setImportError(null);
+      setImporting(false);
+    } else if (field === "INSTAGRAM") {
+      instagramEdited("");
+    } else {
+      spotifyEdited("");
+    }
   };
 
-  /* Import: read the sound's own page and keep its cover.
-     Explicit rather than automatic on blur -- it is a third-party round trip,
-     and an operator pasting a link and tabbing away should not silently start
-     one. The cover it returns becomes Campaign.thumbnailUrl on submit, which is
-     what the campaigns list draws instead of the title's initials. */
-  const runImport = async () => {
-    const url = form.audioUrl.trim();
-    if (!url || audioError) return;
-    setImporting(true);
+  /* What a field showed for its link, kept when a paste replaces it so that
+     the link can be put back as it was if the paste is left out. */
+  const snapshotOf = (field: AudioField): FieldSnapshot =>
+    field === "TIKTOK"
+      ? { field, imported, importError, last: tiktokLast.current, busy: importing }
+      : field === "INSTAGRAM"
+        ? { field, check: instagram.check }
+        : { field, check: spotify.check };
+
+  const putBack = (field: AudioField, before: Before) => {
+    if (!before) {
+      forgetCheck(field);
+      return;
+    }
+    const snap = before.snapshot;
+    const settled =
+      snap.field === "TIKTOK"
+        ? !snap.busy && snap.last === before.value
+        : snap.check.status !== "checking" && snap.check.status !== "idle" && snap.check.raw === before.value;
+    if (!settled) {
+      forgetCheck(field);
+      void checkField(field, before.value, null);
+    } else if (snap.field === "TIKTOK") {
+      tiktokSeq.current++;
+      tiktokLast.current = snap.last;
+      setImported(snap.imported);
+      setImportError(snap.importError);
+      setImporting(false);
+    } else if (snap.field === "INSTAGRAM") {
+      restoreInstagram(snap.check);
+    } else {
+      restoreSpotify(snap.check);
+    }
+  };
+
+  /* Left out: the field goes back to what it held before -- empty, or the
+     link a paste tried to replace, with what was found for it. */
+  const leaveOut = (field: AudioField, reason: string | null | undefined, message: string, before: Before = null) => {
+    setForm((f) => ({ ...f, [FIELD_KEY[field]]: before?.value ?? "" }));
+    putBack(field, before);
+    setNotice(field, droppedNotice(reason, message, before !== null));
+  };
+
+  /* The TikTok sound's own page: its cover becomes Campaign.thumbnailUrl on
+     submit, which is what the campaigns list draws instead of the title's
+     initials. One read per distinct link, on paste or when the field is left;
+     it used to wait for an Import button. */
+  const checkTikTok = async (raw: string, before: Before) => {
+    if (raw === tiktokLast.current) return;
+    tiktokLast.current = raw;
+    const n = ++tiktokSeq.current;
+    setImported(null);
     setImportError(null);
+    const parsed = parseSoundUrl(raw);
+    if (parsed.kind !== "sound" && parsed.kind !== "short-link") {
+      const reason = parsed.kind === "video" ? "video_url" : parsed.reason;
+      leaveOut("TIKTOK", reason, SOUND_URL_ERRORS[reason] ?? SOUND_URL_ERRORS.unrecognised, before);
+      return;
+    }
+    setImporting(true);
     try {
       const res = await fetch("/api/campaigns/audio/resolve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url: raw }),
       });
       const body = await res.json().catch(() => null);
+      if (n !== tiktokSeq.current) return;
       if (!res.ok) {
-        setImportError(body?.message ?? "Could not read that sound.");
+        const message = body?.message ?? "Could not read that sound.";
+        if (res.status === 400 && isLastingRefusal(body?.error)) leaveOut("TIKTOK", body?.error, message, before);
+        else setImportError(message);
         return;
       }
       /* The link parsed, but TikTok had no sound under that id -- or would not
@@ -289,16 +400,85 @@ export default function CampaignWizard({
       });
       /* The link resolved but the page would not answer. Said out loud, because
          a resolved sound with no cover otherwise looks identical to one that
-         was never imported. */
+         was never read. */
       if (!body.coverImageUrl) {
         setImportError("Found the sound, but its cover art could not be read — the campaign will use its initials.");
       }
     } catch {
-      setImportError("Could not reach the server.");
+      if (n === tiktokSeq.current) setImportError("Could not reach the server.");
     } finally {
-      setImporting(false);
+      if (n === tiktokSeq.current) setImporting(false);
     }
   };
+
+  /* `before` is what the field held before this link, put back if it is left out. */
+  const checkField = async (field: AudioField, raw: string, before: Before) => {
+    if (field === "TIKTOK") return checkTikTok(raw, before);
+    const result = field === "INSTAGRAM" ? await runInstagram(raw) : await runSpotify(raw);
+    if (result?.status === "refused") leaveOut(field, result.reason, result.message, before);
+  };
+
+  /* A paste is handled here rather than left to the input, which would drop
+     the link in at the caret -- beside whatever link the field already held.
+     A field holds one link, so the pasted one takes the whole of its own
+     field, and the field it was pasted into keeps what it had when the link
+     belongs elsewhere. Text that is not a link is pasted as usual. */
+  const pasted = (into: AudioField, e: ClipboardEvent<HTMLInputElement>) => {
+    const text = e.clipboardData.getData("text").trim();
+    if (!isLinkLike(text)) return;
+    e.preventDefault();
+    const to = audioFieldFor(text);
+    if (to === null) {
+      setNotice(into, droppedNotice("not_tiktok", SOUND_URL_ERRORS.not_tiktok, form[FIELD_KEY[into]].trim() !== ""));
+      return;
+    }
+    const previous = form[FIELD_KEY[to]].trim();
+    if (previous === text) return;
+    const before: Before = previous ? { value: previous, snapshot: snapshotOf(to) } : null;
+    setForm((f) => ({ ...f, [FIELD_KEY[to]]: text }));
+    if (to !== into) setNotice(into, null);
+    setNotice(to, to === into ? null : movedNotice(into, previous !== ""));
+    void checkField(to, text, before);
+  };
+
+  /* Leaving a field: a typed link is put where it belongs, then checked. */
+  const place = (from: AudioField, value: string) => {
+    const raw = value.trim();
+    if (!raw) return;
+    const to = audioFieldFor(raw);
+    if (to === null) {
+      leaveOut(from, "not_tiktok", SOUND_URL_ERRORS.not_tiktok);
+      return;
+    }
+    if (to !== from) {
+      const replaced = form[FIELD_KEY[to]].trim() !== "" && form[FIELD_KEY[to]].trim() !== raw;
+      setForm((f) => ({ ...f, [FIELD_KEY[from]]: "", [FIELD_KEY[to]]: raw }));
+      forgetCheck(from);
+      setNotice(from, null);
+      setNotice(to, movedNotice(from, replaced));
+    }
+    void checkField(to, raw, null);
+  };
+
+  /* Typing in a field: whatever was said about it described the old text. */
+  const typed = (field: AudioField, value: string) => {
+    setForm((f) => ({ ...f, [FIELD_KEY[field]]: value }));
+    setNotice(field, null);
+    if (field === "TIKTOK") {
+      if (value.trim() !== tiktokLast.current) forgetCheck("TIKTOK");
+    } else if (field === "INSTAGRAM") {
+      instagramEdited(value);
+    } else {
+      spotifyEdited(value);
+    }
+  };
+
+  const fieldProps = (field: AudioField) => ({
+    value: form[FIELD_KEY[field]],
+    onChange: (e: ChangeEvent<HTMLInputElement>) => typed(field, e.target.value),
+    onPaste: (e: ClipboardEvent<HTMLInputElement>) => pasted(field, e),
+    onBlur: (e: FocusEvent<HTMLInputElement>) => place(field, e.target.value),
+  });
 
   /* No rate: a negotiated campaign's number is agreed with each creator.
      allowCounterOffer keeps the old form's default. */
@@ -307,6 +487,10 @@ export default function CampaignWizard({
     currency: form.currency,
     allowCounterOffer: true,
   });
+
+  /* The cover the campaign takes when no picture was chosen: the TikTok
+     sound's, else the Instagram audio's. */
+  const thumbnailFromAudio = imported?.coverImageUrl ?? instagramFound?.coverImageUrl ?? null;
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -333,14 +517,25 @@ export default function CampaignWizard({
              sound this campaign promotes. */
           typeConfig: buildTypeConfig(),
           ...(form.hasAudio && form.audioUrl.trim() ? { audioUrl: form.audioUrl.trim() } : {}),
+          ...(form.hasAudio && form.instagramAudioUrl.trim() ? { instagramAudioUrl: form.instagramAudioUrl.trim() } : {}),
+          ...(form.hasAudio && form.spotifyUrl.trim() ? { spotifyUrl: form.spotifyUrl.trim() } : {}),
           /* Not when a picture was chosen: it is saved next, and a cover
              sent here would be downloaded in the background and could land
              after it. */
-          ...(form.hasAudio && imported?.coverImageUrl && !picture ? { thumbnailUrl: imported.coverImageUrl } : {}),
+          ...(form.hasAudio && thumbnailFromAudio && !picture ? { thumbnailUrl: thumbnailFromAudio } : {}),
         }),
       });
       if (res.ok) {
         const data = await res.json();
+        /* The campaign exists either way; only the link was not kept (the
+           database cannot store one yet). Said, not swallowed, like the
+           picture below. */
+        if (data.spotifyLinked === false) {
+          toast.error("Campaign created, but the Spotify link didn't save. Add it from the campaign's audio settings.");
+        }
+        if (data.instagramLinked === false) {
+          toast.error("Campaign created, but the Instagram audio didn't save beside the TikTok sound. Add it from the campaign's audio settings.");
+        }
         if (picture) {
           const saved = await uploadCampaignThumbnail(data.id, picture);
           if (!saved.ok) {
@@ -369,7 +564,16 @@ export default function CampaignWizard({
   const budgetError =
     budgetValue !== null && (!Number.isFinite(budgetValue) || budgetValue < 0) ? "Budget can't be negative." : null;
 
-  const canCreate = form.title.trim().length > 0 && !audioError && !budgetError && !preparingPicture;
+  /* Held only while a link is being checked: its answer may still leave it
+     out, and a campaign created a moment earlier would have sent it. */
+  const checkingLink =
+    form.hasAudio && (importing || instagram.check.status === "checking" || spotify.check.status === "checking");
+
+  const canCreate =
+    form.title.trim().length > 0 &&
+    !checkingLink &&
+    !budgetError &&
+    !preparingPicture;
 
   return (
     <Modal
@@ -429,10 +633,15 @@ export default function CampaignWizard({
               type="checkbox"
               checked={form.hasAudio}
               onChange={(e) => {
-                set({ hasAudio: e.target.checked, ...(e.target.checked ? {} : { audioUrl: "" }) });
+                set({
+                  hasAudio: e.target.checked,
+                  ...(e.target.checked ? {} : { audioUrl: "", instagramAudioUrl: "", spotifyUrl: "" }),
+                });
                 if (!e.target.checked) {
-                  setImported(null);
-                  setImportError(null);
+                  forgetCheck("TIKTOK");
+                  forgetCheck("INSTAGRAM");
+                  forgetCheck("SPOTIFY");
+                  setNotices({});
                 }
               }}
             />
@@ -440,28 +649,16 @@ export default function CampaignWizard({
           </label>
           {form.hasAudio && (
             <div style={{ marginTop: 12 }}>
-              {/* The button sits on the field, not under it: importing is what
-                  you do with the link you just pasted, and putting it inline
-                  keeps the two as one control. */}
-              <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <Input
-                    label="Sound link"
-                    value={form.audioUrl}
-                    onChange={(e) => setAudioUrl(e.target.value)}
-                    placeholder="tiktok.com/music/... or instagram.com/reels/audio/..."
-                    aria-invalid={audioError !== null}
-                  />
-                </div>
-                <Button
-                  variant="secondary"
-                  onClick={runImport}
-                  loading={importing}
-                  disabled={!form.audioUrl.trim() || audioError !== null || importing}
-                >
-                  <Download size={14} /> Import
-                </Button>
-              </div>
+              <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "0 0 10px" }}>
+                Paste the song&apos;s links. Each one goes to its own field, whichever box you paste it in.
+              </p>
+              <Input
+                label="TikTok sound"
+                {...fieldProps("TIKTOK")}
+                placeholder="https://www.tiktok.com/music/…"
+                inputMode="url"
+                autoComplete="off"
+              />
 
               {imported && (
                 <div
@@ -519,20 +716,87 @@ export default function CampaignWizard({
                 </div>
               )}
 
-              {audioError ? (
-                <p role="alert" style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-danger)", margin: "6px 0 0" }}>
-                  {audioError}
-                </p>
-              ) : importError ? (
-                <p role="alert" style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-danger)", margin: "6px 0 0" }}>
-                  {importError}
-                </p>
-              ) : (
-                <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
-                  We start tracking the sound&apos;s usage from here. Import to pull its cover
-                  art in as the campaign thumbnail.
-                </p>
+              {notices.TIKTOK && <AudioFieldNotice notice={notices.TIKTOK} />}
+              {notices.TIKTOK?.tone === "dropped" && !form.audioUrl.trim() ? null : (
+                <>
+                  {importError ? (
+                    <p role="alert" style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-danger)", margin: "6px 0 0" }}>
+                      {importError}
+                      {/* TikTok sometimes does not answer one read and does the
+                          next, so asking again is offered rather than left to
+                          a retyped link. */}
+                      {!imported && form.audioUrl.trim() && (
+                        <>
+                          {" "}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              tiktokLast.current = "";
+                              void checkTikTok(form.audioUrl.trim(), null);
+                            }}
+                            style={{
+                              border: "none", background: "none", padding: 0, cursor: "pointer",
+                              font: "inherit", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-primary)",
+                              textDecoration: "underline",
+                            }}
+                          >
+                            Check again
+                          </button>
+                        </>
+                      )}
+                    </p>
+                  ) : importing ? (
+                    <p role="status" style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
+                      Checking the sound with TikTok…
+                    </p>
+                  ) : !imported ? (
+                    <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
+                      We read how many videos use the sound once a day. Its cover art becomes the campaign
+                      thumbnail.
+                    </p>
+                  ) : null}
+                </>
               )}
+
+              <div style={{ marginTop: 16, minWidth: 0 }}>
+                <Input
+                  label={INSTAGRAM_AUDIO_LABEL}
+                  {...fieldProps("INSTAGRAM")}
+                  placeholder={INSTAGRAM_AUDIO_PLACEHOLDER}
+                  inputMode="url"
+                  autoComplete="off"
+                />
+                {notices.INSTAGRAM && <AudioFieldNotice notice={notices.INSTAGRAM} />}
+                {notices.INSTAGRAM?.tone === "dropped" && !form.instagramAudioUrl.trim() ? null : (
+                  <>
+                    <InstagramAudioStatus
+                      check={instagram.check}
+                      localError={null}
+                      note={
+                        instagramFound?.coverImageUrl && !imported?.coverImageUrl
+                          ? picture
+                            ? "Your picture is used instead of this cover"
+                            : "Cover art will be the campaign thumbnail"
+                          : null
+                      }
+                    />
+                  </>
+                )}
+              </div>
+
+              <div style={{ marginTop: 16, minWidth: 0 }}>
+                <Input
+                  label={SPOTIFY_LINK_LABEL}
+                  {...fieldProps("SPOTIFY")}
+                  placeholder={SPOTIFY_LINK_PLACEHOLDER}
+                  inputMode="url"
+                  autoComplete="off"
+                />
+                {notices.SPOTIFY && <AudioFieldNotice notice={notices.SPOTIFY} />}
+                {notices.SPOTIFY?.tone === "dropped" && !form.spotifyUrl.trim() ? null : (
+                  <SpotifyLinkStatus check={spotify.check} localError={null} />
+                )}
+              </div>
             </div>
           )}
         </div>

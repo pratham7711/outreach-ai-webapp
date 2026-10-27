@@ -183,9 +183,15 @@ export default function SharedPerformanceReport({
   /* A sum over no read post is unknown, not 0 -- e.g. a campaign of Instagram
      photos, which publish no view count. */
   const viewsUnknown = kpis.viewsKnownPosts === 0 && kpis.posts > 0;
+  /* The TikTok sound leads, beside the views chart; the Instagram audio takes
+     that place when it is the song's only sound, and otherwise pairs with the
+     Spotify card in the row below. Records from before instagramAudio have no
+     such field, which reads as no Instagram audio. */
+  const firstAudio = data.audio ?? data.instagramAudio ?? null;
+  const secondAudio = data.audio ? (data.instagramAudio ?? null) : null;
   const coverSources = !hydrated
     ? []
-    : [...new Set([data.audio?.coverUrl, artworkUrl].map((u) => shareImgSrc(token, u ?? null, 302)))].filter(
+    : [...new Set([firstAudio?.coverUrl, artworkUrl].map((u) => shareImgSrc(token, u ?? null, 302)))].filter(
         (u): u is string => Boolean(u)
       );
   const cover = coverSources[coverMisses] ?? null;
@@ -337,16 +343,17 @@ export default function SharedPerformanceReport({
                   field that a link is allowed to withhold. */}
               {/* No wrapper: the report variant renders its own .spr-card, so
                   it sits in the row grid directly the way every other card does. */}
-              {data.audio ? (
-                <AudioCard audio={data.audio} shareToken={token} variant="report" />
+              {firstAudio ? (
+                <AudioCard audio={firstAudio} shareToken={token} variant="report" />
               ) : null}
             </div>
 
             {/* A row of its own: the row above pairs two cards from 1440 up,
                 and a third would sit half-width under the views chart. */}
-            {data.streams ? (
+            {secondAudio || data.streams ? (
               <div className="spr-row">
-                <SpotifyStreamsCard streams={data.streams} variant="report" />
+                {secondAudio ? <AudioCard audio={secondAudio} shareToken={token} variant="report" /> : null}
+                {data.streams ? <SpotifyStreamsCard streams={data.streams} variant="report" /> : null}
               </div>
             ) : null}
 

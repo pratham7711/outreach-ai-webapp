@@ -4,7 +4,7 @@
  * Which Spotify track a song is. A wrong match puts another artist's streams on
  * a brand's report, so what is asserted here is mostly what is refused.
  */
-import { pickSpotifyTrack, searchQueries, splitArtists, squash, type SongForMatch } from "@/lib/songs/spotifyMatch";
+import { pickSpotifyTrack, searchQueries, splitArtistTitle, splitArtists, squash, type SongForMatch } from "@/lib/songs/spotifyMatch";
 import type { SpotifyTrackHit } from "@/lib/platforms/spotifyWeb";
 
 const song = (over: Partial<SongForMatch> = {}): SongForMatch => ({
@@ -91,5 +91,52 @@ describe("pickSpotifyTrack", () => {
   it("reads past a featured-artist tail on either side", () => {
     const hits = [hit("a", "Neon Skyline (feat. Milo)", "Ava Reyes", "Milo")];
     expect(pickSpotifyTrack(song({ title: "Neon Skyline" }), hits)?.hit.id).toBe(hits[0].id);
+  });
+});
+
+describe('a title written "<artist> - <title>"', () => {
+  const mj = (over: Partial<SongForMatch> = {}) => song({ title: "Michael Jackson - Thriller", artist: "", soundArtist: null, ...over });
+
+  it("splits at the first spaced dash only, and never inside a name", () => {
+    expect(splitArtistTitle("Michael Jackson - Thriller")).toEqual({ artist: "Michael Jackson", title: "Thriller" });
+    expect(splitArtistTitle("Ava Reyes \u2013 Neon Skyline - Live")).toEqual({ artist: "Ava Reyes", title: "Neon Skyline - Live" });
+    expect(splitArtistTitle("Jay-Z")).toBeNull();
+    expect(splitArtistTitle("Neon Skyline")).toBeNull();
+    expect(splitArtistTitle("- Thriller")).toBeNull();
+  });
+
+  it("matches Thriller by Michael Jackson with no artist on the song", () => {
+    const hits = [hit("a", "Thriller", "Somebody Else"), hit("b", "Thriller", "Michael Jackson")];
+    expect(pickSpotifyTrack(mj(), hits)).toEqual({ hit: hits[1], how: "artist-exact" });
+  });
+
+  it("refuses Thriller by another artist: the written artist is the check", () => {
+    expect(pickSpotifyTrack(mj(), [hit("a", "Thriller", "Fall Out Boy")])).toBeNull();
+  });
+
+  it("is still never a match on the title alone", () => {
+    expect(pickSpotifyTrack(mj(), [hit("a", "Thriller", "Somebody Else"), hit("b", "Thriller", "Another One")])).toBeNull();
+    // Nor the whole string as a title with the sound's account as the artist.
+    expect(pickSpotifyTrack(mj({ soundArtist: "mjofficial" }), [hit("a", "Thriller", "Not Him")])).toBeNull();
+  });
+
+  it("holds the written artist to the same four-letter rule as any other", () => {
+    expect(pickSpotifyTrack(mj({ title: "Mic - Thriller" }), [hit("a", "Thriller", "Michael Jackson")])).toBeNull();
+    expect(pickSpotifyTrack(mj({ title: "Michael Jackson Official - Thriller" }), [hit("a", "Thriller", "Michael Jackson")])?.how).toBe(
+      "artist-contained"
+    );
+  });
+
+  it("still takes the whole title when that is the track's name", () => {
+    const hits = [hit("a", "Michael Jackson - Thriller", "Tribute Band")];
+    expect(pickSpotifyTrack(mj({ artist: "Tribute Band" }), hits)?.hit.id).toBe(hits[0].id);
+  });
+
+  it("searches the split title and artist as well", () => {
+    expect(searchQueries(mj())).toEqual(["Michael Jackson - Thriller", "Thriller Michael Jackson"]);
+    expect(searchQueries(mj({ soundArtist: "mjofficial" }))).toEqual([
+      "Michael Jackson - Thriller mjofficial",
+      "Thriller Michael Jackson",
+    ]);
   });
 });

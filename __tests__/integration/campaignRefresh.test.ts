@@ -15,6 +15,8 @@ import { POST as REFRESH_ALL } from '@/app/api/campaigns/[id]/refresh/route';
 jest.mock('@/lib/db', () => ({
   db: {
     campaign: { findFirst: jest.fn() },
+    // The campaign's audio: its song's TikTok and Instagram sounds (lib/songs/songSounds).
+    song: { findFirst: jest.fn() },
     post: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn(), findUnique: jest.fn() },
     creator: { update: jest.fn(), updateMany: jest.fn(), findUnique: jest.fn() },
     postMetricSnapshot: { create: jest.fn() },
@@ -74,7 +76,7 @@ const withCounts = { ...noCounts, viewsCount: 900, likesCount: 40, commentsCount
 beforeEach(() => {
   jest.clearAllMocks();
   mockAuth.mockResolvedValue(session);
-  mockDb.campaign.findFirst.mockResolvedValue({ id: 'camp-1', song: null });
+  mockDb.campaign.findFirst.mockResolvedValue({ id: 'camp-1', songId: null });
   mockDb.post.findFirst.mockResolvedValue(post);
   mockDb.post.findMany.mockResolvedValue([post]);
   /* The creator the post is filed under: the author-follower write checks its
@@ -283,16 +285,38 @@ describe('campaign-wide refresh', () => {
 
   it('refreshes the campaign audio in the same run when a sound is tracked', async () => {
     mockFetch.mockResolvedValue(withCounts);
-    mockDb.campaign.findFirst.mockResolvedValue({ id: 'camp-1', song: { soundId: 'sound-1' } });
+    mockDb.campaign.findFirst.mockResolvedValue({ id: 'camp-1', songId: 'song-1' });
+    mockDb.song.findFirst.mockResolvedValue({ sound: { id: 'sound-1', platform: 'TIKTOK' }, instagramSound: null });
 
     const res = await refreshReq();
     const body = await res.json();
 
     expect(body.measured).toBe(1);
     // Scoped to that one sound, not the whole org's trackers.
+    expect(mockSnapshot).toHaveBeenCalledTimes(1);
     expect(mockSnapshot).toHaveBeenCalledWith(
       expect.objectContaining({ orgId: 'org-1', soundId: 'sound-1' }),
     );
+    expect(body.instagramSound).toBeNull();
+  });
+
+  it('refreshes the Instagram audio beside the TikTok sound, each on its own', async () => {
+    mockFetch.mockResolvedValue(withCounts);
+    mockDb.campaign.findFirst.mockResolvedValue({ id: 'camp-1', songId: 'song-1' });
+    mockDb.song.findFirst.mockResolvedValue({
+      sound: { id: 'sound-1', platform: 'TIKTOK' },
+      instagramSound: { id: 'sound-ig', platform: 'INSTAGRAM' },
+    });
+    mockSnapshot
+      .mockResolvedValueOnce({ snapshots: 1, failed: 0, skipped: 0 })
+      .mockResolvedValueOnce({ snapshots: 0, failed: 1, skipped: 0 });
+
+    const body = await (await refreshReq()).json();
+
+    expect(mockSnapshot.mock.calls.map(([arg]) => arg.soundId)).toEqual(['sound-1', 'sound-ig']);
+    expect(mockDb.song.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'song-1', orgId: 'org-1' } }));
+    expect(body.sound).toMatchObject({ snapshots: 1 });
+    expect(body.instagramSound).toMatchObject({ failed: 1 });
   });
 
   it('leaves the audio alone when the campaign promotes no tracked sound', async () => {

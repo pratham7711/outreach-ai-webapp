@@ -50,8 +50,10 @@ type PerformanceData = {
   seriesPlatforms: string[];
   platformSplit: PlatformSplit[];
   leaderboard: LeaderboardRow[];
-  /** Null when the campaign has no song, or a song with no tracked sound. */
+  /** Null when the campaign has no song, or a song with no tracked TikTok sound. */
   audio: CampaignAudio | null;
+  /** The song's Instagram audio; absent from a report cached before it existed. */
+  instagramAudio?: CampaignAudio | null;
   /** Null when the campaign has no song; see lib/songs/streams. */
   streams: CampaignStreams | null;
 };
@@ -319,6 +321,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
       {/* A campaign that promotes no release shows nothing here at all. Give it
           one in Settings and the card appears in this slot. */}
       {data.audio ? <AudioCard audio={data.audio} /> : null}
+      {data.instagramAudio ? <AudioCard audio={data.instagramAudio} /> : null}
       {data.streams ? <SpotifyStreamsCard streams={data.streams} /> : null}
 
       <Card variant="outlined" style={{ padding: 24 }}>

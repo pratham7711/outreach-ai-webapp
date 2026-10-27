@@ -7,12 +7,12 @@
  * (walkthrough 2026-10-13, A1#11).
  */
 jest.mock("@/lib/auth", () => ({ auth: jest.fn() }));
-jest.mock("@/lib/campaigns/audioLink", () => ({ identifyAudioLink: jest.fn() }));
+jest.mock("@/lib/campaigns/audioLink", () => ({ identifyAudioLink: jest.fn(), checkInstagramAudio: jest.fn() }));
 jest.mock("@/lib/platforms/tiktokAudioUsage", () => ({ readOneTikTokAudioUsage: jest.fn() }));
 
 import { POST } from "@/app/api/campaigns/audio/resolve/route";
 import { auth } from "@/lib/auth";
-import { identifyAudioLink } from "@/lib/campaigns/audioLink";
+import { checkInstagramAudio, identifyAudioLink } from "@/lib/campaigns/audioLink";
 import { readOneTikTokAudioUsage } from "@/lib/platforms/tiktokAudioUsage";
 
 const resolveAs = (platform: "TIKTOK" | "INSTAGRAM", provisionalTitle: string | null) =>
@@ -56,9 +56,42 @@ it("keeps the title and reading for a sound TikTok answered for", async () => {
   expect(body).toMatchObject({ verified: true, provisionalTitle: "Roots", artist: "Artist", usesCount: 42 });
 });
 
-it("does not claim to have checked an Instagram audio id it cannot read", async () => {
-  resolveAs("INSTAGRAM", null);
-  const body = await (await call()).json();
-  expect(body.verified).toBeNull();
-  expect(readOneTikTokAudioUsage).not.toHaveBeenCalled();
+describe("an Instagram audio", () => {
+  beforeEach(() => resolveAs("INSTAGRAM", null));
+
+  it("is verified with Instagram's own title, artist, cover and reel count", async () => {
+    (checkInstagramAudio as jest.Mock).mockResolvedValue({
+      ok: true,
+      reading: { usesCount: 2_000_000, precision: "rounded", title: "Runaway", artist: "AURORA", coverImageUrl: "https://example.com/ig.jpg" },
+    });
+    const res = await call();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      platform: "INSTAGRAM",
+      soundId: "7400000000000000009",
+      verified: true,
+      provisionalTitle: "Runaway",
+      artist: "AURORA",
+      coverImageUrl: "https://example.com/ig.jpg",
+      usesCount: 2_000_000,
+      usesRounded: true,
+    });
+    expect(checkInstagramAudio).toHaveBeenCalledWith("7400000000000000009");
+    expect(readOneTikTokAudioUsage).not.toHaveBeenCalled();
+  });
+
+  it("does not claim to have checked one Instagram did not answer for", async () => {
+    (checkInstagramAudio as jest.Mock).mockResolvedValue({ ok: true, reading: null });
+    const body = await (await call()).json();
+    expect(body).toMatchObject({ platform: "INSTAGRAM", verified: null, provisionalTitle: null, usesCount: null, usesRounded: false });
+  });
+
+  it("refuses one Instagram has no such audio for, or that publishes no count", async () => {
+    for (const reason of ["instagram_audio_not_found", "instagram_audio_no_count"]) {
+      (checkInstagramAudio as jest.Mock).mockResolvedValue({ ok: false, reason, message: `msg ${reason}` });
+      const res = await call();
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ error: reason, message: `msg ${reason}` });
+    }
+  });
 });

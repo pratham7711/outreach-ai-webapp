@@ -5,6 +5,9 @@ import { campaignScopeWhereFor } from "@/lib/campaignScope";
 import { computeCampaignPerformance, loadCampaignAudio, type CampaignAudio, type CampaignPerformance } from "@/lib/reports/campaignPerformance";
 import { storedSoundCoverVersions } from "@/lib/sounds/coverStore";
 import { soundCoverPath } from "@/lib/postMedia";
+import { readSongSpotifyLink, songLinksReady } from "@/lib/songs/songLinks";
+import { readSongSoundIds, readSongSounds } from "@/lib/songs/songSounds";
+import { spotifyTrackLink } from "@/lib/songs/spotifyLink";
 
 /**
  * The audio card's cover from our own copy where there is one
@@ -37,7 +40,7 @@ export async function GET(
        else, including OWNER/ADMIN and machine callers. */
     const campaign = await db.campaign.findFirst({
       where: { id, orgId, deletedAt: null, ...campaignScopeWhereFor(result) },
-      select: { id: true, orgId: true, budget: true, currency: true, song: { select: { soundId: true } } },
+      select: { id: true, orgId: true, budget: true, currency: true, song: { select: { id: true } } },
     });
     if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
 
@@ -46,8 +49,37 @@ export async function GET(
        row, the views series and a year of the sound's readings -- so it gets
        the same loader the report uses, minus the chart. */
     if (req.nextUrl.searchParams.get("only") === "audio") {
-      const audio = await loadCampaignAudio(campaign.id, campaign.orgId, { series: false });
-      return NextResponse.json({ audio: await withStoredCover(audio, campaign.song?.soundId, campaign.orgId) });
+      /* The panel's Spotify field too: the song's linked track, read on its
+         own so a database without the link columns answers "not linked"
+         (ready: false) and the sounds above it still load. `sharedWith` is how
+         many other campaigns promote the same song, which every change in the
+         panel reaches too. */
+      const songId = campaign.song?.id ?? null;
+      const [audios, link, sounds, sharedWith] = await Promise.all([
+        loadCampaignAudio(campaign.id, campaign.orgId, { series: false }),
+        /* No song yet: a save would create one, which needs the column too. */
+        songId
+          ? readSongSpotifyLink(campaign.orgId, songId)
+          : songLinksReady(campaign.orgId).then((ready) => ({ ready, trackId: null })),
+        readSongSounds(campaign.orgId, songId),
+        songId
+          ? db.campaign.count({ where: { orgId: campaign.orgId, songId, deletedAt: null, id: { not: campaign.id } } })
+          : 0,
+      ]);
+      return NextResponse.json({
+        audio: await withStoredCover(audios.audio, sounds.tiktok?.id, campaign.orgId),
+        instagramAudio: await withStoredCover(audios.instagramAudio, sounds.instagram?.id, campaign.orgId),
+        /* False while the Instagram slot cannot be written: an older song's
+           Instagram audio still shows above, it just cannot sit beside a
+           TikTok sound yet. */
+        instagramReady: sounds.ready,
+        sharedWith,
+        spotify: {
+          ready: link.ready,
+          trackId: link.trackId,
+          url: link.trackId ? spotifyTrackLink(link.trackId) : null,
+        },
+      });
     }
 
     /* Everything but the per-post rows. The Performance tab renders kpis, the
@@ -55,9 +87,14 @@ export async function GET(
        this response on the largest campaign (403,341 of 412,880 bytes) and
        nothing here read it. The share page, its PDF and the export call
        computeCampaignPerformance directly and still get every row. */
-    const performance: Partial<CampaignPerformance> = { ...(await computeCampaignPerformance(campaign)) };
+    const [computed, soundIds] = await Promise.all([
+      computeCampaignPerformance(campaign),
+      readSongSoundIds(campaign.orgId, campaign.song?.id),
+    ]);
+    const performance: Partial<CampaignPerformance> = { ...computed };
     delete performance.posts;
-    performance.audio = await withStoredCover(performance.audio, campaign.song?.soundId, campaign.orgId);
+    performance.audio = await withStoredCover(performance.audio, soundIds.tiktok, campaign.orgId);
+    performance.instagramAudio = await withStoredCover(performance.instagramAudio, soundIds.instagram, campaign.orgId);
     return NextResponse.json(performance);
   } catch (error) {
     console.error("Failed to fetch campaign performance:", error);

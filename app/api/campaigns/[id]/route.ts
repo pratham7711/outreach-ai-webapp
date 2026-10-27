@@ -16,7 +16,11 @@ import { STATUS_DEF_SELECT, defaultStatusDefFor } from "@/lib/campaigns/statusDe
 import { primeSongAudio } from "@/lib/sounds/snapshot";
 import { captureCampaignThumbnail } from "@/lib/campaigns/thumbnailCopy";
 import { isUploadedThumbnailUrl } from "@/lib/campaigns/uploadedPicture";
-import { ensureSongForAudio, identifyAudioLink } from "@/lib/campaigns/audioLink";
+import { checkInstagramAudio, createSongForSpotifyLink, ensureSongForAudio, ensureSound, identifyAudioLink } from "@/lib/campaigns/audioLink";
+import { clearSongSound, readSongSounds, setSongSound } from "@/lib/songs/songSounds";
+import { resolveSpotifyLink } from "@/lib/songs/spotifyLinkResolve";
+import { SPOTIFY_LINK_UNAVAILABLE, readSongSpotifyLink, songLinksReady, type SpotifyLinkSave } from "@/lib/songs/songLinks";
+import { applySongSpotifyLink } from "@/lib/songs/spotifyLinkApply";
 import { ROSTER_CREATOR_SELECT, buildRoster, summarizeCampaignPosts } from "@/lib/campaigns/detailSummary";
 import { withoutImportCopy } from "@/lib/serialization/importCopy";
 import { followersTimesFor } from "@/lib/creators/followersTimes";
@@ -53,6 +57,14 @@ const updateCampaignSchema = z.object({
      sound a week later had to rebuild the campaign, so live campaigns simply
      went without, and their client reports showed no audio at all. */
   audioUrl: z.string().trim().min(1).max(2048).optional(),
+  /* Takes one platform's sound off the campaign's song, leaving the other
+     sound and the Spotify link where they are. */
+  removeAudio: z.enum(["TIKTOK", "INSTAGRAM"]).optional(),
+  /* The song's Spotify track link, from the campaign's audio settings. Empty
+     or null clears it, and the song goes back to being matched by title and
+     artist. It is stored on the campaign's song, so every campaign promoting
+     that song reads the same track. */
+  spotifyUrl: z.string().trim().max(2048).nullable().optional(),
   folderId: z.string().nullable().optional(),
   // The org's own named status. It travels with `status`, which stays the bucket
   // every list and report filters on.
@@ -245,7 +257,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { regenerateInviteCode, contentAssetsUrl, submissionDeadline, ratePerThousand, audioUrl, ...rest } =
+    const { regenerateInviteCode, contentAssetsUrl, submissionDeadline, ratePerThousand, audioUrl, removeAudio, spotifyUrl, ...rest } =
       parsed.data;
 
     /* An uploaded picture changes only through its own route (./thumbnail).
@@ -275,6 +287,29 @@ export async function PATCH(
       return NextResponse.json({ error: `${label} not found` }, { status: 404 });
     }
 
+    /* The Spotify link is settled before anything is written: a bad link is a
+       400 that names it, and a database without the link column is a 503
+       that says so -- either way the campaign is left exactly as it was,
+       rather than half-saved without the link the operator just pressed Save
+       for. `undefined` means the body did not mention it. */
+    let spotifyTrackId: string | null | undefined;
+    if (spotifyUrl !== undefined) {
+      if (spotifyUrl) {
+        const link = await resolveSpotifyLink(spotifyUrl);
+        if (!link.ok) return NextResponse.json({ error: link.reason, message: link.message }, { status: 400 });
+        spotifyTrackId = link.trackId;
+      } else {
+        spotifyTrackId = null;
+      }
+      if (!(await songLinksReady(orgId))) {
+        return NextResponse.json({ error: "spotify_link_unavailable", message: SPOTIFY_LINK_UNAVAILABLE }, { status: 503 });
+      }
+    }
+
+    if (audioUrl !== undefined && removeAudio) {
+      return NextResponse.json({ error: "Invalid input", message: "Add or remove a sound, not both at once." }, { status: 400 });
+    }
+
     /* Parsed before anything is written, so a bad link is a 400 that names the
        problem rather than a silent no-op on a campaign the operator thinks now
        carries audio. Only the parse happens here: a short link is resolved by
@@ -289,12 +324,62 @@ export async function PATCH(
           { status: 400 }
         );
       }
+      let audio = parsedAudio.audio;
+      /* Instagram answers 200 for an id that is no audio, and publishes no
+         count for original audio; either would be a card that never fills. */
+      if (audio.platform === "INSTAGRAM") {
+        const checked = await checkInstagramAudio(audio.tiktokSoundId);
+        if (!checked.ok) return NextResponse.json({ error: checked.reason, message: checked.message }, { status: 400 });
+        if (checked.reading?.title && !audio.provisionalTitle) audio = { ...audio, provisionalTitle: checked.reading.title };
+      }
+      const linksReady = await songLinksReady(orgId);
+      const fallbackTitle = rest.title ?? existing.title;
       /* One transaction for the pair, for the reason the create route gives: a
          TikTokSound is a standing instruction to fetch a page on a schedule, so
-         an orphaned one keeps costing something. */
-      audioSongId = await db.$transaction((tx) =>
-        ensureSongForAudio(tx, orgId, parsedAudio.audio, rest.title ?? existing.title)
-      );
+         an orphaned one keeps costing something.
+
+         A campaign that already has a song keeps it: the sound goes in its own
+         platform's slot there, beside the other platform's sound and the
+         Spotify link, which used to be left behind on the old song when the
+         campaign was moved to the new sound's. Without the link columns, or
+         without a song, it is found-or-made by the sound as it always was. */
+      audioSongId = await db.$transaction(async (tx) => {
+        if (linksReady && existing.songId) {
+          const sound = await ensureSound(tx, orgId, audio, fallbackTitle);
+          if ((await setSongSound(tx, orgId, existing.songId, sound)) !== "no-song") return existing.songId;
+        }
+        return ensureSongForAudio(tx, orgId, audio, fallbackTitle, { linksReady });
+      });
+    }
+
+    /* Removing one platform's sound. When the song would be left with nothing
+       -- no other sound, no Spotify link -- the campaign is detached from it
+       instead, exactly as Remove always did, so a song other campaigns share
+       keeps its sound. Without the link columns there is only one sound to
+       remove, and detaching is still the answer. */
+    let detachSong = false;
+    if (removeAudio && existing.songId) {
+      const [sounds, link] = await Promise.all([
+        readSongSounds(orgId, existing.songId),
+        readSongSpotifyLink(orgId, existing.songId),
+      ]);
+      const target = removeAudio === "TIKTOK" ? sounds.tiktok : sounds.instagram;
+      const other = removeAudio === "TIKTOK" ? sounds.instagram : sounds.tiktok;
+      if (target) {
+        if (!sounds.ready || (other === null && link.trackId === null)) detachSong = true;
+        else await clearSongSound(db, orgId, existing.songId, removeAudio);
+      }
+    }
+
+    /* The song the link goes on: the one this request leaves the campaign
+       pointing at. A campaign with no song gets one for the link, as a
+       campaign created with only a Spotify link does. */
+    let spotifySongId: string | null = null;
+    if (spotifyTrackId !== undefined) {
+      spotifySongId = audioSongId ?? (rest.songId !== undefined ? rest.songId : existing.songId);
+      if (!spotifySongId && spotifyTrackId) {
+        spotifySongId = await createSongForSpotifyLink(db, orgId, rest.title ?? existing.title);
+      }
     }
 
     // Build the update payload; marketplace side-effects (slug, invite code) are
@@ -313,6 +398,8 @@ export async function PATCH(
       // After the spread: a link that resolved is the caller's newest intent and
       // wins over a songId sent in the same body.
       ...(audioSongId ? { songId: audioSongId } : {}),
+      ...(spotifySongId && spotifySongId !== audioSongId ? { songId: spotifySongId } : {}),
+      ...(detachSong ? { songId: null } : {}),
     };
 
     /* A campaign never sits without a named status. The caller keeps the one it
@@ -405,6 +492,14 @@ export async function PATCH(
       }
     }
 
+    /* After the campaign write and outside any transaction, like the create
+       route; the first reading, when the link changed on an open campaign, is
+       scheduled in there. */
+    let spotifySaved: SpotifyLinkSave | null = null;
+    if (spotifyTrackId !== undefined && spotifySongId) {
+      spotifySaved = await applySongSpotifyLink(orgId, spotifySongId, spotifyTrackId, campaign.status);
+    }
+
     /* A new picture is copied while its link still draws (lib/campaigns/
        thumbnailCopy); the copy is what the list and the client report show. */
     if (campaign.thumbnailUrl && rest.thumbnailUrl !== undefined && campaign.thumbnailUrl !== existing.thumbnailUrl) {
@@ -436,10 +531,18 @@ export async function PATCH(
         status: campaign.status,
         campaignType: campaign.campaignType,
         budget: campaign.budget,
+        ...(spotifyTrackId !== undefined ? { spotifyTrackId } : {}),
       },
     });
 
-    return NextResponse.json({ ...campaign, typeConfig: withoutImportCopy(campaign.typeConfig) });
+    if (spotifySaved === "unavailable") {
+      return NextResponse.json({ error: "spotify_link_unavailable", message: SPOTIFY_LINK_UNAVAILABLE }, { status: 503 });
+    }
+    return NextResponse.json({
+      ...campaign,
+      typeConfig: withoutImportCopy(campaign.typeConfig),
+      ...(spotifyTrackId !== undefined ? { spotifyTrackId: spotifySongId ? spotifyTrackId : null } : {}),
+    });
   } catch (error) {
     console.error("Failed to update campaign:", error);
     return NextResponse.json(

@@ -4,6 +4,7 @@ import { syncPost } from "@/lib/sync/syncPost";
 import type { FetchReason } from "@/lib/platforms/fetchPostMetrics";
 import { openTikTokPostFetcher } from "@/lib/platforms/tiktokEgress";
 import { snapshotSounds } from "@/lib/sounds/snapshot";
+import { readSongSoundIds } from "@/lib/songs/songSounds";
 import { createLogger } from "@/lib/observability/logger";
 import { measuredFields } from "@/lib/metricDisplay";
 import { VIEWS_UNAVAILABLE } from "@/lib/refreshSummary";
@@ -244,6 +245,7 @@ export type RefreshTally = {
   remaining: number;
   reasons: Record<string, number>;
   sound: unknown;
+  instagramSound: unknown;
   nextRefreshAt: string;
   /** Posts still worth another window. Zero means the run is genuinely done. */
   continuable: number;
@@ -309,7 +311,7 @@ export async function refreshCampaign(input: {
 
   const campaign = await db.campaign.findFirst({
     where: { id: campaignId, orgId, deletedAt: null },
-    select: { id: true, song: { select: { soundId: true } } },
+    select: { id: true, songId: true },
   });
   if (!campaign) return { ok: false, reason: "not-found" };
 
@@ -599,10 +601,14 @@ export async function refreshCampaign(input: {
     if (remaining > 0) log.warn("time budget reached; stopping early", { remaining });
 
     // The campaign's audio is part of "the campaign's data", and it comes from
-    // the same blocked-or-not TikTok as the posts, so it belongs in this run.
-    const soundId = campaign.song?.soundId ?? null;
-    const sound = soundId
-      ? await snapshotSounds({ orgId, soundId, deadlineMs: 15 * 1000 })
+    // the same blocked-or-not TikTok as the posts, so it belongs in this run --
+    // and its Instagram audio with it, which is one page fetch.
+    const songSounds = await readSongSoundIds(orgId, campaign.songId);
+    const sound = songSounds.tiktok
+      ? await snapshotSounds({ orgId, soundId: songSounds.tiktok, deadlineMs: 15 * 1000 })
+      : null;
+    const instagramSound = songSounds.instagram
+      ? await snapshotSounds({ orgId, soundId: songSounds.instagram, deadlineMs: 15 * 1000 })
       : null;
 
     /* One line carrying the whole shape of the run. Until this existed the only
@@ -665,7 +671,7 @@ export async function refreshCampaign(input: {
         measured: alreadyMeasured + measured,
         noMetrics, unfetchable, failed,
         remaining: Math.max(0, runTotal - (alreadyMeasured + completed)),
-        reasons, sound,
+        reasons, sound, instagramSound,
         nextRefreshAt: new Date(run.startedAt.getTime() + REFRESH_COOLDOWN_MS).toISOString(),
         continuable,
         continuing,

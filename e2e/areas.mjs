@@ -35,6 +35,7 @@ export const AREAS = {
       "campaigns.spec.ts",
       "campaigns-detail.spec.ts",
       "calendar.spec.ts",
+      "campaign-audio.spec.ts",
     ],
     sources: [
       "app/(dashboard)/campaigns/",
@@ -65,6 +66,13 @@ export const AREAS = {
       "app/api/platform/unseal-misfired-ttl/",
       // The MCP server: no spec drives it; campaigns and their posts are what it reads.
       "app/api/mcp/",
+      /* The Spotify link on a campaign's song: checked from the New Campaign
+         form and the campaign's audio settings, and the one-off DDL for its
+         column and the Instagram audio's.
+         The check route also sits under app/api/songs/, so it runs the songs
+         area too. */
+      "app/api/songs/spotify-check/",
+      "app/api/admin/migrate-song-links/",
     ],
   },
   analytics: {

@@ -275,8 +275,9 @@ export function soundCoverPath(soundId: string, version: number): string {
   return `/api/sounds/${encodeURIComponent(soundId)}/cover?v=${version}`;
 }
 
-export function shareSoundCoverPath(token: string, version: number): string {
-  return `/api/share/${encodeURIComponent(token)}/sound-cover?v=${version}`;
+/** `instagram` names the song's Instagram audio; without it, the sound in its first slot (the header's). */
+export function shareSoundCoverPath(token: string, version: number, which?: "instagram"): string {
+  return `/api/share/${encodeURIComponent(token)}/sound-cover?v=${version}${which ? `&p=${which}` : ""}`;
 }
 
 /**

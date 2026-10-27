@@ -35,7 +35,7 @@ jest.mock("@/lib/db", () => ({
 }));
 
 const keys: string[][] = [];
-let audioRow: { song: string | null; sound_at: Date | null } = { song: null, sound_at: null };
+let audioRow: { song: string | null; sound_at: Date | null; song_at?: Date | null } = { song: null, sound_at: null };
 let postRow: { posts: bigint; synced: Date | null; views: string | null; removed?: Date | null } = { posts: BigInt(0), synced: null, views: null };
 const postStampSql: string[] = [];
 let streamsAnswer: () => Promise<{ streams_at: Date | null; streams_n?: number | null }[]> = () => Promise.resolve([{ streams_at: null }]);
@@ -130,6 +130,17 @@ it("keeps the key stable when nothing about the audio moved", async () => {
 
   // Otherwise the hour of caching this key exists to buy is spent on every view.
   expect(keys[0]).toEqual(keys[1]);
+});
+
+/* A Spotify link set in Settings changes the card's "Linked on the campaign"
+   line before any reading lands; the save moves the song's updatedAt. */
+it("moves the key when the song's Spotify link is saved", async () => {
+  audioRow = { song: "song-1", sound_at: null, song_at: new Date("2026-10-20T00:00:00Z") };
+  await computeCampaignPerformance(campaign);
+  audioRow = { song: "song-1", sound_at: null, song_at: new Date("2026-10-25T09:00:00Z") };
+  await computeCampaignPerformance(campaign);
+
+  expect(keys[0]).not.toEqual(keys[1]);
 });
 
 /* The Spotify readings land once a day and touch no Post either, so the key

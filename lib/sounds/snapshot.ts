@@ -3,6 +3,7 @@ import { isCoverUrlStale } from "@/lib/sounds/coverUrl";
 import { captureSoundCover } from "@/lib/sounds/coverStore";
 import { readTikTokAudioUsage, isMeasuredRung } from "@/lib/platforms/tiktokAudioUsage";
 import { readInstagramAudioUsage } from "@/lib/platforms/instagramAudioUsage";
+import { readSongSoundIds } from "@/lib/songs/songSounds";
 import { createLogger } from "@/lib/observability/logger";
 import { ABANDON_AFTER_DEADLINE_MS, waitUntil } from "@/lib/ops/waitUntil";
 import { holdSoundReading } from "@/lib/trackers/metrics";
@@ -457,7 +458,8 @@ export function soundMetadataPatch(
  * The first reading for a campaign's audio, taken when the audio is attached
  * rather than at 04:00 the next morning.
  *
- * Attaching a TikTok sound used to create the tracker row and stop there, so
+ * Both of the song's sounds, TikTok and Instagram, each only if it has never
+ * been read. Attaching a TikTok sound used to create the tracker row and stop there, so
  * the campaign's audio card -- and the client report built from it -- showed an
  * em dash for uses until a cron happened to run. For a link an operator sends a
  * brand the same afternoon, that is the whole first impression of the feature.
@@ -476,18 +478,26 @@ export async function primeSongAudio(
 
   const song = await db.song.findFirst({
     where: { id: songId, orgId, deletedAt: null },
-    select: { soundId: true },
-  });
-  if (!song?.soundId) return null;
-
-  const already = await db.soundTrackerSnapshot.findFirst({
-    where: { soundId: song.soundId },
     select: { id: true },
   });
-  if (already) return null;
+  if (!song) return null;
 
-  /* Well inside a function's ceiling even when the direct read misses and the
-     sandbox rung has to boot, and short enough that an `after()` callback is
-     not what keeps the invocation alive. */
-  return snapshotSounds({ orgId, soundId: song.soundId, deadlineMs: 25 * 1000 });
+  /* Both of the song's sounds: its TikTok one and its Instagram audio. An
+     Instagram read is one page fetch, so it goes first and cannot be starved
+     by a TikTok read that has to boot a sandbox. */
+  const ids = await readSongSoundIds(orgId, song.id);
+  let last: SnapshotResult | null = null;
+  for (const soundId of [ids.instagram, ids.tiktok]) {
+    if (!soundId) continue;
+    const already = await db.soundTrackerSnapshot.findFirst({
+      where: { soundId },
+      select: { id: true },
+    });
+    if (already) continue;
+    /* Well inside a function's ceiling even when the direct read misses and the
+       sandbox rung has to boot, and short enough that an `after()` callback is
+       not what keeps the invocation alive. */
+    last = await snapshotSounds({ orgId, soundId, deadlineMs: 25 * 1000 });
+  }
+  return last;
 }

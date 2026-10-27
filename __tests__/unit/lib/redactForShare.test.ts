@@ -166,12 +166,20 @@ describe("redactForShare — removed posts", () => {
       lastDay: 350,
       sinceFirst: { streams: 600, fromDay: "2026-10-15", days: 2 },
       daily: [{ day: "2026-10-17", streams: 350 }],
+      trackSource: null,
       note: null,
     };
 
     it("carries a reading to the link whatever the creator settings", () => {
       const withStreams = { ...(data as object), streams } as never;
       expect(redactForShare(withStreams, { showCreators: false }).streams).toEqual(streams);
+    });
+
+    it("never says how the track was found", () => {
+      for (const trackSource of ["linked", "matched"]) {
+        const withSource = { ...(data as object), streams: { ...streams, trackSource } } as never;
+        expect(redactForShare(withSource, OPEN).streams).toEqual(streams);
+      }
     });
 
     it("sends nothing before the first reading, and never the team's note", () => {

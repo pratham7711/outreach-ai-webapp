@@ -358,27 +358,47 @@ model Song {
   /// The TikTok sound this release is promoted with, if one is tracked. It hangs
   /// off the song rather than off the campaign because the usage curve belongs to
   /// the audio: three campaigns pushing the same release read the same tracker,
-  /// and none of them owns it.
+  /// and none of them owns it. Songs from before instagramSoundId may hold an
+  /// Instagram sound here; readers sort the two by the sound's own platform
+  /// (lib/songs/songSounds.ts).
   soundId String?
+
+  /// The Instagram audio the same release is promoted with, beside its TikTok
+  /// sound rather than instead of it. Arrives with spotifyTrackId, after the
+  /// code, so it is read and written only where that window is handled
+  /// (lib/songs/songLinkDdl.ts).
+  instagramSoundId String?
+
+  /// The song's Spotify track, when someone pasted its link on the campaign
+  /// (lib/songs/spotifyLink.ts). The daily read takes this track and never
+  /// searches; without it the track is matched by title and artist. Production
+  /// runs the code before this column exists, so every read and write of it
+  /// goes through lib/songs/songLinks.ts, which treats a missing column as
+  /// "no link" (DDL: /api/admin/migrate-song-links).
+  spotifyTrackId String?
 
   org            Organization         @relation(fields: [orgId], references: [id])
   campaigns      Campaign[]
-  sound          TikTokSound?         @relation(fields: [soundId], references: [id])
+  sound          TikTokSound?         @relation("SongSound", fields: [soundId], references: [id])
+  instagramSound TikTokSound?         @relation("SongInstagramSound", fields: [instagramSoundId], references: [id])
   streamReadings SongStreamSnapshot[]
 
   @@index([orgId])
   @@index([orgId, deletedAt])
   @@index([soundId])
+  @@index([instagramSoundId])
 }
 
 /// One reading a day of a song's Spotify play count, taken by the
 /// snapshot-song-streams cron (lib/songs/streamSnapshot.ts). Daily streams are
 /// the difference between two consecutive days' counts.
 ///
-/// The Spotify track is found by the cron from the song's ISRC, or its title and
-/// artist, and is carried on every row rather than on Song, so Song itself has
-/// no new column. A day the read failed still gets a row, with `failure` set and
-/// no count, so the cron does not try that song again the same day.
+/// The Spotify track is the one linked on the song (Song.spotifyTrackId) or,
+/// without a link, the one the cron finds from the song's ISRC or its title and
+/// artist. It is carried on every row, so a song whose link changes keeps the
+/// old track's readings and starts a new history. A day the read failed still
+/// gets a row, with `failure` set and no count, so the cron does not try that
+/// song again the same day; a count Spotify hides is such a day too.
 model SongStreamSnapshot {
   id             String   @id @default(cuid())
   songId         String
@@ -1318,7 +1338,8 @@ model TikTokSound {
 
   org       Organization           @relation(fields: [orgId], references: [id])
   snapshots SoundTrackerSnapshot[]
-  songs     Song[]
+  songs     Song[]                 @relation("SongSound")
+  instagramSongs Song[]            @relation("SongInstagramSound")
   cover     SoundCover?
 
   /// The tenant key: every trackers page and the sound sweep filter on it.

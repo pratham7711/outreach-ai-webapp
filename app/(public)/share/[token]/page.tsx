@@ -9,6 +9,7 @@ import SharedPerformanceReport from "./SharedPerformanceReport";
 import { BRAND } from "@/lib/brand";
 import { withStoredShareThumbnails } from "@/lib/posts/thumbnailStore";
 import { storedSoundCoverVersions } from "@/lib/sounds/coverStore";
+import { readSongSoundIds } from "@/lib/songs/songSounds";
 import { shareArtworkPath, shareSoundCoverPath } from "@/lib/postMedia";
 import { storedCampaignThumbnails } from "@/lib/campaigns/thumbnailCopy";
 
@@ -33,6 +34,7 @@ const loadShareLink = cache((token: string) =>
           currency: true,
           status: true,
           thumbnailUrl: true,
+          songId: true,
           song: CAMPAIGN_ARTWORK_INCLUDE,
           org: { select: { name: true } },
         },
@@ -135,20 +137,36 @@ export default async function SharedReportPage({
      and keeps the links behind them, so the header still has a fallback if a
      copy cannot be served. */
   const campaign = link.campaign;
+  /* The sound in the song's first slot leads the header (campaignArtwork);
+     the two cards each take their own sound's copy. On an older song whose
+     only sound is an Instagram audio, that one sound is both. */
   const soundId = campaign.song?.sound?.id;
-  const [coverVersion, thumbnailCopy] = await Promise.all([
-    soundId ? storedSoundCoverVersions([soundId], campaign.orgId).then((m) => m.get(soundId)) : undefined,
+  const songSounds = await readSongSoundIds(campaign.orgId, campaign.songId);
+  const coverIds = [...new Set([soundId, songSounds.tiktok, songSounds.instagram].filter((id): id is string => !!id))];
+  const [coverVersions, thumbnailCopy] = await Promise.all([
+    coverIds.length ? storedSoundCoverVersions(coverIds, campaign.orgId) : new Map<string, number>(),
     storedCampaignThumbnails([campaign], campaign.orgId).then((m) => m.get(campaign.id)),
   ]);
+  const coverVersion = soundId ? coverVersions.get(soundId) : undefined;
+  const coverPath = (id: string | null): string | null => {
+    const version = id ? coverVersions.get(id) : undefined;
+    if (!id || version === undefined) return null;
+    return id === soundId ? shareSoundCoverPath(token, version) : shareSoundCoverPath(token, version, "instagram");
+  };
   const withThumbnails = await withStoredShareThumbnails(redactForShare(performance, visibility), {
     token,
     orgId: link.campaign.orgId,
     showCreators: visibility.showCreators,
   });
-  const data =
-    withThumbnails.audio && coverVersion !== undefined
-      ? { ...withThumbnails, audio: { ...withThumbnails.audio, coverUrl: shareSoundCoverPath(token, coverVersion) } }
-      : withThumbnails;
+  const audioCover = withThumbnails.audio ? coverPath(songSounds.tiktok) : null;
+  const instagramCover = withThumbnails.instagramAudio ? coverPath(songSounds.instagram) : null;
+  const data = {
+    ...withThumbnails,
+    ...(withThumbnails.audio && audioCover ? { audio: { ...withThumbnails.audio, coverUrl: audioCover } } : {}),
+    ...(withThumbnails.instagramAudio && instagramCover
+      ? { instagramAudio: { ...withThumbnails.instagramAudio, coverUrl: instagramCover } }
+      : {}),
+  };
 
   return (
     <>

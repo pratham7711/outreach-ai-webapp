@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { identifyAudioLink } from "@/lib/campaigns/audioLink";
+import { checkInstagramAudio, identifyAudioLink } from "@/lib/campaigns/audioLink";
 import { readOneTikTokAudioUsage } from "@/lib/platforms/tiktokAudioUsage";
 import { permissionDenial } from "@/lib/authz";
 
@@ -48,21 +48,36 @@ export async function POST(req: Request) {
 
      readOneTikTokAudioUsage is the shared ladder: one embed fetch on a healthy
      read, and a sandbox only if that came back empty -- which is what makes it
-     affordable on a button press. It is TikTok-only; an Instagram audio link
-     resolves to an id with no page we can read, so it comes back without
-     artwork rather than paying a timeout to find that out again. */
-  const stats =
-    result.audio.platform === "TIKTOK"
-      ? await readOneTikTokAudioUsage(result.audio.tiktokSoundId).catch(() => null)
-      : null;
+     affordable on a button press. */
+  if (result.audio.platform === "INSTAGRAM") {
+    /* Instagram's audio page publishes its title, artist, cover and use count
+       in the Open Graph block a link preview gets (lib/platforms/
+       instagramAudioPage). No such audio, and original audio with no count,
+       are refused here exactly as attaching it would refuse them. */
+    const checked = await checkInstagramAudio(result.audio.tiktokSoundId);
+    if (!checked.ok) return NextResponse.json({ error: checked.reason, message: checked.message }, { status: 400 });
+    const ig = checked.reading;
+    return NextResponse.json({
+      platform: "INSTAGRAM",
+      soundId: result.audio.tiktokSoundId,
+      // Null: Instagram did not answer, so nothing is confirmed either way.
+      verified: ig ? true : null,
+      provisionalTitle: ig?.title ?? null,
+      artist: ig?.artist ?? null,
+      coverImageUrl: ig?.coverImageUrl ?? null,
+      usesCount: ig?.usesCount ?? null,
+      usesRounded: ig ? ig.precision === "rounded" : false,
+    });
+  }
+
+  const stats = await readOneTikTokAudioUsage(result.audio.tiktokSoundId).catch(() => null);
   const reading = stats?.ok ? stats.stats : null;
-  /* Whether the platform confirmed the sound exists: true when TikTok's own
-     page answered, false when it was asked and nothing came back, null when
-     there is nothing to ask (an Instagram audio id). A link with a made-up id
+  /* Whether TikTok confirmed the sound exists: true when its own page
+     answered, false when it was asked and nothing came back. A link with a made-up id
      resolves just as well as a real one -- the id is only digits in a URL --
      so without this the wizard "found" a sound that does not exist and named
      it from the slug (walkthrough 2026-10-13, A1#11). */
-  const verified = result.audio.platform === "TIKTOK" ? reading !== null : null;
+  const verified = reading !== null;
 
   return NextResponse.json({
     platform: result.audio.platform,
@@ -73,9 +88,10 @@ export async function POST(req: Request) {
        against -- but only for a sound the platform answered for. An
        unverified one gets no title: the slug is whatever was typed, and
        showing it as the sound's name is inventing one. */
-    provisionalTitle: verified === false ? null : (result.audio.provisionalTitle ?? null),
+    provisionalTitle: verified ? (result.audio.provisionalTitle ?? null) : null,
     artist: reading?.artist ?? null,
     coverImageUrl: reading?.coverImageUrl ?? null,
     usesCount: reading?.usesCount ?? null,
+    usesRounded: false,
   });
 }

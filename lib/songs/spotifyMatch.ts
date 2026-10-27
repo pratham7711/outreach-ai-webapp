@@ -18,6 +18,12 @@ import type { SpotifyTrackHit } from "@/lib/platforms/spotifyWeb";
  * 4 to 10. Under 4 letters it would accept a stranger whose name happens to sit
  * inside another's, so it does not apply there.
  *
+ * A title written "<artist> - <title>" (production has "Michael Jackson -
+ * Thriller") is also tried split: when the left part is one of the result's
+ * artists under the same rules, the right part is compared as the title. The
+ * left part is then the artist check, so this is still never a match on title
+ * alone.
+ *
  * Nothing is matched on title alone: a common title has dozens of tracks, and
  * a wrong match would put another artist's streams on a brand's report.
  */
@@ -62,6 +68,18 @@ export function songArtist(song: SongForMatch): string {
   return (song.artist ?? "").trim() || (song.soundArtist ?? "").trim();
 }
 
+/**
+ * "Michael Jackson - Thriller" as { artist, title }, or null. Split at the
+ * first spaced hyphen or dash only, so "Artist - Title - Live" keeps its
+ * second half as the title, and "Jay-Z" (no spaces) is never split.
+ */
+export function splitArtistTitle(title: string): { artist: string; title: string } | null {
+  const m = /^(.+?)\s+[-\u2013\u2014]\s+(.+)$/.exec(title.trim());
+  if (!m) return null;
+  const [, artist, rest] = m;
+  return squash(artist) && squash(rest) ? { artist: artist.trim(), title: rest.trim() } : null;
+}
+
 /** What to type into Spotify's search, best first. Empty when there is nothing to search with. */
 export function searchQueries(song: SongForMatch): string[] {
   const out: string[] = [];
@@ -69,6 +87,13 @@ export function searchQueries(song: SongForMatch): string[] {
   if (/^[A-Z]{2}[A-Z0-9]{3}\d{7}$/.test(isrc)) out.push(`isrc:${isrc}`);
   const title = song.title.trim();
   if (title) out.push(`${title} ${songArtist(song)}`.trim());
+  /* The split title on its own, last: the sound's artist appended above can
+     be a TikTok account name that drowns the two words that matter. */
+  const split = splitArtistTitle(title);
+  if (split) {
+    const q = `${split.title} ${split.artist}`;
+    if (!out.includes(q)) out.push(q);
+  }
   return out;
 }
 
@@ -91,11 +116,18 @@ function artistFit(want: string[], have: string[]): SpotifyMatch["how"] | null {
 export function pickSpotifyTrack(song: SongForMatch, hits: readonly SpotifyTrackHit[]): SpotifyMatch | null {
   const title = squash(song.title);
   const want = splitArtists(songArtist(song));
-  if (!title || !want.length) return null;
+  const split = splitArtistTitle(song.title);
+  const splitTitle = split ? squash(split.title) : "";
+  const splitWant = split ? splitArtists(split.artist) : [];
+  if (!title || (!want.length && !splitWant.length)) return null;
   let contained: SpotifyMatch | null = null;
   for (const hit of hits) {
-    if (squash(hit.name) !== title) continue;
-    const how = artistFit(want, hit.artists.map(squash).filter(Boolean));
+    const name = squash(hit.name);
+    const have = hit.artists.map(squash).filter(Boolean);
+    /* The whole title against the song's artist; failing that, the split
+       title against the artist written into it. Either way an artist fits. */
+    const how =
+      (name === title ? artistFit(want, have) : null) ?? (split && name === splitTitle ? artistFit(splitWant, have) : null);
     if (how === "artist-exact") return { hit, how };
     if (how === "artist-contained" && !contained) contained = { hit, how };
   }

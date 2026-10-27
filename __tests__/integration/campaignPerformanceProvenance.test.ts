@@ -13,8 +13,9 @@ jest.mock("@/lib/db", () => ({
     // rather than shipping every hourly reading to Node.
     $queryRawUnsafe: jest.fn(),
     activation: { findMany: jest.fn() },
-    // The report also reaches campaign -> song -> sound for the audio card.
+    // The report also reaches campaign -> song -> sounds for the audio cards.
     campaign: { findUnique: jest.fn() },
+    song: { findFirst: jest.fn() },
     soundTrackerSnapshot: { findMany: jest.fn() },
     // The audio curve is bucketed to the org's chart granularity; none set
     // means the default, daily.
@@ -33,9 +34,19 @@ const mockDb = db as unknown as {
   $queryRawUnsafe: jest.Mock;
   activation: { findMany: jest.Mock };
   campaign: { findUnique: jest.Mock };
+  song: { findFirst: jest.Mock };
   soundTrackerSnapshot: { findMany: jest.Mock };
   $queryRaw: jest.Mock;
 };
+
+type SoundFixture = Record<string, unknown>;
+
+/* The campaign names its song; the song's two sound slots are read on their
+   own (lib/songs/songSounds), each sound placed by its platform. */
+function campaignSong(song: { coverUrl: string | null; sound: SoundFixture | null; instagramSound?: SoundFixture | null } | null) {
+  mockDb.campaign.findUnique.mockResolvedValue({ song: song && { id: "song-1", coverUrl: song.coverUrl } });
+  mockDb.song.findFirst.mockResolvedValue(song && { sound: song.sound, instagramSound: song.instagramSound ?? null });
+}
 
 /* Every test below drives the same campaign id with different posts, so a
    constant stamp would hand the first test's result to all the others. A fresh
@@ -72,7 +83,7 @@ beforeEach(() => {
   // and the reason a leaderboard status is null rather than a default status.
   mockDb.activation.findMany.mockResolvedValue([]);
   // No song by default, so there is no audio card to build.
-  mockDb.campaign.findUnique.mockResolvedValue({ song: null });
+  campaignSong(null);
   mockDb.soundTrackerSnapshot.findMany.mockResolvedValue([]);
   mockDb.$queryRaw.mockImplementation(() =>
     Promise.resolve([
@@ -224,7 +235,7 @@ describe("computeCampaignPerformance audio provenance", () => {
 
   it("carries no audio when the song has no tracked sound", async () => {
     mockDb.post.findMany.mockResolvedValue([post()]);
-    mockDb.campaign.findUnique.mockResolvedValue({ song: { coverUrl: "https://cdn/x.jpg", sound: null } });
+    campaignSong({ coverUrl: "https://cdn/x.jpg", sound: null });
 
     const result = await computeCampaignPerformance(campaign);
 
@@ -233,11 +244,9 @@ describe("computeCampaignPerformance audio provenance", () => {
 
   it("reports null uses for a sound that has been tracked but never synced", async () => {
     mockDb.post.findMany.mockResolvedValue([post()]);
-    mockDb.campaign.findUnique.mockResolvedValue({
-      song: {
-        coverUrl: "https://cdn/song.jpg",
-        sound: { id: "s1", tiktokSoundId: "999", title: "Wherever I Go", artist: "Ellie Holcomb", coverImageUrl: null },
-      },
+    campaignSong({
+      coverUrl: "https://cdn/song.jpg",
+      sound: { id: "s1", platform: "TIKTOK", tiktokSoundId: "999", title: "Wherever I Go", artist: "Ellie Holcomb", coverImageUrl: null },
     });
     mockDb.soundTrackerSnapshot.findMany.mockResolvedValue([]);
 
@@ -256,11 +265,9 @@ describe("computeCampaignPerformance audio provenance", () => {
 
   it("reports the latest snapshot and orders the usage curve oldest first", async () => {
     mockDb.post.findMany.mockResolvedValue([post()]);
-    mockDb.campaign.findUnique.mockResolvedValue({
-      song: {
-        coverUrl: null,
-        sound: { id: "s1", tiktokSoundId: "999", title: "Wherever I Go", artist: "Ellie Holcomb", coverImageUrl: "https://cdn/sound.jpg" },
-      },
+    campaignSong({
+      coverUrl: null,
+      sound: { id: "s1", platform: "TIKTOK", tiktokSoundId: "999", title: "Wherever I Go", artist: "Ellie Holcomb", coverImageUrl: "https://cdn/sound.jpg" },
     });
     // The query orders newest first, so the newest row is the current count and
     // the series has to come back reversed.
@@ -547,10 +554,8 @@ describe("computeCampaignPerformance views-over-time read", () => {
  */
 describe("first-reading velocity", () => {
   const song = {
-    song: {
-      coverUrl: null,
-      sound: { id: "s1", tiktokSoundId: "999", title: "T", artist: "A", coverImageUrl: null },
-    },
+    coverUrl: null,
+    sound: { id: "s1", platform: "TIKTOK", tiktokSoundId: "999", title: "T", artist: "A", coverImageUrl: null },
   };
 
   const snapshot = (i: number) => ({
@@ -562,7 +567,7 @@ describe("first-reading velocity", () => {
 
   beforeEach(() => {
     mockDb.post.findMany.mockResolvedValue([post()]);
-    mockDb.campaign.findUnique.mockResolvedValue(song);
+    campaignSong(song);
   });
 
   it("charts one point a day with velocity from the day before, null only on the first", async () => {
@@ -607,16 +612,32 @@ describe("first-reading velocity", () => {
     expect(result.audio!.usageSeries).toHaveLength(1);
   });
 
-  it("links an Instagram audio to Instagram and says so", async () => {
-    mockDb.campaign.findUnique.mockResolvedValue({
-      song: { coverUrl: null, sound: { ...song.song.sound, platform: "INSTAGRAM", tiktokSoundId: "2094289147512017" } },
-    });
+  it("links an Instagram audio to Instagram and says so, on its own card", async () => {
+    // An older song: its one sound, an Instagram audio, sits in soundId.
+    campaignSong({ coverUrl: null, sound: { ...song.sound, platform: "INSTAGRAM", tiktokSoundId: "2094289147512017" } });
     mockDb.soundTrackerSnapshot.findMany.mockResolvedValue([snapshot(1)]);
 
     const result = await computeCampaignPerformance(campaign);
 
-    expect(result.audio!.platform).toBe("INSTAGRAM");
-    expect(result.audio!.soundUrl).toBe("https://www.instagram.com/reels/audio/2094289147512017/");
+    expect(result.audio).toBeNull();
+    expect(result.instagramAudio!.platform).toBe("INSTAGRAM");
+    expect(result.instagramAudio!.soundUrl).toBe("https://www.instagram.com/reels/audio/2094289147512017/");
+  });
+
+  it("carries the TikTok sound and the Instagram audio as two cards, each with its own readings", async () => {
+    campaignSong({
+      coverUrl: null,
+      sound: song.sound,
+      instagramSound: { ...song.sound, id: "s-ig", platform: "INSTAGRAM", tiktokSoundId: "2094289147512017" },
+    });
+    mockDb.soundTrackerSnapshot.findMany.mockImplementation(async ({ where }: { where: { soundId: string } }) =>
+      where.soundId === "s-ig" ? [{ usesCount: 2_000_000, recordedAt: new Date(Date.UTC(2026, 9, 26)) }] : [snapshot(1)],
+    );
+
+    const result = await computeCampaignPerformance(campaign);
+
+    expect(result.audio).toMatchObject({ platform: "TIKTOK", uses: 101 });
+    expect(result.instagramAudio).toMatchObject({ platform: "INSTAGRAM", uses: 2_000_000 });
   });
 });
 

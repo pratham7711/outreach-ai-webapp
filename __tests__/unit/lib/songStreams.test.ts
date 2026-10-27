@@ -15,7 +15,8 @@ jest.mock("@/lib/db", () => ({
   },
 }));
 
-import { loadCampaignStreams, streamFigures, type StreamRow } from "@/lib/songs/streams";
+import { ADD_LINK_NOTE, HIDDEN_COUNT_NOTE, loadCampaignStreams, streamFigures, type StreamRow } from "@/lib/songs/streams";
+import { HIDDEN_COUNT_FAILURE } from "@/lib/songs/streamSnapshot";
 
 const A = "0AbCdEfGhIjKlMnOpQrStU";
 const B = "1ZyXwVuTsRqPoNmLkJiHgF";
@@ -88,6 +89,48 @@ describe("streamFigures", () => {
     expect(out.sinceFirst).toEqual({ streams: 30, fromDay: "2026-10-17", days: 1 });
   });
 
+  it("reads a stored 0 as a hidden count, so the day Spotify starts counting is no spike", () => {
+    // Rows from before the hidden-count rule stored Spotify's 0.
+    const out = streamFigures([r("2026-10-15", 0), r("2026-10-16", 0), r("2026-10-17", 41_000)]);
+    expect(out.totalPlays).toBe(41_000);
+    expect(out.daily).toEqual([]);
+    expect(out.lastDay).toBeNull();
+    expect(out.sinceFirst).toBeNull();
+  });
+
+  it("keeps the last counted total and its day when the newest count is hidden", () => {
+    const hidden = (day: string) => r(day, null, { failure: HIDDEN_COUNT_FAILURE });
+    const out = streamFigures([r("2026-10-15", 1000), r("2026-10-16", 1300), hidden("2026-10-17")]);
+    expect(out.totalPlays).toBe(1300);
+    expect(out.latestDay).toBe("2026-10-16");
+    expect(out.daily).toEqual([{ day: "2026-10-16", streams: 300 }]);
+  });
+
+  it("compares only days of one track across a link change, and keeps the old track's rows", () => {
+    const rows = [
+      r("2026-10-15", 1000),
+      r("2026-10-16", 1200),
+      r("2026-10-17", 90_000, { spotifyTrackId: B, trackName: "Linked" }),
+      r("2026-10-18", 90_500, { spotifyTrackId: B, trackName: "Linked" }),
+    ];
+    const out = streamFigures(rows);
+    expect(out.track?.id).toBe(B);
+    // 10-17 is not 90,000 - 1,200: the two days are different tracks.
+    expect(out.daily).toEqual([{ day: "2026-10-18", streams: 500 }]);
+    // The old track's rows are still there to read; they just are not this card's history.
+    expect(streamFigures(rows.slice(0, 2)).daily).toEqual([{ day: "2026-10-16", streams: 200 }]);
+  });
+
+  it("shows no figure for a newly linked track whose count is hidden, rather than the old track's", () => {
+    const out = streamFigures([
+      r("2026-10-15", 1000),
+      r("2026-10-16", 1200),
+      r("2026-10-17", null, { spotifyTrackId: B, failure: HIDDEN_COUNT_FAILURE }),
+    ]);
+    expect(out.track).toBeNull();
+    expect(out.totalPlays).toBeNull();
+  });
+
   it("keeps counts past 2^31 exact", () => {
     const out = streamFigures([r("2026-10-15", 5_631_276_067), r("2026-10-16", 5_632_000_000)]);
     expect(out.lastDay).toBe(723_933);
@@ -144,5 +187,60 @@ describe("loadCampaignStreams", () => {
     mockCampaign.mockResolvedValue(camp());
     mockReadings.mockRejectedValue(Object.assign(new Error('relation "SongStreamSnapshot" does not exist'), { code: "P2021" }));
     expect(await loadCampaignStreams("camp-1", "org-1")).toBeNull();
+  });
+
+  it("names a linked track as linked, and a found one as matched", async () => {
+    mockReadings.mockResolvedValue([r("2026-10-15", 1000)]);
+    mockCampaign.mockResolvedValue(camp({ song: { id: "song-1", title: "Neon Skyline", deletedAt: null, spotifyTrackId: A } }));
+    expect((await loadCampaignStreams("camp-1", "org-1"))?.trackSource).toBe("linked");
+    mockCampaign.mockResolvedValue(camp({ song: { id: "song-1", title: "Neon Skyline", deletedAt: null, spotifyTrackId: null } }));
+    expect((await loadCampaignStreams("camp-1", "org-1"))?.trackSource).toBe("matched");
+    // Linked since, but the newest counted reading is still the matched track.
+    mockCampaign.mockResolvedValue(camp({ song: { id: "song-1", title: "Neon Skyline", deletedAt: null, spotifyTrackId: B } }));
+    expect((await loadCampaignStreams("camp-1", "org-1"))?.trackSource).toBe("matched");
+  });
+
+  it("says where the link goes when no track was found and none is linked", async () => {
+    mockCampaign.mockResolvedValue(camp({ song: { id: "song-1", title: "Neon Skyline", deletedAt: null, spotifyTrackId: null } }));
+    mockReadings.mockResolvedValue([r("2026-10-15", null, { spotifyTrackId: null, failure: "no Spotify track with this title and artist" })]);
+    expect((await loadCampaignStreams("camp-1", "org-1"))?.note).toBe(
+      `No Spotify track found with this song's title and artist (or ISRC). ${ADD_LINK_NOTE}`
+    );
+    mockReadings.mockResolvedValue([]);
+    expect((await loadCampaignStreams("camp-1", "org-1"))?.note).toMatch(/first reading has not happened yet\. Add the Spotify link/);
+  });
+
+  it("does not ask for a link that is already there", async () => {
+    mockCampaign.mockResolvedValue(camp({ song: { id: "song-1", title: "Neon Skyline", deletedAt: null, spotifyTrackId: A } }));
+    mockReadings.mockResolvedValue([]);
+    expect((await loadCampaignStreams("camp-1", "org-1"))?.note).not.toContain(ADD_LINK_NOTE);
+  });
+
+  it("says a hidden count is hidden, in the card's words", async () => {
+    mockCampaign.mockResolvedValue(camp({ song: { id: "song-1", title: "Neon Skyline", deletedAt: null, spotifyTrackId: A } }));
+    mockReadings.mockResolvedValue([r("2026-10-15", null, { failure: HIDDEN_COUNT_FAILURE })]);
+    expect((await loadCampaignStreams("camp-1", "org-1"))?.note).toBe(
+      "Spotify isn't showing a play count for this track yet (it hides counts for small or new tracks). Daily streams start the day it does."
+    );
+    expect(HIDDEN_COUNT_NOTE).toMatch(/^Spotify isn't showing/);
+  });
+
+  it("builds the card without the link while the link column does not exist, and asks for no link", async () => {
+    mockCampaign
+      .mockRejectedValueOnce(Object.assign(new Error("The column `(not available)` does not exist in the current database."), { code: "P2022" }))
+      .mockResolvedValueOnce(camp());
+    mockReadings.mockResolvedValue([r("2026-10-15", null, { spotifyTrackId: null, failure: "no Spotify track with this title and artist" })]);
+    const out = await loadCampaignStreams("camp-1", "org-1");
+    expect(mockCampaign).toHaveBeenCalledTimes(2);
+    expect(mockCampaign.mock.calls[0][0].select.song.select.spotifyTrackId).toBe(true);
+    expect(mockCampaign.mock.calls[1][0].select.song.select.spotifyTrackId).toBe(false);
+    expect(out?.note).toMatch(/No Spotify track found/);
+    expect(out?.note).not.toContain(ADD_LINK_NOTE);
+  });
+
+  it("does not swallow any other failure of the campaign read", async () => {
+    mockCampaign.mockRejectedValue(new Error("connection reset"));
+    await expect(loadCampaignStreams("camp-1", "org-1")).rejects.toThrow("connection reset");
+    expect(mockCampaign).toHaveBeenCalledTimes(1);
   });
 });

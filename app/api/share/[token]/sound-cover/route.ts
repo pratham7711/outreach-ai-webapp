@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { imageDimension, resizeImage } from "@/lib/media/proxyImage";
 import { serveThumbnail } from "@/lib/posts/thumbnailResponse";
 import { readStoredSoundCover } from "@/lib/sounds/coverStore";
+import { readSongSoundIds } from "@/lib/songs/songSounds";
 
 export const runtime = "nodejs";
 
@@ -12,7 +13,8 @@ const SHARE_KIND = "campaign-performance";
   The client report's audio artwork, for a viewer with no session.
 
   The path names no sound: the link's own campaign decides which one, so a
-  token can only ever reach the cover its report already shows. Not gated on a
+  token can only ever reach a cover its report already shows -- its song's
+  first sound, or with `p=instagram` its song's Instagram audio. Not gated on a
   visibility flag, like the audio card and the header it fills -- a sound's
   cover names no creator.
 
@@ -28,14 +30,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
       isPublic: true,
       config: true,
       orgId: true,
-      campaign: { select: { orgId: true, song: { select: { soundId: true } } } },
+      campaign: { select: { orgId: true, songId: true, song: { select: { soundId: true } } } },
     },
   });
   const config = (link?.config as { kind?: string } | null) ?? {};
-  const soundId = link?.campaign?.song?.soundId;
-  if (!link?.isPublic || config.kind !== SHARE_KIND || !soundId || link.campaign?.orgId !== link.orgId) {
+  if (!link?.isPublic || config.kind !== SHARE_KIND || !link.campaign || link.campaign.orgId !== link.orgId) {
     return new NextResponse("not found", { status: 404 });
   }
+  /* `p=instagram` is the song's Instagram audio card; without it, the sound in
+     the song's first slot, which the header and the TikTok card show. */
+  const soundId =
+    req.nextUrl.searchParams.get("p") === "instagram"
+      ? (await readSongSoundIds(link.orgId, link.campaign.songId)).instagram
+      : link.campaign.song?.soundId;
+  if (!soundId) return new NextResponse("not found", { status: 404 });
 
   const width = imageDimension(req.nextUrl.searchParams.get("w"), 384);
   const height = imageDimension(req.nextUrl.searchParams.get("h"), width);

@@ -13,8 +13,15 @@ import type { CampaignStreams } from "@/lib/songs/streams";
  * Shared by the campaign's Performance tab and the public share report, like
  * AudioCard beside it, and styled with that card's classes on the report so
  * the two read as one family. The report only ever receives a card with a
- * reading (redactForShare); the "not read yet" note is the dashboard's.
+ * reading (redactForShare); the "not read yet" note is the dashboard's, and so
+ * is the line saying whether the track was linked or matched.
  */
+
+/** How the dashboard names where the track came from. */
+export const TRACK_SOURCE_LABEL = {
+  linked: "Linked on the campaign",
+  matched: "Matched by title and artist",
+} as const;
 
 type Variant = "dashboard" | "report";
 
@@ -177,6 +184,14 @@ export function SpotifyStreamsCard({ streams, variant = "dashboard" }: { streams
                     <div style={{ fontSize: "var(--cc-t-13)", color: "var(--audio-tile-ink-muted, var(--cc-text-muted))", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {track.artists}
                     </div>
+                    {streams.trackSource ? (
+                      <div
+                        data-testid="spotify-track-source"
+                        style={{ fontSize: "var(--cc-t-12)", color: "var(--audio-tile-ink-muted, var(--cc-text-muted))", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+                      >
+                        {TRACK_SOURCE_LABEL[streams.trackSource]}
+                      </div>
+                    ) : null}
                   </div>
                 </a>
               ) : null}

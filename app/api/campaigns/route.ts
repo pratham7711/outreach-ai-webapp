@@ -9,7 +9,11 @@ import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { z } from "zod";
 import { pageParam, pageSizeParam, parseQuery } from "@/lib/http/queryParams";
-import { ensureSongForAudio, identifyAudioLink, type ResolvedAudio } from "@/lib/campaigns/audioLink";
+import { checkInstagramAudio, createSongForSpotifyLink, ensureSongForAudio, ensureSound, identifyAudioLink, type ResolvedAudio } from "@/lib/campaigns/audioLink";
+import { setSongSound } from "@/lib/songs/songSounds";
+import { resolveSpotifyLink } from "@/lib/songs/spotifyLinkResolve";
+import { songLinksReady } from "@/lib/songs/songLinks";
+import { applySongSpotifyLink } from "@/lib/songs/spotifyLinkApply";
 import { primeSongAudio } from "@/lib/sounds/snapshot";
 import { captureCampaignThumbnail } from "@/lib/campaigns/thumbnailCopy";
 import { CAMPAIGN_STATUSES, CAMPAIGN_TYPES, campaignFilterSchema, campaignWhere } from "@/lib/listFilters";
@@ -47,8 +51,16 @@ const createCampaignSchema = z.object({
   postApprovalMode: z.enum(POST_APPROVAL_MODES).optional(),
   enrollmentOpen: z.boolean().optional(),
   /* A pasted TikTok or Instagram sound link. Resolved server-side into the
-     Song -> TikTokSound pair a campaign points at; the client never sends ids. */
+     Song -> TikTokSound pair a campaign points at; the client never sends ids.
+     The New Campaign form sends its TikTok sound here; an Instagram link sent
+     here alone is the song's Instagram audio, as it always was. */
   audioUrl: z.string().trim().min(1).nullable().optional(),
+  /* The same release's Instagram audio, beside the TikTok sound rather than
+     instead of it. Must be an Instagram audio link. */
+  instagramAudioUrl: z.string().trim().min(1).max(2048).nullable().optional(),
+  /* The song's Spotify track link, optional. Re-parsed here whatever the form
+     said about it, and stored on the campaign's song as its track id. */
+  spotifyUrl: z.string().trim().min(1).max(2048).nullable().optional(),
 });
 
 // GET /api/campaigns - List campaigns with filters and pagination
@@ -134,7 +146,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { title, status, campaignType, typeConfig, budget, currency, notes, clientId, folderId, thumbnailUrl, paymentMode, paymentRelease, postApprovalMode, enrollmentOpen, audioUrl } = parsed.data;
+    const { title, status, campaignType, typeConfig, budget, currency, notes, clientId, folderId, thumbnailUrl, paymentMode, paymentRelease, postApprovalMode, enrollmentOpen, audioUrl, instagramAudioUrl, spotifyUrl } = parsed.data;
 
     // clientId and folderId arrive in the body, so they have to be proven to
     // belong to this org before they are written. Without this a caller could
@@ -162,13 +174,87 @@ export async function POST(request: NextRequest) {
       audio = parsedAudio.audio;
     }
 
+    /* The Instagram audio, parsed the same way and then checked with
+       Instagram, which answers 200 for an id that is no audio and publishes no
+       count for original audio: either would be a card that never fills in. */
+    let instagramAudio: ResolvedAudio | null = null;
+    if (instagramAudioUrl) {
+      const parsedInstagram = await identifyAudioLink(instagramAudioUrl);
+      if (!parsedInstagram.ok) {
+        return NextResponse.json({ error: parsedInstagram.reason, message: parsedInstagram.message }, { status: 400 });
+      }
+      if (parsedInstagram.audio.platform !== "INSTAGRAM") {
+        return NextResponse.json(
+          { error: "not_instagram_audio", message: "That isn't an Instagram audio link. Paste one that starts with instagram.com/reels/audio/." },
+          { status: 400 }
+        );
+      }
+      instagramAudio = parsedInstagram.audio;
+    }
+    /* An Instagram link in the sound field, with nothing in the Instagram one,
+       is the song's Instagram audio; with something there too, the two
+       Instagram links are one too many. */
+    if (audio?.platform === "INSTAGRAM") {
+      if (instagramAudio) {
+        return NextResponse.json(
+          { error: "two_instagram_audios", message: "Both links are Instagram audio. Put the TikTok sound in the first field." },
+          { status: 400 }
+        );
+      }
+      instagramAudio = audio;
+      audio = null;
+    }
+    if (instagramAudio) {
+      const checked = await checkInstagramAudio(instagramAudio.tiktokSoundId);
+      if (!checked.ok) return NextResponse.json({ error: checked.reason, message: checked.message }, { status: 400 });
+      if (checked.reading?.title && !instagramAudio.provisionalTitle) {
+        instagramAudio = { ...instagramAudio, provisionalTitle: checked.reading.title };
+      }
+    }
+
+    /* The Spotify link the same way: a bad one is a 400 that names it, before
+       anything is written. */
+    let spotifyTrackId: string | null = null;
+    if (spotifyUrl) {
+      const link = await resolveSpotifyLink(spotifyUrl);
+      if (!link.ok) {
+        return NextResponse.json({ error: link.reason, message: link.message }, { status: 400 });
+      }
+      spotifyTrackId = link.trackId;
+    }
+
+    /* Whether the song's link columns exist yet -- asked before the
+       transaction, because a failed statement inside it would take the
+       campaign down too. Without them the campaign is still created: an
+       Instagram audio on its own goes where it always went, and only a second
+       link that has nowhere to go is reported unsaved. */
+    const linksReady = spotifyTrackId || instagramAudio ? await songLinksReady(orgId) : false;
+
     /* One transaction, because the Song and TikTokSound rows exist only to be
        pointed at by this campaign. They used to be created first, on the global
        client; a campaign insert that then failed left both behind with nothing
        referencing them -- and a TikTokSound is a standing instruction to fetch
        a page on a schedule, so the orphan keeps costing something. */
+    let instagramLinked: boolean | undefined;
     const campaign = await db.$transaction(async (tx) => {
-      const songId = audio ? await ensureSongForAudio(tx, orgId, audio, title) : null;
+      const songId = audio
+        ? await ensureSongForAudio(tx, orgId, audio, title, { linksReady })
+        : instagramAudio
+          ? await ensureSongForAudio(tx, orgId, instagramAudio, title, { linksReady })
+          : spotifyTrackId && linksReady
+            ? await createSongForSpotifyLink(tx, orgId, title)
+            : null;
+
+      /* Both sounds: the song was found or made by its TikTok sound, and the
+         Instagram audio goes in its own slot beside it. */
+      if (audio && instagramAudio) {
+        if (linksReady && songId) {
+          await setSongSound(tx, orgId, songId, await ensureSound(tx, orgId, instagramAudio, title));
+          instagramLinked = true;
+        } else {
+          instagramLinked = false;
+        }
+      }
 
       /* A campaign is created and started in one action, so it opens Active
          rather than in DRAFT -- which has no tab and no named status, and is
@@ -243,6 +329,18 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    /* Stored after the transaction, never inside it: a failed statement aborts
+       a Postgres transaction, so a missing column there would have taken the
+       campaign with it. "unavailable" is that column missing; the form says
+       the link did not save and points at Settings. */
+    let spotifyLinked: boolean | undefined;
+    if (spotifyTrackId) {
+      spotifyLinked =
+        linksReady && campaign.songId
+          ? (await applySongSpotifyLink(orgId, campaign.songId, spotifyTrackId, campaign.status)) !== "unavailable"
+          : false;
+    }
+
     // Copied while its link still draws; see lib/campaigns/thumbnailCopy.
     if (campaign.thumbnailUrl) {
       try {
@@ -268,7 +366,14 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(campaign, { status: 201 });
+    return NextResponse.json(
+      {
+        ...campaign,
+        ...(spotifyLinked === undefined ? {} : { spotifyLinked }),
+        ...(instagramLinked === undefined ? {} : { instagramLinked }),
+      },
+      { status: 201 }
+    );
   } catch (error) {
     console.error("Failed to create campaign:", error);
     return NextResponse.json(

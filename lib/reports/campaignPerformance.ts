@@ -15,6 +15,8 @@ import type { SharePlatform } from "@/lib/reports/shareVisibility";
 import { postThumbnailUrl } from "@/lib/postMedia";
 import { loadCampaignStreams, type CampaignStreams } from "@/lib/songs/streams";
 import { isMissingSongStreamTable } from "@/lib/songs/streamSnapshotDdl";
+import { isMissingSongLinkColumn } from "@/lib/songs/songLinkDdl";
+import { readSongSounds, type SongSoundRow } from "@/lib/songs/songSounds";
 import type { ActivationStatus } from "@/lib/generated/prisma/client";
 
 /**
@@ -144,6 +146,13 @@ export type CampaignPerformance = {
    * used, which is a measurement we have not made.
    */
   audio: CampaignAudio | null;
+  /**
+   * The same release's Instagram audio, when its song has one tracked beside
+   * (or instead of) the TikTok sound. Same card, same nullability; `audio` is
+   * the TikTok one. A song from before the Instagram slot whose only sound is
+   * an Instagram audio shows it here, not as `audio`.
+   */
+  instagramAudio: CampaignAudio | null;
   /**
    * The promoted song's Spotify play count, read once a day by the
    * snapshot-song-streams cron (lib/songs/streams). Null when the campaign has
@@ -282,8 +291,8 @@ export function redactForShare(
     },
     /* Not gated on a visibility flag, like the audio card: a play count names
        no creator and no money. What a link never carries is the team's note on
-       why there is no figure yet. */
-    streams: data.streams && data.streams.totalPlays !== null ? { ...data.streams, note: null } : null,
+       why there is no figure yet, or how the track was found. */
+    streams: data.streams && data.streams.totalPlays !== null ? { ...data.streams, note: null, trackSource: null } : null,
     leaderboard: visibility.showCreators
       ? data.leaderboard.map((row) => ({
           ...row,
@@ -392,7 +401,7 @@ async function campaignReportStamp(campaignId: string): Promise<string> {
   /* One wave. These three are independent, and the database is in Singapore --
      running them in series cost two round trips on every view to answer a
      question none of them needed the others for. */
-  const [[row], [act], [audio], [streams]] = await Promise.all([
+  const [[row], [act], [audio], [streams], [instagram]] = await Promise.all([
     /* The removed filter is written out ("removedAt" IS NULL is
        notRemovedSql()) rather than interpolated with Prisma.raw(): Prisma
        inlines a raw fragment only when its Sql class is the client's own, and
@@ -431,9 +440,13 @@ async function campaignReportStamp(campaignId: string): Promise<string> {
        songId catches the attach; the newest snapshot catches the readings
        after it, including the run that backfills the sound's title, artist and
        cover -- snapshotSounds writes a snapshot on the same pass, so one
-       timestamp witnesses both. */
-    db.$queryRaw<{ song: string | null; sound_at: Date | null }[]>`
+       timestamp witnesses both. The song's updatedAt catches a Spotify link
+       being set, changed or cleared, which the Spotify card names ("Linked on
+       the campaign") before any reading lands; it is read rather than the
+       link itself because the link column may not exist yet. */
+    db.$queryRaw<{ song: string | null; sound_at: Date | null; song_at?: Date | null }[]>`
       SELECT c."songId" AS song,
+             s."updatedAt" AS song_at,
              (SELECT MAX(ss."recordedAt") FROM "SoundTrackerSnapshot" ss
                WHERE ss."soundId" = s."soundId") AS sound_at
         FROM "Campaign" c
@@ -454,6 +467,19 @@ async function campaignReportStamp(campaignId: string): Promise<string> {
       if (isMissingSongStreamTable(e)) return [{ streams_at: null, streams_n: null }];
       throw e;
     }),
+    /* The Instagram audio's newest reading, for the same reason as the
+       TikTok one above. Its own query because the column may not exist yet;
+       setting or clearing the slot moves the song's updatedAt, read above. */
+    db.$queryRaw<{ ig_sound_at: Date | null }[]>`
+      SELECT (SELECT MAX(ss."recordedAt") FROM "SoundTrackerSnapshot" ss
+               WHERE ss."soundId" = s."instagramSoundId") AS ig_sound_at
+        FROM "Campaign" c
+        JOIN "Song" s ON s.id = c."songId"
+       WHERE c.id = ${campaignId}
+    `.catch((e: unknown) => {
+      if (isMissingSongLinkColumn(e)) return [{ ig_sound_at: null }];
+      throw e;
+    }),
   ]);
 
   if (!row) return "empty";
@@ -468,9 +494,11 @@ async function campaignReportStamp(campaignId: string): Promise<string> {
     row.added?.getTime() ?? 0,
     row.removed?.getTime() ?? 0,
     audio?.song ?? "nosong",
+    audio?.song_at?.getTime() ?? 0,
     audio?.sound_at?.getTime() ?? 0,
     streams?.streams_at?.getTime() ?? 0,
     streams?.streams_n ?? 0,
+    instagram?.ig_sound_at?.getTime() ?? 0,
   ].join("-");
 }
 
@@ -513,7 +541,7 @@ async function computeCampaignPerformanceUncached(
         .join(", ")})`
     : "";
 
-  const [posts, snapshotDays, activations, audio, streams] = await Promise.all([
+  const [posts, snapshotDays, activations, audios, streams] = await Promise.all([
     db.post.findMany({
     where: postWhere,
     select: {
@@ -819,18 +847,12 @@ async function computeCampaignPerformanceUncached(
     platformSplit,
     leaderboard,
     posts: postRows,
-    audio,
+    audio: audios.audio,
+    instagramAudio: audios.instagramAudio,
     streams,
   };
 }
 
-/**
- * The audio card's data, reached campaign → song → sound.
- *
- * Two reads rather than one nested include: the snapshots are ordered and
- * bounded independently of the song lookup, and most campaigns have no song at
- * all, so the second query usually never runs.
- */
 /**
  * A creator's views on the campaign: the sum over the posts whose views were
  * read, or null when none were.
@@ -853,33 +875,46 @@ export function knownViews(
 }
 
 /**
+ * The audio cards' data, reached campaign → song → its TikTok and Instagram
+ * sounds (lib/songs/songSounds sorts the two slots by platform).
+ *
  * `series: false` is the light read for a caller that shows only the sound's
  * name, cover and latest uses (Settings' audio panel): the two newest readings
  * instead of a year of them, and no org read for the chart granularity.
  * `usageSeries` comes back empty; every other field is computed the same way.
  */
+export type CampaignAudios = { audio: CampaignAudio | null; instagramAudio: CampaignAudio | null };
+
 export async function loadCampaignAudio(
   campaignId: string,
   orgId: string,
   opts: { series?: boolean } = {},
-): Promise<CampaignAudio | null> {
+): Promise<CampaignAudios> {
   const withSeries = opts.series !== false;
   const campaign = await db.campaign.findUnique({
     where: { id: campaignId },
-    select: {
-      song: {
-        select: {
-          coverUrl: true,
-          sound: {
-            select: { id: true, platform: true, tiktokSoundId: true, title: true, artist: true, coverImageUrl: true },
-          },
-        },
-      },
-    },
+    select: { song: { select: { id: true, coverUrl: true } } },
   });
-  const sound = campaign?.song?.sound;
-  if (!sound) return null;
+  if (!campaign?.song) return { audio: null, instagramAudio: null };
+  const sounds = await readSongSounds(orgId, campaign.song.id);
+  if (!sounds.tiktok && !sounds.instagram) return { audio: null, instagramAudio: null };
 
+  const org = withSeries ? await db.organization.findUnique({ where: { id: orgId }, select: { uiConfig: true } }) : null;
+  const chartAt = effectiveChartGranularity(parseGranularity(org?.uiConfig ?? null));
+  const songCover = campaign.song.coverUrl ?? null;
+  const [audio, instagramAudio] = await Promise.all([
+    sounds.tiktok ? soundCardData(sounds.tiktok, songCover, withSeries, chartAt) : null,
+    sounds.instagram ? soundCardData(sounds.instagram, songCover, withSeries, chartAt) : null,
+  ]);
+  return { audio, instagramAudio };
+}
+
+async function soundCardData(
+  sound: SongSoundRow,
+  songCover: string | null,
+  withSeries: boolean,
+  chartAt: ReturnType<typeof effectiveChartGranularity>,
+): Promise<CampaignAudio> {
   /* A year of readings at the four-hourly cadence, newest first so `take` keeps
      the recent end, then bucketed to the org's own chart granularity -- the
      same buckets the trackers page draws this sound in. The flat take:60 this
@@ -887,17 +922,13 @@ export async function loadCampaignAudio(
      refresh pressed five times. */
   // Two is what videosAddedSinceLast needs when there is no chart to draw.
   const READINGS = withSeries ? 2_200 : 2;
-  const [rows, org] = await Promise.all([
-    db.soundTrackerSnapshot.findMany({
-      where: { soundId: sound.id },
-      select: { usesCount: true, recordedAt: true },
-      orderBy: { recordedAt: "desc" },
-      take: READINGS,
-    }),
-    withSeries ? db.organization.findUnique({ where: { id: orgId }, select: { uiConfig: true } }) : null,
-  ]);
+  const rows = await db.soundTrackerSnapshot.findMany({
+    where: { soundId: sound.id },
+    select: { usesCount: true, recordedAt: true },
+    orderBy: { recordedAt: "desc" },
+    take: READINGS,
+  });
   const latest = rows[0] ?? null;
-  const chartAt = effectiveChartGranularity(parseGranularity(org?.uiConfig ?? null));
   const series = withSeries ? soundSeries(rows.slice().reverse(), { bucketHours: CHART_BUCKET_HOURS[chartAt] }) : [];
   const platform = sound.platform === "INSTAGRAM" ? "INSTAGRAM" : "TIKTOK";
 
@@ -906,7 +937,7 @@ export async function loadCampaignAudio(
     artist: sound.artist,
     // The tracker's own cover wins; the song's art is the fallback for a sound
     // that has been tracked but not yet synced, which is when it has no cover.
-    coverUrl: sound.coverImageUrl ?? campaign?.song?.coverUrl ?? null,
+    coverUrl: sound.coverImageUrl ?? songCover,
     platform,
     /* An Instagram audio linked to tiktok.com/music/x-<its id> -- someone
        else's sound, or none -- and was headed "TikTok Audio". */
