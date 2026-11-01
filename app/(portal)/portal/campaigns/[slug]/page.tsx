@@ -362,18 +362,34 @@ function SubmitPosts({
       setProgress({ done: i, total: usable.length });
       const url = usable[i];
       try {
-        const res = await fetch(`/api/portal/campaigns/${encodeURIComponent(slug)}/submissions`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            postUrl: url,
-            ...(boostCodes && single && boostCode.trim()
-              ? { boostCode: boostCode.trim(), boostCodeExpiresAt: boostExpires || null }
-              : {}),
-          }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (res.ok) out.push({ url, outcome: "added", message: "Added" });
+        const send = (withCode: boolean) =>
+          fetch(`/api/portal/campaigns/${encodeURIComponent(slug)}/submissions`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              postUrl: url,
+              ...(withCode ? { boostCode: boostCode.trim(), boostCodeExpiresAt: boostExpires || null } : {}),
+            }),
+          });
+        const withCode = boostCodes && single && boostCode.trim() !== "";
+        let res = await send(withCode);
+        let data = await res.json().catch(() => ({}));
+        /* The agency switched boost codes off after this page loaded. The
+           server refuses the code before creating anything, so send the post
+           again without it and say the code was not kept, rather than make
+           the creator clear the field and submit a second time. */
+        let codeDropped = false;
+        if (withCode && res.status === 403 && data.code === "boost_codes_off") {
+          res = await send(false);
+          data = await res.json().catch(() => ({}));
+          codeDropped = res.ok;
+        }
+        if (res.ok)
+          out.push({
+            url,
+            outcome: "added",
+            message: codeDropped ? "Added without the boost code, which this campaign no longer takes" : "Added",
+          });
         else if (res.status === 409 && /already/i.test(data.error ?? ""))
           out.push({ url, outcome: "already", message: data.error });
         else if (res.status >= 400 && res.status < 500)
@@ -493,7 +509,7 @@ function SubmitPosts({
         <div role="status" style={{ marginTop: 12 }}>
           <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", margin: "0 0 6px" }}>{summary}</p>
           {results
-            .filter((r) => r.outcome !== "added")
+            .filter((r) => r.outcome !== "added" || r.message !== "Added")
             .map((r) => (
               <p key={r.url} style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: "2px 0", overflowWrap: "anywhere" }}>
                 {r.message}: {r.url}
