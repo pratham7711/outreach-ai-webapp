@@ -10,6 +10,9 @@ import { ONLY_REMOVED } from "@/lib/posts/removed";
 import { duplicateLiveCopies } from "@/lib/posts/restoreChecks";
 import { setExclusionReason } from "@/lib/posts/annotations";
 
+/** How long after an exclusion a check's review counts as part of it: the dialog marks them reviewed right after the post is taken out. */
+const EXCLUSION_REVIEW_WINDOW_MS = 10 * 60 * 1000;
+
 /**
  * POST /api/campaigns/[id]/posts/restore — put removed posts back.
  * Body: { postIds: string[] } (1..MAX_BULK_ACTION_POSTS).
@@ -129,7 +132,35 @@ export async function POST(
       await setExclusionReason(removedIds, orgId, null).catch((e) => console.error("Failed to clear exclusion reason:", e));
     }
 
-    return NextResponse.json({ restored: restored.count, postIds: removedIds });
+    /* Excluding a post from the view-check dialog marks its open checks
+       reviewed in the same action, since excluding was the review's outcome.
+       Restoring it reverses that outcome, so the checks closed then reopen:
+       those resolved within EXCLUSION_REVIEW_WINDOW_MS after the post left the
+       totals. The toast's Undo reopens them from the client; this covers a
+       restore days later. A check reviewed before the exclusion, or long
+       after it, stays reviewed. */
+    let reopenedChecks = 0;
+    for (const post of removed) {
+      if (!post.removedAt) continue;
+      const r = await db.viewFraudFlag
+        .updateMany({
+          where: {
+            orgId,
+            campaignId,
+            postId: post.id,
+            isResolved: true,
+            resolvedAt: { gte: post.removedAt, lte: new Date(post.removedAt.getTime() + EXCLUSION_REVIEW_WINDOW_MS) },
+          },
+          data: { isResolved: false, resolvedAt: null, resolvedBy: null },
+        })
+        .catch((e) => {
+          console.error("Failed to reopen view checks:", e);
+          return { count: 0 };
+        });
+      reopenedChecks += r.count;
+    }
+
+    return NextResponse.json({ restored: restored.count, postIds: removedIds, reopenedChecks });
   } catch (error) {
     console.error("Failed to restore posts:", error);
     return NextResponse.json({ error: "Failed to restore posts" }, { status: 500 });

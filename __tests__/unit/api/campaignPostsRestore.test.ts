@@ -14,6 +14,8 @@ jest.mock("@/lib/db", () => ({
     post: { findMany: jest.fn(), updateMany: jest.fn() },
     /* The exclusion reason, cleared on restore (lib/posts/annotations). */
     postAnnotation: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+    /* View checks the exclusion marked reviewed, reopened on restore. */
+    viewFraudFlag: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
   },
 }));
 jest.mock("@/lib/auth", () => ({ auth: jest.fn() }));
@@ -30,6 +32,7 @@ const mdb = db as unknown as {
   campaign: { findFirst: jest.Mock };
   post: { findMany: jest.Mock; updateMany: jest.Mock };
   postAnnotation: { updateMany: jest.Mock };
+  viewFraudFlag: { updateMany: jest.Mock };
 };
 
 const REMOVED_AT = new Date("2026-10-13T10:00:00.000Z");
@@ -71,7 +74,7 @@ describe("POST /api/campaigns/[id]/posts/restore", () => {
   it("clears removedAt on the removed posts, inside this campaign of the session's org", async () => {
     const res = await restore({ postIds: ["p1", "p2", "p1"] });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ restored: 2, postIds: ["p1", "p2"] });
+    expect(await res.json()).toEqual({ restored: 2, postIds: ["p1", "p2"], reopenedChecks: 0 });
 
     expect(mdb.campaign.findFirst.mock.calls[0][0].where).toMatchObject({ id: "camp-9", orgId: "org-1", deletedAt: null });
     expect(mdb.post.findMany.mock.calls[0][0].where).toEqual({ id: { in: ["p1", "p2"] }, campaignId: "camp-9" });
@@ -91,6 +94,37 @@ describe("POST /api/campaigns/[id]/posts/restore", () => {
 
   it("still answers 200 when clearing the reason fails, because the restore has landed", async () => {
     mdb.postAnnotation.updateMany.mockRejectedValueOnce(new Error("connection reset"));
+    const res = await restore({ postIds: ["p1", "p2"] });
+    expect(res.status).toBe(200);
+  });
+
+  it("reopens the view checks the exclusion marked reviewed, and only those", async () => {
+    mdb.viewFraudFlag.updateMany.mockResolvedValueOnce({ count: 2 }).mockResolvedValueOnce({ count: 0 });
+    const res = await restore({ postIds: ["p1", "p2"] });
+    expect((await res.json()).reopenedChecks).toBe(2);
+
+    expect(mdb.viewFraudFlag.updateMany).toHaveBeenCalledTimes(2);
+    expect(mdb.viewFraudFlag.updateMany.mock.calls[0][0]).toEqual({
+      where: {
+        orgId: "org-1",
+        campaignId: "camp-9",
+        postId: "p1",
+        isResolved: true,
+        resolvedAt: { gte: REMOVED_AT, lte: new Date(REMOVED_AT.getTime() + 10 * 60 * 1000) },
+      },
+      data: { isResolved: false, resolvedAt: null, resolvedBy: null },
+    });
+    expect(mdb.viewFraudFlag.updateMany.mock.calls[1][0].where.postId).toBe("p2");
+  });
+
+  it("reopens nothing for a post that was not removed", async () => {
+    table([post("p1", null)]);
+    await restore({ postIds: ["p1"] });
+    expect(mdb.viewFraudFlag.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("still answers 200 when reopening the checks fails, because the restore has landed", async () => {
+    mdb.viewFraudFlag.updateMany.mockRejectedValueOnce(new Error("connection reset"));
     const res = await restore({ postIds: ["p1", "p2"] });
     expect(res.status).toBe(200);
   });
@@ -122,7 +156,7 @@ describe("POST /api/campaigns/[id]/posts/restore", () => {
     table([post("p1"), post("p2", null)]);
     mdb.post.updateMany.mockResolvedValue({ count: 1 });
     const res = await restore({ postIds: ["p1", "p2"] });
-    expect(await res.json()).toEqual({ restored: 1, postIds: ["p1"] });
+    expect(await res.json()).toEqual({ restored: 1, postIds: ["p1"], reopenedChecks: 0 });
     expect(mdb.post.updateMany.mock.calls[0][0].where.id).toEqual({ in: ["p1"] });
     expect(logAudit).toHaveBeenCalledTimes(1);
   });
@@ -131,7 +165,7 @@ describe("POST /api/campaigns/[id]/posts/restore", () => {
     table([post("p1", null)]);
     const res = await restore({ postIds: ["p1"] });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ restored: 0, postIds: [] });
+    expect(await res.json()).toEqual({ restored: 0, postIds: [], reopenedChecks: 0 });
     expect(mdb.post.updateMany).not.toHaveBeenCalled();
     expect(logAudit).not.toHaveBeenCalled();
   });
