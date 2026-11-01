@@ -32,7 +32,7 @@ const r = (day: string, playCount: number | null, over: Partial<StreamRow> = {})
 
 describe("streamFigures", () => {
   it("has nothing before the first reading", () => {
-    expect(streamFigures([])).toEqual({ track: null, totalPlays: null, latestDay: null, lastDay: null, sinceFirst: null, daily: [] });
+    expect(streamFigures([])).toEqual({ track: null, totalPlays: null, latestDay: null, lastDay: null, sinceFirst: null, daily: [], plays: [] });
   });
 
   it("shows the count from one reading, and no daily figure until there is a day before it", () => {
@@ -53,6 +53,11 @@ describe("streamFigures", () => {
     ]);
     expect(out.lastDay).toBe(350);
     expect(out.sinceFirst).toEqual({ streams: 600, fromDay: "2026-10-15", days: 2 });
+    expect(out.plays).toEqual([
+      { day: "2026-10-15", count: 1000 },
+      { day: "2026-10-16", count: 1250 },
+      { day: "2026-10-17", count: 1600 },
+    ]);
   });
 
   it("leaves a gap after a missed day instead of printing two days as one", () => {

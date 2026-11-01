@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useState } from "react";
 import { SkeletonBlock } from "@/components/portal/app/ui";
 import type { InstagramInsightsBody } from "@/lib/portal/instagramInsightsRead";
 import { FigureStrip, SectionHeading, muted } from "@/components/insights/parts";
@@ -22,6 +22,8 @@ import {
   useInstagramInsights,
   type IgInsightsState,
 } from "@/components/insights/instagramSections";
+import { SeriesModeToggle } from "@/components/charts/SeriesModeToggle";
+import type { SeriesMode } from "@/lib/charts/seriesMode";
 
 /**
  * Account insights and live story insights for one Instagram professional
@@ -37,6 +39,7 @@ const rule = { marginTop: 24, paddingTop: 20, borderTop: "1px solid var(--cc-bor
 export function InstagramInsightsView({ data, followers = null }: { data: InstagramInsightsBody; followers?: number | null }) {
   const windowId = useId();
   const dailyId = useId();
+  const [followersMode, setFollowersMode] = useState<SeriesMode>("daily");
   const audience = hasAudience(data);
   const interactions = hasInteractions(data);
   return (
@@ -48,8 +51,15 @@ export function InstagramInsightsView({ data, followers = null }: { data: Instag
 
       {hasNewFollowerSeries(data) && (
         <section aria-labelledby={dailyId} style={rule}>
-          <SectionHeading id={dailyId} title="New followers per day" aside={`Last ${data.account.days} days`} />
-          <NewFollowersChart data={data} height={180} />
+          <SectionHeading
+            id={dailyId}
+            title={followersMode === "cumulative" ? "New followers, running total" : "New followers per day"}
+            aside={`Last ${data.account.days} days`}
+          />
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+            <SeriesModeToggle label="New followers chart" value={followersMode} onChange={setFollowersMode} />
+          </div>
+          <NewFollowersChart data={data} height={180} mode={followersMode} />
         </section>
       )}
 

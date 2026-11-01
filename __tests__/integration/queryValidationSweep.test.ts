@@ -30,6 +30,7 @@ jest.mock("@/lib/db", () => ({
     payoutBalance: { findFirst: jest.fn(), findMany: jest.fn() },
     campaignProposal: { findMany: jest.fn(), count: jest.fn() },
     apiKey: { findUnique: jest.fn(), update: jest.fn() },
+    campaignRules: { findMany: jest.fn().mockResolvedValue([]) },
     $queryRawUnsafe: jest.fn(),
   },
 }));

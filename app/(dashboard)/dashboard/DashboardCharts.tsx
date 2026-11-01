@@ -7,6 +7,7 @@ import {
 import { MetricHint } from "@/components/ds";
 import { ChartFrame } from "@/components/ds/ChartFrame";
 import { cpm } from "@/lib/metrics";
+import { nextPeriodBy, periodNoun, toChanges, type SeriesMode } from "@/lib/charts/seriesMode";
 
 type ViewsPoint = { date: string; views: number };
 type PlatformSlice = { platform: string; views: number; postsCount: number };
@@ -65,10 +66,48 @@ function PanelHeading({ title, metric }: { title: string; metric: "views" }) {
 export function ViewsOverTimeArea({
   data,
   formatNumber,
+  mode = "cumulative",
 }: {
   data: ViewsPoint[];
   formatNumber: Fmt;
+  mode?: SeriesMode;
 }) {
+  if (mode === "daily") {
+    const gained = toChanges(data, ["views"], nextPeriodBy((p) => p.date));
+    const period = periodNoun(data[0]?.date);
+    return (
+      <div className="flex h-full flex-col">
+        <div className="flex min-h-0 flex-1 flex-col">
+          <PanelHeading title="Views gained" metric="views" />
+          <ChartFrame className="min-h-0 flex-1" minHeight={120}>
+            <BarChart data={gained} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+              <XAxis dataKey="date" tick={axisTick} axisLine={false} tickLine={false} />
+              <YAxis
+                tick={axisTick}
+                axisLine={false}
+                tickLine={false}
+                width={56}
+                tickFormatter={(v) => formatCompact(Number(v))}
+              />
+              <ReferenceLine y={0} stroke="var(--chart-grid)" />
+              <Tooltip
+                contentStyle={chartTooltipStyle}
+                formatter={(value) => [
+                  value === null || value === undefined
+                    ? `No reading the ${period} before`
+                    : formatNumber(Number(value)),
+                  "Views gained",
+                ]}
+              />
+              <Bar isAnimationActive={false} dataKey="views" fill="var(--chart-3)" radius={[3, 3, 0, 0]} maxBarSize={28} />
+            </BarChart>
+          </ChartFrame>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex min-h-0 flex-1 flex-col">

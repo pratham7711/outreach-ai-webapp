@@ -13,6 +13,8 @@ import { campaignThumbnailPath, soundCoverPath } from "@/lib/postMedia";
 import { storedCampaignThumbnails } from "@/lib/campaigns/thumbnailCopy";
 import { firstParam, readCampaignSort } from "@/lib/listParams";
 import { hasPermission } from "@/lib/rbac";
+import { launchDatesAhead } from "@/lib/campaigns/rules";
+import { MEASURED_FIELDS_KEY } from "@/lib/metricDisplay";
 
 export default async function CampaignsPage({
   searchParams,
@@ -144,14 +146,44 @@ export default async function CampaignsPage({
   // (campaign, creator) pairs, so this stays small even for a campaign with
   // thousands of posts, and only covers the page being shown.
   const visibleIds = campaigns.map((c) => c.id);
-  const [postPairs, activationPairs, coverVersions, thumbnailCopies] = await Promise.all([
+  const [postPairs, activationPairs, coverVersions, thumbnailCopies, postTotals, unreadPosts, opensAtByCampaign] = await Promise.all([
     db.post.groupBy({ by: ["campaignId", "creatorId"], where: { campaignId: { in: visibleIds }, ...NOT_REMOVED, creator: { NOT: UNATTRIBUTED_CREATOR_WHERE } } }),
     db.activation.groupBy({ by: ["campaignId", "creatorId"], where: { campaignId: { in: visibleIds } } }),
     // Our own copy of each campaign's sound cover; see campaignArtwork.
     storedSoundCoverVersions(campaigns.map((c) => c.song?.sound?.id ?? ""), orgId),
     // And of each campaign's own picture.
     storedCampaignThumbnails(campaigns, orgId),
+    /* Views and the newest post per row: the outcome a list reader scans for,
+       over the same live posts the Posts count uses. One grouped read for the
+       page shown. */
+    db.post.groupBy({
+      by: ["campaignId"],
+      where: { campaignId: { in: visibleIds }, ...NOT_REMOVED },
+      _sum: { viewsCount: true },
+      _max: { postedAt: true },
+    }),
+    /* Live posts with no view figure yet: they add nothing to the sum above,
+       so the Views chip says how many it is missing. The same test as
+       fieldMetricValue: a 0 is a reading once the post was synced, unless its
+       measured-fields list leaves views out. A measured 0 is not "not read". */
+    db.post.groupBy({
+      by: ["campaignId"],
+      where: {
+        campaignId: { in: visibleIds },
+        ...NOT_REMOVED,
+        viewsCount: 0,
+        OR: [
+          { lastSyncedAt: null },
+          { NOT: { platformMetrics: { path: [MEASURED_FIELDS_KEY], array_contains: ["views"] } } },
+        ],
+      },
+      _count: { _all: true },
+    }),
+    // A launch date still ahead puts "Opens <day>" on the row.
+    launchDatesAhead(visibleIds, orgId),
   ]);
+  const totalsByCampaign = new Map(postTotals.map((t) => [t.campaignId, t]));
+  const unreadByCampaign = new Map(unreadPosts.map((t) => [t.campaignId, t._count._all]));
   const storedArtwork = (c: { id: string; song?: { sound?: { id: string } | null } | null }) => {
     const soundId = c.song?.sound?.id;
     const soundVersion = soundId ? coverVersions.get(soundId) : undefined;
@@ -180,6 +212,12 @@ export default async function CampaignsPage({
         thumbnailUrl: campaignArtwork(c, storedArtwork(c)),
         _count: c._count,
         creatorCount: creatorsByCampaign.get(c.id)?.size ?? 0,
+        /* A sum of 0 is posts nobody has read yet, not a campaign with no
+           views, so it travels as null and the chip is left off. */
+        views: (totalsByCampaign.get(c.id)?._sum.viewsCount ?? 0) > 0 ? totalsByCampaign.get(c.id)!._sum.viewsCount : null,
+        viewsUnread: unreadByCampaign.get(c.id) ?? 0,
+        lastPostAt: totalsByCampaign.get(c.id)?._max.postedAt?.toISOString() ?? null,
+        opensAt: opensAtByCampaign.get(c.id) ?? null,
         updatedAt: c.updatedAt.toISOString(),
         // Nullable in the schema, and only 25 of 532 campaigns carry one, so the
         // card omits the chip rather than printing a zero budget that was never set.

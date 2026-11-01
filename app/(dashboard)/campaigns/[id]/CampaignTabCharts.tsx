@@ -45,7 +45,7 @@ export function PlatformViewsPie({
             either ran outside the wrapper or -- once the stylesheet let it wrap
             -- ran 14px below it. 40px is the room the second line needs; the
             legend is still one line wherever it fits. MEASURED 2026-09-15. */}
-        <Legend verticalAlign="bottom" height={40} wrapperStyle={{ fontSize: "var(--cc-t-12)"}} formatter={(value: any) => <span style={{ color: "var(--cc-text-muted)" }}>{value}</span>} />
+        <Legend itemSorter={null} verticalAlign="bottom" height={40} wrapperStyle={{ fontSize: "var(--cc-t-12)"}} formatter={(value: any) => <span style={{ color: "var(--cc-text-muted)" }}>{value}</span>} />
       </PieChart>
     </ChartFrame>
   );
@@ -89,7 +89,7 @@ export function CreatorPerformanceBar({
             green of its own bar -- 2.62:1 on the light ground and 2.22:1 on
             creatorcore. A series colour is chosen to read as a bar, not as
             12px text; the swatch beside the label already carries it. */}
-        <Legend
+        <Legend itemSorter={null}
           verticalAlign="top"
           height={24}
           wrapperStyle={{ fontSize: "var(--cc-t-12)"}}

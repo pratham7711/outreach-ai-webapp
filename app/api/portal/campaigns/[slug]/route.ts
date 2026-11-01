@@ -7,6 +7,9 @@ import { isPortalCampaignActionable } from "@/lib/marketplace/portalVisibility";
 import { isCampaignIdKey, resolvePortalAccess } from "@/lib/portal/campaignAccess";
 import { campaignDates } from "@/lib/portal/campaignDates";
 import { fieldMetricValue } from "@/lib/metricDisplay";
+import { boostCodesAllowed, loadCampaignRules, scheduledUntil } from "@/lib/campaigns/rules";
+import { ruleChecksFor } from "@/lib/portal/ruleChecks";
+import { loadAnnotationsForPosts } from "@/lib/posts/annotations";
 
 const CAMPAIGN_SELECT = {
   id: true,
@@ -90,6 +93,9 @@ export async function GET(
       createdAt: Date;
       lastSyncedAt: Date | null;
       earnedMinor: number;
+      /** The ad-authorization code the creator gave the agency, if any. */
+      boostCode: string | null;
+      boostCodeExpiresAt: string | null;
     }[] = [];
 
     if (activation) {
@@ -112,16 +118,45 @@ export async function GET(
       });
       /* The bag holds the importer's record and our fetch notes, which are not
          the creator's to read, so only the verdict on views leaves here. */
+      /* Only the creator's own code and its expiry; the rule notes are for
+         the agency. */
+      const notes = await loadAnnotationsForPosts(posts.map((p) => p.id), campaign.orgId);
       submissions = posts.map(({ platformMetrics, ...p }) => ({
         ...p,
         views: fieldMetricValue(p.viewsCount, p.lastSyncedAt, platformMetrics, "views"),
         earnedMinor:
           p.status === "APPROVED" ? earnedMinorForPost(p.viewsCount, p.platform, rates) : 0,
+        boostCode: notes[p.id]?.boostCode ?? null,
+        boostCodeExpiresAt: notes[p.id]?.boostCodeExpiresAt ?? null,
       }));
     }
 
     const deadlinePassed =
       !!campaign.submissionDeadline && campaign.submissionDeadline.getTime() < Date.now();
+
+    /* The agency's checklist and submission rules (lib/campaigns/rules). A
+       launch date still ahead holds the campaign closed to posts: whoever can
+       already see it reads the brief, and submitting opens on that date. */
+    const [rules, boostCodes] = await Promise.all([
+      loadCampaignRules(campaign.id, campaign.orgId),
+      boostCodesAllowed(campaign.id, campaign.orgId),
+    ]);
+    const opensAt = scheduledUntil(rules, Date.now());
+    let ruleChecks: Awaited<ReturnType<typeof ruleChecksFor>> = [];
+    let ruleChecksPlatform: string | null = null;
+    if (rules && activation && access.creatorId) {
+      /* Checked against the roster row's own platform: a creator's row is one
+         account, and the submit route checks the post's platform again. */
+      const roster = await db.creator.findUnique({ where: { id: access.creatorId }, select: { platform: true } });
+      if (roster) {
+        ruleChecksPlatform = roster.platform;
+        ruleChecks = await ruleChecksFor(rules, {
+          campaignId: campaign.id,
+          creatorId: access.creatorId,
+          platform: roster.platform,
+        });
+      }
+    }
 
     return NextResponse.json({
       campaign: {
@@ -136,9 +171,21 @@ export async function GET(
           !!campaign.publicSlug &&
           campaign.marketplaceVisibility !== "PRIVATE" &&
           isPortalCampaignActionable(campaign.status) &&
-          !deadlinePassed,
-        acceptsPosts: isPortalCampaignActionable(campaign.status) && !deadlinePassed,
+          !deadlinePassed &&
+          !opensAt,
+        acceptsPosts: isPortalCampaignActionable(campaign.status) && !deadlinePassed && !opensAt,
+        scheduledUntil: opensAt,
+        checklist: rules
+          ? { dos: rules.dos, donts: rules.donts, examples: rules.examplePostUrls }
+          : { dos: [], donts: [], examples: [] },
+        ruleChecks,
+        /* The platform those checks were made for: a post on another platform
+           is checked again, against that platform, when it is submitted. */
+        ruleChecksPlatform,
         marketplace: campaign.marketplaceVisibility !== "PRIVATE",
+        /* Whether the agency asks for boost codes on this campaign; codes a
+           creator already gave are still listed under submissions. */
+        boostCodes,
         currency: campaign.currency,
         brief: campaign.brief?.content?.trim() || null,
         guidelines: campaign.guidelines,

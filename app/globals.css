@@ -4617,6 +4617,38 @@ h1, h2, h3, h4, h5, h6 {
 .cc-overview-card { padding: var(--cc-activity-pad); }
 .cc-activity-card > .ui-card-body,
 .cc-overview-card > .ui-card-body { padding: var(--cc-activity-body-pad); }
+/* The checklist & rules card's form: two fields a row, one on a phone. */
+.cc-rules-two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+}
+@media (max-width: 640px) {
+  .cc-rules-two { grid-template-columns: 1fr; }
+}
+
+/* Creator portal: boost code and its expiry side by side, stacked on phones. */
+.portal-boost-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 10px;
+}
+@media (max-width: 480px) {
+  .portal-boost-fields { grid-template-columns: 1fr; }
+}
+/* Below lg the portal's tab bar is fixed to the bottom (57px plus the safe
+   area, app/(portal)/portal/layout.tsx), so the Submit row sticks just above
+   it while its card is on screen. */
+@media (max-width: 1023.98px) {
+  .portal-submit-bar {
+    position: sticky;
+    bottom: calc(57px + env(safe-area-inset-bottom));
+    z-index: 5;
+    background: var(--cc-card);
+    padding: 10px 0;
+    margin-bottom: -10px;
+  }
+}
 
 /* Their activity filter is not a pill pair -- it is two 16px text links at the
    panel's right edge, All in black and Comments at half black, 21px apart.
@@ -8250,6 +8282,19 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   text-underline-offset: 3px;
 }
 
+/* The chart range switch sits on the black page, not on a card, so it takes
+   the page's ink: dim for the options, full white for the one in force. */
+.spr-range-toggle {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.spr-range-toggle .spr-audio-tab { color: var(--spr-on-page-dim); }
+.spr-range-toggle .spr-audio-tab.is-on { color: var(--spr-on-page); }
+.spr-range-toggle .spr-audio-tab:focus-visible {
+  outline: 2px solid var(--spr-on-page);
+  outline-offset: 3px;
+}
+
 .spr-audio-chart-title {
   margin: 0;
   font-size: 18px;
@@ -8501,6 +8546,63 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 
 /* Post grid. 5 columns at the reference's 1256px of inner width, 2 at 768,
    1 at 390 -- the same counts auto-fill lands on with this track. */
+/* The share report's post tools (SharedPostList): search, platform, sort,
+   cards|table, count. Report styling -- hairlines and ink, no app chrome. */
+.spr-posttools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+.spr-posttools-search,
+.spr-posttools-select {
+  font: inherit;
+  font-size: 14px;
+  color: var(--spr-ink);
+  background: var(--spr-card);
+  border: 1px solid var(--spr-grid);
+  border-radius: var(--spr-r-pill);
+  padding: 7px 10px;
+  min-width: 0;
+}
+.spr-posttools-search { flex: 1 1 220px; }
+.spr-posttools-view { margin-left: auto; }
+.spr-posttools-count { font-size: 13px; color: var(--spr-label); white-space: nowrap; }
+.spr-posttools-pages {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  font-size: 14px;
+  color: var(--spr-ink-muted);
+}
+.spr-posttools-pages .spr-audio-tab:disabled { color: var(--spr-label); cursor: default; }
+.spr-posttable-wrap { overflow-x: auto; }
+.spr-posttable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  color: var(--spr-ink);
+}
+.spr-posttable th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--spr-label);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--spr-grid);
+  white-space: nowrap;
+}
+.spr-posttable td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--spr-hairline);
+  white-space: nowrap;
+}
+.spr-posttable .num { text-align: right; font-variant-numeric: tabular-nums; }
+.spr-posttable td.name { max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+.spr-posttable td.name a { color: inherit; }
+.spr-posttable-status { color: var(--spr-label); }
+
 .spr-posts {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr));
@@ -8664,6 +8766,27 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   font-weight: 700;
 }
 .spr-note { font-size: 14px; color: var(--spr-ink-muted); margin: 0; }
+/* The Brief section (ShareVisibility.showBrief). Monochrome like the rest of
+   the report: do and don't are told apart by the mark, not by colour. */
+.spr-goal { display: flex; flex-direction: column; gap: 8px; }
+.spr-goal-bar { height: 8px; border-radius: 999px; background: var(--spr-pill); overflow: hidden; }
+.spr-goal-bar > span { display: block; height: 100%; background: var(--spr-ink); border-radius: inherit; }
+.spr-brief-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.spr-brief-list > li { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.5; color: var(--spr-ink); }
+.spr-brief-mark {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 1px;
+}
+.spr-brief-mark[data-kind="do"] { background: var(--spr-ink); color: var(--spr-card); }
+.spr-brief-mark[data-kind="dont"] { border: 1.5px solid var(--spr-ink); color: var(--spr-ink); }
 
 .spr-empty { text-align: center; padding: 48px 20px; }
 
@@ -9159,6 +9282,80 @@ html:has(.lp-page) { scroll-behavior: smooth; }
    one box is ticked every other box is visible to extend it. On touch, where
    hover does not exist and the first tick would otherwise be unreachable, it is
    simply always shown. */
+/* "Check views": an open view check on a post (lib/fraud/scanPosts). A
+   button, not a badge -- it opens the reason and the way to clear it. The
+   tile variant sits under the chips row, outside the post link. */
+.cc-viewcheck-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--cc-warning) 45%, transparent);
+  background: var(--cc-warning-bg);
+  color: var(--cc-warning-fg);
+  font: inherit;
+  font-size: var(--cc-t-11);
+  font-weight: 600;
+  line-height: 1.6;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.cc-viewcheck-chip:hover { border-color: var(--cc-warning); }
+.cc-viewcheck-chip:focus-visible { outline: 2px solid var(--cc-primary); outline-offset: 2px; }
+.cc-viewcheck-chip--tile {
+  position: absolute;
+  top: 46px;
+  left: 10px;
+  z-index: 3;
+  box-shadow: 0 1px 3px color-mix(in srgb, black 25%, transparent);
+}
+
+/* A post's notes for the agency (components/posts/PostAnnotationChips): rules
+   not checked at submission, the boost code, the exclusion reason. Wraps and
+   never runs past its cell. */
+.cc-post-notes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 100%;
+  min-width: 0;
+}
+.cc-post-notes--tile { margin-top: 8px; }
+.cc-post-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 2px 8px;
+  border: 1px solid var(--cc-border);
+  border-radius: 999px;
+  background: var(--cc-card);
+  color: var(--cc-text-muted);
+  font: inherit;
+  font-size: var(--cc-t-11);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The reason is the point of the chip and runs to 200 characters, so it
+   wraps instead of being cut at the tile's edge. */
+.cc-post-note--reason {
+  display: block;
+  border-radius: 8px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.cc-post-note--action {
+  color: var(--cc-primary);
+  cursor: pointer;
+}
+.cc-post-note--action:hover { border-color: var(--cc-primary); }
+.cc-post-note--action:focus-visible { outline: 2px solid var(--cc-primary); outline-offset: 1px; }
+.cc-post-note--action[data-expired="1"] { color: var(--cc-text-muted); }
+
 .cc-postpick {
   position: absolute;
   top: 10px;
@@ -9417,6 +9614,13 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   padding: 6px 10px;
   background: var(--cc-card);
   min-width: 0;
+}
+/* Views runs from five digits to nine and the chips are right-aligned, so a
+   content-width Views chip moved every chip to its left from row to row. */
+@media (min-width: 1024px) {
+  .cc-stat-chip--views {
+    min-width: 124px;
+  }
 }
 /* Only the /campaigns header is a card, and only on a phone; elsewhere this
    wrapper is not a box at all. */

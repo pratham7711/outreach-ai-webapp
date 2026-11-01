@@ -42,6 +42,11 @@ import { removeConfirmText, removePostsSummary, removePostsUndoHint, restorePost
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 import { RotateCcw } from "lucide-react";
+import { SeriesModeToggle } from "@/components/charts/SeriesModeToggle";
+import type { SeriesMode } from "@/lib/charts/seriesMode";
+import { CHART_BUCKET_HOURS, CHART_GRANULARITIES, type ChartGranularity } from "@/lib/trackers/granularity";
+
+const TRACK_PERIOD_LABEL: Record<ChartGranularity, string> = { "6hourly": "Per 6h", daily: "Daily", weekly: "Weekly" };
 
 const PerformanceOverTimeArea = dynamic(() => loadCharts().then((m) => m.PerformanceOverTimeArea), {
   ssr: false,
@@ -257,6 +262,8 @@ export default function PostDetailPage() {
   const [flagged, setFlagged] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [timeseries, setTimeseries] = useState<Timeseries | null>(null);
+  const [perfMode, setPerfMode] = useState<SeriesMode>("cumulative");
+  const [trackMode, setTrackMode] = useState<SeriesMode>("cumulative");
   const [trackToggling, setTrackToggling] = useState(false);
   const [ttlDays, setTtlDays] = useState<number>(DEFAULT_TTL_CHOICE);
 
@@ -614,6 +621,9 @@ export default function PostDetailPage() {
 
   const trackingEnabled = timeseries?.trackingEnabled ?? false;
   const botSignals = timeseries?.botSignals ?? [];
+  const trackingGranularity: ChartGranularity = (CHART_GRANULARITIES as readonly string[]).includes(timeseries?.chartGranularity ?? "")
+    ? (timeseries?.chartGranularity as ChartGranularity)
+    : "daily";
   const trackingSeries = (timeseries?.snapshots ?? []).map((s) => ({
     t: new Date(s.recordedAt).getTime(),
     // UTC, like the chart above; this was the viewer's zone with no zone named.
@@ -897,8 +907,11 @@ export default function PostDetailPage() {
 
       {chartData.length > 1 && (
         <Card variant="outlined" style={{ padding: 24, marginBottom: 24 }}>
-          <h3 style={{ fontSize: "var(--cc-t-16)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 16, marginTop: 0 }}>Performance Over Time</h3>
-          <PerformanceOverTimeArea data={chartData} />
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+            <h3 style={{ fontSize: "var(--cc-t-16)", fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>Performance Over Time</h3>
+            <SeriesModeToggle label="Performance over time" value={perfMode} onChange={setPerfMode} />
+          </div>
+          <PerformanceOverTimeArea data={chartData} mode={perfMode} />
         </Card>
       )}
 
@@ -963,7 +976,17 @@ export default function PostDetailPage() {
         </div>
 
         {trackingSeries.length > 1 && (
-          <TrackingLine data={trackingSeries} />
+          <>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+              <SeriesModeToggle
+                label="Tracking chart"
+                value={trackMode}
+                onChange={setTrackMode}
+                periodLabel={TRACK_PERIOD_LABEL[trackingGranularity]}
+              />
+            </div>
+            <TrackingLine data={trackingSeries} mode={trackMode} bucketHours={CHART_BUCKET_HOURS[trackingGranularity]} />
+          </>
         )}
         {trackingSeries.length <= 1 && trackingEnabled && (
           <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-subtle)", margin: "12px 0 0" }}>

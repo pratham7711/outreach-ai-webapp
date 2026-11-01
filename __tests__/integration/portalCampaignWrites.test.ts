@@ -19,9 +19,12 @@ import { POST as draft } from "@/app/api/portal/campaigns/[slug]/draft/route";
 jest.mock("@/lib/db", () => ({
   db: {
     campaign: { findUnique: jest.fn() },
-    creator: { findFirst: jest.fn(), findMany: jest.fn() },
+    creator: { findFirst: jest.fn(), findMany: jest.fn(), findUnique: jest.fn() },
     activation: { findFirst: jest.fn(), update: jest.fn() },
-    post: { findFirst: jest.fn(), create: jest.fn() },
+    post: { findFirst: jest.fn(), create: jest.fn(), count: jest.fn() },
+    campaignRules: { findFirst: jest.fn() },
+    postAnnotation: { upsert: jest.fn() },
+    creatorTrackerSnapshot: { findFirst: jest.fn() },
   },
 }));
 jest.mock("@/lib/creator-auth", () => ({ getCreatorSession: jest.fn() }));
@@ -42,6 +45,7 @@ jest.mock("@/lib/platforms/tiktokToken", () => ({ getTikTokTokenForCreator: jest
 import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
 import { computeCampaignAccrual } from "@/lib/marketplace/cap";
+import { fetchPostMetrics } from "@/lib/platforms/fetchPostMetrics";
 
 const mockDb = db as any;
 const mockSession = getCreatorSession as jest.Mock;
@@ -93,6 +97,11 @@ beforeEach(() => {
   mockDb.post.create.mockResolvedValue({ id: "post-1" });
   mockDb.activation.update.mockResolvedValue({ id: "act-1", status: "DRAFT_SUBMITTED" });
   mockAccrual.mockResolvedValue({ capReached: false });
+  mockDb.campaignRules.findFirst.mockResolvedValue(null);
+  mockDb.post.count.mockResolvedValue(0);
+  mockDb.postAnnotation.upsert.mockResolvedValue({});
+  mockDb.creator.findUnique.mockResolvedValue(null);
+  mockDb.creatorTrackerSnapshot.findFirst.mockResolvedValue(null);
 });
 
 const joined = () => {
@@ -341,5 +350,150 @@ describe("POST /api/portal/campaigns/[slug]/submissions — platform rates", () 
     const res = await submitReq();
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/TIKTOK/);
+  });
+});
+
+/* The agency's submission rules and launch date (lib/campaigns/rules). Only a
+   measured failure refuses a post; what we could not measure goes through
+   with a note for the agency, which reviews every portal post anyway. */
+describe("POST /api/portal/campaigns/[slug]/submissions — campaign rules", () => {
+  const rulesRow = (over: Record<string, unknown> = {}) => ({
+    dos: [],
+    donts: [],
+    examplePostUrls: [],
+    minFollowers: null,
+    requiredHashtags: [],
+    requiredMentions: [],
+    maxPostsPerAccount: null,
+    launchAt: null,
+    viewGoal: null,
+    ...over,
+  });
+  const submitWith = (body: Record<string, unknown>) =>
+    submit(
+      new NextRequest(`http://localhost/api/portal/campaigns/${SLUG}/submissions`, {
+        method: "POST",
+        body: JSON.stringify({ postUrl: "https://tiktok.com/@a/video/999", ...body }),
+      }),
+      { params: Promise.resolve({ slug: SLUG }) }
+    );
+  const mockFetch = fetchPostMetrics as jest.Mock;
+
+  it("refuses posts until the launch date", async () => {
+    joined();
+    mockDb.campaignRules.findFirst.mockResolvedValue(rulesRow({ launchAt: new Date(Date.now() + 3 * 86_400_000) }));
+    const res = await submitReq();
+    expect(res.status).toBe(409);
+    // The portal's "Nov 1" style, not "1 Nov 2026".
+    expect((await res.json()).error).toMatch(/^This campaign opens for posts on [A-Z][a-z]{2} \d{1,2}(, \d{4})?$/);
+    expect(mockDb.post.create).not.toHaveBeenCalled();
+  });
+
+  it("takes posts once the launch date has passed", async () => {
+    joined();
+    mockDb.campaignRules.findFirst.mockResolvedValue(rulesRow({ launchAt: new Date(Date.now() - 86_400_000) }));
+    expect((await submitReq()).status).toBe(201);
+  });
+
+  it("refuses a creator already at the posts-per-account limit, counting live posts on that platform", async () => {
+    joined();
+    mockDb.campaignRules.findFirst.mockResolvedValue(rulesRow({ maxPostsPerAccount: 1 }));
+    mockDb.post.count.mockResolvedValue(1);
+    const res = await submitReq();
+    expect(res.status).toBe(422);
+    expect((await res.json()).error).toMatch(/Up to 1 post per account/);
+    expect(mockDb.post.count.mock.calls[0][0].where).toEqual(
+      expect.objectContaining({ campaignId: "camp-1", creatorId: "cr-1", platform: "TIKTOK", removedAt: null })
+    );
+    expect(mockDb.post.create).not.toHaveBeenCalled();
+  });
+
+  it("refuses a measured follower count below the minimum", async () => {
+    joined();
+    mockDb.campaignRules.findFirst.mockResolvedValue(rulesRow({ minFollowers: 10_000 }));
+    mockDb.creator.findUnique.mockResolvedValue({ platform: "TIKTOK", followersCount: 500 });
+    const res = await submitReq();
+    expect(res.status).toBe(422);
+    expect((await res.json()).error).toMatch(/Needs 10,000 followers/);
+    expect(mockDb.post.create).not.toHaveBeenCalled();
+  });
+
+  it("lets an unmeasured follower count through and notes it for the agency", async () => {
+    joined();
+    mockDb.campaignRules.findFirst.mockResolvedValue(rulesRow({ minFollowers: 10_000 }));
+    mockDb.creator.findUnique.mockResolvedValue({ platform: "TIKTOK", followersCount: 0 });
+    const res = await submitReq();
+    expect(res.status).toBe(201);
+    expect(mockDb.postAnnotation.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ create: expect.objectContaining({ postId: "post-1", ruleNotes: ["Followers not measured"] }) })
+    );
+  });
+
+  it("refuses a caption that was read and lacks a required hashtag", async () => {
+    joined();
+    mockDb.campaignRules.findFirst.mockResolvedValue(rulesRow({ requiredHashtags: ["#summerdrop"] }));
+    mockFetch.mockResolvedValueOnce({ caption: "new video #fyp" });
+    const res = await submitReq();
+    expect(res.status).toBe(422);
+    expect((await res.json()).error).toMatch(/Missing from the caption: #summerdrop/);
+    expect(mockDb.post.create).not.toHaveBeenCalled();
+  });
+
+  it("accepts a caption carrying the hashtag in any case", async () => {
+    joined();
+    mockDb.campaignRules.findFirst.mockResolvedValue(rulesRow({ requiredHashtags: ["#summerdrop"] }));
+    mockFetch.mockResolvedValueOnce({ caption: "new video #SummerDrop" });
+    expect((await submitReq()).status).toBe(201);
+    expect(mockDb.postAnnotation.upsert).not.toHaveBeenCalled();
+  });
+
+  it("lets a caption it could not read through with a note", async () => {
+    joined();
+    mockDb.campaignRules.findFirst.mockResolvedValue(rulesRow({ requiredMentions: ["@brand"] }));
+    const res = await submitReq();
+    expect(res.status).toBe(201);
+    expect(mockDb.postAnnotation.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ create: expect.objectContaining({ ruleNotes: ["Caption not read"] }) })
+    );
+  });
+
+  it("stores a boost code given with the post", async () => {
+    joined();
+    mockDb.campaignRules.findFirst.mockResolvedValue(rulesRow({ allowBoostCodes: true }));
+    const res = await submitWith({ boostCode: "  #SPARK123  ", boostCodeExpiresAt: "2026-12-01" });
+    expect(res.status).toBe(201);
+    const arg = mockDb.postAnnotation.upsert.mock.calls[0][0];
+    expect(arg.create.boostCode).toBe("#SPARK123");
+    expect(arg.create.boostCodeExpiresAt).toEqual(new Date("2026-12-01"));
+  });
+
+  it("refuses a boost code, creating nothing, while the campaign has boost codes off", async () => {
+    joined();
+    const res = await submitWith({ boostCode: "SPARK1" });
+    expect(res.status).toBe(403);
+    expect((await res.json()).code).toBe("boost_codes_off");
+    expect(mockDb.post.create).not.toHaveBeenCalled();
+    expect(mockDb.postAnnotation.upsert).not.toHaveBeenCalled();
+  });
+
+  it("400s an expiry that is not a date", async () => {
+    joined();
+    expect((await submitWith({ boostCode: "X", boostCodeExpiresAt: "soon" })).status).toBe(400);
+  });
+
+  it("behaves as before when the rules table does not exist yet", async () => {
+    joined();
+    mockDb.campaignRules.findFirst.mockRejectedValue(Object.assign(new Error('relation "CampaignRules" does not exist'), { code: "P2021" }));
+    mockDb.postAnnotation.upsert.mockRejectedValue(Object.assign(new Error("missing"), { code: "P2021" }));
+    expect((await submitWith({})).status).toBe(201);
+    /* No table means boost codes are off, so the portal never offers the field. */
+    expect((await submitWith({ boostCode: "X" })).status).toBe(403);
+  });
+
+  it("does not turn a created post into a 500 when the note fails", async () => {
+    joined();
+    mockDb.campaignRules.findFirst.mockResolvedValue(rulesRow({ allowBoostCodes: true }));
+    mockDb.postAnnotation.upsert.mockRejectedValue(new Error("connection reset"));
+    expect((await submitWith({ boostCode: "X" })).status).toBe(201);
   });
 });

@@ -5,6 +5,7 @@ import { pickSpotifyTrack, searchQueries, type SongForMatch } from "./spotifyMat
 import { openSpotifyReads, type SpotifyReads } from "./spotifyReads";
 import { isMissingSongStreamTable } from "./streamSnapshotDdl";
 import { isMissingSongLinkColumn } from "./songLinkDdl";
+import { NOT_REMOVED } from "@/lib/posts/removed";
 
 /**
  * Once a day, each promoted song's Spotify play count.
@@ -47,7 +48,7 @@ export type StreamSweepResult = {
   ok: true;
   tableReady: boolean;
   dryRun: boolean;
-  /** Songs on an open campaign with no row for today, before this run. */
+  /** Songs on an open campaign (or one inside its post-completion tail) with no row for today, before this run. */
   due: number;
   read: number;
   noMatch: number;
@@ -162,6 +163,29 @@ type DueSong = {
 };
 
 const OPEN_CAMPAIGN = { some: { deletedAt: null, status: { in: [...OPEN_CAMPAIGN_STATUSES] } } };
+
+/** How long a finished campaign's song keeps being read: streams a campaign
+ *  drove keep arriving after the last post, and the tail is part of the result. */
+export const POST_COMPLETION_TAIL_DAYS = 30;
+
+/**
+ * The daily sweep's filter: an open campaign, or a COMPLETE one whose newest
+ * live post is under POST_COMPLETION_TAIL_DAYS old. Campaign has no completion
+ * date, so the newest post stands in for it. Priming on a link change keeps
+ * OPEN_CAMPAIGN: a link set on a finished campaign waits for the next sweep.
+ */
+function sweepCampaign(nowMs: number) {
+  const since = new Date(nowMs - POST_COMPLETION_TAIL_DAYS * 86_400_000);
+  return {
+    some: {
+      deletedAt: null,
+      OR: [
+        { status: { in: [...OPEN_CAMPAIGN_STATUSES] } },
+        { status: "COMPLETE" as const, posts: { some: { ...NOT_REMOVED, postedAt: { gte: since } } } },
+      ],
+    },
+  };
+}
 const DUE_SONG_FIELDS = {
   id: true,
   orgId: true,
@@ -173,37 +197,49 @@ const DUE_SONG_FIELDS = {
 } as const;
 
 /**
- * Songs on an open campaign with no reading today. `withReadings: false` is
+ * Songs on an open campaign, or a finished one inside its tail, with no reading today. `withReadings: false` is
  * the same list for a database without the readings table, where every song
  * is due and none has a known track; `withLink: false` is the list for a
  * database without Song.spotifyTrackId, where no song has a linked track.
  */
-async function dueSongs(day: Date, limit: number, withReadings: boolean, withLink: boolean): Promise<DueSong[]> {
+async function dueSongs(day: Date, nowMs: number, limit: number, withReadings: boolean, withLink: boolean): Promise<DueSong[]> {
   /* `spotifyTrackId: false` leaves the column out of the SQL altogether. */
   const fields = { ...DUE_SONG_FIELDS, spotifyTrackId: withLink };
-  if (!withReadings) {
-    const songs = await db.song.findMany({
-      where: { deletedAt: null, campaigns: OPEN_CAMPAIGN },
-      select: fields,
-      orderBy: { id: "asc" },
-      take: limit,
-    });
-    return songs.map((song) => ({ ...song, streamReadings: [] }));
-  }
-  return db.song.findMany({
-    where: { deletedAt: null, campaigns: OPEN_CAMPAIGN, streamReadings: { none: { day } } },
-    select: {
-      ...fields,
-      streamReadings: {
-        where: { spotifyTrackId: { not: null } },
-        orderBy: { day: "desc" },
-        take: 1,
-        select: { spotifyTrackId: true, recordedAt: true },
+  const read = async (campaigns: object, take: number, skip: string[] = []): Promise<DueSong[]> => {
+    const notIn = skip.length > 0 ? { id: { notIn: skip } } : {};
+    if (!withReadings) {
+      const songs = await db.song.findMany({
+        where: { deletedAt: null, campaigns, ...notIn },
+        select: fields,
+        orderBy: { id: "asc" },
+        take,
+      });
+      return songs.map((song) => ({ ...song, streamReadings: [] }));
+    }
+    return db.song.findMany({
+      where: { deletedAt: null, campaigns, streamReadings: { none: { day } }, ...notIn },
+      select: {
+        ...fields,
+        streamReadings: {
+          where: { spotifyTrackId: { not: null } },
+          orderBy: { day: "desc" },
+          take: 1,
+          select: { spotifyTrackId: true, recordedAt: true },
+        },
       },
-    },
-    orderBy: { id: "asc" },
-    take: limit,
-  });
+      orderBy: { id: "asc" },
+      take,
+    });
+  };
+  /* One read when everything due fits in the run. When it does not, songs on
+     a running campaign go first and finished campaigns' tails take what is
+     left: the tail is the extra, and must never push a live campaign's song
+     past the limit. */
+  const all = await read(sweepCampaign(nowMs), limit + 1);
+  if (all.length <= limit) return all;
+  const open = await read(OPEN_CAMPAIGN, limit);
+  if (open.length >= limit) return open;
+  return [...open, ...(await read(sweepCampaign(nowMs), limit - open.length, open.map((s) => s.id)))];
 }
 
 export async function snapshotSongStreams(options: StreamSweepOptions = {}): Promise<StreamSweepResult> {
@@ -240,7 +276,7 @@ export async function snapshotSongStreams(options: StreamSweepOptions = {}): Pro
   let withReadings = true;
   while (!due) {
     try {
-      due = await dueSongs(day, limit, withReadings, result.linkReady);
+      due = await dueSongs(day, nowMs, limit, withReadings, result.linkReady);
     } catch (e) {
       if (result.linkReady && isMissingSongLinkColumn(e)) {
         result.linkReady = false;

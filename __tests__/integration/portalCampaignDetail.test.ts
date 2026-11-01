@@ -12,9 +12,12 @@ import { GET } from "@/app/api/portal/campaigns/[slug]/route";
 jest.mock("@/lib/db", () => ({
   db: {
     campaign: { findUnique: jest.fn() },
-    creator: { findFirst: jest.fn(), findMany: jest.fn() },
+    creator: { findFirst: jest.fn(), findMany: jest.fn(), findUnique: jest.fn() },
     activation: { findFirst: jest.fn() },
-    post: { findMany: jest.fn() },
+    post: { findMany: jest.fn(), count: jest.fn() },
+    campaignRules: { findFirst: jest.fn() },
+    postAnnotation: { findMany: jest.fn() },
+    creatorTrackerSnapshot: { findFirst: jest.fn() },
   },
 }));
 jest.mock("@/lib/creator-auth", () => ({ getCreatorSession: jest.fn() }));
@@ -57,6 +60,11 @@ beforeEach(() => {
   mockDb.creator.findMany.mockResolvedValue([]);
   mockDb.activation.findFirst.mockResolvedValue(null);
   mockDb.post.findMany.mockResolvedValue([]);
+  mockDb.post.count.mockResolvedValue(0);
+  mockDb.campaignRules.findFirst.mockResolvedValue(null);
+  mockDb.postAnnotation.findMany.mockResolvedValue([]);
+  mockDb.creator.findUnique.mockResolvedValue(null);
+  mockDb.creatorTrackerSnapshot.findFirst.mockResolvedValue(null);
 });
 
 it("returns 401 with no creator session", async () => {
@@ -207,4 +215,120 @@ it("lists the campaign's dates, the creator's due date first", async () => {
     "post_due",
     "submissions_close",
   ]);
+});
+
+/* The agency's checklist, submission rules and launch date (lib/campaigns/rules). */
+describe("campaign rules", () => {
+  const rulesRow = (over: Record<string, unknown> = {}) => ({
+    dos: ["Use the sound"],
+    donts: ["No competitor logos"],
+    examplePostUrls: ["https://www.tiktok.com/@x/video/1"],
+    minFollowers: null,
+    requiredHashtags: [],
+    requiredMentions: [],
+    maxPostsPerAccount: null,
+    launchAt: null,
+    viewGoal: null,
+    ...over,
+  });
+  const joinedActivation = {
+    id: "act-1",
+    creatorId: "cr-1",
+    status: "ACCEPTED",
+    draftUrl: null,
+    draftCaption: null,
+    draftMediaType: null,
+    draftSubmittedAt: null,
+    feedbackNotes: null,
+  };
+  const join = () => {
+    mockDb.creator.findFirst.mockResolvedValue({ id: "cr-1" });
+    mockDb.activation.findFirst.mockResolvedValue(joinedActivation);
+  };
+
+  it("serves no checklist and no checks when the agency set none", async () => {
+    join();
+    const body = await (await call()).json();
+    expect(body.campaign.checklist).toEqual({ dos: [], donts: [], examples: [] });
+    expect(body.campaign.ruleChecks).toEqual([]);
+    expect(body.campaign.scheduledUntil).toBeNull();
+    expect(body.campaign.acceptsPosts).toBe(true);
+  });
+
+  it("serves the checklist to a creator who has not joined", async () => {
+    mockDb.campaignRules.findFirst.mockResolvedValue(rulesRow());
+    const body = await (await call()).json();
+    expect(body.campaign.checklist).toEqual({
+      dos: ["Use the sound"],
+      donts: ["No competitor logos"],
+      examples: ["https://www.tiktok.com/@x/video/1"],
+    });
+    // Rule checks are about the creator's own account, so only once joined.
+    expect(body.campaign.ruleChecks).toEqual([]);
+  });
+
+  it("checks the rules against the joined creator's measured followers", async () => {
+    join();
+    mockDb.campaignRules.findFirst.mockResolvedValue(rulesRow({ minFollowers: 10_000, requiredHashtags: ["#drop"] }));
+    mockDb.creator.findUnique.mockResolvedValue({ platform: "TIKTOK", followersCount: 0 });
+    mockDb.creatorTrackerSnapshot.findFirst.mockResolvedValue({ followersCount: 25_000, recordedAt: new Date("2026-10-20T00:00:00Z") });
+    const body = await (await call()).json();
+    const byKey = Object.fromEntries(body.campaign.ruleChecks.map((c: { key: string }) => [c.key, c]));
+    expect(byKey.followers.state).toBe("pass");
+    expect(byKey.followers.detail).toMatch(/25,000/);
+    expect(byKey.hashtags.state).toBe("pending");
+    expect(body.campaign.ruleChecksPlatform).toBe("TIKTOK");
+  });
+
+  it("closes a scheduled campaign to posts and to joining until its launch date", async () => {
+    const launch = new Date(Date.now() + 5 * 86_400_000);
+    mockDb.campaignRules.findFirst.mockResolvedValue(rulesRow({ launchAt: launch }));
+    const body = await (await call()).json();
+    expect(body.campaign.scheduledUntil).toBe(launch.toISOString());
+    expect(body.campaign.acceptsPosts).toBe(false);
+    expect(body.campaign.joinable).toBe(false);
+  });
+
+  it("returns each submission's boost code, and nothing of the agency's notes", async () => {
+    join();
+    mockDb.post.findMany.mockResolvedValue([
+      {
+        id: "p-1",
+        postUrl: "https://www.tiktok.com/@a/video/9",
+        platform: "TIKTOK",
+        status: "PENDING_REVIEW",
+        viewsCount: 0,
+        thumbnailUrl: null,
+        caption: null,
+        rejectionReason: null,
+        createdAt: new Date(),
+        lastSyncedAt: null,
+        platformMetrics: null,
+      },
+    ]);
+    mockDb.postAnnotation.findMany.mockResolvedValue([
+      { postId: "p-1", boostCode: "SPARK1", boostCodeExpiresAt: new Date("2026-12-01T00:00:00Z"), ruleNotes: ["Caption not read"], exclusionReason: null },
+    ]);
+    const body = await (await call()).json();
+    expect(body.submissions[0].boostCode).toBe("SPARK1");
+    expect(body.submissions[0].boostCodeExpiresAt).toBe("2026-12-01T00:00:00.000Z");
+    expect(body.submissions[0].ruleNotes).toBeUndefined();
+    /* Listed even with boost codes off: it is the creator's own code. */
+    expect(body.campaign.boostCodes).toBe(false);
+  });
+
+  it("says whether the agency asks for boost codes on this campaign", async () => {
+    join();
+    mockDb.campaignRules.findFirst.mockResolvedValue({ allowBoostCodes: true, allowExclusions: false });
+    expect((await (await call()).json()).campaign.boostCodes).toBe(true);
+  });
+
+  it("serves the campaign as before when the rules table does not exist yet", async () => {
+    join();
+    mockDb.campaignRules.findFirst.mockRejectedValue(Object.assign(new Error("missing"), { code: "P2021" }));
+    mockDb.postAnnotation.findMany.mockRejectedValue(Object.assign(new Error("missing"), { code: "P2021" }));
+    const res = await call();
+    expect(res.status).toBe(200);
+    expect((await res.json()).campaign.acceptsPosts).toBe(true);
+  });
 });

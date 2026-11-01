@@ -5,7 +5,7 @@ import { MetricTile, Button } from "@/components/ds";
 import { ChartFrame } from "@/components/ds/ChartFrame";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  PieChart, Pie, Cell, Legend,
+  PieChart, Pie, Cell, Legend, BarChart, Bar, ReferenceLine,
 } from "recharts";
 import { Eye, Heart, Percent, DollarSign, Target, TrendingUp, AlertTriangle, BarChart3, PieChart as PieChartIcon, Trophy, Download } from "lucide-react";
 import { formatFull, formatCompact } from "@/lib/format";
@@ -20,6 +20,12 @@ import { viewsCoverageNote } from "@/lib/metricDisplay";
 import { asOfCaption } from "@/lib/dataAge";
 import { chartDateAxis, sortByDate } from "@/lib/reports/chartDates";
 import { platformSeriesColor } from "@/lib/reports/platformSeriesColor";
+import { SeriesModeToggle } from "@/components/charts/SeriesModeToggle";
+import { nextPeriodBy, toChanges, withinRange, type ChartRange, type SeriesMode } from "@/lib/charts/seriesMode";
+import { ChartTabsCard, type ChartTab } from "@/components/charts/ChartTabsCard";
+import { launchLabel, type CampaignLaunch } from "@/lib/campaigns/launch";
+import { formatTick, niceAxis, stackExtent } from "@/lib/charts/axisTicks";
+import { platformLabel } from "@/lib/platforms/registry";
 
 /* Taken from the report seam rather than restated here. It was restated, and the
    two drifted the moment the seam grew the per-counter totals. */
@@ -56,6 +62,8 @@ type PerformanceData = {
   instagramAudio?: CampaignAudio | null;
   /** Null when the campaign has no song; see lib/songs/streams. */
   streams: CampaignStreams | null;
+  /** Absent from a report cached before it existed. */
+  launch?: CampaignLaunch | null;
 };
 
 /**
@@ -71,6 +79,15 @@ function seriesFor(platforms: string[]): { key: string; color: string; solid: bo
   /* Each platform in its own colour rather than the theme's grey ramp, which
      made three series near-identical in light. See platformSeriesColor. */
   return platforms.map((key, i) => ({ key, ...platformSeriesColor(key, platformColor(key, i)) }));
+}
+
+function audioTab(key: string, label: string, audio: CampaignAudio, launch: CampaignLaunch | null): ChartTab {
+  return {
+    key,
+    label,
+    figure: audio.uses === null ? null : `${audio.usesRounded ? "≈" : ""}${formatCompact(audio.uses)} videos`,
+    render: (range) => <AudioCard audio={audio} range={range} launch={launch} embedded />,
+  };
 }
 
 function formatNumber(num: number): string {
@@ -175,6 +192,136 @@ function ExportModal({ campaignId, onClose }: { campaignId: string; onClose: () 
   );
 }
 
+/**
+ * Views over time by platform: the running total, or what each day added.
+ * Per-day changes are worked out over every reading before the range cuts the
+ * rows, so the window's first day keeps its figure.
+ */
+function ViewsChart({
+  timeSeries,
+  activeSeries,
+  range,
+  launch,
+  mode,
+  onModeChange,
+}: {
+  timeSeries: TimeSeriesPoint[];
+  activeSeries: { key: string; color: string; solid: boolean }[];
+  range: ChartRange;
+  launch: CampaignLaunch | null;
+  /** The chart card's Daily/Cumulative, so it holds across its tabs. */
+  mode?: SeriesMode;
+  onModeChange?: (m: SeriesMode) => void;
+}) {
+  const [ownMode, setOwnMode] = useState<SeriesMode>("cumulative");
+  const viewsMode = mode ?? ownMode;
+  const topBandFirst = (item: { dataKey?: unknown }) => -activeSeries.findIndex((s) => s.key === item.dataKey);
+  const seriesKeys = activeSeries.map((s) => s.key);
+  const setViewsMode = onModeChange ?? setOwnMode;
+  /* Calendar order, a year on the ticks once the series crosses one, and at
+     most seven ticks -- see lib/reports/chartDates. */
+  const chartSeries = sortByDate(timeSeries);
+  /* Each platform's value is the running view total of its posts on that day
+     (every day present), so a day's figure is the change from the day before. */
+  const dailySeries = toChanges(
+    chartSeries,
+    activeSeries.map((s) => s.key),
+    nextPeriodBy((r) => String(r.date)),
+  );
+  const shown = withinRange(chartSeries, (r) => String(r.date), range);
+  const shownDaily = withinRange(dailySeries, (r) => String(r.date), range);
+  const dateAxis = chartDateAxis(shown);
+  const enough = timeSeries.length >= 3;
+  const lastDay = chartSeries.length ? String(chartSeries[chartSeries.length - 1].date) : null;
+  /* The views line starts at the first post, so a first-post marker would sit
+     on the left edge; it is drawn only when it falls inside the chart. */
+  const marker =
+    launch && shown.length > 1 && String(shown[0].date) < launch.day && shown.some((r) => String(r.date) === launch.day) ? (
+      <ReferenceLine
+        x={launch.day}
+        stroke="var(--cc-text-muted)"
+        strokeDasharray="4 3"
+        label={{ value: launchLabel(launch), position: "insideTopLeft", fontSize: 11, fill: "var(--cc-text-muted)" }}
+      />
+    ) : null;
+
+  return (
+    <>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+        <span className="cc-panel-title cc-chart-title" style={{ display: "block" }}>
+          {viewsMode === "daily" ? "Views Gained per Day by Platform" : "Views Over Time by Platform"}
+        </span>
+        {enough ? <SeriesModeToggle label="Views over time" value={viewsMode} onChange={setViewsMode} /> : null}
+      </div>
+      {enough && shown.length === 0 ? (
+        <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>
+          No view readings in this range{lastDay ? `; the last was on ${dateAxis.label(lastDay)}` : ""}.
+        </p>
+      ) : enough && viewsMode === "daily" ? (
+        <ChartFrame height={320}>
+          <BarChart data={shownDaily} stackOffset="sign" margin={{ top: 8, right: 24, left: -8, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--cc-border)" vertical={false} />
+            <XAxis dataKey="date" ticks={dateAxis.ticks} interval="preserveStartEnd" minTickGap={14} tickFormatter={dateAxis.tick} tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} />
+            <YAxis tickFormatter={(v) => formatTick(Number(v))} tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} width={72} {...niceAxis(stackExtent(shownDaily, seriesKeys))} />
+            <ReferenceLine y={0} stroke="var(--cc-border)" />
+            {marker}
+            <Tooltip
+              itemSorter={topBandFirst}
+              labelFormatter={(l) => dateAxis.label(String(l))}
+              formatter={(v: unknown) => (v === null || v === undefined ? "—" : formatNumber(Number(v)))}
+              contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, fontSize: "var(--cc-t-13)"}}
+            />
+            <Legend itemSorter={null} wrapperStyle={{ fontSize: "var(--cc-t-12)"}} />
+            {activeSeries.map((s) => (
+              <Bar isAnimationActive={false} key={s.key} dataKey={s.key} name={platformLabel(s.key)} stackId="views" fill={s.color} maxBarSize={28} />
+            ))}
+          </BarChart>
+        </ChartFrame>
+      ) : enough ? (
+        <ChartFrame height={320}>
+          <AreaChart data={shown} margin={{ top: 8, right: 24, left: -8, bottom: 0 }}>
+            <defs>
+              {activeSeries.map((s) => (
+                <linearGradient key={s.key} id={`perfGrad-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={s.color} stopOpacity={0.3} />
+                  <stop offset="95%" stopColor={s.color} stopOpacity={0} />
+                </linearGradient>
+              ))}
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--cc-border)" />
+            <XAxis dataKey="date" ticks={dateAxis.ticks} interval="preserveStartEnd" minTickGap={14} tickFormatter={dateAxis.tick} tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} />
+            <YAxis tickFormatter={(v) => formatTick(Number(v))} tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} width={72} {...niceAxis(stackExtent(shown, seriesKeys))} />
+            {marker}
+            <Tooltip
+              itemSorter={topBandFirst}
+              labelFormatter={(l) => dateAxis.label(String(l))}
+              formatter={(v: unknown) => formatNumber(Number(v ?? 0))}
+              contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, fontSize: "var(--cc-t-13)"}}
+            />
+            <Legend itemSorter={null} wrapperStyle={{ fontSize: "var(--cc-t-12)"}} />
+            {activeSeries.map((s) => (
+              <Area
+                isAnimationActive={false}
+                key={s.key}
+                type="monotone"
+                dataKey={s.key}
+                name={platformLabel(s.key)}
+                stackId="views"
+                strokeDasharray={s.solid ? "0" : undefined}
+                stroke={s.color}
+                fill={`url(#perfGrad-${s.key})`}
+                strokeWidth={2}
+              />
+            ))}
+          </AreaChart>
+        </ChartFrame>
+      ) : (
+        <EmptyState icon={<TrendingUp size={32} color="var(--cc-text-subtle)" />} title="Not enough data yet" description="Views over time will appear once posts accumulate a few days of metrics." />
+      )}
+    </>
+  );
+}
+
 export default function PerformanceTab({ campaignId }: { campaignId: string }) {
   const [data, setData] = useState<PerformanceData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -209,10 +356,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
   const activeSeries = seriesFor(seriesPlatforms).filter((s) =>
     timeSeries.some((row) => Number(row[s.key] ?? 0) > 0)
   );
-  /* Calendar order, a year on the ticks once the series crosses one, and at
-     most seven ticks -- see lib/reports/chartDates. */
-  const chartSeries = sortByDate(timeSeries);
-  const dateAxis = chartDateAxis(chartSeries);
+  const launch = data.launch ?? null;
 
   const headerActions = (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -318,55 +462,38 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
         )}
       </div>
 
-      {/* A campaign that promotes no release shows nothing here at all. Give it
-          one in Settings and the card appears in this slot. */}
-      {data.audio ? <AudioCard audio={data.audio} /> : null}
-      {data.instagramAudio ? <AudioCard audio={data.instagramAudio} /> : null}
-      {data.streams ? <SpotifyStreamsCard streams={data.streams} /> : null}
-
-      <Card variant="outlined" style={{ padding: 24 }}>
-        <span className="cc-panel-title cc-chart-title" style={{ display: "block", marginBottom: 16 }}>
-          Views Over Time by Platform
-        </span>
-        {timeSeries.length >= 3 ? (
-          <ChartFrame height={320}>
-            <AreaChart data={chartSeries} margin={{ top: 8, right: 24, left: -8, bottom: 0 }}>
-              <defs>
-                {activeSeries.map((s) => (
-                  <linearGradient key={s.key} id={`perfGrad-${s.key}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={s.color} stopOpacity={0.3} />
-                    <stop offset="95%" stopColor={s.color} stopOpacity={0} />
-                  </linearGradient>
-                ))}
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--cc-border)" />
-              <XAxis dataKey="date" ticks={dateAxis.ticks} interval="preserveStartEnd" minTickGap={14} tickFormatter={dateAxis.tick} tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} />
-              <YAxis tickFormatter={(v) => formatCompact(Number(v))} tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} width={72} />
-              <Tooltip
-                labelFormatter={(l) => dateAxis.label(String(l))}
-                formatter={(v: any) => formatNumber(Number(v ?? 0))}
-                contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, fontSize: "var(--cc-t-13)"}}
-              />
-              <Legend wrapperStyle={{ fontSize: "var(--cc-t-12)"}} />
-              {activeSeries.map((s) => (
-                <Area
-                  isAnimationActive={false}
-                  key={s.key}
-                  type="monotone"
-                  dataKey={s.key}
-                  stackId="views"
-                  strokeDasharray={s.solid ? "0" : undefined}
-                  stroke={s.color}
-                  fill={`url(#perfGrad-${s.key})`}
-                  strokeWidth={2}
-                />
-              ))}
-            </AreaChart>
-          </ChartFrame>
-        ) : (
-          <EmptyState icon={<TrendingUp size={32} color="var(--cc-text-subtle)" />} title="Not enough data yet" description="Views over time will appear once posts accumulate a few days of metrics." />
-        )}
-      </Card>
+      {/* The views chart and the release's charts in one card, one at a time
+          (components/charts/ChartTabsCard). A campaign that promotes no release
+          has only the Views tab; give it one in Settings and its tabs appear. */}
+      <ChartTabsCard
+        tabs={[
+          {
+            key: "views",
+            label: "Views",
+            figure: kpis.viewsKnownPosts === 0 && kpis.posts > 0 ? null : formatCompact(kpis.views),
+            hasData: timeSeries.length >= 3,
+            render: (range, series) => (
+              <ViewsChart timeSeries={timeSeries} activeSeries={activeSeries} range={range} launch={launch} mode={series.mode} onModeChange={series.setMode} />
+            ),
+          },
+          ...(data.audio
+            ? [audioTab("tiktok", "TikTok audio", data.audio, launch)]
+            : []),
+          ...(data.instagramAudio
+            ? [audioTab("instagram", "Instagram audio", data.instagramAudio, launch)]
+            : []),
+          ...(data.streams
+            ? [{
+                key: "spotify",
+                label: "Spotify",
+                figure: data.streams.totalPlays === null ? null : `${formatCompact(data.streams.totalPlays)} plays`,
+                render: (range: ChartRange, series: { mode: SeriesMode; setMode: (m: SeriesMode) => void }) => (
+                  <SpotifyStreamsCard streams={data.streams!} range={range} launch={launch} embedded mode={series.mode} onModeChange={series.setMode} />
+                ),
+              }]
+            : []),
+        ]}
+      />
 
       <div className="perf-split">
         <Card variant="outlined" style={{ padding: 24 }}>
@@ -399,9 +526,9 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
                     />
                   ))}
                 </Pie>
-                <Legend verticalAlign="bottom" height={24} wrapperStyle={{ fontSize: "var(--cc-t-12)"}} formatter={(value: any) => <span style={{ color: "var(--cc-text-muted)" }}>{value}</span>} />
+                <Legend itemSorter={null} verticalAlign="bottom" height={24} wrapperStyle={{ fontSize: "var(--cc-t-12)"}} formatter={(value: any) => <span style={{ color: "var(--cc-text-muted)" }}>{platformLabel(String(value))}</span>} />
                 <Tooltip
-                  formatter={(v: any, _n: any, item: any) => [`${formatNumber(Number(v ?? 0))} views · ${(item?.payload as PlatformSplit)?.posts ?? 0} posts`, (item?.payload as PlatformSplit)?.platform ?? ""]}
+                  formatter={(v: any, _n: any, item: any) => [`${formatNumber(Number(v ?? 0))} views · ${(item?.payload as PlatformSplit)?.posts ?? 0} posts`, platformLabel((item?.payload as PlatformSplit)?.platform)]}
                   contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, fontSize: "var(--cc-t-13)"}}
                 />
               </PieChart>

@@ -2,7 +2,7 @@
 
 import { memo, type ReactNode } from "react";
 import { Badge } from "@pratham7711/ui";
-import { Eye, Heart, MessageCircle, TrendingUp, Share2, Bookmark, Check } from "lucide-react";
+import { Eye, Heart, MessageCircle, TrendingUp, Share2, Bookmark, Check, AlertTriangle } from "lucide-react";
 import { formatDateAbs, formatFull, platformLabel } from "@/lib/format";
 import { enumLabel } from "@/lib/ui/enumLabel";
 import { fieldMetricValue, unwrittenMetricValue, sharesUnknownReason } from "@/lib/metricDisplay";
@@ -20,6 +20,8 @@ import { creatorNameText } from "@/lib/creators/creatorName";
 import { UNKNOWN_CREATOR_LABEL, isUnattributedCreator } from "@/lib/posts/unattributedName";
 import { isPostNotPublic, mayBeAgeLimited } from "@/lib/postRemoval";
 import UnknownCreator from "@/components/posts/UnknownCreator";
+import { PostAnnotationChips } from "@/components/posts/PostAnnotationChips";
+import type { PostAnnotationView } from "@/lib/posts/annotations";
 
 /**
  * One post tile in the campaign grid.
@@ -62,6 +64,8 @@ export type PostCardPost = {
   trackingExpiresAt?: string | null;
   trackingSource?: string | null;
   complianceFlags?: ComplianceFlag[];
+  /** An unreviewed view check (lib/fraud/scanPosts). */
+  hasOpenFraudFlag?: boolean;
   creator: { id?: string; name: string; handle: string };
 };
 
@@ -82,6 +86,10 @@ function PostGridCardImpl({
   onToggleSelect,
   onOpenMenu,
   showShares = false,
+  onCheckViews,
+  annotation,
+  removed = false,
+  nowMs = 0,
 }: {
   post: PostCardPost;
   selected: boolean;
@@ -94,6 +102,14 @@ function PostGridCardImpl({
    *  why rather than dropping the line -- otherwise the grid reads as some
    *  cards missing a field the others have. */
   showShares?: boolean;
+  /** Opens the view-check dialog. Must be stable (useCallback) -- see above. */
+  onCheckViews?: (postId: string) => void;
+  /** Boost code, rule notes, exclusion reason (lib/posts/annotations). */
+  annotation?: PostAnnotationView;
+  /** The tab is showing Removed posts, where the exclusion reason belongs. */
+  removed?: boolean;
+  /** When the tab loaded, for the boost code's expiry. */
+  nowMs?: number;
 }) {
   const unknownCreator = isUnattributedCreator(post.creator);
   const tracking = post.trackingEnabled === true;
@@ -303,6 +319,22 @@ function PostGridCardImpl({
         </div>
       </div>
     </a>
+    {/* Outside the anchor for the same reason as the pick below: a button
+        inside a link would open the platform post. Under the chips row, on
+        the left, where the status overlay does not reach. */}
+    {post.hasOpenFraudFlag && onCheckViews && (
+      <button
+        type="button"
+        className="cc-viewcheck-chip cc-viewcheck-chip--tile"
+        onClick={() => onCheckViews(post.id)}
+        title="Why this post was flagged, and how to clear it"
+      >
+        <AlertTriangle size={12} aria-hidden="true" /> Check views
+      </button>
+    )}
+    {/* Under the artwork, outside the anchor: the copy button must not open
+        the platform post. */}
+    <PostAnnotationChips annotation={annotation} removed={removed} nowMs={nowMs} tile />
     {/* Selection lives outside the anchor, or every click would open the
         platform post instead of ticking the box. Hidden until the pointer is
         over the tile, the keyboard is inside it, or a selection is already

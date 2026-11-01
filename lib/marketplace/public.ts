@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { db } from "@/lib/db";
+import { isScheduledCampaign, scheduledCampaignIds } from "@/lib/campaigns/rules";
 
 /**
  * Public marketplace helpers (Phase 2M / M2).
@@ -246,6 +247,10 @@ export async function fetchMarketplaceList(
     publicSlug: { not: null },
     deletedAt: null,
   };
+  /* A campaign with a launch date still ahead stays off the marketplace until
+     then (lib/campaigns/rules). */
+  const scheduled = await scheduledCampaignIds(new Date());
+  if (scheduled.length > 0) where.id = { notIn: scheduled };
   if (q) {
     where.OR = [
       { title: { contains: q, mode: "insensitive" } },
@@ -383,6 +388,8 @@ export const fetchMarketplaceDetail = cache(async function fetchMarketplaceDetai
   if (!row) return null;
 
   const campaignId = (row as unknown as { id: string }).id;
+  /* Not public until its launch date (lib/campaigns/rules). */
+  if (await isScheduledCampaign(campaignId, new Date())) return null;
 
   const [agg, grouped] = await Promise.all([
     db.viewLedger.aggregate({

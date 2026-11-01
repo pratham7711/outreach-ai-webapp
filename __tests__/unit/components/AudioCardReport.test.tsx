@@ -136,7 +136,7 @@ it("says why Velocity is empty instead of drawing an empty chart", () => {
   a.usageSeries = a.usageSeries.map((p, i) => ({ ...p, ...rounded(null, i) }));
   for (const variant of ["report", "dashboard"] as const) {
     const { unmount } = render(<AudioCard audio={a} variant={variant} />);
-    fireEvent.click(screen.getByRole("tab", { name: /velocity/i }));
+    fireEvent.click(screen.getByRole("button", { name: /velocity/i }));
     expect(screen.queryByTestId("area-chart")).not.toBeInTheDocument();
     expect(screen.getByText(/No measurable change yet\. TikTok shows this sound's count rounded/)).toBeInTheDocument();
     unmount();
@@ -148,7 +148,7 @@ it("draws an approximate velocity and says it is one", () => {
   a.usageSeries = a.usageSeries.map((p, i) => ({ ...p, ...rounded(i === 0 ? null : 0.66, i) }));
   for (const variant of ["report", "dashboard"] as const) {
     const { unmount } = render(<AudioCard audio={a} variant={variant} />);
-    fireEvent.click(screen.getByRole("tab", { name: /velocity/i }));
+    fireEvent.click(screen.getByRole("button", { name: /velocity/i }));
     expect(screen.getByTestId("area-chart")).toBeInTheDocument();
     expect(screen.getByText(/^Approximate: TikTok rounds this sound's count/)).toBeInTheDocument();
     unmount();
@@ -157,7 +157,7 @@ it("draws an approximate velocity and says it is one", () => {
 
 it("adds no approximation note to a velocity measured between exact counts", () => {
   render(<AudioCard audio={audio()} variant="report" />);
-  fireEvent.click(screen.getByRole("tab", { name: /velocity/i }));
+  fireEvent.click(screen.getByRole("button", { name: /velocity/i }));
   expect(screen.getByTestId("area-chart")).toBeInTheDocument();
   expect(screen.queryByText(/^Approximate:/)).not.toBeInTheDocument();
 });

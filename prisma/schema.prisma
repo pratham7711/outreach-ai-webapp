@@ -464,6 +464,67 @@ model SongStreamSnapshot {
   @@unique([songId, day])
 }
 
+/// What a campaign asks of its creators beyond the free-text brief, and when
+/// it opens: the Do / Don't checklist with example posts, the rules a
+/// submission is checked against, the launch date and the view goal.
+///
+/// A table of its own rather than columns on Campaign, so the code that reads
+/// it can treat a missing table as "no rules set" and ship before the DDL does
+/// (lib/campaigns/rulesDdl.ts). Every list defaults to empty and every number
+/// to null, which is "no rule".
+model CampaignRules {
+  campaignId         String    @id
+  orgId              String
+  dos                String[]  @default([])
+  donts              String[]  @default([])
+  /// Up to five links to posts the creator should take after.
+  examplePostUrls    String[]  @default([])
+  /// Checked at submit against the creator's latest follower reading on the
+  /// post's platform; an unread count lets the post through with a note.
+  minFollowers       Int?
+  /// Stored with their sign: "#tag", "@handle".
+  requiredHashtags   String[]  @default([])
+  requiredMentions   String[]  @default([])
+  /// Live posts one creator may submit per platform.
+  maxPostsPerAccount Int?
+  /// Replaces the first post as the charts' launch marker. While it is in the
+  /// future the campaign is Scheduled: off Explore, and not taking posts.
+  launchAt           DateTime?
+  viewGoal           Int?
+  /// Lets a reviewer exclude a view-checked post from totals with a reason.
+  /// Off unless the agency switches it on for this campaign.
+  allowExclusions    Boolean   @default(false)
+  /// Offers creators a boost-code field in the portal for this campaign.
+  /// Off unless the agency switches it on.
+  allowBoostCodes    Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([launchAt])
+}
+
+/// What a post carries beyond its readings: the creator's boost code (TikTok
+/// Spark Ads / Instagram partnership ads -- the code only, never ad spend),
+/// the notes its submission checks left, and why the agency took it out of
+/// the totals. Same missing-table contract as CampaignRules.
+model PostAnnotation {
+  postId             String    @id
+  orgId              String
+  boostCode          String?
+  /// When the creator says the code stops working; theirs, not measured.
+  boostCodeExpiresAt DateTime?
+  ruleNotes          String[]  @default([])
+  /// Set with the post's removedAt when it is excluded from the totals, and
+  /// cleared when it is restored.
+  exclusionReason    String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+}
+
 /// A campaign can run in waves — "4 phases of 10 posts each". Posts point at a
 /// phase optionally, so campaigns that never use phases are unaffected and every
 /// post predating this model keeps a null phaseId.
@@ -635,6 +696,8 @@ model Campaign {
   posts             Post[]
   activations       Activation[]
   brief             CreativeBrief?
+  /// Relation only, no column: Sprint B checklist, submission rules, launch and goal.
+  rules             CampaignRules?
   analytics         AnalyticsModule[]
   financials        CampaignFinancials?
   documents         Document[]
@@ -1300,6 +1363,8 @@ model Post {
   snapshots  PostMetricSnapshot[]
   syncSlot   SyncSlot?
   thumbnail  PostThumbnail?
+  /// Relation only, no column: boost code, rule notes, exclusion reason.
+  annotation PostAnnotation?
 
   @@index([phaseId])
   // Post is the largest table in the app and every campaign screen filters on

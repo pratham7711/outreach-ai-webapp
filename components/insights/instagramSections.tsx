@@ -13,7 +13,8 @@ import type {
   StoryMetric,
   StoryNavigationAction,
 } from "@/lib/platforms/instagramAccountInsights";
-import { DailyBarChart, spanLabel } from "@/components/insights/charts";
+import { DailyBarChart, TotalAreaChart, spanLabel } from "@/components/insights/charts";
+import { toRunningTotals, type SeriesMode } from "@/lib/charts/seriesMode";
 import { ColumnBars, NUM, RankBars, SectionHeading, SplitBar, Thumb, formatPercent, formatTimes, listWords, muted, type Figure, type Segment } from "@/components/insights/parts";
 
 /**
@@ -102,7 +103,16 @@ export const hasNewFollowerSeries = (data: InstagramInsightsBody | null) => Bool
 
 /** Instagram's new followers for each day, as bars, with their total. Nothing
     when Instagram returned no days: there is no series to draw. */
-export function NewFollowersChart({ data, height }: { data: InstagramInsightsBody; height?: number }) {
+export function NewFollowersChart({
+  data,
+  height,
+  mode = "daily",
+}: {
+  data: InstagramInsightsBody;
+  height?: number;
+  /** "cumulative" draws the running total of new followers across the window. */
+  mode?: SeriesMode;
+}) {
   const series = data.account.followerSeries;
   if (!series || series.length === 0) return null;
   const best = series.reduce((a, b) => (b.value > a.value ? b : a));
@@ -117,12 +127,23 @@ export function NewFollowersChart({ data, height }: { data: InstagramInsightsBod
           </>
         )}
       </p>
-      <DailyBarChart
-        points={series}
-        height={height}
-        label={`New followers per day, ${spanLabel(series)}`}
-        describe={(v) => `${v >= 0 ? "+" : "−"}${new Intl.NumberFormat("en-US").format(Math.abs(v))} new ${Math.abs(v) === 1 ? "follower" : "followers"}`}
-      />
+      {mode === "cumulative" ? (
+        /* Instagram counts follows, not unfollows, so this is followers gained
+           across the window, not the account's net growth. */
+        <TotalAreaChart
+          points={toRunningTotals(series, ["value"])}
+          height={height}
+          label={`New followers, running total, ${spanLabel(series)}`}
+          unit="new followers so far"
+        />
+      ) : (
+        <DailyBarChart
+          points={series}
+          height={height}
+          label={`New followers per day, ${spanLabel(series)}`}
+          describe={(v) => `${v >= 0 ? "+" : "−"}${new Intl.NumberFormat("en-US").format(Math.abs(v))} new ${Math.abs(v) === 1 ? "follower" : "followers"}`}
+        />
+      )}
     </div>
   );
 }

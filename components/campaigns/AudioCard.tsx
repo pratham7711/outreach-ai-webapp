@@ -1,11 +1,15 @@
 "use client";
 import React, { useState } from "react";
 import { Card } from "@pratham7711/ui";
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from "recharts";
+import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, Cell, ReferenceLine, XAxis, YAxis, Tooltip } from "recharts";
 import { Music2 } from "lucide-react";
 import { formatCompact, formatFull, fitFigureSize } from "@/lib/format";
 import { imgSrc, shareImgSrc } from "@/lib/postMedia";
 import type { CampaignAudio } from "@/lib/reports/campaignPerformance";
+import { velocityBars } from "@/app/(dashboard)/trackers/SoundCharts";
+import { rangeStartMs, type ChartRange } from "@/lib/charts/seriesMode";
+import { launchLabel, launchShortDay, type CampaignLaunch } from "@/lib/campaigns/launch";
+import { soundAtLaunch } from "@/lib/sounds/soundAtLaunch";
 
 /**
  * The sound behind the campaign: cover, title, artist, how many videos use it,
@@ -47,6 +51,89 @@ function readingInstant(v: number | string): string {
   })} UTC`;
 }
 
+/**
+ * The card's three views of one series: the running count of videos using the
+ * sound ("Cumulative"), the videos added in each chart bucket ("Daily", or per
+ * 6h / per week at those granularities), and the pace of change ("Velocity").
+ */
+type AudioView = "usage" | "added" | "velocity";
+
+const ADDED_TAB = { "6hourly": "Per 6h", daily: "Daily", weekly: "Weekly" } as const;
+const ADDED_TITLE = { "6hourly": "New Videos per 6 Hours", daily: "New Videos per Day", weekly: "New Videos per Week" } as const;
+
+/**
+ * Videos added per bucket, as the trackers page draws them (velocityBars): one
+ * slot per bucket, no bar across an empty bucket or at a rounded count. Empty
+ * when the payload does not say its bucket (one cached before it did) or when
+ * no bucket has a measurable change.
+ */
+function addedBarsFor(audio: CampaignAudio): { t: number; delta: number | null }[] {
+  if (!audio.usageGranularity) return [];
+  const bars = velocityBars(
+    audio.usageSeries.map((p) => ({ recordedAt: p.at, value: p.uses, rounded: p.rounded })),
+    audio.usageGranularity,
+  );
+  return bars.some((b) => b.delta !== null) ? bars : [];
+}
+
+function audioTabs(audio: CampaignAudio, hasAdded: boolean): { key: AudioView; label: string }[] {
+  return [
+    ...(hasAdded && audio.usageGranularity ? [{ key: "added" as const, label: ADDED_TAB[audio.usageGranularity] }] : []),
+    { key: "usage", label: "Cumulative" },
+    { key: "velocity", label: "Velocity" },
+  ];
+}
+
+function audioTitle(audio: CampaignAudio, view: AudioView): string {
+  if (view === "added" && audio.usageGranularity) return ADDED_TITLE[audio.usageGranularity];
+  return view === "velocity" ? "Audio Velocity" : "Audio Usage";
+}
+
+function AddedBars({
+  bars,
+  axisLabel,
+  report,
+  launch,
+}: {
+  bars: { t: number; delta: number | null }[];
+  axisLabel: (v: number | string) => string;
+  report: boolean;
+  launch?: CampaignLaunch | null;
+}) {
+  const tick = { fontSize: report ? 14 : 11, fill: report ? "var(--spr-audio-axis)" : "var(--cc-text-muted)" };
+  return (
+    <ResponsiveContainer width="100%" height={report ? "100%" : "82%"}>
+      <BarChart data={bars} margin={{ top: 4, right: report ? 30 : 8, left: 0, bottom: 0 }}>
+        <XAxis dataKey="t" tick={tick} tickLine={false} axisLine={false} tickFormatter={axisLabel} minTickGap={28} />
+        <YAxis tick={tick} tickLine={false} axisLine={false} width="auto" allowDecimals={false} tickFormatter={(v) => formatCompact(Number(v))} />
+        {/* Negative bars are real: creators delete videos, and the count is an
+            inventory rather than a running total. */}
+        <ReferenceLine y={0} stroke={report ? "var(--spr-audio-axis)" : "var(--cc-border)"} strokeOpacity={report ? 0.4 : 1} />
+        {/* The bars sit on a category axis, so the marker goes on the bucket
+            the launch fell in, not at its exact instant. */}
+        {launch ? launchMarker(launch, report, launchBucket(bars, Date.parse(launch.at))) : null}
+        <Tooltip
+          formatter={(v: unknown) => [
+            v === null || v === undefined ? "No reading before" : `${Number(v) > 0 ? "+" : ""}${formatFull(Number(v))}`,
+            "Videos added",
+          ]}
+          labelFormatter={(v) => readingInstant(v as number)}
+          labelStyle={{ fontSize: "var(--cc-t-12)" }}
+          contentStyle={{ fontSize: "var(--cc-t-12)", borderRadius: 8 }}
+        />
+        <Bar dataKey="delta" isAnimationActive={false} radius={[2, 2, 0, 0]}>
+          {bars.map((b, i) => (
+            <Cell
+              key={i}
+              fill={(b.delta ?? 0) < 0 ? "var(--cc-danger)" : report ? "var(--spr-audio-line)" : "var(--cc-primary)"}
+            />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
 /** A rounded point is the platform's "74K", and says so in its tooltip; so
  *  does a velocity measured across one. */
 function usageTooltipValue(view: "usage" | "velocity") {
@@ -84,6 +171,60 @@ function velocityNotes(audio: CampaignAudio) {
     empty: `No measurable change yet. ${where} shows this sound's count rounded, so velocity appears once the count moves by more than the rounding.`,
     approxNote: `Approximate: ${where} rounds this sound's count, so each change is measured over enough time to be larger than the rounding.`,
   };
+}
+
+function shortUtcDay(t: number): string {
+  return new Date(t).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+}
+
+function count(p: { uses: number; rounded: boolean }): string {
+  return `${p.rounded ? "≈" : ""}${formatFull(p.uses)}`;
+}
+
+/**
+ * The sound's count when the campaign launched beside its count now
+ * (lib/sounds/soundAtLaunch). A later reading is never passed off as the
+ * launch count: without one close enough before the launch, the line says so
+ * and names the first reading after it instead.
+ */
+function launchLine(audio: CampaignAudio, launch: CampaignLaunch | null | undefined): string | null {
+  if (!launch) return null;
+  const r = soundAtLaunch(audio.usageSeries, Date.parse(launch.at));
+  const at = `${launchLabel(launch).toLowerCase()} (${launchShortDay(launch)})`;
+  if (!r || r.kind === "none") return null;
+  if (r.kind === "atLaunch") {
+    const added = r.added === null ? "" : ` (${r.added >= 0 ? "+" : ""}${formatFull(r.added)})`;
+    return `${count(r.atLaunch)} videos at the ${at} → ${count(r.now)} now${added}.`;
+  }
+  return `Not read before the ${at}. First reading after it: ${shortUtcDay(r.firstAfter.t)}, ${count(r.firstAfter)} videos → ${count(r.now)} now.`;
+}
+
+/** Why a range shows no curve, when the sound does have one outside it. */
+function windowNote(audio: CampaignAudio): string {
+  const last = audio.usageSeries.at(-1);
+  return `Fewer than two readings in this range.${last ? ` Last reading: ${shortUtcDay(last.t)}.` : ""}`;
+}
+
+/** The bucket a launch fell in, or null when it is outside the bars shown. */
+function launchBucket(bars: readonly { t: number }[], launchMs: number): number | null {
+  if (bars.length < 2 || !Number.isFinite(launchMs)) return null;
+  const size = bars[1].t - bars[0].t;
+  if (launchMs < bars[0].t || launchMs >= bars[bars.length - 1].t + size) return null;
+  return bars.filter((b) => b.t <= launchMs).at(-1)?.t ?? null;
+}
+
+/** The launch as a dashed line; recharts drops it outside the range shown. */
+function launchMarker(launch: CampaignLaunch | null | undefined, report: boolean, x?: number | null) {
+  if (!launch || x === null) return null;
+  const ink = report ? "var(--spr-audio-axis)" : "var(--cc-text-muted)";
+  return (
+    <ReferenceLine
+      x={x ?? Date.parse(launch.at)}
+      stroke={ink}
+      strokeDasharray="4 3"
+      label={{ value: launchLabel(launch), position: "insideTopLeft", fontSize: 11, fill: ink }}
+    />
+  );
 }
 
 /**
@@ -130,14 +271,30 @@ function makeReportAxisLabel(series: CampaignAudio["usageSeries"]) {
 }
 
 export function AudioCard({
-  audio,
+  audio: full,
   shareToken,
   variant = "dashboard",
+  range = "all",
+  launch,
+  embedded = false,
 }: {
   audio: CampaignAudio;
   shareToken?: string;
   variant?: AudioCardVariant;
+  /** How far back the chart looks (lib/charts/seriesMode); the tiles always show the latest. */
+  range?: ChartRange;
+  /** The campaign's launch, for the marker and the "at launch → now" line. */
+  launch?: CampaignLaunch | null;
+  /** Inside the campaign's tabbed chart card, whose tab already names the sound. */
+  embedded?: boolean;
 }) {
+  /* The range cuts what the chart draws, after every per-reading figure was
+     worked out over the whole series: velocity and the per-bucket bars at the
+     window's left edge are still measured from the reading before it. */
+  const startMs = rangeStartMs(range);
+  const audio = startMs === null ? full : { ...full, usageSeries: full.usageSeries.filter((p) => p.t >= startMs) };
+  const outOfRange = startMs !== null && audio.usageSeries.length < 2 && full.usageSeries.length > 1;
+  const atLaunch = launchLine(full, launch);
   const axisLabel = makeAxisLabel(audio.usageSeries);
   /*
     Which proxy depends on who is looking. /api/img is session-gated -- it has to
@@ -157,15 +314,18 @@ export function AudioCard({
       : imgSrc(audio.coverUrl, coverPx);
   // A tracked sound has counts only after a sync. Zero would claim the audio has
   // never been used, so an unsynced tracker shows an em dash instead.
-  const uses = audio.uses === null ? "—" : `${audio.usesRounded ? "≈" : ""}${formatFull(audio.uses)}`;
+  const uses = full.uses === null ? "—" : `${full.usesRounded ? "≈" : ""}${formatFull(full.uses)}`;
   const heading = audio.platform === "INSTAGRAM" ? "Instagram Audio" : "TikTok Audio";
   const added = audio.videosAdded24h === null ? "—" : `+${formatFull(audio.videosAdded24h)}`;
 
   /* Usage is how many videos use the sound; Velocity is how fast that is moving.
      CreatorCore puts both behind this toggle over one chart, and they are two
      questions about the same series rather than two datasets. */
-  const [view, setView] = useState<"usage" | "velocity">("usage");
+  const [view, setView] = useState<AudioView>("usage");
   const notes = velocityNotes(audio);
+  const allBars = addedBarsFor(full);
+  const addedBars = startMs === null ? allBars : allBars.filter((b) => b.t >= startMs);
+  const tabs = audioTabs(full, allBars.length > 0);
 
   if (variant === "report") {
     return (
@@ -178,19 +338,26 @@ export function AudioCard({
         view={view}
         setView={setView}
         axisLabel={makeReportAxisLabel(audio.usageSeries)}
+        tabs={tabs}
+        addedBars={addedBars}
+        fullSeries={full.usageSeries}
+        outOfRange={outOfRange}
+        atLaunch={atLaunch}
+        launch={launch}
       />
     );
   }
 
   return (
-    <Card>
-      <div style={{ padding: 20 }}>
+    <EmbedFrame embedded={embedded}>
+        {embedded ? null : (
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
           <Music2 size={16} style={{ color: "var(--audio-title-ink, var(--cc-text-muted))" }} aria-hidden="true" />
           <span style={{ fontSize: "var(--audio-title-size, 15px)", fontWeight: 700, color: "var(--audio-title-ink, var(--cc-text))" }}>{heading}</span>
         </div>
+        )}
 
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: audio.usageSeries.length > 1 ? 20 : 0 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: full.usageSeries.length > 1 || atLaunch ? 20 : 0 }}>
           <a
             href={audio.soundUrl}
             target="_blank"
@@ -252,34 +419,48 @@ export function AudioCard({
           <Stat label="Videos Added (Since Last Sync)" value={added} />
         </div>
 
+        {atLaunch ? (
+          <p data-testid="sound-at-launch" style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text)", margin: "-8px 0 16px" }}>
+            {atLaunch}
+          </p>
+        ) : null}
+
         {/* One point is not a curve; the chart appears once there are two. */}
-        {audio.usageSeries.length > 1 ? (
+        {outOfRange ? (
+          <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>{windowNote(full)}</p>
+        ) : audio.usageSeries.length > 1 ? (
           <>
           <div style={{ height: 210 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
-              <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{view === "usage" ? "Audio Usage" : "Audio Velocity"}</span>
-              <div role="tablist" aria-label="Audio chart view" style={{ display: "flex", gap: 4 }}>
-                {(["usage", "velocity"] as const).map((key) => (
+              <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{audioTitle(audio, view)}</span>
+              {/* The same segmented switch as every other chart switch on the
+                  page (components/insights/parts Toggle), look and semantics:
+                  pressed buttons redrawing one chart, not tabs, which promise
+                  a panel per tab. */}
+              <div role="group" aria-label="Audio chart view" style={{ display: "inline-flex", gap: 2, padding: 3, borderRadius: 10, background: "var(--cc-hover-bg)", flexWrap: "wrap" }}>
+                {tabs.map(({ key, label }) => (
                   <button
                     key={key}
                     type="button"
-                    role="tab"
-                    aria-selected={view === key}
+                    aria-pressed={view === key}
                     onClick={() => setView(key)}
+                    className="rsp-touch"
                     style={{
-                      fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", padding: "4px 10px", borderRadius: 999,
-                      cursor: "pointer", textTransform: "capitalize",
-                      border: `1px solid ${view === key ? "var(--cc-primary)" : "var(--cc-border)"}`,
-                      background: view === key ? "var(--cc-primary)" : "var(--cc-card)",
-                      color: view === key ? "var(--cc-on-primary)" : "var(--cc-text-muted)",
+                      font: "inherit", fontSize: 13, fontWeight: view === key ? 700 : 500, padding: "5px 11px", borderRadius: 8,
+                      cursor: "pointer", border: "none", whiteSpace: "nowrap",
+                      background: view === key ? "var(--cc-card)" : "transparent",
+                      color: view === key ? "var(--cc-text)" : "var(--cc-text-muted)",
+                      boxShadow: view === key ? "0 1px 2px color-mix(in srgb, var(--cc-shadow-ink) 8%, transparent), 0 0 0 1px var(--cc-border)" : "none",
                     }}
                   >
-                    {key}
+                    {label}
                   </button>
                 ))}
               </div>
             </div>
-            {view === "velocity" && !notes.has ? (
+            {view === "added" ? (
+              <AddedBars bars={addedBars} axisLabel={axisLabel} report={false} launch={launch} />
+            ) : view === "velocity" && !notes.has ? (
               <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: "24px 0 0" }}>{notes.empty}</p>
             ) : (
             <ResponsiveContainer width="100%" height="82%">
@@ -309,7 +490,7 @@ export function AudioCard({
                   tickFormatter={(v) => (view === "velocity" ? velocityTick(v) : formatCompact(Number(v)))}
                 />
                 <Tooltip
-                  formatter={usageTooltipValue(view)}
+                  formatter={usageTooltipValue(view === "velocity" ? "velocity" : "usage")}
                   labelFormatter={(v) => readingInstant(v as number)}
                   labelStyle={{ fontSize: "var(--cc-t-12)"}}
                   contentStyle={{ fontSize: "var(--cc-t-12)", borderRadius: 8 }}
@@ -324,6 +505,7 @@ export function AudioCard({
                   strokeWidth={2}
                   dot={view === "velocity" ? loneVelocityDot(audio.usageSeries, "var(--cc-primary)") : false}
                 />
+                {launchMarker(launch, false)}
               </AreaChart>
             </ResponsiveContainer>
             )}
@@ -337,7 +519,16 @@ export function AudioCard({
             Usage over time appears once this sound has been synced more than once.
           </p>
         )}
-      </div>
+    </EmbedFrame>
+  );
+}
+
+/** A card of its own, or bare content inside the campaign's tabbed chart card. */
+function EmbedFrame({ embedded, children }: { embedded: boolean; children: React.ReactNode }) {
+  if (embedded) return <div>{children}</div>;
+  return (
+    <Card>
+      <div style={{ padding: 20 }}>{children}</div>
     </Card>
   );
 }
@@ -402,23 +593,36 @@ function ReportAudio({
   view,
   setView,
   axisLabel,
+  tabs,
+  addedBars,
+  fullSeries,
+  outOfRange,
+  atLaunch,
+  launch,
 }: {
   audio: CampaignAudio;
   cover: string | null;
   onCoverError: () => void;
   uses: string;
   added: string;
-  view: "usage" | "velocity";
-  setView: (v: "usage" | "velocity") => void;
+  view: AudioView;
+  setView: (v: AudioView) => void;
   axisLabel: (v: number | string) => string;
+  tabs: { key: AudioView; label: string }[];
+  addedBars: { t: number; delta: number | null }[];
+  /** Every reading, whatever the range: staleness is about the newest one. */
+  fullSeries: CampaignAudio["usageSeries"];
+  outOfRange: boolean;
+  atLaunch: string | null;
+  launch?: CampaignLaunch | null;
 }) {
-  const hasCurve = audio.usageSeries.length > 1;
+  const hasCurve = fullSeries.length > 1;
   const notes = velocityNotes(audio);
   /* A month-old figure rendered as a bare number claims to be current, and this
      document goes to a brand. The reference shows nothing here because its
      tracker is running; ours says so when it is not. Only when stale -- a
      healthy report is unchanged, and identical to the reference. */
-  const staleDays = daysSinceLastReading(audio.usageSeries);
+  const staleDays = daysSinceLastReading(fullSeries);
   const isStale = staleDays !== null && staleDays > STALE_AFTER_DAYS;
 
   return (
@@ -469,33 +673,40 @@ function ReportAudio({
         </p>
       ) : null}
 
+      {atLaunch ? <p className="spr-audio-stale" data-testid="sound-at-launch">{atLaunch}</p> : null}
+
       {hasCurve ? (
         <>
           {/* Toggle above the title, plain text, the active one underlined --
               the reference's order, which is why this is a branch and not a
               set of custom properties. */}
           <div className="spr-audio-plot">
-            <div className="spr-audio-toggle" role="tablist" aria-label="Audio chart view">
-            {(["usage", "velocity"] as const).map((key) => (
+            <div className="spr-audio-toggle" role="group" aria-label="Audio chart view">
+            {tabs.map(({ key, label }) => (
               <button
                 key={key}
                 type="button"
-                role="tab"
-                aria-selected={view === key}
+                aria-pressed={view === key}
                 className={`spr-audio-tab${view === key ? " is-on" : ""}`}
                 onClick={() => setView(key)}
               >
-                {key === "usage" ? "Usage" : "Velocity"}
+                {label}
               </button>
             ))}
           </div>
 
           <h3 className="spr-audio-chart-title">
-            {view === "usage" ? "Audio Usage" : "Audio Velocity"}
+            {audioTitle(audio, view)}
           </h3>
 
           <div className="spr-audio-chart">
-            {view === "velocity" && !notes.has ? (
+            {outOfRange ? (
+              <p className="spr-note" style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "0 16px" }}>
+                {windowNote({ ...audio, usageSeries: fullSeries })}
+              </p>
+            ) : view === "added" ? (
+              <AddedBars bars={addedBars} axisLabel={axisLabel} report launch={launch} />
+            ) : view === "velocity" && !notes.has ? (
               <p className="spr-note" style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "0 16px" }}>
                 {notes.empty}
               </p>
@@ -525,7 +736,7 @@ function ReportAudio({
                   tickFormatter={(v) => (view === "velocity" ? velocityTick(v) : formatCompact(Number(v)))}
                 />
                 <Tooltip
-                  formatter={usageTooltipValue(view)}
+                  formatter={usageTooltipValue(view === "velocity" ? "velocity" : "usage")}
                   labelFormatter={(v) => readingInstant(v as number)}
                   labelStyle={{ fontSize: "var(--cc-t-12)"}}
                   contentStyle={{ fontSize: "var(--cc-t-12)", borderRadius: 8 }}
@@ -543,6 +754,7 @@ function ReportAudio({
                   strokeWidth={3}
                   dot={view === "velocity" ? loneVelocityDot(audio.usageSeries, "var(--spr-audio-line)") : false}
                 />
+                {launchMarker(launch, true)}
               </AreaChart>
             </ResponsiveContainer>
             )}

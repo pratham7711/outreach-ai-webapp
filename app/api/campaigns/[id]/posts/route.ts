@@ -41,6 +41,8 @@ import {
 import { removablePostIds } from "@/lib/posts/bulkActions";
 import { storedThumbnailVersions } from "@/lib/posts/thumbnailStore";
 import { NOT_REMOVED, ONLY_REMOVED } from "@/lib/posts/removed";
+import { EXCLUSION_REASON_MAX, setExclusionReason } from "@/lib/posts/annotations";
+import { exclusionsAllowed } from "@/lib/campaigns/rules";
 
 const PLATFORMS = PLATFORM_VALUES;
 // One list, shared with the detector -- two copies would be free to disagree
@@ -288,6 +290,9 @@ export async function POST(
         where: { id: removedHere.id, campaignId, ...ONLY_REMOVED },
         data: { removedAt: null, removedById: null },
       });
+      if (count > 0) {
+        await setExclusionReason([removedHere.id], orgId, null).catch((e) => console.error("Failed to clear exclusion reason:", e));
+      }
       const restored = await db.post.findUnique({
         where: { id: removedHere.id },
         include: { creator: { select: { id: true, name: true, handle: true, avatarUrl: true } } },
@@ -665,6 +670,22 @@ export async function DELETE(
     if (!ids) {
       return NextResponse.json({ error: "Pick between 1 and 50 posts to remove." }, { status: 400 });
     }
+    /* "Exclude from totals" after a view check is this same remove, with the
+       reason the agency gave; it is shown on the post under Removed and
+       cleared by a restore. */
+    const reason = typeof body?.reason === "string" ? body.reason.replace(/\s+/g, " ").trim() : "";
+    if (reason.length > EXCLUSION_REASON_MAX) {
+      return NextResponse.json({ error: `Keep the reason under ${EXCLUSION_REASON_MAX} characters.` }, { status: 400 });
+    }
+    /* Excluding with a reason is a per-campaign switch, off by default; a
+       plain remove (no reason) is not affected by it. Refused before anything
+       is removed, so the call is all or nothing as above. */
+    if (reason && !(await exclusionsAllowed(campaignId, orgId))) {
+      return NextResponse.json(
+        { error: "Excluding posts with a reason is off for this campaign. Switch it on in the campaign's Settings, under Post review.", code: "exclusions_off" },
+        { status: 403 },
+      );
+    }
 
     /* Removed rows are found too: removing one again is a no-op, not a 404,
        so a double click or a second tab cannot fail the whole selection. */
@@ -734,7 +755,7 @@ export async function DELETE(
         entityId: post.id,
         entityLabel: post.creator?.handle ?? post.postUrl,
         ipAddress: getRequestIp(request),
-        metadata: { campaignId, batch: liveIds.length },
+        metadata: { campaignId, batch: liveIds.length, ...(reason ? { reason } : {}) },
         before: {
           postUrl: post.postUrl,
           platform: post.platform,
@@ -744,6 +765,12 @@ export async function DELETE(
           viewsCount: post.viewsCount,
         },
       });
+    }
+
+    /* The posts are already removed; a reason that fails to save is logged
+       (it is in the audit entry above either way), not turned into a 500. */
+    if (reason && liveIds.length > 0) {
+      await setExclusionReason(liveIds, orgId, reason).catch((e) => console.error("Failed to save exclusion reason:", e));
     }
 
     /* postIds names exactly what this call removed, so the toast's Undo puts

@@ -16,6 +16,7 @@ jest.mock('@/lib/db', () => ({
     post: { findMany: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn(), count: jest.fn() },
     viewFraudFlag: { findMany: jest.fn() },
     organization: { findUnique: jest.fn() },
+    postAnnotation: { updateMany: jest.fn().mockResolvedValue({ count: 0 }), upsert: jest.fn().mockResolvedValue({}) },
   },
 }));
 

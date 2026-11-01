@@ -12,6 +12,8 @@ jest.mock("@/lib/db", () => ({
   db: {
     campaign: { findFirst: jest.fn() },
     post: { findMany: jest.fn(), updateMany: jest.fn() },
+    /* The exclusion reason, cleared on restore (lib/posts/annotations). */
+    postAnnotation: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
   },
 }));
 jest.mock("@/lib/auth", () => ({ auth: jest.fn() }));
@@ -27,6 +29,7 @@ import { duplicateLiveCopies } from "@/lib/posts/restoreChecks";
 const mdb = db as unknown as {
   campaign: { findFirst: jest.Mock };
   post: { findMany: jest.Mock; updateMany: jest.Mock };
+  postAnnotation: { updateMany: jest.Mock };
 };
 
 const REMOVED_AT = new Date("2026-10-13T10:00:00.000Z");
@@ -76,6 +79,20 @@ describe("POST /api/campaigns/[id]/posts/restore", () => {
       where: { id: { in: ["p1", "p2"] }, campaignId: "camp-9", removedAt: { not: null } },
       data: { removedAt: null, removedById: null },
     });
+  });
+
+  it("clears the exclusion reason of the posts it restored, in the session's org", async () => {
+    await restore({ postIds: ["p1", "p2"] });
+    expect(mdb.postAnnotation.updateMany).toHaveBeenCalledWith({
+      where: { postId: { in: ["p1", "p2"] }, orgId: "org-1" },
+      data: { exclusionReason: null },
+    });
+  });
+
+  it("still answers 200 when clearing the reason fails, because the restore has landed", async () => {
+    mdb.postAnnotation.updateMany.mockRejectedValueOnce(new Error("connection reset"));
+    const res = await restore({ postIds: ["p1", "p2"] });
+    expect(res.status).toBe(200);
   });
 
   it("takes the org from the session, never from the body", async () => {

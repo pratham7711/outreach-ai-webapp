@@ -6,6 +6,8 @@ import { ArrowUpRight, ArrowDownRight, Folder, TrendingUp, AlertTriangle, Trendi
 import { campaignStatusLabel } from "@/lib/statusColors";
 import { formatNumber, formatPercent, rangeToFrom, SERIES_COLORS } from "./shared";
 import { loadCharts } from "@/components/charts/lazyCharts";
+import { SeriesModeToggle } from "@/components/charts/SeriesModeToggle";
+import type { SeriesMode } from "@/lib/charts/seriesMode";
 
 const CampaignComparisonLine = dynamic(() => loadCharts().then((m) => m.CampaignComparisonLine), {
   ssr: false,
@@ -267,6 +269,7 @@ export default function CampaignComparison({
   const [resp, setResp] = useState<ComparisonResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const [viewsMode, setViewsMode] = useState<SeriesMode>("cumulative");
 
   const add = (id: string) =>
     setSelected((prev) => (prev.includes(id) || prev.length >= MAX_COMPARED ? prev : [...prev, id]));
@@ -306,9 +309,18 @@ export default function CampaignComparison({
   return (
     <Card variant="outlined" style={{ padding: 24, marginBottom: 24 }}>
       <style>{`.cmp-chart{height:220px;margin-bottom:24px}@media(min-width:768px){.cmp-chart{height:300px}}`}</style>
-      <div style={{ marginBottom: 16 }}>
-        <span className="cc-panel-title" style={{ display: "block" }}>Campaign Comparison</span>
-        <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>Select 2–5 campaigns to overlay views over time.</span>
+      <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <span className="cc-panel-title" style={{ display: "block" }}>Campaign Comparison</span>
+          <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
+            {viewsMode === "daily"
+              ? "Views each campaign gained per day. A day is left blank when the day before has no reading."
+              : "Select 2–5 campaigns to overlay views over time."}
+          </span>
+        </div>
+        {selected.length >= 2 && resp && resp.series.length > 0 ? (
+          <SeriesModeToggle label="Campaign comparison" value={viewsMode} onChange={setViewsMode} />
+        ) : null}
       </div>
 
       {campaigns.length === 0 ? (
@@ -336,6 +348,7 @@ export default function CampaignComparison({
                   selected={selected}
                   titleById={titleById}
                   colorById={colorById}
+                  mode={viewsMode}
                 />
               </div>
 

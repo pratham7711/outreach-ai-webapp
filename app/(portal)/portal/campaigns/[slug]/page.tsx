@@ -4,13 +4,14 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, Download, ExternalLink } from "lucide-react";
+import { ArrowLeft, Check, CircleHelp, Clock, Download, ExternalLink, X } from "lucide-react";
 import { Input } from "@pratham7711/ui";
 import { Button, Dropdown } from "@/components/ds";
 import { detectPlatform, MEDIA_TYPES } from "@/lib/platforms/postUrl";
 import { SHOW_MONEY } from "@/lib/moneyUi";
 import type { CampaignDate } from "@/lib/portal/campaignDates";
 import { splitLinks } from "@/lib/portal/postLinks";
+import type { RuleCheck } from "@/lib/portal/submissionRules";
 import {
   Banner,
   Card,
@@ -44,6 +45,14 @@ type CampaignDetail = {
   deadlinePassed: boolean;
   dates: CampaignDate[];
   orgName: string;
+  /** A launch date still ahead: posts open then. */
+  scheduledUntil?: string | null;
+  checklist?: { dos: string[]; donts: string[]; examples: string[] };
+  /** The agency's submission rules, checked for this creator before submitting. */
+  ruleChecks?: RuleCheck[];
+  ruleChecksPlatform?: string | null;
+  /** Whether the agency asks for boost codes on this campaign. */
+  boostCodes?: boolean;
 };
 
 type Submission = {
@@ -58,6 +67,8 @@ type Submission = {
   createdAt: string;
   lastSyncedAt: string | null;
   earnedMinor: number;
+  boostCode?: string | null;
+  boostCodeExpiresAt?: string | null;
 };
 
 type Draft = {
@@ -134,7 +145,9 @@ function BriefCard({ detail }: { detail: CampaignDetail }) {
     ["Requirements", detail.requirements],
   ].filter((b): b is [string, string] => !!b[1]);
   const rates = Object.entries(detail.rates ?? {});
-  if (blocks.length === 0 && !detail.contentAssetsUrl && !(SHOW_MONEY && rates.length > 0)) return null;
+  const checklist = detail.checklist ?? { dos: [], donts: [], examples: [] };
+  const hasChecklist = checklist.dos.length + checklist.donts.length + checklist.examples.length > 0;
+  if (blocks.length === 0 && !hasChecklist && !detail.contentAssetsUrl && !(SHOW_MONEY && rates.length > 0)) return null;
   return (
     <Card>
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -144,6 +157,7 @@ function BriefCard({ detail }: { detail: CampaignDetail }) {
             <p style={{ fontSize: 14, color: "var(--cc-text)", margin: 0, whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{text}</p>
           </div>
         ))}
+        {hasChecklist && <Checklist {...checklist} />}
         {/* Marketplace rates are money, and money is off in the creator app
             (lib/moneyUi.ts). Hidden, never cleared. */}
         {SHOW_MONEY && rates.length > 0 && (
@@ -170,16 +184,171 @@ function BriefCard({ detail }: { detail: CampaignDetail }) {
   );
 }
 
-function SubmitPosts({ slug, onDone }: { slug: string; onDone: () => void }) {
+const listStyle: React.CSSProperties = { listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 };
+const rowStyle: React.CSSProperties = { display: "flex", gap: 8, alignItems: "flex-start", fontSize: 14, color: "var(--cc-text)", lineHeight: 1.5 };
+const iconStyle = (color: string): React.CSSProperties => ({ color, flexShrink: 0, marginTop: 3 });
+
+/** The agency's do's and don'ts, and posts they point to as examples. */
+function Checklist({ dos, donts, examples }: { dos: string[]; donts: string[]; examples: string[] }) {
+  return (
+    <div>
+      <SectionTitle>Checklist</SectionTitle>
+      {dos.length + donts.length > 0 && (
+        <ul style={listStyle}>
+          {dos.map((d) => (
+            <li key={`do-${d}`} style={rowStyle}>
+              <Check size={16} aria-label="Do" style={iconStyle("var(--cc-success)")} /> {d}
+            </li>
+          ))}
+          {donts.map((d) => (
+            <li key={`dont-${d}`} style={rowStyle}>
+              <X size={16} aria-label="Don't" style={iconStyle("var(--cc-danger)")} /> {d}
+            </li>
+          ))}
+        </ul>
+      )}
+      {examples.length > 0 && (
+        <div style={{ marginTop: dos.length + donts.length > 0 ? 12 : 0 }}>
+          <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text-muted)", marginBottom: 6 }}>Example posts</span>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {examples.map((url, i) => {
+              const d = detectPlatform(url);
+              return (
+                <a
+                  key={url}
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rsp-touch"
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 600, color: "var(--cc-primary)", textDecoration: "none" }}
+                >
+                  {d ? `${platformLabel(d.platform)} example ${i + 1}` : `Example ${i + 1}`} <ExternalLink size={13} aria-hidden="true" />
+                </a>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const RULE_ICON: Record<RuleCheck["state"], { Icon: typeof Check; color: string; label: string }> = {
+  pass: { Icon: Check, color: "var(--cc-success)", label: "Met" },
+  fail: { Icon: X, color: "var(--cc-danger)", label: "Not met" },
+  unknown: { Icon: CircleHelp, color: "var(--cc-text-muted)", label: "Not checked" },
+  pending: { Icon: Clock, color: "var(--cc-text-muted)", label: "Checked when you submit" },
+};
+
+/** The submission rules, each with what we measured against it. */
+function RuleList({ checks }: { checks: RuleCheck[] }) {
+  return (
+    <div style={{ margin: "0 0 14px" }}>
+      <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 8 }}>Rules for this campaign</span>
+      <ul style={listStyle} data-testid="portal-rule-checks">
+        {checks.map((c) => {
+          const { Icon, color, label } = RULE_ICON[c.state];
+          return (
+            <li key={c.key} style={rowStyle} data-state={c.state}>
+              <Icon size={16} aria-label={label} style={iconStyle(color)} />
+              <span style={{ minWidth: 0 }}>
+                {c.label}
+                <span style={{ display: "block", fontSize: 13, color: "var(--cc-text-muted)" }}>{c.detail}</span>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+const fieldStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "10px 12px",
+  borderRadius: 10,
+  border: "1px solid var(--cc-border)",
+  fontSize: 16,
+  color: "var(--cc-text)",
+  background: "var(--cc-card)",
+  fontFamily: "inherit",
+  boxSizing: "border-box",
+};
+const fieldLabel: React.CSSProperties = { display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 };
+
+/** A boost code and its expiry, as two fields. Expiry is a calendar day. */
+function BoostFields({
+  idPrefix,
+  code,
+  expires,
+  onCode,
+  onExpires,
+  disabled,
+}: {
+  idPrefix: string;
+  code: string;
+  expires: string;
+  onCode: (v: string) => void;
+  onExpires: (v: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="portal-boost-fields">
+      <div>
+        <label htmlFor={`${idPrefix}-code`} style={fieldLabel}>Boost code (optional)</label>
+        <input
+          id={`${idPrefix}-code`}
+          value={code}
+          onChange={(e) => onCode(e.target.value)}
+          disabled={disabled}
+          maxLength={300}
+          autoComplete="off"
+          placeholder="Spark Ads or partnership code"
+          style={fieldStyle}
+        />
+      </div>
+      <div>
+        <label htmlFor={`${idPrefix}-exp`} style={fieldLabel}>Code expires</label>
+        <input id={`${idPrefix}-exp`} type="date" value={expires} onChange={(e) => onExpires(e.target.value)} disabled={disabled || !code.trim()} style={fieldStyle} />
+      </div>
+    </div>
+  );
+}
+
+function SubmitPosts({
+  slug,
+  checks,
+  checksPlatform,
+  boostCodes,
+  onDone,
+}: {
+  slug: string;
+  boostCodes: boolean;
+  checks: RuleCheck[];
+  checksPlatform: string | null;
+  onDone: () => void;
+}) {
   const [text, setText] = useState("");
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [results, setResults] = useState<Array<{ url: string; outcome: Outcome; message: string }> | null>(null);
+  const [boostCode, setBoostCode] = useState("");
+  const [boostExpires, setBoostExpires] = useState("");
 
   const links = useMemo(() => splitLinks(text), [text]);
   const preview = links.map((url) => ({ url, detected: detectPlatform(url) }));
   const usable = preview.filter((p) => p.detected).map((p) => p.url);
   const tooMany = usable.length > MAX_LINKS;
+  /* A rule we measured and the creator fails (too few followers, posts
+     already at the limit) refuses every link on that platform, so the button
+     says so up front instead of after a round trip per link. Both rules are
+     per platform, so a link on another platform is left to the server. */
+  const failed = checks.find((c) => c.state === "fail") ?? null;
+  const blocked =
+    failed && (usable.length === 0 || usable.every((u) => detectPlatform(u)?.platform === checksPlatform)) ? failed : null;
+  /* A boost code belongs to one post; with several links it is added per post
+     under Your submissions. */
+  const single = usable.length === 1;
 
   /* One request per link, one after another. The route reads each post live
      from the platform, so sending them in parallel would only race the same
@@ -196,7 +365,12 @@ function SubmitPosts({ slug, onDone }: { slug: string; onDone: () => void }) {
         const res = await fetch(`/api/portal/campaigns/${encodeURIComponent(slug)}/submissions`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ postUrl: url }),
+          body: JSON.stringify({
+            postUrl: url,
+            ...(boostCodes && single && boostCode.trim()
+              ? { boostCode: boostCode.trim(), boostCodeExpiresAt: boostExpires || null }
+              : {}),
+          }),
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok) out.push({ url, outcome: "added", message: "Added" });
@@ -215,6 +389,10 @@ function SubmitPosts({ slug, onDone }: { slug: string; onDone: () => void }) {
     /* Keep only what did not go in, so a retry is one tap. */
     const leftover = out.filter((r) => r.outcome === "failed").map((r) => r.url);
     setText(leftover.join("\n"));
+    if (out.some((r) => r.outcome === "added")) {
+      setBoostCode("");
+      setBoostExpires("");
+    }
     onDone();
   };
 
@@ -234,6 +412,7 @@ function SubmitPosts({ slug, onDone }: { slug: string; onDone: () => void }) {
   return (
     <Card>
       <SectionTitle>Submit your posts</SectionTitle>
+      {checks.length > 0 && <RuleList checks={checks} />}
       <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: "0 0 10px" }}>
         Paste one link or many, one per line. We work out the platform from each link.
       </p>
@@ -273,18 +452,35 @@ function SubmitPosts({ slug, onDone }: { slug: string; onDone: () => void }) {
           ))}
         </ul>
       )}
+      {boostCodes && single && (
+        <div style={{ marginTop: 12 }}>
+          <BoostFields idPrefix="submit-boost" code={boostCode} expires={boostExpires} onCode={setBoostCode} onExpires={setBoostExpires} disabled={running} />
+        </div>
+      )}
+      {boostCodes && usable.length > 1 && (
+        <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: "10px 0 0" }}>
+          Boost codes go on each post separately. Add them under Your submissions once these are in.
+        </p>
+      )}
       {tooMany && (
         <p style={{ fontSize: 13, color: "var(--cc-text)", margin: "10px 0 0" }}>
           That&apos;s {usable.length} links. Send up to {MAX_LINKS} at a time.
         </p>
       )}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
-        <Button variant="primary" onClick={submit} loading={running} disabled={usable.length === 0 || tooMany}>
+      {/* Sticky above the phone tab bar, so Submit stays in reach under a
+          long list of links (globals.css .portal-submit-bar). */}
+      <div className="portal-submit-bar" style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
+        <Button variant="primary" onClick={submit} loading={running} disabled={usable.length === 0 || tooMany || !!blocked}>
           {usable.length > 1 ? `Submit ${usable.length} posts` : "Submit post"}
         </Button>
         {progress && (
           <span role="status" style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
             Sending {progress.done + 1} of {progress.total}…
+          </span>
+        )}
+        {blocked && (
+          <span role="status" style={{ fontSize: 13, color: "var(--cc-text)" }}>
+            You can&apos;t submit to this campaign: {blocked.label.charAt(0).toLowerCase() + blocked.label.slice(1)}.
           </span>
         )}
         {!running && notLinks > 0 && usable.length > 0 && (
@@ -395,7 +591,76 @@ function DraftCard({ slug, draft, onDone }: { slug: string; draft: Draft; onDone
   );
 }
 
-function SubmissionList({ submissions, currency }: { submissions: Submission[]; currency: string }) {
+/** A submission's boost code: shown, added or changed in place. With boost
+    codes off for the campaign, a code already given is shown, not editable. */
+function BoostCodeRow({ slug, submission, editable, onDone }: { slug: string; submission: Submission; editable: boolean; onDone: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [code, setCode] = useState(submission.boostCode ?? "");
+  const [expires, setExpires] = useState(submission.boostCodeExpiresAt?.slice(0, 10) ?? "");
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch(
+        `/api/portal/campaigns/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(submission.id)}/boost-code`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ boostCode: code.trim(), boostCodeExpiresAt: expires || null }),
+        },
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "Couldn't save the boost code");
+        return;
+      }
+      toast.success(code.trim() ? "Boost code saved" : "Boost code removed");
+      setEditing(false);
+      onDone();
+    } catch {
+      toast.error("Network error. Try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const linkButton: React.CSSProperties = { background: "none", border: "none", padding: 0, cursor: "pointer", color: "var(--cc-primary)", fontWeight: 600, fontSize: 13 };
+
+  if (editing) {
+    return (
+      <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 10 }}>
+        <BoostFields idPrefix={`boost-${submission.id}`} code={code} expires={expires} onCode={setCode} onExpires={setExpires} disabled={saving} />
+        <div style={{ display: "flex", gap: 8 }}>
+          <Button variant="primary" size="sm" loading={saving} onClick={save}>Save</Button>
+          <Button variant="secondary" size="sm" disabled={saving} onClick={() => setEditing(false)}>Cancel</Button>
+        </div>
+      </div>
+    );
+  }
+  if (submission.boostCode) {
+    return (
+      <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: "6px 0 0", overflowWrap: "anywhere" }}>
+        Boost code <code style={{ color: "var(--cc-text)", fontSize: 13 }}>{submission.boostCode}</code>
+        {submission.boostCodeExpiresAt && <> · expires {formatDay(submission.boostCodeExpiresAt)}</>}
+        {editable && (
+          <>
+            {" "}·{" "}
+            <button type="button" className="rsp-touch" style={linkButton} onClick={() => setEditing(true)}>Change</button>
+          </>
+        )}
+      </p>
+    );
+  }
+  if (!editable) return null;
+  return (
+    <p style={{ margin: "6px 0 0" }}>
+      <button type="button" className="rsp-touch" style={linkButton} onClick={() => setEditing(true)}>Add boost code</button>
+    </p>
+  );
+}
+
+function SubmissionList({ slug, submissions, currency, boostCodes, onDone }: { slug: string; submissions: Submission[]; currency: string; boostCodes: boolean; onDone: () => void }) {
   return (
     <div>
       <SectionTitle>Your submissions</SectionTitle>
@@ -430,6 +695,7 @@ function SubmissionList({ submissions, currency }: { submissions: Submission[]; 
                 {s.status === "REJECTED" && s.rejectionReason && (
                   <p style={{ fontSize: 13, color: "var(--cc-text)", margin: "6px 0 0" }}>{s.rejectionReason}</p>
                 )}
+                {s.status !== "REJECTED" && <BoostCodeRow slug={slug} submission={s} editable={boostCodes} onDone={onDone} />}
               </div>
             );
           })}
@@ -528,7 +794,10 @@ function CampaignScreen() {
     );
   }
 
-  const status: { tone: Tone; label: string } = !detail.acceptsPosts
+  const opensAt = detail.scheduledUntil ?? null;
+  const status: { tone: Tone; label: string } = opensAt
+    ? { tone: "info", label: `Opens ${formatDay(opensAt, { utc: true })}` }
+    : !detail.acceptsPosts
     ? { tone: "neutral", label: "Closed" }
     : joined
       ? { tone: "success", label: "Joined" }
@@ -571,15 +840,20 @@ function CampaignScreen() {
 
         {joined && draft && detail.acceptsPosts && <DraftCard slug={slug} draft={draft} onDone={load} />}
 
-        {joined && detail.acceptsPosts && <SubmitPosts slug={slug} onDone={load} />}
-        {joined && !detail.acceptsPosts && (
+        {joined && detail.acceptsPosts && <SubmitPosts slug={slug} checks={detail.ruleChecks ?? []} checksPlatform={detail.ruleChecksPlatform ?? null} boostCodes={detail.boostCodes === true} onDone={load} />}
+        {opensAt && (
+          <Banner tone="info">
+            Posts open on {formatDay(opensAt, { utc: true })}. Read the brief now; you can submit your links from that day.
+          </Banner>
+        )}
+        {joined && !detail.acceptsPosts && !opensAt && (
           <Banner tone="info">This campaign isn&apos;t taking new posts any more. Your submissions are below.</Banner>
         )}
-        {!joined && !detail.joinable && (
+        {!joined && !detail.joinable && !opensAt && (
           <Banner tone="info">This campaign is by invitation. Ask the agency for an invite link to join.</Banner>
         )}
 
-        {joined && <SubmissionList submissions={submissions} currency={detail.currency} />}
+        {joined && <SubmissionList slug={slug} submissions={submissions} currency={detail.currency} boostCodes={detail.boostCodes === true} onDone={load} />}
       </div>
     </Screen>
   );

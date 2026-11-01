@@ -65,6 +65,13 @@ export type ShareVisibility = {
    * same way budget and statuses do.
    */
   markRemovedPosts: boolean;
+  /**
+   * The campaign's checklist (do's, don'ts, example posts) and its view goal
+   * with progress (lib/campaigns/rules). Off by default and fails closed: the
+   * brief is the agency's instructions to creators, and a goal shown to a
+   * brand is a commitment, so both go out only when someone chooses to.
+   */
+  showBrief: boolean;
 };
 
 /**
@@ -83,6 +90,7 @@ export const DEFAULT_SHARE_VISIBILITY: ShareVisibility = {
   showBudget: false,
   showStatuses: false,
   markRemovedPosts: false,
+  showBrief: false,
 };
 
 function isSharePlatform(v: unknown): v is SharePlatform {
@@ -109,6 +117,7 @@ export function parseShareVisibility(raw: unknown): ShareVisibility {
     showBudget: o.showBudget === true,
     showStatuses: o.showStatuses === true,
     markRemovedPosts: o.markRemovedPosts === true,
+    showBrief: o.showBrief === true,
   };
 }
 
@@ -125,5 +134,6 @@ export function sanitizeShareVisibility(raw: unknown): ShareVisibility {
     showBudget: o.showBudget === true,
     showStatuses: o.showStatuses === true,
     markRemovedPosts: o.markRemovedPosts === true,
+    showBrief: o.showBrief === true,
   };
 }

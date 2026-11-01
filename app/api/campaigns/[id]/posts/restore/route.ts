@@ -8,6 +8,7 @@ import { getRequestIp } from "@/lib/request";
 import { removablePostIds } from "@/lib/posts/bulkActions";
 import { ONLY_REMOVED } from "@/lib/posts/removed";
 import { duplicateLiveCopies } from "@/lib/posts/restoreChecks";
+import { setExclusionReason } from "@/lib/posts/annotations";
 
 /**
  * POST /api/campaigns/[id]/posts/restore — put removed posts back.
@@ -120,6 +121,12 @@ export async function POST(
         before: { removedAt: post.removedAt?.toISOString() ?? null, removedById: post.removedById },
         after: { removedAt: null },
       });
+    }
+
+    /* A restored post counts again, so the reason it was excluded goes with it.
+       The restore has already landed, so a failure here is logged, not a 500. */
+    if (removedIds.length > 0) {
+      await setExclusionReason(removedIds, orgId, null).catch((e) => console.error("Failed to clear exclusion reason:", e));
     }
 
     return NextResponse.json({ restored: restored.count, postIds: removedIds });

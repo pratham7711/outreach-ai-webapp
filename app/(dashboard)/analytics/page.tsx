@@ -21,7 +21,10 @@ import {
 import { loadCharts } from "@/components/charts/lazyCharts";
 import { asOfCaption } from "@/lib/dataAge";
 import { noun } from "@/lib/ui/noun";
-import { platformLabel } from "@/lib/format";
+import { platformLabel, formatDateAbs } from "@/lib/format";
+import { growthDelta, type PeriodGrowth } from "@/lib/analytics/periodGrowth";
+import { SeriesModeToggle } from "@/components/charts/SeriesModeToggle";
+import type { SeriesMode } from "@/lib/charts/seriesMode";
 
 const MonthlyTrendArea = dynamic(() => loadCharts().then((m) => m.MonthlyTrendArea), {
   ssr: false,
@@ -55,6 +58,8 @@ type AnalyticsData = {
   leaderboard: LeaderboardCreator[];
   platformBreakdown: { platform: string; views: number; posts: number }[];
   campaigns: CampaignOption[];
+  /** The workspace total's change over the window and the one before; null when a reading is missing or stale. */
+  viewsGrowth?: PeriodGrowth | null;
   /** Weekday-hour slots, already medianed by the database in postingTimeZone. */
   postingBuckets: { day: number; hour: number; count: number; medianViews: number }[];
   postingTimeZone: string;
@@ -119,6 +124,7 @@ export default function AnalyticsPage() {
   const [error, setError] = useState(false);
   const [range, setRange] = useState("30d");
   const [platform, setPlatform] = useState("ALL");
+  const [launchMode, setLaunchMode] = useState<SeriesMode>("daily");
   // Platforms the account has posts on, from the last unfiltered load. The
   // breakdown narrows to the chosen platform once one is picked, so it cannot
   // be read live -- the other pills would vanish the moment one was clicked.
@@ -153,6 +159,7 @@ export default function AnalyticsPage() {
   }, [load]);
 
   const k = data?.kpis;
+  const growth = data?.viewsGrowth ?? null;
   /* The overview tiles share one figure size, set by the longest of them. */
   const tileFit = k
     ? Math.max(
@@ -246,13 +253,26 @@ export default function AnalyticsPage() {
                   value={viewsUnknown ? "\u2014" : formatNumber(k.totalViews)}
                   footer={viewsCaption}
                 />
+                {/* How far the workspace total moved in the window, against the
+                    window before, with the two days it is read between always
+                    shown: the total also moves when posts are added or removed,
+                    so the tile says what it is a difference of. */}
+                {growth && (
+                  <MetricTile
+                    fitTo={tileFit}
+                    metric="viewsGained"
+                    value={formatNumber(growth.current)}
+                    delta={growthDelta(growth)}
+                    footer={`${formatDateAbs(growth.from)} – ${formatDateAbs(growth.to)}`}
+                  />
+                )}
                 <MetricTile fitTo={tileFit} metric="totalLikes" value={formatNumber(k.totalLikes)} />
                 <MetricTile fitTo={tileFit} metric="totalComments" value={formatNumber(k.totalComments)} />
                 {/* Absent entirely when no post in range carries a rate. */}
                 {k.engagementSample > 0 && (
                   <MetricTile
                     fitTo={tileFit}
-                    metric="avgEngagementRate"
+                    metric="engagementRate"
                     value={`${k.avgEngagementRate.toFixed(1)}%`}
                     footer={
                       k.engagementSample < k.totalPosts
@@ -267,7 +287,21 @@ export default function AnalyticsPage() {
               <SectionCard
                 icon={Calendar}
                 title="Campaigns launched"
-                description="How many campaigns you started each month over the last six months."
+                description={
+                  launchMode === "cumulative"
+                    ? "A running total of the campaigns you started over the last six months, and how many of those are active now."
+                    : "How many campaigns you started each month over the last six months."
+                }
+                action={
+                  data.monthlyTrend.every((m) => m.campaigns === 0) ? undefined : (
+                    <SeriesModeToggle
+                      label="Campaigns launched"
+                      value={launchMode}
+                      onChange={setLaunchMode}
+                      periodLabel="Monthly"
+                    />
+                  )
+                }
               >
                 {data.monthlyTrend.every((m) => m.campaigns === 0) ? (
                   <EmptyState
@@ -277,7 +311,7 @@ export default function AnalyticsPage() {
                   />
                 ) : (
                   <div className="h-[220px] md:h-[300px]">
-                    <MonthlyTrendArea data={data.monthlyTrend} />
+                    <MonthlyTrendArea data={data.monthlyTrend} mode={launchMode} />
                   </div>
                 )}
               </SectionCard>

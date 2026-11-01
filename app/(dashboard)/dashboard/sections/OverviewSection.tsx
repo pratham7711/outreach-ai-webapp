@@ -8,6 +8,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { loadCharts } from "@/components/charts/lazyCharts";
 import { formatNumber, type PerformanceData } from "../types";
 import { asOfCaption } from "@/lib/dataAge";
+import { SeriesModeToggle } from "@/components/charts/SeriesModeToggle";
+import { periodLabel, type SeriesMode } from "@/lib/charts/seriesMode";
 
 const ViewsOverTimeArea = dynamic(
   () => loadCharts().then((m) => m.ViewsOverTimeArea),
@@ -34,6 +36,7 @@ export function OverviewSection({
   const totalViews = platforms.reduce((n, p) => n + p.views, 0);
   const totalPosts = platforms.reduce((n, p) => n + p.postsCount, 0);
   const series = financials?.viewsOverTime ?? [];
+  const [viewsMode, setViewsMode] = React.useState<SeriesMode>("cumulative");
   /* A total over posts none of which has a view count is unknown, not 0: on 7D
      the tile read "TOTAL VIEWS 0" beside "TOTAL POSTS 5" -- five Instagram
      photos, which publish no view count. The caption says when the total was
@@ -126,7 +129,21 @@ export function OverviewSection({
              a running total (it only goes up), and the series starts the day the
              first reading landed -- there is no history to backfill, because
              history was never recorded. */
-          description="One reading per day, taken at 00:30 UTC: the lifetime views of every post in this workspace as of that morning, a video in two campaigns counted once — including posts older than the range the tiles above use. The line starts from the first reading; earlier days were never measured."
+          description={
+            viewsMode === "daily"
+              ? "Views gained in each period: the change from the previous period's last reading (one reading a day, taken at 00:30 UTC). A period is left blank when the one before it has no reading, and a bar below zero means posts left the workspace or a platform corrected its count."
+              : "One reading per day, taken at 00:30 UTC: the lifetime views of every post in this workspace as of that morning, a video in two campaigns counted once — including posts older than the range the tiles above use. The line starts from the first reading; earlier days were never measured."
+          }
+          action={
+            !loading && series.length >= 2 ? (
+              <SeriesModeToggle
+                label="Views over time"
+                value={viewsMode}
+                onChange={setViewsMode}
+                periodLabel={periodLabel(series[0]?.date)}
+              />
+            ) : undefined
+          }
         >
           {loading ? (
             <Skeleton className="h-[400px] w-full rounded-lg" />
@@ -164,7 +181,7 @@ export function OverviewSection({
             </div>
           ) : (
             <div className="h-[400px]">
-              <ViewsOverTimeArea data={series} formatNumber={formatNumber} />
+              <ViewsOverTimeArea data={series} formatNumber={formatNumber} mode={viewsMode} />
             </div>
           )}
         </SectionCard>

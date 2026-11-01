@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { viewsGrowth } from "@/lib/analytics/periodGrowth";
 import { NOT_REMOVED, notRemovedSql } from "@/lib/posts/removed";
 import { READ_CACHE_HEADERS } from "@/lib/http/readCache";
 import { cachedOrgRead } from "@/lib/reports/orgReadCache";
@@ -408,6 +409,25 @@ async function analyticsBody(orgId: string, from: Date | null, platform: string 
     savesCount: measuredRow._sum.savesCount,
   });
 
+  /* Views gained over the chosen window and the one before it, off the daily
+     account total (lib/analytics/periodGrowth). That total spans every
+     platform, so it is left out once one platform is picked. */
+  let viewsGrowthBody: ReturnType<typeof viewsGrowth> = null;
+  if (from && !platform) {
+    const days = Math.round((now.getTime() - from.getTime()) / 86_400_000);
+    /* An extra, never the page: a failed read leaves the tile off. */
+    try {
+      const totals = await db.orgViewsSnapshot.findMany({
+        where: { orgId, day: { gte: new Date(from.getTime() - (days + 2) * 86_400_000) } },
+        select: { day: true, viewsCount: true },
+        orderBy: { day: "asc" },
+      });
+      viewsGrowthBody = viewsGrowth(totals, days, now.getTime());
+    } catch (error) {
+      console.error("Views growth read failed:", error);
+    }
+  }
+
   const platformBreakdown = platformRows.map((row) => ({
     platform: row.platform ?? "UNKNOWN",
     views: row._sum.viewsCount ?? 0,
@@ -432,6 +452,7 @@ async function analyticsBody(orgId: string, from: Date | null, platform: string 
          refresh, whichever is later. Null when neither was recorded. */
       asOf: newestOf(knownRow?._max?.lastSyncedAt, knownRow?._max?.lastFreshAt),
     },
+    viewsGrowth: viewsGrowthBody,
     monthlyTrend,
     leaderboard,
     platformBreakdown,

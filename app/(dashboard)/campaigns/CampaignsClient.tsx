@@ -2,13 +2,13 @@
 
 import { memo, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Search, Target, Sun, Zap, CheckCircle2, XCircle, Wallet, Users, FileText, LayoutList, Folder, Share2, ArrowUpDown, Trash2, Loader2 } from "lucide-react";
+import { Plus, Search, Target, Sun, Zap, CheckCircle2, XCircle, Wallet, Users, FileText, LayoutList, Folder, Share2, ArrowUpDown, Trash2, Loader2, Eye } from "lucide-react";
 import { NavLink } from "@/components/layout/NavLink";
 import { Card, Badge, Input, EmptyState, Avatar } from "@pratham7711/ui";
 import { PageHeader, StatusTabs, Pagination, FilterDrawer, FilterButton, Dropdown, useConfirm, Button } from "@/components/ds";
 import type { FilterDef, FilterValues } from "@/components/ds";
 import CampaignWizard from "@/components/modals/CampaignWizard";
-import { timeAgo, formatFullCurrency } from "@/lib/format";
+import { timeAgo, formatFullCurrency, formatFull, formatDateAbs } from "@/lib/format";
 import { pendingListProps, useListQuery } from "@/lib/useListQuery";
 import { CAMPAIGNS_PAGE_SIZE } from "@/lib/listPageSize";
 import { imgSrc } from "@/lib/postMedia";
@@ -28,6 +28,14 @@ type Campaign = {
   thumbnailUrl?: string | null;
   _count: { activations: number; posts: number };
   creatorCount: number;
+  /** Summed views over the live posts; null when none was read. */
+  views?: number | null;
+  /** Live posts with no view figure yet, so not in `views`. */
+  viewsUnread?: number;
+  /** The launch date while it is still ahead, ISO; null once open. */
+  opensAt?: string | null;
+  /** The newest live post's date, ISO. */
+  lastPostAt?: string | null;
   updatedAt?: string;
   budget: number | null;
   team: { id: string; name: string; avatarUrl: string | null }[];
@@ -479,9 +487,9 @@ function SortControl({
   );
 }
 
-function StatChip({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
+function StatChip({ icon, label, children, className }: { icon: React.ReactNode; label: string; children: React.ReactNode; className?: string }) {
   return (
-    <span className="cc-stat-chip">
+    <span className={className ? `cc-stat-chip ${className}` : "cc-stat-chip"}>
       <span aria-hidden="true" style={{ display: "flex", color: "var(--cc-text-muted)" }}>{icon}</span>
       <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.25, minWidth: 0 }}>
         <span className="cc-microlabel">
@@ -537,11 +545,16 @@ const CampaignRow = memo(function CampaignRow({
             {campaign.title}
           </span>
           <span style={{ display: "block", fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)" }}>
-            Last updated {timeAgo(campaign.updatedAt)}
+            {campaign.lastPostAt ? `Last post ${timeAgo(campaign.lastPostAt)}` : `Last updated ${timeAgo(campaign.updatedAt)}`}
             {campaign.client ? ` \u00b7 ${campaign.client.name}` : ""}
           </span>
-          {campaign.tags.length > 0 && (
+          {(campaign.opensAt || campaign.tags.length > 0) && (
             <span style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 5 }}>
+              {/* Scheduled: off Explore and refusing posts until this day
+                  (lib/campaigns/rules), the same state the rules card names. */}
+              {campaign.opensAt && (
+                <Badge variant="warning" size="sm">Opens {formatDateAbs(campaign.opensAt)}</Badge>
+              )}
               {campaign.tags.map((tag) => (
                 <Badge key={tag} variant="neutral" size="sm">{tag}</Badge>
               ))}
@@ -565,6 +578,15 @@ const CampaignRow = memo(function CampaignRow({
         <StatChip icon={<FileText size={15} />} label="Posts">
           {campaign._count.posts}
         </StatChip>
+        {campaign.views != null && (
+          <StatChip
+            icon={<Eye size={15} />}
+            label={campaign.viewsUnread ? `Views · ${campaign.viewsUnread} not read` : "Views"}
+            className="cc-stat-chip--views"
+          >
+            {formatFull(campaign.views)}
+          </StatChip>
+        )}
         {campaign.team.length > 0 && (
           <StatChip icon={<Users size={15} />} label="Team">
             <span style={{ display: "inline-flex", alignItems: "center" }}>

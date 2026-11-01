@@ -83,6 +83,7 @@ describe("sanitizeShareVisibility", () => {
     expect(Object.keys(v).sort()).toEqual([
       "markRemovedPosts",
       "platforms",
+      "showBrief",
       "showBudget",
       "showCreators",
       "showStatuses",
@@ -167,6 +168,29 @@ describe("markRemovedPosts", () => {
 
   it("survives a round trip through storage", () => {
     const stored = sanitizeShareVisibility({ markRemovedPosts: true, platforms: ["TIKTOK"] });
+    expect(parseShareVisibility({ visibility: stored })).toEqual(stored);
+  });
+});
+
+describe("showBrief", () => {
+  /* The checklist is the agency's instructions to creators and the goal is a
+     commitment; neither reaches a brand unless someone turns it on. */
+  it("is off for a legacy link and by default", () => {
+    expect(parseShareVisibility({ kind: "campaign-performance" }).showBrief).toBe(false);
+    expect(DEFAULT_SHARE_VISIBILITY.showBrief).toBe(false);
+    expect(sanitizeShareVisibility({}).showBrief).toBe(false);
+  });
+
+  it("is on only when stored as exactly true", () => {
+    for (const stored of ["true", 1, "yes", {}, [], null]) {
+      expect(parseShareVisibility({ visibility: { showBrief: stored } }).showBrief).toBe(false);
+      expect(sanitizeShareVisibility({ showBrief: stored }).showBrief).toBe(false);
+    }
+    expect(parseShareVisibility({ visibility: { showBrief: true } }).showBrief).toBe(true);
+  });
+
+  it("survives a round trip through storage", () => {
+    const stored = sanitizeShareVisibility({ showBrief: true });
     expect(parseShareVisibility({ visibility: stored })).toEqual(stored);
   });
 });

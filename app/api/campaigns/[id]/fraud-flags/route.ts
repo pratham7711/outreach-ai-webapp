@@ -57,7 +57,26 @@ export async function GET(
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ flags });
+    /* How many OTHER live campaigns of this org each flagged creator has an
+       OPEN flag on: a creator flagged once is a post to check, one flagged
+       across campaigns is a pattern. A flag someone reviewed and cleared is
+       not evidence of one, so it is not counted, and neither is a deleted
+       campaign. Counted per creator record. */
+    const creatorIds = [...new Set(flags.map((f) => f.creatorId).filter(Boolean))];
+    const otherCampaigns: Record<string, number> = {};
+    if (creatorIds.length > 0) {
+      const elsewhere = await db.viewFraudFlag.findMany({
+        where: { orgId, creatorId: { in: creatorIds }, campaignId: { not: campaignId }, isResolved: false, campaign: { deletedAt: null } },
+        select: { creatorId: true, campaignId: true },
+        distinct: ["creatorId", "campaignId"],
+      });
+      for (const row of elsewhere ?? []) {
+        if (!row?.creatorId) continue;
+        otherCampaigns[row.creatorId] = (otherCampaigns[row.creatorId] ?? 0) + 1;
+      }
+    }
+
+    return NextResponse.json({ flags, otherCampaigns });
   } catch (error) {
     console.error("Failed to fetch fraud flags:", error);
     return NextResponse.json(

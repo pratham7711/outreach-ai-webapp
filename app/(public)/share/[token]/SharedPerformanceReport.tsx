@@ -1,8 +1,8 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import {
-  AreaChart, Area, XAxis, YAxis, Tooltip,
-  PieChart, Pie, Cell, Legend,
+  AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
+  PieChart, Pie, Cell, BarChart, Bar, BarStack, ReferenceLine,
 } from "recharts";
 import { BarChart3, Music2, Radio, CircleDot } from "lucide-react";
 import { ChartFrame } from "@/components/ds/ChartFrame";
@@ -11,7 +11,7 @@ import { DEFAULT_SHARE_VISIBILITY, type ShareVisibility } from "@/lib/reports/sh
 import { formatFull, formatCompact, platformLabel } from "@/lib/format";
 import { creatorNameParts, creatorNameText } from "@/lib/creators/creatorName";
 import { ACTIVATION_STATUS_LABEL, activationStatusBadgeStyle } from "@/lib/activationQueues";
-import { platformColorsFor } from "@/lib/reports/shareChartPalette";
+import { bandFillsFor, platformColorsFor } from "@/lib/reports/shareChartPalette";
 import { POWERED_BY } from "@/lib/brand";
 import { AudioCard } from "@/components/campaigns/AudioCard";
 import { SpotifyStreamsCard } from "@/components/campaigns/SpotifyStreamsCard";
@@ -20,6 +20,12 @@ import { campaignStatusLabel } from "@/lib/statusColors";
 import SharedPostList from "./SharedPostList";
 import { viewsCoverageNote } from "@/lib/metricDisplay";
 import { asOfCaption } from "@/lib/dataAge";
+import { CHART_RANGES, nextPeriodBy, toChanges, withinRange, type ChartRange, type SeriesMode } from "@/lib/charts/seriesMode";
+import { viewGoalProgress } from "@/lib/campaigns/rulesShape";
+import { formatTick, niceAxis, stackExtent } from "@/lib/charts/axisTicks";
+
+/** The campaign's checklist and view goal, when the link is allowed to show them. */
+export type SharedBrief = { dos: string[]; donts: string[]; examples: string[]; viewGoal: number | null };
 
 /**
  * The chart's series come from the campaign, not from a fixed triple.
@@ -35,11 +41,128 @@ function seriesFor(platforms: string[], colorOf: (platform: string) => string): 
   return platforms.map((key) => ({ key, color: colorOf(key) }));
 }
 
-/* Recharts inks each legend label and tooltip row in its series colour, which
-   for a brand colour on white is under 4.5:1; the swatch carries the colour. */
-const legendLabel = (value: unknown) => <span style={{ color: "var(--spr-ink-muted)" }}>{String(value)}</span>;
-const TOOLTIP_STYLE = { background: "var(--spr-card)", border: "1px solid var(--spr-hairline)", borderRadius: 12, fontSize: 13, color: "var(--spr-ink)" };
+/* Recharts inks each tooltip row in its series colour, which for a brand
+   colour on white is under 4.5:1; the swatch carries the colour. */
+const TOOLTIP_STYLE: React.CSSProperties = {
+  background: "var(--spr-card)",
+  border: "1px solid var(--spr-hairline)",
+  borderRadius: 12,
+  boxShadow: "0 8px 24px var(--spr-hairline)",
+  padding: "10px 12px",
+  fontSize: 13,
+  color: "var(--spr-ink)",
+};
 const TOOLTIP_ITEM_STYLE = { color: "var(--spr-ink)" };
+/* Axes sit back: no axis line, no tick marks, and a hairline grid at the round
+   steps from lib/charts/axisTicks, so the bands are the loudest thing here. */
+const AXIS_TICK = { fontSize: 12, fill: "var(--spr-chart-axis)" };
+const CHART_MARGIN = { top: 10, right: 10, left: 0, bottom: 0 };
+
+type ViewsSeries = { key: string; color: string; fill: string };
+
+/** A swatch that is a small band: the fill, edged in the brand colour. */
+function BandSwatch({ s, size = 10 }: { s: ViewsSeries; size?: number }) {
+  return (
+    <span
+      aria-hidden="true"
+      style={{ width: size, height: size, flex: "none", borderRadius: 3, background: s.fill, border: `2px solid ${s.color}` }}
+    />
+  );
+}
+
+/**
+ * One segment of a stacked bar, drawn 1px short at each end so neighbouring
+ * segments part by a 2px gap of the card. A card-coloured stroke did the same
+ * between segments but also rimmed each one's outer sides in a pale halo.
+ */
+function SeamedBar({ x = 0, y = 0, width = 0, height = 0, fill }: { x?: number; y?: number; width?: number; height?: number; fill?: string }) {
+  const top = Math.min(y, y + height);
+  const h = Math.abs(height);
+  const inset = h > 3 ? 1 : 0;
+  return <rect x={x} y={top + inset} width={width} height={h - 2 * inset} fill={fill} />;
+}
+
+function signedFull(n: number): string {
+  return `${n > 0 ? "+" : n < 0 ? "−" : ""}${formatFull(Math.abs(n))}`;
+}
+
+/**
+ * The views chart's legend, in HTML above the plot: each band's swatch, name
+ * and figure -- its latest total, or in the Daily view what the days shown
+ * added -- so the split reads without a hover, which a phone never does.
+ * Bottom band first, the stack's own order.
+ */
+function ViewsKey({ series, values, signed }: { series: ViewsSeries[]; values: (number | null)[]; signed: boolean }) {
+  return (
+    <ul style={{ display: "flex", flexWrap: "wrap", gap: "6px 18px", margin: "2px 0 10px", padding: 0, listStyle: "none", fontSize: 13 }}>
+      {series.map((s, i) => {
+        const v = values[i];
+        return (
+          <li key={s.key} style={{ display: "flex", alignItems: "center", gap: 7 }}>
+            <BandSwatch s={s} />
+            <span style={{ color: "var(--spr-ink-muted)" }}>{platformLabel(s.key)}</span>
+            <span style={{ fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
+              {v === null ? "—" : signed ? `${v > 0 ? "+" : v < 0 ? "−" : ""}${formatCompact(Math.abs(v))}` : formatCompact(v)}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/**
+ * The views tooltip: the day, every band top band first (the order they sit
+ * in), and their total -- the figure a reader hovering a stack is after, which
+ * Recharts' own tooltip leaves them to add up.
+ */
+function ViewsTooltip({
+  active,
+  payload,
+  label,
+  series,
+  dateLabel,
+  signed,
+}: {
+  active?: boolean;
+  payload?: ReadonlyArray<{ dataKey?: unknown; value?: unknown }>;
+  label?: unknown;
+  series: ViewsSeries[];
+  dateLabel: (iso: string) => string;
+  signed: boolean;
+}) {
+  if (!active || !payload?.length) return null;
+  const valueOf = new Map(payload.map((p) => [String(p.dataKey), p.value]));
+  const rows = [...series].reverse().map((s) => {
+    const v = valueOf.get(s.key);
+    return { s, v: typeof v === "number" && Number.isFinite(v) ? v : null };
+  });
+  const known = rows.filter((r) => r.v !== null);
+  const total = known.length ? known.reduce((sum, r) => sum + (r.v ?? 0), 0) : null;
+  const show = (v: number | null) => (v === null ? "—" : signed ? signedFull(v) : formatFull(v));
+  const line: React.CSSProperties = { display: "flex", alignItems: "center", gap: 8 };
+  const figure: React.CSSProperties = { marginLeft: "auto", paddingLeft: 16, fontVariantNumeric: "tabular-nums" };
+  return (
+    <div style={{ ...TOOLTIP_STYLE, minWidth: 180 }}>
+      <div style={{ color: "var(--spr-ink-muted)", fontSize: 12, marginBottom: 6 }}>{dateLabel(String(label))}</div>
+      <div style={{ display: "grid", gap: 4 }}>
+        {rows.map(({ s, v }) => (
+          <div key={s.key} style={line}>
+            <BandSwatch s={s} size={9} />
+            <span>{platformLabel(s.key)}</span>
+            <span style={figure}>{show(v)}</span>
+          </div>
+        ))}
+      </div>
+      {rows.length > 1 && (
+        <div style={{ ...line, borderTop: "1px solid var(--spr-hairline)", marginTop: 7, paddingTop: 7, fontWeight: 600 }}>
+          <span>Total</span>
+          <span style={figure}>{show(total)}</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function formatNumber(num: number): string {
   return formatFull(num);
@@ -99,6 +222,7 @@ export default function SharedPerformanceReport({
   budget = null,
   campaignStatus = null,
   artworkUrl = null,
+  brief = null,
 }: {
   token: string;
   campaignTitle: string;
@@ -112,6 +236,8 @@ export default function SharedPerformanceReport({
   budget?: number | null;
   /** The campaign's stored picture, for a header with no audio cover or one that will not load. */
   artworkUrl?: string | null;
+  /** Already gated by the server (ShareVisibility.showBrief); null when hidden or unset. */
+  brief?: SharedBrief | null;
 }) {
   /* A creator whose picture would not decode, so the circle shows their initial
      instead of an empty ring. Keyed by creator, because the same avatar can
@@ -133,6 +259,9 @@ export default function SharedPerformanceReport({
      campaign's own artwork, then the music-note tile. Offered after hydration
      for the same reason as the avatars. */
   const [coverMisses, setCoverMisses] = useState(0);
+  const [viewsMode, setViewsMode] = useState<SeriesMode>("cumulative");
+  /* One range for every chart on the report; "All" is the report as it was. */
+  const [range, setRange] = useState<ChartRange>("all");
   // Already redacted server-side — a hidden leaderboard arrives empty rather
   // than arriving whole and being skipped at render time.
   const { kpis, timeSeries, seriesPlatforms, platformSplit, leaderboard, currency } = data;
@@ -141,6 +270,10 @@ export default function SharedPerformanceReport({
   const colorOrder = [...platformSplit.map((p) => p.platform), ...seriesPlatforms.filter((k) => !platformSplit.some((p) => p.platform === k))];
   const colorList = platformColorsFor(colorOrder);
   const colorOf = (platform: string) => colorList[colorOrder.indexOf(platform)] ?? colorList[0];
+  /* Each platform's softened fill, worked out over every platform on the
+     report so a platform's band and its pie slice are the same colour. */
+  const fillList = bandFillsFor(colorList);
+  const fillOf = (platform: string) => fillList[colorOrder.indexOf(platform)] ?? fillList[0];
   /* Stacked areas draw every series, so a platform with no views still paints
      its stroke along the top of the stack -- a TikTok-only campaign showed a
      green "YouTube" line (measured on the misery - pupsies report). Only
@@ -148,6 +281,26 @@ export default function SharedPerformanceReport({
   const activeSeries = seriesFor(seriesPlatforms, colorOf).filter((s) =>
     timeSeries.some((row) => Number(row[s.key] ?? 0) > 0)
   );
+  const seriesKeys = activeSeries.map((s) => s.key);
+  const bands: ViewsSeries[] = activeSeries.map((s) => ({ ...s, fill: fillOf(s.key) }));
+  const cumulativeRows = withinRange(timeSeries, (r) => String(r.date), range);
+  const dailyRows = withinRange(toChanges(timeSeries, seriesKeys, nextPeriodBy((r) => String(r.date))), (r) => String(r.date), range);
+  const numberOrNull = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  const lastRow = cumulativeRows[cumulativeRows.length - 1];
+  const latestByBand = bands.map((s) => (lastRow ? numberOrNull(Number(lastRow[s.key] ?? 0)) : null));
+  /* A Daily view's first day has no day before it and is null, so this is
+     what the days shown added, not the total. */
+  const gainedByBand = bands.map((s) => {
+    const changes = dailyRows.map((r) => numberOrNull(r[s.key])).filter((v): v is number => v !== null);
+    return changes.length ? changes.reduce((sum, v) => sum + v, 0) : null;
+  });
+  /* A dot on each band's latest reading, so the chart ends on "now" rather
+     than fading off the right edge. */
+  const endDot = (color: string) =>
+    function EndDot(p: { cx?: number; cy?: number; index?: number }) {
+      if (p.index !== cumulativeRows.length - 1 || p.cx === undefined || p.cy === undefined) return <g />;
+      return <circle cx={p.cx} cy={p.cy} r={4} fill={color} stroke="var(--spr-card)" strokeWidth={2} />;
+    };
   /* Engagement exists only for posts we fetched ourselves, so the column is
      dropped when no creator in this campaign has one. */
   const anyEngagementMeasured = leaderboard.some((r) => r.engagementRate !== null);
@@ -183,6 +336,9 @@ export default function SharedPerformanceReport({
   /* A sum over no read post is unknown, not 0 -- e.g. a campaign of Instagram
      photos, which publish no view count. */
   const viewsUnknown = kpis.viewsKnownPosts === 0 && kpis.posts > 0;
+  /* Progress against the goal only from a known total: an unread total is not 0% of anything. */
+  const goal = brief?.viewGoal ? viewGoalProgress(viewsUnknown ? null : kpis.views, brief.viewGoal) : null;
+  const showBrief = !!brief && (brief.dos.length + brief.donts.length + brief.examples.length > 0 || !!brief.viewGoal);
   /* The TikTok sound leads, beside the views chart; the Instagram audio takes
      that place when it is the song's only sound, and otherwise pairs with the
      Spotify card in the row below. Records from before instagramAudio have no
@@ -268,6 +424,23 @@ export default function SharedPerformanceReport({
           </section>
         ) : (
           <>
+            {timeSeries.length >= 3 || data.streams || firstAudio ? (
+              /* The report's own plain-text switch (the audio card's), so the
+                 range reads as part of this document rather than the app. */
+              <div className="spr-audio-toggle spr-range-toggle" role="group" aria-label="Chart range">
+                {CHART_RANGES.map((r) => (
+                  <button
+                    key={r.value}
+                    type="button"
+                    aria-pressed={range === r.value}
+                    className={`spr-audio-tab${range === r.value ? " is-on" : ""}`}
+                    onClick={() => setRange(r.value)}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <div className="spr-row">
               <section className="spr-card spr-stack">
                 <h2 className="spr-section">Post Performance</h2>
@@ -293,24 +466,71 @@ export default function SharedPerformanceReport({
                     <StatTile value={formatCompact(kpis.engagements)} label="Total Eng." />
                   )}
                 </div>
-                <h3 className="spr-subhead">Views Over Time</h3>
                 {timeSeries.length >= 3 ? (
-                  /* 250, the reference canvas's own height. No <defs>: the
-                     reference's bands are flat fills, and no CartesianGrid --
-                     a pixel scan down three columns of its chart crosses no
-                     grid line at any y. */
+                  /* The audio card's toggle, for the same reader: plain text
+                     above the title, the active one underlined. */
+                  <div className="spr-audio-toggle" role="group" aria-label="Views chart view">
+                    {(["daily", "cumulative"] as const).map((key) => (
+                      <button
+                        key={key}
+                        type="button"
+                        aria-pressed={viewsMode === key}
+                        className={`spr-audio-tab${viewsMode === key ? " is-on" : ""}`}
+                        onClick={() => setViewsMode(key)}
+                      >
+                        {key === "daily" ? "Daily" : "Cumulative"}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                <h3 className="spr-subhead">{viewsMode === "daily" ? "Views Gained per Day" : "Views Over Time"}</h3>
+                {timeSeries.length >= 3 && bands.length > 0 ? (
+                  <ViewsKey series={bands} values={viewsMode === "daily" ? gainedByBand : latestByBand} signed={viewsMode === "daily"} />
+                ) : null}
+                {timeSeries.length >= 3 && viewsMode === "daily" ? (
                   <ChartFrame height={250}>
-                    <AreaChart data={timeSeries} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
-                      <XAxis dataKey="date" tickFormatter={dates.tick} minTickGap={14} tick={{ fontSize: 12, fill: "var(--spr-chart-axis)" }} />
-                      <YAxis tickFormatter={(v) => formatCompact(Number(v))} tick={{ fontSize: 12, fill: "var(--spr-chart-axis)" }} width={64} />
+                    <BarChart data={dailyRows} stackOffset="sign" margin={CHART_MARGIN}>
+                      <CartesianGrid vertical={false} stroke="var(--spr-grid)" />
+                      <XAxis dataKey="date" tickFormatter={dates.tick} minTickGap={24} tickLine={false} axisLine={false} tickMargin={8} tick={AXIS_TICK} />
+                      <YAxis tickFormatter={(v) => formatTick(Number(v))} tickLine={false} axisLine={false} width="auto" tick={AXIS_TICK} {...niceAxis(stackExtent(dailyRows, seriesKeys))} />
+                      <ReferenceLine y={0} stroke="var(--spr-chart-axis)" strokeOpacity={0.5} />
                       <Tooltip
-                        labelFormatter={(l) => dates.label(String(l))}
-                        formatter={(v: unknown) => formatNumber(Number(v ?? 0))}
-                        contentStyle={TOOLTIP_STYLE}
-                        itemStyle={TOOLTIP_ITEM_STYLE}
+                        cursor={{ fill: "var(--spr-hairline)" }}
+                        content={(p) => <ViewsTooltip {...p} series={bands} dateLabel={dates.label} signed />}
                       />
-                      <Legend iconType="square" iconSize={10} wrapperStyle={{ fontSize: 12 }} formatter={legendLabel} />
-                      {activeSeries.map((s) => (
+                      {/* Rounded at the stack's end, square at the baseline. */}
+                      <BarStack stackId="views" radius={[4, 4, 0, 0]}>
+                        {bands.map((s) => (
+                          <Bar
+                            isAnimationActive={false}
+                            key={s.key}
+                            dataKey={s.key}
+                            name={platformLabel(s.key)}
+                            fill={s.fill}
+                            shape={SeamedBar}
+                            maxBarSize={24}
+                          />
+                        ))}
+                      </BarStack>
+                    </BarChart>
+                  </ChartFrame>
+                ) : timeSeries.length >= 3 ? (
+                  /* 250, the reference canvas's own height. Ticks are round
+                     steps from lib/charts/axisTicks, with a hairline grid on
+                     them. Each band is a lightened fill under a 2px edge in
+                     the brand colour (lib/reports/shareChartPalette
+                     bandFillsFor), so the top edge of the stack is the
+                     campaign's running total. */
+                  <ChartFrame height={250}>
+                    <AreaChart data={cumulativeRows} margin={CHART_MARGIN}>
+                      <CartesianGrid vertical={false} stroke="var(--spr-grid)" />
+                      <XAxis dataKey="date" tickFormatter={dates.tick} minTickGap={24} tickLine={false} axisLine={false} tickMargin={8} tick={AXIS_TICK} />
+                      <YAxis tickFormatter={(v) => formatTick(Number(v))} tickLine={false} axisLine={false} width="auto" tick={AXIS_TICK} {...niceAxis(stackExtent(cumulativeRows, seriesKeys))} />
+                      <Tooltip
+                        cursor={{ stroke: "var(--spr-ink)", strokeOpacity: 0.25, strokeWidth: 1 }}
+                        content={(p) => <ViewsTooltip {...p} series={bands} dateLabel={dates.label} signed={false} />}
+                      />
+                      {bands.map((s) => (
                         <Area
                           isAnimationActive={false}
                           key={s.key}
@@ -323,12 +543,15 @@ export default function SharedPerformanceReport({
                              it stands down for any series that sets its own dash. */
                           strokeDasharray="0"
                           stackId="views"
-                          /* Stroked in its own colour, so a platform too small to
+                          /* Edged in its own colour, so a platform too small to
                              show a band at this scale still draws a line. */
                           stroke={s.color}
-                          fill={s.color}
-                          fillOpacity={1}
                           strokeWidth={2}
+                          strokeLinejoin="round"
+                          fill={s.fill}
+                          fillOpacity={1}
+                          dot={endDot(s.color)}
+                          activeDot={{ r: 4, fill: s.color, stroke: "var(--spr-card)", strokeWidth: 2 }}
                         />
                       ))}
                     </AreaChart>
@@ -344,7 +567,7 @@ export default function SharedPerformanceReport({
               {/* No wrapper: the report variant renders its own .spr-card, so
                   it sits in the row grid directly the way every other card does. */}
               {firstAudio ? (
-                <AudioCard audio={firstAudio} shareToken={token} variant="report" />
+                <AudioCard audio={firstAudio} shareToken={token} variant="report" range={range} launch={data.launch ?? null} />
               ) : null}
             </div>
 
@@ -352,8 +575,8 @@ export default function SharedPerformanceReport({
                 and a third would sit half-width under the views chart. */}
             {secondAudio || data.streams ? (
               <div className="spr-row">
-                {secondAudio ? <AudioCard audio={secondAudio} shareToken={token} variant="report" /> : null}
-                {data.streams ? <SpotifyStreamsCard streams={data.streams} variant="report" /> : null}
+                {secondAudio ? <AudioCard audio={secondAudio} shareToken={token} variant="report" range={range} launch={data.launch ?? null} /> : null}
+                {data.streams ? <SpotifyStreamsCard streams={data.streams} variant="report" range={range} launch={data.launch ?? null} /> : null}
               </div>
             ) : null}
 
@@ -379,7 +602,7 @@ export default function SharedPerformanceReport({
                           strokeWidth={slices.length > 1 ? 2 : 0}
                         >
                           {slices.map((entry) => (
-                            <Cell key={entry.platform} fill={colorOf(entry.platform)} />
+                            <Cell key={entry.platform} fill={fillOf(entry.platform)} />
                           ))}
                         </Pie>
                         <Tooltip
@@ -403,7 +626,11 @@ export default function SharedPerformanceReport({
                       {platformSplit.map((p) => {
                         return (
                           <li key={p.platform} className="spr-split-row">
-                            <span className="spr-split-swatch" style={{ background: p.views > 0 ? colorOf(p.platform) : "var(--spr-hairline)" }} aria-hidden="true" />
+                            {p.views > 0 ? (
+                              <BandSwatch s={{ key: p.platform, color: colorOf(p.platform), fill: fillOf(p.platform) }} size={12} />
+                            ) : (
+                              <span className="spr-split-swatch" style={{ background: "var(--spr-hairline)" }} aria-hidden="true" />
+                            )}
                             <span className="spr-split-name">{platformLabel(p.platform)}</span>
                             <span className="spr-split-figure">{p.views > 0 ? `${formatNumber(p.views)} views` : "Views not known yet"}</span>
                             <span className="spr-split-figure">{p.posts} post{p.posts === 1 ? "" : "s"}</span>
@@ -484,6 +711,64 @@ export default function SharedPerformanceReport({
                   </section>
                 )}
               </div>
+            )}
+
+            {showBrief && brief && (
+              <section className="spr-card spr-stack" data-testid="share-brief">
+                <h2 className="spr-section">Brief</h2>
+                {brief.viewGoal ? (
+                  <div className="spr-goal">
+                    <span className="spr-subhead" style={{ margin: 0 }}>
+                      View goal {formatCompact(brief.viewGoal)}
+                    </span>
+                    {goal ? (
+                      <>
+                        <div
+                          className="spr-goal-bar"
+                          role="progressbar"
+                          aria-label="Views against the goal"
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-valuenow={Math.min(goal.pct, 100)}
+                        >
+                          <span style={{ width: `${Math.min(goal.pct, 100)}%` }} />
+                        </div>
+                        <span className="spr-note">
+                          {formatCompact(kpis.views)} of {formatCompact(brief.viewGoal)} ({goal.pct}%){goal.reached ? " · goal reached" : ""}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="spr-note">Progress shows once views have been read.</span>
+                    )}
+                  </div>
+                ) : null}
+                {brief.dos.length + brief.donts.length > 0 && (
+                  <ul className="spr-brief-list">
+                    {brief.dos.map((d) => (
+                      <li key={`do-${d}`}>
+                        <span className="spr-brief-mark" data-kind="do" aria-label="Do">✓</span>
+                        {d}
+                      </li>
+                    ))}
+                    {brief.donts.map((d) => (
+                      <li key={`dont-${d}`}>
+                        <span className="spr-brief-mark" data-kind="dont" aria-label="Don't">✕</span>
+                        {d}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {brief.examples.length > 0 && (
+                  <p className="spr-note" style={{ margin: 0, display: "flex", flexWrap: "wrap", gap: "4px 12px" }}>
+                    <span>Example posts:</span>
+                    {brief.examples.map((url, i) => (
+                      <a key={url} href={url} target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "underline" }}>
+                        {`Example ${i + 1}`}
+                      </a>
+                    ))}
+                  </p>
+                )}
+              </section>
             )}
 
             <section className="spr-card spr-stack">

@@ -12,6 +12,7 @@ import { storedSoundCoverVersions } from "@/lib/sounds/coverStore";
 import { readSongSoundIds } from "@/lib/songs/songSounds";
 import { shareArtworkPath, shareSoundCoverPath } from "@/lib/postMedia";
 import { storedCampaignThumbnails } from "@/lib/campaigns/thumbnailCopy";
+import { loadCampaignRules } from "@/lib/campaigns/rules";
 
 const SHARE_KIND = "campaign-performance";
 
@@ -158,6 +159,12 @@ export default async function SharedReportPage({
     orgId: link.campaign.orgId,
     showCreators: visibility.showCreators,
   });
+  /* The checklist and view goal, read only when the link may show them, so a
+     link without the switch carries none of it in its payload. */
+  const rules = visibility.showBrief ? await loadCampaignRules(campaign.id, campaign.orgId) : null;
+  const brief = rules
+    ? { dos: rules.dos, donts: rules.donts, examples: rules.examplePostUrls, viewGoal: rules.viewGoal }
+    : null;
   const audioCover = withThumbnails.audio ? coverPath(songSounds.tiktok) : null;
   const instagramCover = withThumbnails.instagramAudio ? coverPath(songSounds.instagram) : null;
   const data = {
@@ -190,6 +197,7 @@ export default async function SharedReportPage({
         // Only reaches the client when the link is allowed to show it, so a
         // hidden budget is absent from the payload rather than merely unrendered.
         budget={visibility.showBudget ? link.campaign.budget : null}
+        brief={brief}
       />
     </>
   );

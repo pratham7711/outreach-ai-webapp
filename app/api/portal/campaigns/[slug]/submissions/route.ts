@@ -10,11 +10,26 @@ import { computeCampaignAccrual } from "@/lib/marketplace/cap";
 import { isPortalCampaignActionable } from "@/lib/marketplace/portalVisibility";
 import { isCampaignIdKey, resolvePortalAccess } from "@/lib/portal/campaignAccess";
 import { httpUrl } from "@/lib/validation/url";
+import { boostCodesAllowed, loadCampaignRules, scheduledUntil } from "@/lib/campaigns/rules";
+import { ruleChecksFor } from "@/lib/portal/ruleChecks";
+import { blockingRule, ruleNotes } from "@/lib/portal/submissionRules";
+import { annotatePost, cleanBoostCode, cleanExpiry } from "@/lib/posts/annotations";
 import { z } from "zod";
 
 const submitSchema = z.object({
   postUrl: httpUrl(),
+  /** The platform's ad-authorization code (Spark Ads / partnership code), when the brief asks for one. */
+  boostCode: z.string().max(400).optional().nullable(),
+  boostCodeExpiresAt: z.string().max(40).optional().nullable(),
 });
+
+/* The portal's own date style (formatDay, components/portal/app/ui.tsx), so
+   this refusal names the day the way the campaign page's "Opens Nov 1" does. */
+const dayLabel = (iso: string) => {
+  const d = new Date(iso);
+  const sameYear = d.getUTCFullYear() === new Date().getUTCFullYear();
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: sameYear ? undefined : "numeric", timeZone: "UTC" });
+};
 
 // POST /api/portal/campaigns/[slug]/submissions — submit a post to a joined campaign
 export async function POST(
@@ -32,6 +47,11 @@ export async function POST(
       return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
     }
     const { postUrl } = parsed.data;
+    const boost = cleanBoostCode(parsed.data.boostCode);
+    const expiry = cleanExpiry(parsed.data.boostCodeExpiresAt);
+    if (boost.error || expiry.error) {
+      return NextResponse.json({ error: boost.error ?? expiry.error }, { status: 400 });
+    }
 
     // URL → platform detection (reuses lib/platforms)
     const detected = detectPlatform(postUrl);
@@ -96,6 +116,27 @@ export async function POST(
     // Deadline gate
     if (campaign.submissionDeadline && campaign.submissionDeadline.getTime() < Date.now()) {
       return NextResponse.json({ error: "The submission deadline has passed" }, { status: 409 });
+    }
+
+    /* A launch date still ahead holds the campaign closed to posts
+       (lib/campaigns/rules). Read once; the rule checks below use it too. */
+    const rules = await loadCampaignRules(campaign.id, campaign.orgId);
+    const opensAt = scheduledUntil(rules, Date.now());
+    if (opensAt) {
+      return NextResponse.json(
+        { error: `This campaign opens for posts on ${dayLabel(opensAt)}` },
+        { status: 409 }
+      );
+    }
+
+    /* The portal offers the field only while the agency has boost codes on;
+       a code from a page loaded before they were switched off is refused
+       before anything is created, so it is never dropped silently. */
+    if (boost.code && !(await boostCodesAllowed(campaign.id, campaign.orgId))) {
+      return NextResponse.json(
+        { error: "This campaign doesn't take boost codes. Remove the code and submit again.", code: "boost_codes_off" },
+        { status: 403 }
+      );
     }
 
     // Budget-cap hard stop — no new submissions once the campaign's marketplace
@@ -174,6 +215,19 @@ export async function POST(
       );
     }
 
+    /* The rules that can be checked before reading the post: minimum
+       followers and posts per account. Only a measured failure refuses; an
+       unmeasured follower count goes through with a note for the agency. */
+    const preChecks = await ruleChecksFor(rules, {
+      campaignId: campaign.id,
+      creatorId: creator.id,
+      platform: detected.platform,
+    });
+    const preBlock = blockingRule(preChecks);
+    if (preBlock) {
+      return NextResponse.json({ error: preBlock, ruleChecks: preChecks }, { status: 422 });
+    }
+
     // Best-effort metrics fetch (thumbnail / caption / views). Never blocks submission.
     let metrics = null;
     try {
@@ -197,6 +251,23 @@ export async function POST(
       });
     } catch {
       metrics = null;
+    }
+
+    /* The caption rules, now that the post has been read. A caption that was
+       read and lacks a required hashtag or mention is refused, so the creator
+       can fix it and submit again; one we could not read goes through with a
+       note. */
+    const checks = rules
+      ? await ruleChecksFor(rules, {
+          campaignId: campaign.id,
+          creatorId: creator.id,
+          platform: detected.platform,
+          caption: metrics?.caption ?? null,
+        })
+      : [];
+    const captionBlock = blockingRule(checks);
+    if (captionBlock) {
+      return NextResponse.json({ error: captionBlock, ruleChecks: checks }, { status: 422 });
     }
 
     /* Through the shared validation gate (plan A3); see measuredForNewPost. */
@@ -253,7 +324,20 @@ export async function POST(
       },
     });
 
-    return NextResponse.json(post, { status: 201 });
+    /* What the agency should know about this post: rules we could not check,
+       and the boost code if the creator gave one. Skipped silently while the
+       PostAnnotation table is not there yet (lib/posts/annotations). */
+    const notes = ruleNotes(checks);
+    if (notes.length > 0 || boost.code) {
+      /* The post is already created, so a failed note must not turn the
+         creator's successful submission into a 500. */
+      await annotatePost(post.id, campaign.orgId, {
+        ...(notes.length > 0 ? { ruleNotes: notes } : {}),
+        ...(boost.code ? { boostCode: boost.code, boostCodeExpiresAt: expiry.at } : {}),
+      }).catch((e) => console.error("Failed to annotate submitted post:", e));
+    }
+
+    return NextResponse.json({ ...post, ruleNotes: notes, boostCode: boost.code }, { status: 201 });
   } catch (error) {
     console.error("Failed to submit post:", error);
     return NextResponse.json({ error: "Failed to submit post" }, { status: 500 });

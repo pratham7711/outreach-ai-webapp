@@ -17,6 +17,8 @@ jest.mock("@/lib/db", () => ({
     post: { findMany: jest.fn(), updateMany: jest.fn(), deleteMany: jest.fn() },
     viewLedger: { findMany: jest.fn() },
     viewFraudFlag: { deleteMany: jest.fn() },
+    postAnnotation: { upsert: jest.fn() },
+    campaignRules: { findFirst: jest.fn() },
     $transaction: jest.fn(),
   },
 }));
@@ -41,6 +43,8 @@ const mdb = db as unknown as {
   post: { findMany: jest.Mock; updateMany: jest.Mock; deleteMany: jest.Mock };
   viewLedger: { findMany: jest.Mock };
   viewFraudFlag: { deleteMany: jest.Mock };
+  postAnnotation: { upsert: jest.Mock };
+  campaignRules: { findFirst: jest.Mock };
   $transaction: jest.Mock;
 };
 
@@ -70,6 +74,10 @@ beforeEach(() => {
   mdb.post.findMany.mockResolvedValue([post("p1"), post("p2")]);
   mdb.viewLedger.findMany.mockResolvedValue([]);
   mdb.post.updateMany.mockResolvedValue({ count: 2 });
+  mdb.postAnnotation.upsert.mockImplementation((args: unknown) => args);
+  mdb.$transaction.mockImplementation(async (ops: unknown[]) => ops);
+  // The campaign has exclusions switched on unless a test says otherwise.
+  mdb.campaignRules.findFirst.mockResolvedValue({ allowExclusions: true });
 });
 
 describe("DELETE /api/campaigns/[id]/posts", () => {
@@ -125,6 +133,62 @@ describe("DELETE /api/campaigns/[id]/posts", () => {
         before: expect.objectContaining({ postUrl: "https://www.tiktok.com/@walk/video/p1", viewsCount: 10 }),
       }),
     );
+  });
+
+  it("keeps the reason given, on each removed post and in the audit line", async () => {
+    const res = await del({ postIds: ["p1", "p2"], reason: "  Views bought;   engagement flat " });
+    expect(res.status).toBe(200);
+    const upserts = mdb.postAnnotation.upsert.mock.calls.map((c) => c[0]);
+    expect(upserts).toEqual([
+      expect.objectContaining({ where: { postId: "p1" }, create: { postId: "p1", orgId: "org-1", exclusionReason: "Views bought; engagement flat" } }),
+      expect.objectContaining({ where: { postId: "p2" }, update: { exclusionReason: "Views bought; engagement flat" } }),
+    ]);
+    expect(logAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "post.remove", metadata: expect.objectContaining({ reason: "Views bought; engagement flat" }) })
+    );
+  });
+
+  it("refuses a reason while the campaign has exclusions off, and removes nothing", async () => {
+    mdb.campaignRules.findFirst.mockResolvedValueOnce({ allowExclusions: false });
+    const res = await del({ postIds: ["p1"], reason: "Views bought" });
+    expect(res.status).toBe(403);
+    expect((await res.json()).code).toBe("exclusions_off");
+    expect(mdb.post.updateMany).not.toHaveBeenCalled();
+    expect(mdb.postAnnotation.upsert).not.toHaveBeenCalled();
+    expect(mdb.campaignRules.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { campaignId: "camp-9", orgId: "org-1" } })
+    );
+  });
+
+  it("treats a campaign with no settings row, or no table yet, as exclusions off", async () => {
+    mdb.campaignRules.findFirst.mockResolvedValueOnce(null);
+    expect((await del({ postIds: ["p1"], reason: "Views bought" })).status).toBe(403);
+    mdb.campaignRules.findFirst.mockRejectedValueOnce(Object.assign(new Error("The table `public.CampaignRules` does not exist"), { code: "P2021" }));
+    expect((await del({ postIds: ["p1"], reason: "Views bought" })).status).toBe(403);
+    expect(mdb.post.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("still removes without a reason when exclusions are off: the plain remove is unchanged", async () => {
+    mdb.campaignRules.findFirst.mockResolvedValue({ allowExclusions: false });
+    expect((await del({ postIds: ["p1", "p2"] })).status).toBe(200);
+    expect(mdb.post.updateMany).toHaveBeenCalled();
+    expect(mdb.campaignRules.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("stores no reason when none is given", async () => {
+    await del({ postIds: ["p1", "p2"] });
+    expect(mdb.postAnnotation.upsert).not.toHaveBeenCalled();
+  });
+
+  it("refuses a reason over 200 characters, and removes nothing", async () => {
+    const res = await del({ postIds: ["p1"], reason: "x".repeat(201) });
+    expect(res.status).toBe(400);
+    expect(mdb.post.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("still answers 200 when the reason fails to save, because the posts are removed", async () => {
+    mdb.$transaction.mockRejectedValueOnce(new Error("connection reset"));
+    expect((await del({ postIds: ["p1", "p2"], reason: "dupe" })).status).toBe(200);
   });
 
   it("refuses a VIEWER and a signed-out caller, and deletes nothing", async () => {

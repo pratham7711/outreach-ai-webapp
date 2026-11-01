@@ -39,6 +39,8 @@ export type CampaignStreams = {
   lastDay: number | null;
   sinceFirst: { streams: number; fromDay: string; days: number } | null;
   daily: { day: string; streams: number }[];
+  /** Spotify's all-time count on each day it showed one, for the current track. */
+  plays: { day: string; count: number }[];
   /**
    * Why there is no figure, in words for the campaign's own tab. Null when
    * there is one. Never sent on a share link (redactForShare).
@@ -80,7 +82,7 @@ export function isHiddenCount(r: StreamRow): boolean {
 /** Any order in, the card's figures out. Pure, for the unit tests. */
 export function streamFigures(rows: readonly StreamRow[]): Pick<
   CampaignStreams,
-  "track" | "totalPlays" | "latestDay" | "lastDay" | "sinceFirst" | "daily"
+  "track" | "totalPlays" | "latestDay" | "lastDay" | "sinceFirst" | "daily" | "plays"
 > {
   const days = rows.map((r) => ({ ...r, day: isoDay(r.day) })).sort((a, b) => a.day.localeCompare(b.day));
 
@@ -95,7 +97,7 @@ export function streamFigures(rows: readonly StreamRow[]): Pick<
     return current && r.spotifyTrackId === current && count !== null ? [{ ...r, count, trackId: current }] : [];
   });
   const latest = own[own.length - 1];
-  if (!latest) return { track: null, totalPlays: null, latestDay: null, lastDay: null, sinceFirst: null, daily: [] };
+  if (!latest) return { track: null, totalPlays: null, latestDay: null, lastDay: null, sinceFirst: null, daily: [], plays: [] };
 
   /* Consecutive counted days of that one track only: a hidden or failed day
      is a gap like a missed one, so a newest hidden day leaves the last counted
@@ -125,6 +127,7 @@ export function streamFigures(rows: readonly StreamRow[]): Pick<
         ? { streams: latest.count - first.count, fromDay: first.day, days: Math.round((dayMs(latest.day) - dayMs(first.day)) / DAY_MS) }
         : null,
     daily,
+    plays: own.map((r) => ({ day: r.day, count: r.count })),
   };
 }
 

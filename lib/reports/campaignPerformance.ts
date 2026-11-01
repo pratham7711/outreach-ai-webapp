@@ -14,6 +14,8 @@ import { CHART_BUCKET_HOURS, effectiveChartGranularity, parseGranularity } from 
 import type { SharePlatform } from "@/lib/reports/shareVisibility";
 import { postThumbnailUrl } from "@/lib/postMedia";
 import { loadCampaignStreams, type CampaignStreams } from "@/lib/songs/streams";
+import { campaignLaunch, earliestPostedAt, type CampaignLaunch } from "@/lib/campaigns/launch";
+import { loadCampaignRules } from "@/lib/campaigns/rules";
 import { isMissingSongStreamTable } from "@/lib/songs/streamSnapshotDdl";
 import { isMissingSongLinkColumn } from "@/lib/songs/songLinkDdl";
 import { readSongSounds, type SongSoundRow } from "@/lib/songs/songSounds";
@@ -160,6 +162,14 @@ export type CampaignPerformance = {
    * until there is a reading: the "why not yet" note is for the team only.
    */
   streams: CampaignStreams | null;
+  /**
+   * When the campaign went live (lib/campaigns/launch): the charts' marker and
+   * the "before vs since" figures. Taken over every live post, whatever
+   * platforms a share link narrows the rest to, so a link that shows only
+   * Instagram still marks the campaign's real start. Optional because a
+   * payload cached before it existed lacks it.
+   */
+  launch?: CampaignLaunch | null;
 };
 
 export type SharedPostRow = {
@@ -252,6 +262,8 @@ export type CampaignAudio = {
     velocity: number | null;
     velocityApprox: boolean;
   }[];
+  /** The bucket `usageSeries` is drawn in, for the per-bucket view of it. */
+  usageGranularity?: ReturnType<typeof effectiveChartGranularity>;
 };
 
 /**
@@ -365,8 +377,9 @@ export async function computeCampaignPerformance(
        can still drop the lot. */
     { tags: [`campaign-performance:${campaign.id}`], revalidate: 3600 }
   );
+  let report: CampaignPerformance;
   try {
-    return await cached();
+    report = await cached();
   } catch (err) {
     /* unstable_cache needs Next's incremental cache in the surrounding context.
        Scripts, jest and anything outside a server request have none, and there
@@ -374,7 +387,29 @@ export async function computeCampaignPerformance(
        is admittedly brittle; if it ever stops matching, the error surfaces to
        the caller exactly as it would have without this branch. */
     if (!(err instanceof Error) || !err.message.includes("incrementalCache missing")) throw err;
-    return computeCampaignPerformanceUncached(campaign, platforms);
+    report = await computeCampaignPerformanceUncached(campaign, platforms);
+  }
+  return withLaunchDate(report, campaign);
+}
+
+/**
+ * The launch date the team set (CampaignRules.launchAt) replaces the first
+ * post as the report's launch. Read after the cache, not inside it: the stamp
+ * watches posts, so a launch date changed inside a cached entry would keep the
+ * old marker for an hour. One keyed row read. A launch date is decoration on
+ * the report, so a failure to read it leaves the first-post launch in place
+ * rather than failing the report.
+ */
+async function withLaunchDate(
+  report: CampaignPerformance,
+  campaign: { id: string; orgId: string },
+): Promise<CampaignPerformance> {
+  try {
+    const rules = await loadCampaignRules(campaign.id, campaign.orgId);
+    if (!rules?.launchAt) return report;
+    return { ...report, launch: campaignLaunch(report.launch?.at ?? null, rules.launchAt) };
+  } catch {
+    return report;
   }
 }
 
@@ -541,7 +576,7 @@ async function computeCampaignPerformanceUncached(
         .join(", ")})`
     : "";
 
-  const [posts, snapshotDays, activations, audios, streams] = await Promise.all([
+  const [posts, snapshotDays, activations, audios, streams, firstPost] = await Promise.all([
     db.post.findMany({
     where: postWhere,
     select: {
@@ -630,6 +665,13 @@ async function computeCampaignPerformanceUncached(
        uncached report. */
     loadCampaignAudio(campaign.id, campaign.orgId),
     loadCampaignStreams(campaign.id, campaign.orgId),
+    /* The launch is the campaign's, not the filtered view's: a TikTok-only report
+       still marks the day the campaign's first post went up, on any platform.
+       Unfiltered, the posts read above are already every live post, so the
+       first one is taken from them rather than read again. */
+    platforms?.length
+      ? db.post.aggregate({ where: { campaignId: campaign.id, ...NOT_REMOVED }, _min: { postedAt: true } })
+      : null,
   ]);
 
   const statusByCreator = new Map(activations.map((a) => [a.creatorId, a.status]));
@@ -850,6 +892,7 @@ async function computeCampaignPerformanceUncached(
     audio: audios.audio,
     instagramAudio: audios.instagramAudio,
     streams,
+    launch: campaignLaunch(firstPost ? firstPost._min.postedAt : earliestPostedAt(posts)),
   };
 }
 
@@ -961,5 +1004,6 @@ async function soundCardData(
         velocityApprox: p.velocityApprox,
       };
     }),
+    usageGranularity: chartAt,
   };
 }

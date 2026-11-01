@@ -33,11 +33,19 @@ export function formatCount(n: number | null | undefined): string {
   return new Intl.NumberFormat("en-US", { notation: n >= 10_000 ? "compact" : "standard", maximumFractionDigits: 1 }).format(n);
 }
 
-export function formatDay(iso: string | null | undefined): string {
+export function formatDay(iso: string | null | undefined, opts: { utc?: boolean } = {}): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: d.getFullYear() === new Date().getFullYear() ? undefined : "numeric" });
+  /* `utc` for a stored calendar day (a campaign's launch), so it reads as the
+     day the agency picked in every timezone. */
+  const year = (x: Date) => (opts.utc ? x.getUTCFullYear() : x.getFullYear());
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: year(d) === year(new Date()) ? undefined : "numeric",
+    ...(opts.utc ? { timeZone: "UTC" } : {}),
+  });
 }
 
 /** "today", "in 3 days", "2 days ago" -- for the one date a creator acts on. */

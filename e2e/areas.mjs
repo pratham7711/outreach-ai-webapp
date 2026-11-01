@@ -73,6 +73,8 @@ export const AREAS = {
          area too. */
       "app/api/songs/spotify-check/",
       "app/api/admin/migrate-song-links/",
+      /* Sprint B: the campaign checklist/rules/launch tables and their one-off DDL. */
+      "app/api/admin/migrate-campaign-rules/",
     ],
   },
   analytics: {

@@ -15,7 +15,12 @@ jest.mock("next/cache", () => ({
 
 jest.mock("@/lib/db", () => ({
   db: {
-    post: { findMany: jest.fn().mockResolvedValue([]) },
+    /* aggregate answers the platform-filtered report, which reads the
+       campaign-wide first post for its launch marker. */
+    post: {
+      findMany: jest.fn().mockResolvedValue([]),
+      aggregate: jest.fn().mockResolvedValue({ _min: { postedAt: null } }),
+    },
     $queryRawUnsafe: jest.fn().mockResolvedValue([]),
     /* The stamp fires three tagged templates in one wave, so the mock answers by
        which table the SQL names rather than by call order -- Promise.all gives

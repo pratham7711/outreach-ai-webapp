@@ -41,6 +41,7 @@ import { LAST_FETCH_KEY, MEASURED_FIELDS_KEY, lastFetchNote, measuredFields } fr
 import { alertOps, shouldAlertOnBatch } from "@/lib/alerts";
 import { alertIfInstagramSourceDown } from "@/lib/integrations/health";
 import { createLogger } from "@/lib/observability/logger";
+import { scanSweptPosts } from "@/lib/fraud/scanPosts";
 import { classifyPostRead, openSourceGuard } from "@/lib/ops/sourceBreaker";
 import { backgroundReadsDeferred } from "@/lib/platforms/instagramDiscoveryTokens";
 import { loadAgencyDiscoveryCredentials } from "@/lib/platforms/instagramAgencyCredential";
@@ -323,6 +324,8 @@ export async function runPostSweep(request: NextRequest, options: PostSweepOptio
      accurate. Only campaigns actually read are stamped; one whose posts were all
      throttled or cut off by the deadline was not refreshed and must not claim it. */
   const sweptCampaigns = new Set<string>();
+  /* The posts this run measured, for the view check after the loop. */
+  const measuredPostIds: string[] = [];
 
   /* Per-source kill switches and breakers (plan §13 C, lib/ops/sourceBreaker).
      A platform switched off, or whose breaker is open, is not asked for
@@ -769,6 +772,7 @@ export async function runPostSweep(request: NextRequest, options: PostSweepOptio
              every post came back empty or threw was not refreshed, and its
              header must keep showing the last time it actually was. */
           sweptCampaigns.add(post.campaignId);
+          measuredPostIds.push(post.id);
           // A real answer clears the streak. Only a real answer.
           if (post.syncFailCount > 0) {
             await db.post.update({ where: { id: post.id }, data: { syncFailCount: 0 } });
@@ -948,6 +952,34 @@ export async function runPostSweep(request: NextRequest, options: PostSweepOptio
       });
     }
 
+    /* The view check on every post this run measured (lib/fraud/scanPosts):
+       the scan used to run only when someone pressed for it, which nobody's
+       screen offered, so no flag was ever raised. It never fails the sync --
+       the readings are already stored.
+
+       OFF unless VIEW_CHECK_ON_SWEEP=1. Its first runs would raise a flag on
+       every post whose CURRENT figures trip a rule, across every org, and an
+       open flag holds a marketplace submission back from auto-approval
+       (cron/auto-approve-submissions) -- so it is switched on only after the
+       flag count has been dry-run on a copy of production.
+
+       Its clock is the function's, not the reads': reads may run to the
+       deadline plus ABANDON_AFTER_DEADLINE_MS, and maxDuration (300s) ends the
+       function a further 30s on, so the scan stops 15s short of that and
+       leaves the summary below its time. A post it does not reach is judged
+       on its next reading, from its newest readings (SWEEP_SCAN_READINGS). */
+    let fraudScan: Awaited<ReturnType<typeof scanSweptPosts>> | { error: string } | "off" | null = null;
+    if (process.env.VIEW_CHECK_ON_SWEEP !== "1") {
+      fraudScan = measuredPostIds.length > 0 ? "off" : null;
+    } else if (measuredPostIds.length > 0) {
+      try {
+        fraudScan = await scanSweptPosts(measuredPostIds, { stopAtMs: deadline + ABANDON_AFTER_DEADLINE_MS + 15_000 });
+      } catch (error) {
+        log.warn("view check failed", { error: String(error).slice(0, 300) });
+        fraudScan = { error: "view-check-failed" };
+      }
+    }
+
     /* Every skip that was not a budget skip used to vanish from the tally, so a
        run that looked at 115 posts and deliberately synced none of them logged
        synced:0 failed:0 skippedForBudget:0 total:115 -- indistinguishable from a
@@ -1056,6 +1088,7 @@ export async function runPostSweep(request: NextRequest, options: PostSweepOptio
       skippedByReason,
       skippedForBudget,
       candidatesByTier,
+      fraudScan,
       total: posts.length,
     });
   } catch (error) {

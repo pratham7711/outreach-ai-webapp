@@ -11,11 +11,14 @@ import PostsTab from "./PostsTab";
 import ActivityFeed from "./ActivityFeed";
 import DraftsTab from "./DraftsTab";
 import CreativeBriefCard from "./CreativeBriefCard";
+import CampaignRulesCard from "./CampaignRulesCard";
+import { viewGoalProgress, type CampaignRules } from "@/lib/campaigns/rulesShape";
 import RosterTable, { ROSTER_COLUMNS, ROSTER_DEFAULT_COLUMNS, type RosterRow } from "./RosterTable";
 import { readCampaignSection } from "@/lib/campaignSections";
 import { SHOW_MONEY } from "@/lib/moneyUi";
 import { useCampaignNavPublish } from "@/components/providers/CampaignNavProvider";
 import { CampaignAudioSetup } from "@/components/campaigns/CampaignAudioSetup";
+import { CampaignSwitchesCard } from "./CampaignSwitchesCard";
 import { CampaignPictureCard } from "@/components/campaigns/CampaignPictureCard";
 import { CAMPAIGN_HEADER_ACTIONS_ID } from "@/components/campaigns/CampaignHeaderActions";
 import { CampaignShareButton } from "@/components/campaigns/CampaignShareButton";
@@ -28,13 +31,14 @@ import {
   ClipboardList, BarChart3, Wallet, Trash2, AlertTriangle, X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { formatDateAbs, formatFull, formatFullCurrency, fitFigureSize } from "@/lib/format";
+import { formatCompact, formatDateAbs, formatFull, formatFullCurrency, fitFigureSize } from "@/lib/format";
 import { asOfCaption } from "@/lib/dataAge";
 import { CreatorSelect } from "@/components/CreatorSelect";
 import { TOP_CREATOR_BARS, type CampaignPostSummary } from "@/lib/campaigns/detailSummary";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import { loadCharts } from "@/components/charts/lazyCharts";
 import { noun } from "@/lib/ui/noun";
+import { followersReached } from "@/lib/campaigns/followersReached";
 
 const ChartSkeleton = ({ height }: { height: number }) => (
   <Skeleton width="100%" height={`${height}px`} borderRadius="12px" />
@@ -370,6 +374,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     router.replace(`?${next.toString()}`, { scroll: false });
   };
   const [campaign, setCampaign] = useState<Campaign | null>(null);
+  const [campaignRules, setCampaignRules] = useState<CampaignRules | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAddCreator, setShowAddCreator] = useState(false);
   const [addingCreator, setAddingCreator] = useState(false);
@@ -680,6 +685,10 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const viewsNote = asOfCaption(summary.viewsAsOf, { known: summary.viewsKnownPosts, total: summary.posts, what: "views" });
   /* A sum over no read post is unknown, not a measured 0. */
   const totalViewsText = summary.viewsKnownPosts === 0 && summary.posts > 0 ? "\u2014" : formatNumber(totalViews);
+  /* Progress toward the view goal, over the views read so far; not shown
+     while no post's views are known. */
+  const goalProgress = summary.viewsKnownPosts > 0 ? viewGoalProgress(summary.views, campaignRules?.viewGoal) : null;
+  const goal = goalProgress && campaignRules?.viewGoal ? { ...goalProgress, target: campaignRules.viewGoal } : null;
   const totalLikes = summary.likes;
   // Likes are summed straight off the column, whose default is 0, so a campaign
   // whose likes were never read showed "Total Likes 0". Shown only when at
@@ -690,11 +699,15 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
      post by the server. null means no post on the campaign has been measured. */
   const engagement = { rate: summary.engagementRate, engagements: summary.engagements };
   const avgEngagement = engagement.rate === null ? null : engagement.rate * 100;
+  const reach = followersReached(roster);
+  const reachNote = reach.counted < reach.posting
+    ? `across ${reach.counted} of ${reach.posting} posting creators`
+    : `across ${reach.counted} posting ${noun(reach.counted, "creator")}`;
   /* The Overview tiles share one figure size, set by the longest of them. */
   const overviewFit = Math.max(
     totalViewsText.length,
     avgEngagement === null ? 0 : (avgEngagement.toFixed(2) + "%").length,
-    String(roster.length).length,
+    reach.counted > 0 ? formatNumber(reach.followers).length : String(roster.length).length,
     campaign.budget == null ? 0 : formatFullCurrency(campaign.budget, campaign.currency).length,
   );
 
@@ -822,13 +835,36 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 enter, and engagement is absent on most imported posts. Neither
                 gets a zero or a dash standing in for the real number. */}
             <div className="cc-tiles-balanced">
-              <MetricTile fitTo={overviewFit} metric="totalViews" value={totalViewsText} footer={viewsNote} />
+              <MetricTile
+                fitTo={overviewFit}
+                metric="totalViews"
+                value={totalViewsText}
+                footer={
+                  goal ? (
+                    <>
+                      <span data-testid="view-goal">
+                        {formatCompact(summary.views)} of {formatCompact(goal.target)} goal ({goal.pct}%)
+                      </span>
+                      {viewsNote ? <><br />{viewsNote}</> : null}
+                    </>
+                  ) : viewsNote
+                }
+              />
               {/* "Engagement rate", not "Avg engagement": the label described the
                   old mean-of-means and would now misname the figure below it. */}
               {avgEngagement !== null && (
                 <MetricTile fitTo={overviewFit} metric="engagementRate" value={avgEngagement.toFixed(2) + "%"} />
               )}
-              <MetricTile fitTo={overviewFit} metric="campaignCreators" value={String(roster.length)} />
+              {/* Combined followers, not a creator count: the count is already
+                  in the header line ("40 creators · 80 posts"), and what a
+                  client asks after "how many views" is "in front of how many
+                  people". A creator whose followers were never read is left
+                  out and named in the footer, never summed in as 0. */}
+              {reach.counted > 0 ? (
+                <MetricTile fitTo={overviewFit} metric="followersReached" value={formatNumber(reach.followers)} footer={reachNote} />
+              ) : (
+                <MetricTile fitTo={overviewFit} metric="campaignCreators" value={String(roster.length)} />
+              )}
               {campaign.budget != null && (
                 /* `budget`, not `totalBudget`: this is one campaign's own cap.
                    totalBudget's help says "across all campaigns in this date
@@ -855,6 +891,10 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
               campaignId={campaign.id}
               initialContent={campaign.brief?.content ?? ""}
             />
+
+            {/* Checklist, submission rules, launch and goal (lib/campaigns/rules).
+                Renders nothing until the database has its table. */}
+            <CampaignRulesCard campaignId={campaign.id} onRules={setCampaignRules} />
 
             {/* Notes */}
             {campaign.notes && (
@@ -1148,6 +1188,8 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
             <div style={{ marginTop: 24 }}>
               <CampaignAudioSetup campaignId={id} />
             </div>
+
+            <CampaignSwitchesCard campaignId={id} />
 
             {/* ─── Marketplace section (Phase 2M) ─── */}
             <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 24, marginTop: 24 }}>

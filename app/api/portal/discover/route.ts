@@ -6,6 +6,7 @@ import { getCreatorSession } from "@/lib/creator-auth";
 import { isUploadedThumbnailUrl } from "@/lib/campaigns/uploadedPicture";
 import { z } from "zod";
 import { moneyParam, pageParam, pageSizeParam, parseQuery } from "@/lib/http/queryParams";
+import { scheduledCampaignIds } from "@/lib/campaigns/rules";
 
 const portalDiscoverQuerySchema = z.object({
   search: z.string().optional(),
@@ -44,6 +45,10 @@ export async function GET(request: NextRequest) {
           }
         : {}),
     };
+
+    /* Scheduled campaigns stay off Discover until their launch date (lib/campaigns/rules). */
+    const scheduled = await scheduledCampaignIds(new Date());
+    if (scheduled.length > 0) where.id = { notIn: scheduled };
 
     const orderBy: any =
       sort === "budget_desc"    ? { budget: "desc" } :

@@ -3,9 +3,11 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Card, EmptyState, Skeleton } from "@pratham7711/ui";
 import { AlertTriangle, Users } from "lucide-react";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar,
 } from "recharts";
 import { ChartFrame } from "@/components/ds/ChartFrame";
+import { SeriesModeToggle } from "@/components/charts/SeriesModeToggle";
+import { fillUtcDays, toRunningTotals, type SeriesMode } from "@/lib/charts/seriesMode";
 import { formatFull } from "@/lib/format";
 import { SHOW_MONEY } from "@/lib/moneyUi";
 
@@ -53,6 +55,7 @@ export default function MarketplaceAnalytics({
   const [data, setData] = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [joinsMode, setJoinsMode] = useState<SeriesMode>("cumulative");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -110,6 +113,15 @@ export default function MarketplaceAnalytics({
 
   const { budget } = data;
   const pct = budget.fraction != null ? Math.round(budget.fraction * 100) : null;
+  /* The server lists only days that had a join. A day without one is a day on
+     which nobody joined, so both views get every day: 0 bars, and a flat line. */
+  const joinDays = toRunningTotals(
+    fillUtcDays(data.joinsOverTime, (r) => r.date, (date) => ({ date, joins: 0, cumulative: 0 })).map((r) => ({
+      ...r,
+      cumulative: r.joins,
+    })),
+    ["cumulative"],
+  );
   const eta = data.projectedExhaustionDate
     // UTC named, so the server render and the browser's cannot disagree. See lib/format.
     ? new Date(data.projectedExhaustionDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })
@@ -149,12 +161,31 @@ export default function MarketplaceAnalytics({
       <div className="mkt-an-split">
         {/* Joins over time chart */}
         <Card variant="outlined" style={{ padding: 24 }}>
-          <span className="cc-panel-title" style={{ display: "block", marginBottom: 16 }}>
-            Creators joined over time
-          </span>
-          {data.joinsOverTime.length > 0 ? (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+            <span className="cc-panel-title" style={{ display: "block" }}>
+              {joinsMode === "daily" ? "Creators joined per day" : "Creators joined over time"}
+            </span>
+            {data.joinsOverTime.length > 0 ? (
+              <SeriesModeToggle label="Creators joined" value={joinsMode} onChange={setJoinsMode} />
+            ) : null}
+          </div>
+          {data.joinsOverTime.length > 0 && joinsMode === "daily" ? (
             <ChartFrame height={240}>
-              <AreaChart data={data.joinsOverTime}>
+              <BarChart data={joinDays}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+                <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 12, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  labelFormatter={(l) => formatDate(String(l))}
+                  formatter={(v: unknown) => [formatNumber(Number(v ?? 0)), "Joined"]}
+                  contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--popover-foreground)", fontSize: "var(--cc-t-13)"}}
+                />
+                <Bar isAnimationActive={false} dataKey="joins" name="Joined" fill="var(--cc-primary)" radius={[3, 3, 0, 0]} maxBarSize={28} />
+              </BarChart>
+            </ChartFrame>
+          ) : data.joinsOverTime.length > 0 ? (
+            <ChartFrame height={240}>
+              <AreaChart data={joinDays}>
                 <defs>
                   <linearGradient id="mktJoins" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="var(--cc-primary)" stopOpacity={0.35} />

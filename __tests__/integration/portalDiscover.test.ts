@@ -13,6 +13,10 @@ jest.mock("@/lib/db", () => ({
     campaignProposal: {
       findMany: jest.fn(),
     },
+    /* Scheduled campaigns (lib/campaigns/rules); none unless a test says so. */
+    campaignRules: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
   },
 }));
 
@@ -62,6 +66,19 @@ describe("GET /api/portal/discover", () => {
       expect(call.where.enrollmentOpen).toBe(true);
       expect(call.where.marketplaceVisibility).toBe("GLOBAL");
       expect(call.where.status).toBe("IN_PROGRESS");
+    });
+
+    it("leaves out campaigns whose launch date is still ahead", async () => {
+      mockDb.campaignRules.findMany.mockResolvedValueOnce([{ campaignId: "c-later" }]);
+      await getDiscover(makeRequest());
+      const call = mockDb.campaign.findMany.mock.calls[0][0];
+      expect(call.where.id).toEqual({ notIn: ["c-later"] });
+      expect(mockDb.campaignRules.findMany.mock.calls[0][0].where.launchAt.gt).toBeInstanceOf(Date);
+    });
+
+    it("adds no id filter when nothing is scheduled", async () => {
+      await getDiscover(makeRequest());
+      expect(mockDb.campaign.findMany.mock.calls[0][0].where.id).toBeUndefined();
     });
   });
 

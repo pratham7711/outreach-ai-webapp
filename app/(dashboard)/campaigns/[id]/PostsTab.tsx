@@ -56,6 +56,9 @@ import { creatorNameText } from "@/lib/creators/creatorName";
 import { UNKNOWN_CREATOR_LABEL, isUnattributedCreator, unknownCreatorReason } from "@/lib/posts/unattributedName";
 import { isPostNotPublic, mayBeAgeLimited } from "@/lib/postRemoval";
 import UnknownCreator from "@/components/posts/UnknownCreator";
+import { ViewCheckDialog } from "@/components/posts/ViewCheckDialog";
+import { PostAnnotationChips } from "@/components/posts/PostAnnotationChips";
+import type { PostAnnotationView } from "@/lib/posts/annotations";
 import { SHOW_MONEY } from "@/lib/moneyUi";
 import { noun } from "@/lib/ui/noun";
 
@@ -466,6 +469,16 @@ export default function PostsTab({
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [trackingFilter, setTrackingFilter] = useState<"ALL" | "TRACKED" | "UNTRACKED">("ALL");
+  /* Only the posts with an open view check (lib/fraud/scanPosts). */
+  const [checkOnly, setCheckOnly] = useState(false);
+  const [viewCheckPostId, setViewCheckPostId] = useState<string | null>(null);
+  /* Boost codes, rule notes and exclusion reasons, keyed by post id
+     (GET /api/campaigns/[id]/post-annotations). Empty until the table exists. */
+  const [annotations, setAnnotations] = useState<Record<string, PostAnnotationView>>({});
+  /* Whether this campaign lets a reviewer exclude a checked post with a
+     reason (Settings, Post review). Off until the same read says otherwise. */
+  const [exclusionsOn, setExclusionsOn] = useState(false);
+  const [loadedAtMs] = useState(() => Date.now());
   /* A Set keyed by post id rather than an array of posts: the selection has to
      survive a refetch, a filter change and a page turn, and an id is the only
      part of a post that does. Ids that fall out of the filtered set stay in
@@ -559,6 +572,18 @@ export default function PostsTab({
   /** What the last refresh actually managed to fetch. Not an error -- a receipt. */
   const [refreshNote, setRefreshNote] = useState<string | null>(null);
 
+  const loadAnnotations = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}/post-annotations`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data && typeof data.annotations === "object") setAnnotations(data.annotations);
+      setExclusionsOn(data?.allowExclusions === true);
+    } catch {
+      /* Notes are extra; the list stands without them. */
+    }
+  }, [campaignId]);
+
   const fetchPosts = useCallback(async () => {
     setError(null);
     const params = new URLSearchParams();
@@ -573,6 +598,7 @@ export default function PostsTab({
         const data = await res.json();
         setPosts(Array.isArray(data.posts) ? data.posts : []);
         setPostsAreRemoved(data.removed === true);
+        void loadAnnotations();
         if (typeof data.removedCount === "number") setRemovedCount(data.removedCount);
       } else {
         setError("Could not load posts. Please try again.");
@@ -582,7 +608,7 @@ export default function PostsTab({
     } finally {
       setLoading(false);
     }
-  }, [campaignId, statusFilter, platformFilter, mediaTypeFilter]);
+  }, [campaignId, statusFilter, platformFilter, mediaTypeFilter, loadAnnotations]);
 
   /* fetchPosts is rebuilt whenever a filter changes. The recovery poller below
      keys on campaignId alone, so it reaches the current one through a ref
@@ -1349,6 +1375,7 @@ export default function PostsTab({
       if (statusFilter !== "ALL" && statusFilter !== REMOVED_FILTER && p.status !== statusFilter) return false;
       if (trackingFilter === "TRACKED" && p.trackingEnabled !== true) return false;
       if (trackingFilter === "UNTRACKED" && p.trackingEnabled === true) return false;
+      if (checkOnly && !p.hasOpenFraudFlag) return false;
       if (platformFilter !== "ALL" && p.platform !== platformFilter) return false;
       if (mediaTypeFilter !== "ALL" && p.mediaType !== mediaTypeFilter) return false;
       if (Number.isFinite(minV) && p.viewsCount < minV) return false;
@@ -1396,7 +1423,7 @@ export default function PostsTab({
       return sortDir === "asc" ? diff : -diff;
     });
     return keyed.map(([, p]) => p);
-  }, [posts, postsAreRemoved, statusFilter, trackingFilter, platformFilter, mediaTypeFilter, deferredMinViews, deferredCreatorSearch, postedFrom, postedTo, sortKey, sortDir]);
+  }, [posts, postsAreRemoved, statusFilter, trackingFilter, checkOnly, platformFilter, mediaTypeFilter, deferredMinViews, deferredCreatorSearch, postedFrom, postedTo, sortKey, sortDir]);
 
   const anyDelta = useMemo(() => posts.some((p) => (p.snapshots?.length ?? 0) >= 2), [posts]);
   /* Imported posts carried view counts only, so likes, comments and engagement
@@ -1499,6 +1526,8 @@ export default function PostsTab({
 
   const pendingCount = useMemo(() => posts.filter((p) => p.status === "PENDING_REVIEW").length, [posts]);
   const mixedStatuses = useMemo(() => new Set(posts.map((p) => p.status)).size > 1, [posts]);
+  const viewCheckCount = useMemo(() => posts.reduce((n, p) => n + (p.hasOpenFraudFlag ? 1 : 0), 0), [posts]);
+  const viewCheckPost = viewCheckPostId ? posts.find((p) => p.id === viewCheckPostId) ?? null : null;
   const capMinor = marketplace?.budgetCapMinor ?? null;
   const capFraction = capMinor && capMinor > 0 ? Math.min(1, accruedMinor / capMinor) : null;
   const capReached = capMinor != null && capMinor > 0 && accruedMinor >= capMinor;
@@ -1540,6 +1569,22 @@ export default function PostsTab({
   const [menu, setMenu] = useState<{ postId: string; x: number; y: number } | null>(null);
   const openMenu = useCallback((postId: string, x: number, y: number) => setMenu({ postId, x, y }), []);
   const closeMenu = useCallback(() => setMenu(null), []);
+  /* Stable for the same reason as openMenu: the grid tiles are memoised. */
+  const openViewCheck = useCallback((postId: string) => setViewCheckPostId(postId), []);
+  const reopenFlags = async (flagIds: string[]) => {
+    await Promise.all(
+      flagIds.map((id) =>
+        fetch(`/api/fraud-flags/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isResolved: false }),
+        }).catch(() => null),
+      ),
+    );
+  };
+  const viewCheckCleared = useCallback((postId: string) => {
+    setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, hasOpenFraudFlag: false } : p)));
+  }, []);
 
   const toggleSelectAllOnPage = useCallback(() => {
     setSelectedIds((prev) => {
@@ -1842,6 +1887,32 @@ export default function PostsTab({
             active={statusFilter}
             onChange={setStatusFilter}
           />
+        </div>
+      )}
+      {!postsAreRemoved && statusFilter !== REMOVED_FILTER && (viewCheckCount > 0 || checkOnly) && (
+        /* Clipster puts suspicious posts in front of the team rather than in a
+           menu. One line, only when there is something to check, with the way
+           back always on it. */
+        <div
+          data-testid="view-check-strip"
+          role="status"
+          style={{
+            display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+            padding: "10px 14px", borderRadius: 10,
+            border: "1px solid color-mix(in srgb, var(--cc-warning) 35%, var(--cc-border))",
+            background: "color-mix(in srgb, var(--cc-warning) 8%, var(--cc-card))",
+            fontSize: "var(--cc-t-13)", color: "var(--cc-text)",
+          }}
+        >
+          <AlertTriangle size={15} color="var(--cc-warning)" aria-hidden="true" />
+          <span style={{ flex: "1 1 220px", minWidth: 0 }}>
+            {viewCheckCount === 0
+              ? "No posts need a view check now."
+              : `${viewCheckCount} ${noun(viewCheckCount, "post")} ${viewCheckCount === 1 ? "needs" : "need"} a view check: views that jumped, or views with almost no engagement.`}
+          </span>
+          <Button size="sm" variant="secondary" aria-pressed={checkOnly} onClick={() => setCheckOnly((v) => !v)}>
+            {checkOnly ? "Show all posts" : "Show only these"}
+          </Button>
         </div>
       )}
       {statusFilter === REMOVED_FILTER && (
@@ -2351,12 +2422,22 @@ export default function PostsTab({
                         {FETCH_STATE_LABEL[post.fetchState]}
                       </Badge>
                     )}
-                    {post.hasOpenFraudFlag && <Badge variant="danger" style={{ fontSize: "var(--cc-t-10)", display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={14} color="var(--cc-danger)" /> Flagged</Badge>}
+                    {post.hasOpenFraudFlag && (
+                      <button
+                        type="button"
+                        className="cc-viewcheck-chip"
+                        onClick={() => openViewCheck(post.id)}
+                        title="Why this post was flagged, and how to clear it"
+                      >
+                        <AlertTriangle size={12} aria-hidden="true" /> Check views
+                      </button>
+                    )}
                     {(post.complianceFlags ?? []).map((f) => (
                       <Badge key={f.code} variant={f.severity === "error" ? "danger" : "warning"} title={f.message} style={{ fontSize: "var(--cc-t-10)", display: "inline-flex", alignItems: "center", gap: 4 }}>
                         <AlertTriangle size={12} color={f.severity === "error" ? "var(--cc-danger)" : "var(--cc-warning)"} /> {COMPLIANCE_LABEL[f.code]}
                       </Badge>
                     ))}
+                    <PostAnnotationChips annotation={annotations[post.id]} removed={postsAreRemoved} nowMs={loadedAtMs} />
                     {marketplace && post.status === "PENDING_REVIEW" && !post.hasOpenFraudFlag && (
                       <span style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}>
                         auto in {timeRemaining(post.createdAt, marketplace.autoApproveHours)}
@@ -2467,6 +2548,10 @@ export default function PostsTab({
                 onToggleSelect={toggleSelect}
                 onOpenMenu={openMenu}
                 showShares={anyShares}
+                onCheckViews={openViewCheck}
+                annotation={annotations[post.id]}
+                removed={postsAreRemoved}
+                nowMs={loadedAtMs}
               />
             ))}
           </div>
@@ -2482,6 +2567,28 @@ export default function PostsTab({
         </>
       ) : null}
 
+      {viewCheckPost && (
+        <ViewCheckDialog
+          campaignId={campaignId}
+          postId={viewCheckPost.id}
+          creatorName={viewCheckPost.creator.name?.trim() || `@${stripAt(viewCheckPost.creator.handle)}`}
+          postUrl={viewCheckPost.postUrl}
+          marketplace={Boolean(marketplace)}
+          onClose={() => setViewCheckPostId(null)}
+          onCleared={viewCheckCleared}
+          onExcluded={exclusionsOn ? (ids, flagIds) => {
+            toast.success(removePostsSummary(ids.length), {
+              description: removePostsUndoHint(ids.length),
+              duration: 10_000,
+              /* Undo takes back the whole step: the checks the exclusion
+                 marked reviewed open again before the post returns. */
+              action: { label: "Undo", onClick: () => void reopenFlags(flagIds).then(() => restorePosts(ids)) },
+            });
+            fetchPosts();
+            onRefreshed?.();
+          } : undefined}
+        />
+      )}
       {showAddPost && (
         <Modal
           open={true}

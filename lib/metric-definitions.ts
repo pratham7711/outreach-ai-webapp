@@ -210,6 +210,16 @@ export const METRIC_DEFINITIONS = {
     what: "How many creators are cleared to post on this campaign.",
     how: "Counts the activations attached to this campaign.",
   },
+  viewsGained: {
+    label: "Change in total views",
+    what: "How far the workspace's total views moved over this period, and how that compares with the period of the same length just before it. Adding or removing posts moves it too: a post added with views it already had brings them all into the period it was added in.",
+    how: "The difference between the workspace's total views on the last and first days shown under the figure, from the daily reading taken just after midnight UTC. It counts every platform, so it is hidden when one platform is picked, and it is hidden when the latest daily reading is more than two days old.",
+  },
+  followersReached: {
+    label: "Combined followers",
+    what: "The follower counts of the creators who have posted on this campaign, added together. It is the size of the audiences the posts went out to, not a count of who watched, and someone who follows two of the creators is counted twice.",
+    how: "Adds up the latest follower count of every creator with at least one post on the campaign. A creator whose follower count was never read is left out, and the line under the figure says how many were counted.",
+  },
   /* The dashboard tile used campaignCreators, so its help said "on this
      campaign" while the number beside it was the whole workspace. The two
      figures differ for anyone running more than one campaign, and a creator

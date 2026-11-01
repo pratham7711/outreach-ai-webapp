@@ -7,7 +7,8 @@
  */
 jest.mock("@/lib/db", () => ({
   db: {
-    post: { findMany: jest.fn() },
+    // aggregate: a platform-filtered report reads the campaign-wide first post.
+    post: { findMany: jest.fn(), aggregate: jest.fn().mockResolvedValue({ _min: { postedAt: null } }) },
     // The views-over-time read is raw SQL: DISTINCT ON collapses the
     // append-only snapshot log to one row per post per UTC day in the database
     // rather than shipping every hourly reading to Node.

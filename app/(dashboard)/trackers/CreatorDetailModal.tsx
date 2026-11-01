@@ -1,11 +1,14 @@
 "use client";
+import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Modal, Badge, Skeleton } from "@pratham7711/ui";
 import { RefreshCw } from "lucide-react";
 import { timeAgo, formatFull, formatHandle, platformLabel } from "@/lib/format";
 import { AgeLabel } from "@/components/ds/AgeLabel";
 import { apiFetch } from "@/lib/api/client";
-import { AudioUsesChart, type SeriesPoint } from "./SoundCharts";
+import { AudioUsesChart, VelocityChart, type SeriesPoint } from "./SoundCharts";
+import { SeriesModeToggle } from "@/components/charts/SeriesModeToggle";
+import type { SeriesMode } from "@/lib/charts/seriesMode";
 import { changeOver } from "./horizonChange";
 import type { ChartGranularity } from "@/lib/trackers/granularity";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
@@ -193,6 +196,7 @@ export function CreatorDetailModal({
           granularity={history.data?.chartGranularity}
           loading={history.isPending}
           failed={history.isError}
+          summable
         />
         <MetricCard
           title="Average Views"
@@ -298,6 +302,8 @@ export function CreatorDetailModal({
   );
 }
 
+const PERIOD_LABEL: Record<ChartGranularity, string> = { "6hourly": "Per 6h", daily: "Daily", weekly: "Weekly" };
+
 /** One CreatorCore-style card: the current figure, its changes, and its chart. */
 function MetricCard({
   title,
@@ -308,6 +314,7 @@ function MetricCard({
   granularity,
   loading,
   failed,
+  summable = false,
 }: {
   title: string;
   value: MetricValue;
@@ -317,7 +324,11 @@ function MetricCard({
   granularity: ChartGranularity | undefined;
   loading: boolean;
   failed: boolean;
+  /** A count whose change per bucket means something (followers), unlike an average. */
+  summable?: boolean;
 }) {
+  const [mode, setMode] = React.useState<SeriesMode>("cumulative");
+  const canSwitch = summable && !loading && !failed && Boolean(series && granularity && series.length >= 2);
   return (
     <section
       style={{
@@ -325,9 +336,14 @@ function MetricCard({
         borderRadius: 12, padding: 16, minWidth: 0,
       }}
     >
-      <h3 style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
-        {title}
-      </h3>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
+        <h3 style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
+          {title}
+        </h3>
+        {canSwitch && granularity ? (
+          <SeriesModeToggle label={`${title} chart`} value={mode} onChange={setMode} periodLabel={PERIOD_LABEL[granularity]} />
+        ) : null}
+      </div>
       <div style={{ fontSize: "var(--cc-t-24)", fontWeight: 700, color: "var(--cc-primary)" }}>
         <MetricFigure value={value} />
       </div>
@@ -355,7 +371,11 @@ function MetricCard({
           Could not load this creator&apos;s history. Close and reopen to try again.
         </p>
       ) : series && granularity && series.length >= 2 ? (
-        <AudioUsesChart series={series} granularity={granularity} height={200} unit={unit} />
+        canSwitch && mode === "daily" ? (
+          <VelocityChart series={series} granularity={granularity} height={200} />
+        ) : (
+          <AudioUsesChart series={series} granularity={granularity} height={200} unit={unit} />
+        )
       ) : (
         <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
           {/* Two points is the minimum for a line to mean anything; drawing one

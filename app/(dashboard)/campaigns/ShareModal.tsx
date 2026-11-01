@@ -282,6 +282,12 @@ export function ShareModal({
                   label="Flag removed posts"
                   hint="Off: deleted posts look like normal posts with their last recorded stats."
                 />
+                <VisibilityToggle
+                  checked={link.visibility.showBrief}
+                  onChange={(next) => setVisibility({ ...link.visibility, showBrief: next })}
+                  label="Brief and view goal"
+                  hint="The do's, don'ts and example posts from Campaign rules, and progress to the view goal. Off by default."
+                />
               </div>
             </div>
 

@@ -20,6 +20,7 @@ const streams = (over: Partial<CampaignStreams> = {}): CampaignStreams => ({
   lastDay: null,
   sinceFirst: null,
   daily: [],
+  plays: [],
   note: null,
   ...over,
 });

@@ -95,13 +95,32 @@ it("opens no browser when no song is due", async () => {
   expect(mockCreateReader).not.toHaveBeenCalled();
 });
 
-it("asks only for songs on an open campaign with no reading today", async () => {
+it("asks only for songs on an open campaign, or a finished one in its 30-day tail, with no reading today", async () => {
   mockFindMany.mockResolvedValue([]);
   await run(reader());
   const where = mockFindMany.mock.calls[0][0].where;
   expect(where.deletedAt).toBeNull();
-  expect(where.campaigns.some.status.in).toEqual(["PENDING", "IN_PROGRESS"]);
+  expect(where.campaigns.some.deletedAt).toBeNull();
+  const [open, tail] = where.campaigns.some.OR;
+  expect(open.status.in).toEqual(["PENDING", "IN_PROGRESS"]);
+  expect(tail.status).toBe("COMPLETE");
+  expect(tail.posts.some.removedAt).toBeNull();
+  expect(tail.posts.some.postedAt.gte).toEqual(new Date(NOW - 30 * 86_400_000));
   expect(where.streamReadings).toEqual({ none: { day: utcDay(NOW) } });
+});
+
+it("puts running campaigns' songs first when more are due than one run reads", async () => {
+  const songs = (prefix: string, n: number) => Array.from({ length: n }, (_, i) => dueSong({ id: `${prefix}-${i}` }));
+  mockFindMany
+    .mockResolvedValueOnce(songs("any", 3))
+    .mockResolvedValueOnce(songs("open", 1))
+    .mockResolvedValueOnce(songs("tail", 1));
+  const out = await run(reader(), { limit: 2 });
+  expect(out.due).toBe(2);
+  expect(mockFindMany.mock.calls[0][0].take).toBe(3);
+  expect(mockFindMany.mock.calls[1][0].where.campaigns.some.status.in).toEqual(["PENDING", "IN_PROGRESS"]);
+  expect(mockFindMany.mock.calls[2][0].where.id).toEqual({ notIn: ["open-0"] });
+  expect(mockFindMany.mock.calls[2][0].take).toBe(1);
 });
 
 it("finds a new song's track by search, reads it once, and stores the day's count", async () => {
