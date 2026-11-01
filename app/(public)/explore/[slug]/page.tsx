@@ -13,34 +13,16 @@ import {
   formatMoney,
 } from "../format";
 
-export const revalidate = 300;
-
 /**
- * Prerender the public campaign slugs so /explore/[slug] lands in the Full
- * Route Cache instead of hitting Postgres on every visit. Fault-tolerant on
- * purpose: a DB hiccup at build time must not fail the deploy — those slugs
- * just render on demand instead.
+ * Rendered on every request. It used to be ISR (revalidate 300, with the
+ * public slugs prerendered at build), but the shared not-found page reads
+ * cookies (auth, creator session), and Next renders it into every page's
+ * payload. A build that prerendered slugs saw that and shipped the route as
+ * dynamic anyway -- production serves it `private, no-store` -- while a build
+ * that prerendered none (database unreachable at build, or no GLOBAL
+ * campaigns) shipped it as ISR, and then every visit answered 500.
  */
-export async function generateStaticParams() {
-  try {
-    const { db } = await import("@/lib/db");
-    const rows = await db.campaign.findMany({
-      where: {
-        marketplaceVisibility: "GLOBAL",
-        publicSlug: { not: null },
-        deletedAt: null,
-      },
-      select: { publicSlug: true },
-      take: 500,
-    });
-    return rows
-      .map((r) => r.publicSlug)
-      .filter((s): s is string => !!s)
-      .map((slug) => ({ slug }));
-  } catch {
-    return [];
-  }
-}
+export const dynamic = "force-dynamic";
 
 /* ── SEO ─────────────────────────────────────────────────────────────────── */
 
