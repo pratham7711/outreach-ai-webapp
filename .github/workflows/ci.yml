@@ -76,8 +76,13 @@ jobs:
   # One shard on master and PRs, which is what this job did before. Three on a
   # candidate, each with its own Postgres seeded the same way, because promote
   # waits on the slowest shard, not on the sum of them.
+  #
+  # Pinned to 24.04: ubuntu-latest moved to 26.04 on 1 Nov 2026, and
+  # `playwright install --with-deps chrome` then fails with "Playwright does
+  # not support ffmpeg on ubuntu26.04-x64" (run 41339750608, all three shards),
+  # after Chrome itself installed. Unpin once the Playwright here supports 26.04.
   e2e-prod:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
