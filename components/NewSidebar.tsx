@@ -9,7 +9,7 @@ import CampaignRailNav from "@/components/CampaignRailNav";
 import { campaignIdFromPathname, shellForPathname } from "@/lib/campaignSections";
 import {
   LayoutDashboard, Megaphone, Calendar, Users, Users2, LineChart,
-  List, CreditCard, Shield,
+  List, CreditCard, Shield, UserSearch,
   ChevronDown, Settings, LogOut, Menu, X, Key, BarChart2, Activity, Music, Tags,
   Globe, MessageSquareWarning, Building2, Bell, Plug, Wallet, Inbox, UserCheck,
 } from "lucide-react";
@@ -69,6 +69,7 @@ export const NAV_SECTIONS = [
     items: [
       { href: "/creators", icon: Users, label: "Creator Roster" },
       { href: "/lists", icon: List, label: "Lists" },
+      { href: "/creator-finder", icon: UserSearch, label: "Creator Finder" },
     ],
   },
   ...(PAYOUTS_ENABLED ? [PAYOUTS_SECTION] : []),

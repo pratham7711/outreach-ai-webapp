@@ -83,7 +83,17 @@ describe("every gated feature key is granted by some plan tier", () => {
     expect([...allKeys]).toEqual(expect.arrayContaining(["creator_discovery", "ai_assistant"]));
   });
 
+  /* Grant-only features are switched on for one org at a time through
+     /api/admin/org-features, so "no tier sells it" is their design rather than
+     the silent 403 described above. They are exempt from the rule only because
+     the test below holds the opposite one: no tier may ever sell them. */
+  const grantOnly = new Set<string>(featureKeys.ORG_GRANT_ONLY_FEATURES);
+
   it.each(found.map((g) => [g.label, g.keys] as const))("%s is sold by some tier", (_label, keys) => {
-    expect(keys.filter((k) => granted.has(k))).not.toHaveLength(0);
+    expect(keys.filter((k) => granted.has(k) || grantOnly.has(k))).not.toHaveLength(0);
+  });
+
+  it.each([...grantOnly])("%s is grant-only: no tier sells it, so no sign-up gets it", (key) => {
+    expect(granted.has(key)).toBe(false);
   });
 });

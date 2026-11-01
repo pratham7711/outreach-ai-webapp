@@ -26,6 +26,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/audit-log": "Audit Log",
   "/reports": "Reports",
   "/media-kits": "Media Kits",
+  "/creator-finder": "Creator Finder",
   "/settings": "Settings",
   "/analytics": "Analytics",
   "/plans": "Plans",

@@ -97,6 +97,7 @@ export const AREAS = {
     specs: [
       "creators.spec.ts",
       "creators-detail.spec.ts",
+      "creator-finder.spec.ts",
       "lists.spec.ts",
       "public-profile.spec.ts",
       "shared-links.spec.ts",
@@ -107,6 +108,11 @@ export const AREAS = {
       "app/(dashboard)/discovery/",
       "app/(dashboard)/fan-pages/",
       "app/(dashboard)/media-kits/",
+      // Creator Finder (LKM only): the board, its routes and its tables.
+      "app/(dashboard)/creator-finder/",
+      "app/api/creator-finder/",
+      "app/api/admin/migrate-creator-finder/",
+      "lib/creatorFinder/",
       "app/api/creators/",
       "app/api/discovery/",
       "lib/platforms/",

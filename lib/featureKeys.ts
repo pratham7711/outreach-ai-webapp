@@ -18,3 +18,16 @@ export const REPORTS_FEATURE_KEYS = [
 ] as const;
 
 export type ReportsFeatureKey = (typeof REPORTS_FEATURE_KEYS)[number];
+
+/* LKM-only for now: switched on per org in OrgPlanConfig.features, never by a
+   plan, so no sign-up gets them. The org's id never appears in code. */
+export const CREATOR_FINDER_FEATURE = "creator_finder" as const;
+export const SONG_SCOUT_FEATURE = "song_scout" as const;
+/* Scout's own AI switch, separate from creator_finder so the board works with
+   the AI off. It also needs SCOUT_ANTHROPIC_API_KEY on the server. */
+export const CREATOR_FINDER_AI_FEATURE = "creator_finder_ai" as const;
+
+/* Granted to one org at a time through /api/admin/org-features, and never sold
+   by a plan tier: __tests__/unit/lib/featureGateCoverage.test.ts fails if one of
+   these appears in lib/plans.ts, so a new sign-up can never get them. */
+export const ORG_GRANT_ONLY_FEATURES = [CREATOR_FINDER_FEATURE, CREATOR_FINDER_AI_FEATURE, SONG_SCOUT_FEATURE] as const;

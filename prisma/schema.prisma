@@ -399,6 +399,52 @@ model Song {
 /// old track's readings and starts a new history. A day the read failed still
 /// gets a row, with `failure` set and no count, so the cron does not try that
 /// song again the same day; a count Spotify hides is such a day too.
+/// A creator an agency is considering for its roster (Creator Finder). Only
+/// what the agency typed or chose is stored; the profile is read live when the
+/// card is opened. DDL: lib/creatorFinder/prospectDdl.ts.
+model CreatorProspect {
+  id              String   @id @default(cuid())
+  orgId           String
+  platform        Platform
+  /// Lower-case, no "@". For YouTube, the @handle when known, else the UC id.
+  handle          String
+  channelId       String?
+  /// FOUND | CONTACTED | REPLIED | JOINED | DISMISSED (lib/creatorFinder/prospects.ts)
+  status          String   @default("FOUND")
+  /// PASTE | YOUTUBE_SEARCH | SONG_SCOUT
+  source          String   @default("PASTE")
+  note            String?
+  dismissReason   String?
+  createdById     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+  statusChangedAt DateTime @default(now())
+  /// AI labels for what the creator makes, with their source, model, time and
+  /// input digest -- never the profile text (lib/creatorFinder/aiTags.ts).
+  aiTags          Json?
+
+  events CreatorProspectEvent[]
+
+  @@unique([orgId, platform, handle])
+  @@index([orgId, status])
+}
+
+/// One move on the Creator Finder board, kept so "contacted 9 days ago, no
+/// reply" is a fact rather than a guess.
+model CreatorProspectEvent {
+  id         String   @id @default(cuid())
+  prospectId String
+  orgId      String
+  fromStatus String?
+  toStatus   String
+  userId     String?
+  at         DateTime @default(now())
+
+  prospect CreatorProspect @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+
+  @@index([prospectId, at])
+}
+
 model SongStreamSnapshot {
   id             String   @id @default(cuid())
   songId         String

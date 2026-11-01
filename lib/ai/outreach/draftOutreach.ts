@@ -121,6 +121,10 @@ export async function draftOutreach(params: {
   input: OutreachDraftInput;
   client: AnalystClient;
   maxTokens?: number;
+  /** Defaults to MODELS.analyst. Creator Finder passes its own (lib/creatorFinder/scoutAi.ts). */
+  model?: string;
+  /** Sent as output_config.effort when set; models that always think need it to keep drafts short. */
+  effort?: "low" | "medium" | "high";
 }): Promise<{ subject: string; body: string; groundedFacts: string[] }> {
   const { input, client } = params;
   const maxTokens = params.maxTokens ?? DEFAULT_MAX_TOKENS;
@@ -128,10 +132,11 @@ export async function draftOutreach(params: {
   const prompt = buildOutreachPrompt(input);
 
   const response = await client.messages.create({
-    model: MODELS.analyst,
+    model: params.model ?? MODELS.analyst,
     max_tokens: maxTokens,
     system: prompt.system,
     messages: [{ role: "user", content: prompt.user }],
+    ...(params.effort ? { output_config: { effort: params.effort } } : {}),
   });
 
   const content = Array.isArray(response.content) ? response.content : [];

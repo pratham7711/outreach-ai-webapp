@@ -6,6 +6,7 @@ import {
   AUDIT_LOG_FEATURE,
   MEDIA_KITS_FEATURE,
   REPORTS_FEATURE_KEYS,
+  CREATOR_FINDER_FEATURE,
 } from "@/lib/featureKeys";
 
 export type DashboardPolicyInput = {
@@ -73,6 +74,10 @@ export const DASHBOARD_NAV_RULES: DashboardNavRule[] = [
   { href: "/financial-reports", key: "financial-reports" },
   { href: "/reports", key: "reports", featureKeys: [...REPORTS_FEATURE_KEYS] },
   { href: "/media-kits", key: "media-kits", featureKeys: [MEDIA_KITS_FEATURE] },
+  /* Switched on per org (OrgPlanConfig.features), LKM only for now. alwaysVisible
+     only skips the uiConfig.nav allowlist -- the feature check still runs first --
+     so an org that customised its nav before this shipped still sees it. */
+  { href: "/creator-finder", featureKeys: [CREATOR_FINDER_FEATURE], alwaysVisible: true },
   { href: "/settings", alwaysVisible: true },
   { href: "/connections", alwaysVisible: true },
   // Settings -> General is in NAV_SECTIONS but had no rule here, and the sidebar
