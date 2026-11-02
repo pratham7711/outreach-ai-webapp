@@ -15,7 +15,15 @@ on:
     branches: [master, 'candidate/**']
   pull_request:
     branches: [master]
+  # A manual run tests whatever ref it is started on. The production token
+  # audit joins it only when ticked, since it fails outright wherever the
+  # DATABASE_URL secret is not set; unticked, the run is the suite alone.
   workflow_dispatch:
+    inputs:
+      prod_token_audit:
+        description: "Also audit PRODUCTION data for plaintext tokens (needs the DATABASE_URL repo secret)"
+        type: boolean
+        default: false
 
 jobs:
   gate:
@@ -43,13 +51,14 @@ jobs:
         run: npm run build
 
   # Audits PRODUCTION data for tokens stored in plaintext. Deliberately
-  # workflow_dispatch-only: it is the one job that reads the production
-  # database, so it must never fire on push/pull_request, where it would
-  # bill every PR against production's data-transfer allowance.
+  # manual-only, and only when the run's prod_token_audit box is ticked: it is
+  # the one job that reads the production database, so it must never fire on
+  # push/pull_request, where it would bill every PR against production's
+  # data-transfer allowance.
   # The seed-path equivalent runs on every commit inside `e2e-prod`.
   prod-token-audit:
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.prod_token_audit
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
