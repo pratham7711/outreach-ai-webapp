@@ -2,7 +2,12 @@
  * @jest-environment node
  */
 import { snapshotCreators } from "@/lib/creators/snapshot";
-import { DEAD_ACCOUNT_RECHECK_MS, TRACKER_HANDLE_PROBLEM_WHERE } from "@/lib/creators/handleCheck";
+import {
+  DEAD_ACCOUNT_RECHECK_MS,
+  FAILED_READ_RETRY_AFTER_MS,
+  TRACKER_HANDLE_PROBLEM_WHERE,
+  TRANSIENT_TRACKER_FAILURES,
+} from "@/lib/creators/handleCheck";
 
 jest.mock("@/lib/db", () => ({
   db: {
@@ -115,6 +120,67 @@ describe("creator sweep — bounded and rotating", () => {
     expect(cutoff).toBeGreaterThanOrEqual(before - DEAD_ACCOUNT_RECHECK_MS);
     expect(cutoff).toBeLessThanOrEqual(Date.now() - DEAD_ACCOUNT_RECHECK_MS);
     expect(clause.OR[3]).toEqual({ NOT: TRACKER_HANDLE_PROBLEM_WHERE });
+  });
+});
+
+describe("creator sweep — a failed read is retried first", () => {
+  const readOrder = () => mockRead.mock.calls.map((call) => call[1]);
+
+  it("asks, beside the page, for creators whose last read failed for a reason that can pass", async () => {
+    mockDb.creator.findMany.mockResolvedValue([]);
+    const before = Date.now();
+
+    await snapshotCreators({ orgId: "org-1" });
+
+    expect(mockDb.creator.findMany).toHaveBeenCalledTimes(2);
+    const args = mockDb.creator.findMany.mock.calls[1][0];
+    expect(args.take).toBe(50);
+    expect(args.orderBy).toEqual({ trackerLastAttemptAt: "asc" });
+    // The same scope as the page: org, tracked, not deleted.
+    expect(args.where).toMatchObject({ orgId: "org-1", deletedAt: null, trackedSince: { not: null } });
+    const [clause] = args.where.AND;
+    expect(clause.OR).toEqual(
+      TRANSIENT_TRACKER_FAILURES.map((reason) => ({ trackerLastError: { startsWith: reason } }))
+    );
+    // A gone handle or a personal Instagram account answers the same however soon it is asked.
+    expect(TRANSIENT_TRACKER_FAILURES).not.toContain("no-such-account");
+    expect(TRANSIENT_TRACKER_FAILURES).not.toContain("not-a-professional-account");
+    const cutoff = clause.trackerLastAttemptAt.lt.getTime();
+    expect(cutoff).toBeGreaterThanOrEqual(before - FAILED_READ_RETRY_AFTER_MS);
+    expect(cutoff).toBeLessThanOrEqual(Date.now() - FAILED_READ_RETRY_AFTER_MS);
+  });
+
+  it("reads the retries before the page, and each creator once", async () => {
+    mockDb.creator.findMany
+      .mockResolvedValueOnce([makeCreator({ id: "c-a", handle: "a" }), makeCreator({ id: "c-r", handle: "r" })])
+      .mockResolvedValueOnce([makeCreator({ id: "c-r", handle: "r" })]);
+
+    await snapshotCreators({ concurrency: 1 });
+
+    expect(readOrder()).toEqual(["r", "a"]);
+  });
+
+  it("takes the retries' slots from the tail of the page, never past the page size", async () => {
+    mockDb.creator.findMany
+      .mockResolvedValueOnce([
+        makeCreator({ id: "c-1", handle: "p1" }),
+        makeCreator({ id: "c-2", handle: "p2" }),
+        makeCreator({ id: "c-3", handle: "p3" }),
+      ])
+      .mockResolvedValueOnce([makeCreator({ id: "c-r", handle: "r" })]);
+
+    await snapshotCreators({ concurrency: 1, maxCreators: 3 });
+
+    expect(readOrder()).toEqual(["r", "p1", "p2"]);
+  });
+
+  it("does not ask for retries on a single-creator refresh", async () => {
+    mockDb.creator.findMany.mockResolvedValue([makeCreator()]);
+
+    await snapshotCreators({ creatorId: "creator-1", orgId: "org-1" });
+
+    expect(mockDb.creator.findMany).toHaveBeenCalledTimes(1);
+    expect(mockRead).toHaveBeenCalledTimes(1);
   });
 });
 

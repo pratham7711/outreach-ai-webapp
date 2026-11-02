@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { captureLatestAvatar } from "@/lib/creators/avatarStore";
-import { trackerSweepableWhere } from "@/lib/creators/handleCheck";
+import { trackerRetryFirstWhere, trackerSweepableWhere } from "@/lib/creators/handleCheck";
 import type { Prisma } from "@/lib/generated/prisma";
 import { createLogger } from "@/lib/observability/logger";
 import { velocityBetween } from "@/lib/trackers/metrics";
@@ -123,6 +123,16 @@ export type CreatorSnapshotOptions = {
  * ~3.8s each for four minutes is ~380 -- so the page is not the limit.
  */
 const MAX_CREATORS_PER_RUN = 400;
+
+/**
+ * Failed reads retried at the head of one run, out of MAX_CREATORS_PER_RUN.
+ *
+ * MEASURED on production over 25-26 Oct: the busiest two-hourly run read 337
+ * creators that were due, so 50 retries still leave 350 slots for the rest,
+ * and a platform that fails everyone at once cannot hand the whole page to
+ * retries. 32 creators were in a retryable failure at the time.
+ */
+const MAX_RETRIES_PER_RUN = 50;
 
 /**
  * Creators read at once.
@@ -383,47 +393,54 @@ export async function snapshotCreators(
   let failed = 0;
   let skipped = 0;
 
-  const selected = await db.creator.findMany({
+  /* Who this run may read at all, for the page and for its retries alike. */
+  const scopeWhere: Prisma.CreatorWhereInput = {
     // orgId stays in the filter alongside creatorId for the same reason it does
     // in snapshotSounds: a scope check here costs nothing.
+    deletedAt: null,
+    trackedSince: { not: null },
+    ...(creatorId ? { id: creatorId } : {}),
+    ...(orgId
+      ? { orgId }
+      : orgIdsIn || orgIdsNotIn
+        ? { orgId: { ...(orgIdsIn ? { in: orgIdsIn } : {}), ...(orgIdsNotIn ? { notIn: orgIdsNotIn } : {}) } }
+        : {}),
+    /* Left out here rather than skipped one by one, so a platform that is
+       switched off cannot fill the page and starve the others. */
+    ...(sourceGuard?.excludedPlatforms.length ? { platform: { notIn: sourceGuard.excludedPlatforms } } : {}),
+  };
+  const sweepSelect = {
+    id: true,
+    orgId: true,
+    handle: true,
+    platform: true,
+    platformUserId: true,
+    /* Read only to refuse a lossy overwrite below -- see keepPrecise. */
+    followersCount: true,
+    /* Read only for the validation gate: an average that fell to 0. */
+    averageViews: true,
+    topPostsAt: true,
+    topPostsSource: true,
+    trackerSnapshots: {
+      orderBy: { recordedAt: "desc" },
+      take: 1,
+      select: { followersCount: true, recordedAt: true },
+    },
+  } satisfies Prisma.CreatorSelect;
+  const selectedAt = Date.now();
+
+  const page = await db.creator.findMany({
     where: {
-      deletedAt: null,
-      trackedSince: { not: null },
-      ...(creatorId ? { id: creatorId } : {}),
-      ...(orgId
-        ? { orgId }
-        : orgIdsIn || orgIdsNotIn
-          ? { orgId: { ...(orgIdsIn ? { in: orgIdsIn } : {}), ...(orgIdsNotIn ? { notIn: orgIdsNotIn } : {}) } }
-          : {}),
-      /* Left out here rather than skipped one by one, so a platform that is
-         switched off cannot fill the page and starve the others. */
-      ...(sourceGuard?.excludedPlatforms.length ? { platform: { notIn: sourceGuard.excludedPlatforms } } : {}),
+      ...scopeWhere,
       /* An account the platform said is gone is asked again weekly, not every
          sweep (DEAD_ACCOUNT_RECHECK_MS). Left out here rather than skipped one
          by one: a skipped row is not stamped, so it would stay at the head of
          the attempt order and fill the page. A single-creator refresh is a
          person asking, and always reads. */
-      ...(creatorId ? {} : { AND: [trackerSweepableWhere(Date.now())] }),
+      ...(creatorId ? {} : { AND: [trackerSweepableWhere(selectedAt)] }),
     },
     ...(creatorId ? {} : { take: maxCreators }),
-    select: {
-      id: true,
-      orgId: true,
-      handle: true,
-      platform: true,
-      platformUserId: true,
-      /* Read only to refuse a lossy overwrite below -- see keepPrecise. */
-      followersCount: true,
-      /* Read only for the validation gate: an average that fell to 0. */
-      averageViews: true,
-      topPostsAt: true,
-      topPostsSource: true,
-      trackerSnapshots: {
-        orderBy: { recordedAt: "desc" },
-        take: 1,
-        select: { followersCount: true, recordedAt: true },
-      },
-    },
+    select: sweepSelect,
     /* Rotating, not fixed.
      *
      * This was `trackedSince: "asc"` with no `take`, which is two problems in
@@ -440,6 +457,23 @@ export async function snapshotCreators(
      * sorts to the back rather than being re-examined and skipped. */
     orderBy: { trackerLastAttemptAt: { sort: "asc", nulls: "first" } },
   });
+
+  /* A read that failed for a reason that can pass goes first, rather than
+     waiting a whole cadence at the back of the attempt order (see
+     trackerRetryFirstWhere). It takes its slots from the tail of the page,
+     which is the least stale rows, and they rotate in next run. */
+  const retries = creatorId
+    ? []
+    : await db.creator.findMany({
+        where: { ...scopeWhere, AND: [trackerRetryFirstWhere(selectedAt)] },
+        take: Math.min(MAX_RETRIES_PER_RUN, maxCreators),
+        select: sweepSelect,
+        orderBy: { trackerLastAttemptAt: "asc" },
+      });
+  const retryIds = new Set(retries.map((c) => c.id));
+  const selected = creatorId
+    ? page
+    : [...retries, ...page.filter((c) => !retryIds.has(c.id))].slice(0, maxCreators);
   const creators = inScope ? selected.filter(inScope) : selected;
 
   if (creators.length === 0) return { snapshots, failed, skipped };

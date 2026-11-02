@@ -75,6 +75,37 @@ export function trackerSweepableWhere(nowMs: number): Prisma.CreatorWhereInput {
   };
 }
 
+/**
+ * Failures a second read can fix: a rate limit, a page that came back without
+ * the numbers, a snapshot that did not write. A handle the platform says is
+ * gone, a personal Instagram account and a platform we cannot read give the
+ * same answer however soon they are asked, so they keep their own pace.
+ */
+export const TRANSIENT_TRACKER_FAILURES = ["rate-limited", "unreadable", "snapshot-write-failed"] as const;
+
+/**
+ * How long a failed read waits before it is retried ahead of the queue. Under
+ * the two-hourly sweep's interval, so the next run takes it; long enough that a
+ * Refresh pressed on a failing creator is not followed by a second read
+ * minutes later.
+ */
+export const FAILED_READ_RETRY_AFTER_MS = 60 * 60 * 1000;
+
+/**
+ * Tracked creators whose last read failed for a reason that can pass, and
+ * waited at least FAILED_READ_RETRY_AFTER_MS: the sweep reads these first.
+ *
+ * Without it a failed read was stamped like a successful one and went to the
+ * back of the attempt order, so the creator waited a whole cadence for its
+ * retry and missed a reading.
+ */
+export function trackerRetryFirstWhere(nowMs: number): Prisma.CreatorWhereInput {
+  return {
+    OR: TRANSIENT_TRACKER_FAILURES.map((reason) => ({ trackerLastError: { startsWith: reason } })),
+    trackerLastAttemptAt: { lt: new Date(nowMs - FAILED_READ_RETRY_AFTER_MS) },
+  };
+}
+
 export function handleProblemText(platform: string, handle: string, problem: HandleProblem): string {
   const at = `@${handle.replace(/^@/, "")}`;
   return problem === "not-found"
