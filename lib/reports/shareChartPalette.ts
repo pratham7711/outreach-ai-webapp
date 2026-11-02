@@ -1,7 +1,7 @@
 import { platformBrandColor } from "@/lib/platforms/registry";
 
 /**
- * The client report's platform colours: each platform's brand colour, as fixed
+ * The client report's platform colours: each platform's own colour, as fixed
  * hex, shared by the Views Over Time stack and the Views by Platform pie so a
  * platform is the same colour in both.
  *
@@ -40,12 +40,18 @@ const MIN_NORMAL_DELTA = 15;
 const MIN_CVD_DELTA = 8;
 
 /**
- * A second colour from the platform's own brand, tried before any grey.
- * Instagram's mark runs from pink to purple, so it can step aside for
- * YouTube, whose only colour is its red, and still read as Instagram.
+ * Where the report draws a platform in the app's chart colour rather than its
+ * brand colour, so the client sees the colour the agency sees.
+ *
+ * Instagram is the dashboard's pink, --cc-cat-2 in the light and dark themes
+ * (app/globals.css), not its brand #E4405F. That pink sat 8.2 from YouTube's
+ * red, so Instagram turned purple on this report whenever YouTube was in it,
+ * and pink on the dashboard. #CC79A7 is 20 from YouTube's red, at least 14
+ * under protan and deutan from every other platform's colour, and 3.06:1 on
+ * the white card.
  */
-const BRAND_ALTERNATES: Partial<Record<string, readonly string[]>> = {
-  INSTAGRAM: ["#833AB4"],
+const CHART_COLORS: Partial<Record<string, string>> = {
+  INSTAGRAM: "#CC79A7",
 };
 
 function rgb(hex: string): [number, number, number] {
@@ -118,13 +124,12 @@ function tint(hex: string, strength: number): string {
 /**
  * The stacked chart's band fills, one per colour: each colour lightened toward
  * the white card, by the most that still leaves every pair of bands distinct.
- * Three solid brand blocks -- YouTube's pure red over Instagram's purple under
+ * Three solid blocks -- YouTube's pure red over Instagram's pink under
  * TikTok's black -- read as a poster rather than a chart; the band's edge is
- * drawn in the colour itself, so identity stays with the brand colour.
+ * drawn in the colour itself, so identity stays with the platform's colour.
  *
- * Lightening pulls colours together (Instagram's purple and YouTube's red are
- * ΔE 8.6 apart at 30%), so the step is chosen per chart, not fixed. Colours
- * that are too close at full strength come back unchanged.
+ * Lightening pulls colours together, so the step is chosen per chart, not
+ * fixed. Colours that are too close at full strength come back unchanged.
  */
 export function bandFillsFor(colors: string[]): string[] {
   for (const strength of BAND_STRENGTHS) {
@@ -143,30 +148,26 @@ function ahead(a: readonly number[], b: readonly number[]): boolean {
 /**
  * One colour per platform, in the order given; give the order by views.
  *
- * Of every way to give platforms one of their own brand colours with no two
- * too close, this keeps the one that leaves the most platforms in their own
- * colours; between equals, the one that keeps the bigger platform's, then its
- * first colour over its second. A greedy pass could not see that Instagram
- * should take its purple so YouTube keeps the only red it has, and with Twitch
- * beside both it greyed out Instagram even when Instagram was the biggest.
+ * Of every way to give platforms their own colours with no two too close, this
+ * keeps the one that leaves the most platforms in their own colours; between
+ * equals, the one that keeps the bigger platform's. A greedy pass could not see
+ * past the first clash, and greyed out the biggest platform when a smaller one
+ * had taken a colour near its own.
  * Whatever is left takes the first stand-in that stands apart from everything
  * chosen, or failing that the one furthest from it; never a colour under 3:1.
- * Search is over at most a few platforms with one or two colours each.
+ * Search is over at most a few platforms with one colour each.
  */
 export function platformColorsFor(platforms: string[]): string[] {
-  const brand = platforms.map((p) => platformBrandColor(p).toUpperCase());
-  const options = platforms.map((p, i) =>
-    [brand[i], ...(BRAND_ALTERNATES[p.toUpperCase()] ?? [])].filter((hex) => contrast(hex, PIE_CARD) >= MIN_SLICE_CONTRAST)
-  );
+  const own = platforms.map((p) => (CHART_COLORS[p.toUpperCase()] ?? platformBrandColor(p)).toUpperCase());
+  const options = own.map((hex) => [hex].filter((h) => contrast(h, PIE_CARD) >= MIN_SLICE_CONTRAST));
 
   let best: (string | undefined)[] = platforms.map(() => undefined);
   let bestScore: number[] = [];
   const picked: (string | undefined)[] = [];
   const visit = (i: number) => {
     if (i === platforms.length) {
-      const own = picked.map((hex): number => (hex ? 1 : 0));
-      const first = picked.map((hex, j): number => (hex === brand[j] ? 1 : 0));
-      const score = [own.reduce((a, b) => a + b, 0), ...own, ...first];
+      const kept = picked.map((hex): number => (hex ? 1 : 0));
+      const score = [kept.reduce((a, b) => a + b, 0), ...kept];
       if (ahead(score, bestScore)) {
         bestScore = score;
         best = [...picked];

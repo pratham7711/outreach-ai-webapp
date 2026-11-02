@@ -8,6 +8,9 @@
  */
 import { bandFillsFor, chartDelta, platformColorsFor } from "@/lib/reports/shareChartPalette";
 import { PLATFORM_KEYS } from "@/lib/platforms/registry";
+import { PLATFORM_PALETTE } from "@/app/(dashboard)/analytics/shared";
+import { readFileSync } from "fs";
+import { join } from "path";
 
 const onWhite = (hex: string) => {
   const [r, g, b] = [1, 3, 5]
@@ -28,22 +31,39 @@ function subsets(keys: readonly string[], max: number): string[][] {
 }
 
 describe("platformColorsFor", () => {
-  it("gives each platform its brand colour as fixed hex, not a theme token", () => {
-    expect(platformColorsFor(["TIKTOK", "INSTAGRAM"])).toEqual(["#010101", "#E4405F"]);
+  it("gives each platform its own colour as fixed hex, not a theme token", () => {
+    expect(platformColorsFor(["TIKTOK", "INSTAGRAM"])).toEqual(["#010101", "#CC79A7"]);
     for (const c of platformColorsFor(["TIKTOK", "INSTAGRAM", "YOUTUBE", "FACEBOOK"])) expect(c).toMatch(/^#[0-9A-F]{6}$/);
   });
 
-  it("moves Instagram to its purple beside YouTube's red, whichever has more views", () => {
-    // Pink #E4405F and red #FF0000 are 8.2 apart in OKLab: one red band in the stack.
+  it("keeps Instagram pink beside YouTube's red, whichever has more views", () => {
+    // Instagram's brand pink #E4405F was 8.2 from YouTube's red, so it turned
+    // purple on the report whenever YouTube was in it. The dashboard pink is not.
     expect(chartDelta("#E4405F", "#FF0000")).toBeLessThan(15);
-    expect(platformColorsFor(["INSTAGRAM", "YOUTUBE", "TIKTOK"])).toEqual(["#833AB4", "#FF0000", "#010101"]);
-    expect(platformColorsFor(["TIKTOK", "YOUTUBE", "INSTAGRAM"])).toEqual(["#010101", "#FF0000", "#833AB4"]);
+    expect(chartDelta("#CC79A7", "#FF0000")).toBeGreaterThanOrEqual(15);
+    expect(platformColorsFor(["INSTAGRAM", "YOUTUBE", "TIKTOK"])).toEqual(["#CC79A7", "#FF0000", "#010101"]);
+    expect(platformColorsFor(["TIKTOK", "YOUTUBE", "INSTAGRAM"])).toEqual(["#010101", "#FF0000", "#CC79A7"]);
   });
 
-  it("keeps the biggest platform in its own colours when three clash", () => {
-    // Instagram's pink is too close to YouTube's red and its purple to Twitch's.
-    // A greedy pass greyed Instagram out although it had the most views.
-    expect(platformColorsFor(["INSTAGRAM", "YOUTUBE", "TWITCH"])).toEqual(["#833AB4", "#FF0000", "#6E6E6E"]);
+  it("draws Instagram in the dashboard's pink, the colour the light and dark themes give it", () => {
+    expect(PLATFORM_PALETTE.INSTAGRAM).toBe("var(--cc-cat-2)");
+    const css = readFileSync(join(process.cwd(), "app/globals.css"), "utf8");
+    for (const theme of ["dark", "light"]) {
+      const block = css.slice(css.indexOf(`:root.${theme} {`));
+      const pink = block.slice(0, block.indexOf("}")).match(/--cc-cat-2:\s*(#[0-9a-fA-F]{6})/)?.[1];
+      expect(pink?.toUpperCase()).toBe("#CC79A7");
+    }
+    expect(platformColorsFor(["INSTAGRAM"])).toEqual(["#CC79A7"]);
+  });
+
+  it("keeps Instagram, YouTube and Twitch each in their own colours", () => {
+    expect(platformColorsFor(["INSTAGRAM", "YOUTUBE", "TWITCH"])).toEqual(["#CC79A7", "#FF0000", "#9146FF"]);
+  });
+
+  it("keeps the bigger platform in its own colour when two clash", () => {
+    // TikTok and X are both black: whichever has more views keeps it.
+    expect(platformColorsFor(["TWITTER", "TIKTOK"])[0]).toBe("#000000");
+    expect(platformColorsFor(["TIKTOK", "TWITTER"])[0]).toBe("#010101");
   });
 
   it("keeps every pair apart under normal vision and red-green colour blindness", () => {
@@ -119,16 +139,16 @@ describe("bandFillsFor", () => {
   };
 
   it("lightens the brand colours toward the white card", () => {
-    // Instagram purple, YouTube red, TikTok black at 60%.
-    expect(bandFillsFor(["#833AB4", "#FF0000", "#010101"])).toEqual(["#B589D2", "#FF6666", "#676767"]);
+    // Instagram pink, YouTube red, TikTok black at 60%.
+    expect(bandFillsFor(["#CC79A7", "#FF0000", "#010101"])).toEqual(["#E0AFCA", "#FF6666", "#676767"]);
   });
 
   it("lightens less when the lighter step would pull two bands together", () => {
     const colors = platformColorsFor(["INSTAGRAM", "YOUTUBE", "TWITCH"]);
     const fills = bandFillsFor(colors);
     apart(fills);
-    // Twitch's grey and Instagram's purple meet at 60%, so this set keeps more colour.
-    expect(fills[0]).not.toBe("#B589D2");
+    // Two of these bands meet at 60%, so this set keeps more colour.
+    expect(fills[0]).not.toBe("#E0AFCA");
     expect(fills).not.toEqual(colors);
   });
 
