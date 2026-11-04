@@ -25,8 +25,8 @@ export type AlertInput = {
   severity?: Severity;
 };
 
-/** Where ops mail goes. Falls back to the invoice address we already know. */
-function recipients(): string[] {
+/** Where ops mail goes: ALERT_EMAIL_TO, comma-separated. Also used by lib/ops/signupNotice. */
+export function opsRecipients(): string[] {
   const raw = process.env.ALERT_EMAIL_TO || "";
   return raw
     .split(",")
@@ -115,7 +115,7 @@ export async function alertOps(input: AlertInput): Promise<void> {
     ...(input.facts ?? {}),
   });
 
-  const to = recipients();
+  const to = opsRecipients();
   if (to.length === 0) {
     log.warn("alert.no_recipients", {
       message: "ALERT_EMAIL_TO is unset; alert was logged but not emailed.",

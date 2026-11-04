@@ -26,6 +26,7 @@ const SENDERS = new Map<string, string>([
   ["lib/emailVerification.ts", "the account holder"],
   ["lib/inviteEmail.ts", "a teammate an admin typed in"],
   ["lib/ops/canary.ts", "alertOps only: the hourly ops canary (ops)"],
+  ["lib/ops/signupNotice.ts", "ALERT_EMAIL_TO (ops): a new workspace signed up"],
   ["lib/ops/meters.ts", "alertOps only: weekly spend over 120% of the model (ops)"],
   ["lib/ops/sandboxBudget.ts", "alertOps only: the daily Sandbox cap reached (ops)"],
   ["lib/sync/postSweepRun.ts", "alertOps only: the post sweep, moved out of app/api/cron/sync-posts (ops)"],

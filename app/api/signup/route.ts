@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
@@ -7,6 +7,7 @@ import { requestLogger } from "@/lib/observability/requestLogger";
 import { rateLimit, rateLimitKey, configuredLimit } from "@/lib/rateLimit";
 
 import { issueEmailVerification, appOrigin } from "@/lib/emailVerification";
+import { notifyNewSignup } from "@/lib/ops/signupNotice";
 
 /* The cap is per-instance memory keyed on IP, so a whole CI suite shares one
    bucket. The e2e signup spec spends exactly five -- one each for the three
@@ -140,6 +141,26 @@ export async function POST(req: NextRequest) {
           origin: appOrigin(req.nextUrl.origin),
         })
       : null;
+
+    /* Tell the operator a new workspace exists. after(), so the person
+       signing up is not kept waiting on a second provider round trip, and
+       notifyNewSignup never throws, so it cannot turn this 201 into anything else. */
+    if (createdUser) {
+      const created = createdUser as { id: string; orgId: string };
+      after(() =>
+        notifyNewSignup({
+          orgId: created.orgId,
+          userId: created.id,
+          orgName,
+          orgType,
+          plan: "free",
+          ownerName: name,
+          ownerEmail: email,
+          verificationSent: verification?.sent ?? false,
+          origin: appOrigin(req.nextUrl.origin),
+        })
+      );
+    }
 
     logger.info("signup.done", { status: 201, verificationSent: verification?.sent ?? false });
     return NextResponse.json(

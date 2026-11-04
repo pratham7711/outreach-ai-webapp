@@ -33,6 +33,8 @@ export type EmailKind =
   | "email_verification"
   | "notification"
   | "ops_alert"
+  /** lib/ops/signupNotice: a new workspace signed up (to ALERT_EMAIL_TO). */
+  | "ops_signup"
   | "unknown";
 
 type EmailContext = {
