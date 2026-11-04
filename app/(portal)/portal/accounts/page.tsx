@@ -10,7 +10,7 @@ import { isInstagramLoginRow } from "@/lib/platforms/accountOrigin";
 import { OAUTH_PLATFORMS, toPlatformEnum, type OAuthPlatform } from "@/lib/oauth/providers";
 import { WHAT_WE_NEVER_DO, WHAT_WE_READ } from "@/lib/portal/whatWeRead";
 import { Button, useConfirm } from "@/components/ds";
-import { PlatformGlyph } from "@/components/ui/PlatformGlyph";
+import { PlatformTile } from "@/components/ui/PlatformTile";
 import { YouTubeConnectAgreement } from "@/components/LegalLinks";
 import {
   Banner,
@@ -178,23 +178,7 @@ function PlatformCard({
   return (
     <Card style={{ padding: 0 }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: 16 }}>
-        <span
-          aria-hidden="true"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flex: "none",
-            width: 40,
-            height: 40,
-            borderRadius: 10,
-            background: "var(--cc-bg)",
-            border: "1px solid var(--cc-border)",
-            color: "var(--cc-text)",
-          }}
-        >
-          <PlatformGlyph platform={toPlatformEnum(platform)} size={20} />
-        </span>
+        <PlatformTile platform={toPlatformEnum(platform)} />
         <div style={{ minWidth: 0, flex: 1, minHeight: 40, display: "flex", flexDirection: "column", justifyContent: "center" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
             <h2 style={{ flex: "1 1 auto", minWidth: 0, fontSize: 16, fontWeight: 700, color: "var(--cc-text)", margin: 0, lineHeight: 1.35, paddingTop: 1 }}>
@@ -451,8 +435,36 @@ export default function MyAccountsPage() {
         {WHAT_WE_NEVER_DO.map((line, i) => {
           const Icon = NEVER_ICONS[i] ?? ShieldCheck;
           return (
-            <li key={line} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, color: "var(--cc-text)", lineHeight: 1.45 }}>
-              <Icon size={16} aria-hidden="true" style={{ flex: "none", marginTop: 1, color: "var(--cc-text-muted)" }} />
+            <li
+              key={line}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "10px 12px",
+                fontSize: 13,
+                color: "var(--cc-text)",
+                lineHeight: 1.45,
+                background: "var(--cc-card)",
+                border: "1px solid var(--cc-border)",
+                borderRadius: 12,
+              }}
+            >
+              <span
+                aria-hidden="true"
+                style={{
+                  display: "inline-grid",
+                  placeItems: "center",
+                  flex: "none",
+                  width: 30,
+                  height: 30,
+                  borderRadius: 8,
+                  background: "var(--cc-success-bg)",
+                  color: "var(--cc-success-fg)",
+                }}
+              >
+                <Icon size={16} />
+              </span>
               <span>{line}</span>
             </li>
           );

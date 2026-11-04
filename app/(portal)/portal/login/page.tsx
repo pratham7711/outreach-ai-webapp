@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { LegalLinks } from "@/components/LegalLinks";
+import { AUTH_BACKDROP, AuthBrand, AuthPlatforms } from "@/components/auth/AuthBrand";
 import { Input } from "@pratham7711/ui";
 import { Button } from "@/components/ds";
 import { Eye, EyeOff } from "lucide-react";
@@ -57,11 +58,12 @@ function LoginInner() {
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        gap: 16,
+        gap: 20,
         padding: "40px 16px",
-        background: "var(--cc-bg)",
+        background: AUTH_BACKDROP,
       }}
     >
+      <AuthBrand />
       <div
         style={{
           width: "100%",
@@ -124,6 +126,7 @@ function LoginInner() {
           </Link>
         </div>
       </div>
+      <AuthPlatforms />
       <LegalLinks />
     </div>
   );

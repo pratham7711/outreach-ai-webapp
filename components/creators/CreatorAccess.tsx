@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Badge, Card, Skeleton } from "@pratham7711/ui";
 import { Button } from "@/components/ds";
 import { formatDateAbs, platformLabel } from "@/lib/format";
+import { PlatformTile } from "@/components/ui/PlatformTile";
 import type { AccessEntry, AccessStatus } from "@/lib/creators/grantAccess";
 
 /**
@@ -234,7 +235,9 @@ function AccessRow({ entry, first }: { entry: AccessEntry; first: boolean }) {
         minWidth: 0,
       }}
     >
-      <div style={{ minWidth: 0, flex: "1 1 220px" }}>
+      <div style={{ minWidth: 0, flex: "1 1 220px", display: "flex", alignItems: "flex-start", gap: 12 }}>
+        <PlatformTile platform={entry.platform} size={32} />
+        <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ fontWeight: "var(--cc-fw-strong)", fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>
           {platformLabel(entry.platform)}
         </div>
@@ -245,6 +248,7 @@ function AccessRow({ entry, first }: { entry: AccessEntry; first: boolean }) {
           {reason ? ` · ${reason}` : ""}
         </div>
         <Scopes entry={entry} />
+        </div>
       </div>
       <Badge variant={status.variant} size="sm">
         {status.label}

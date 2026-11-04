@@ -3,7 +3,7 @@ import { useState, useEffect, use } from "react";
 import { motion } from "framer-motion";
 import {
   Eye, Heart, MessageCircle, Share2, Play, ChevronRight, ExternalLink, DollarSign, Pencil, Plus, Trash2, Users,
-  User, Video, ClipboardList, Link2, Combine, Megaphone, Image as ImageIcon, Activity, StickyNote, Tag, Flag, ListChecks,
+  User, Video, ClipboardList, Link2, Combine, Megaphone, Image as ImageIcon, Activity, StickyNote, Tag, Flag, ListChecks, RefreshCw,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -32,6 +32,7 @@ import {
 } from "@/lib/creators/metricValue";
 import MetricFigure from "@/components/creators/MetricFigure";
 import CreatorAccess from "@/components/creators/CreatorAccess";
+import { PlatformTile } from "@/components/ui/PlatformTile";
 import InstagramDiscoveryPanel from "@/components/creators/InstagramDiscoveryPanel";
 import InstagramInsightsPanel from "@/components/insights/InstagramInsightsPanel";
 import { AgeLabel } from "@/components/ds/AgeLabel";
@@ -1385,48 +1386,83 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
               <div className="cd-social-grid">
                 {socialAccounts.map(acct => (
                   <Card key={acct.id} variant="outlined" style={{ padding: 16 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                      <Badge
-                        variant="neutral"
-                        style={{ background: `color-mix(in srgb, ${PLATFORM_COLORS[acct.platform] ?? "var(--cc-primary)"} 9.4%, transparent)`, color: PLATFORM_COLORS[acct.platform] ?? "var(--cc-primary)" }}
-                      >
-                        {acct.platform}
-                      </Badge>
-                      <button
-                        onClick={() => handleRemoveSocial(acct.id)}
-                        disabled={removingSocial === acct.id}
-                        aria-busy={removingSocial === acct.id}
-                        aria-label={`Remove ${acct.platform} account ${acct.handle}`}
-                        style={{
-                          background: "none", border: "none",
-                          cursor: removingSocial === acct.id ? "not-allowed" : "pointer",
-                          opacity: removingSocial === acct.id ? 0.5 : 1,
-                          padding: 4,
-                          color: "var(--cc-text-muted)", borderRadius: 4,
-                        }}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                    <div style={{ fontWeight: "var(--cc-fw-strong)", fontSize: "var(--cc-t-14)", color: "var(--cc-text)", marginBottom: 4 }}>
-                      {acct.handle.startsWith("@") ? acct.handle : `@${acct.handle}`}
-                    </div>
-                    <div style={{ display: "flex", gap: 16, fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginBottom: 8 }}>
-                      {/* Both columns default to 0 on a connected account, so 0 here
-                          is "not read yet" far more often than a real count. */}
-                      <span><Users size={12} style={{ marginRight: 4, verticalAlign: "middle" }} /><MetricFigure value={followersValue(acct.followersCount)} format={formatNumber} /> {acct.platform === "YOUTUBE" ? "subscribers" : "followers"}</span>
-                      <span><Eye size={12} style={{ marginRight: 4, verticalAlign: "middle" }} /><MetricFigure value={avgViewsValue(acct.avgViews)} format={formatNumber} /> avg views</span>
-                    </div>
-                    {/* The account's own statistics are read daily (plan A6); one
-                        entered by hand has never been read, and says so. */}
-                    <div style={{ marginBottom: 6 }}>
-                      <AgeLabel at={acct.statsSyncedAt ?? null} field="account" prefix="Read" source="Connected account" never="never read by us" />
-                    </div>
-                    {/* "Connected" only for a creator's own connection; a handle the
-                        agency typed in was added, nobody connected anything. */}
-                    <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-subtle)" }}>
-                      {acct.addedByHand ? "Added" : "Connected"} {formatDateAbs(acct.createdAt)}
-                    </div>
+                    {(() => {
+                      const followers = followersValue(acct.followersCount);
+                      const avgViews = avgViewsValue(acct.avgViews);
+                      const figures = [
+                        { key: "followers", icon: Users, label: acct.platform === "YOUTUBE" ? "Subscribers" : "Followers", value: followers },
+                        { key: "views", icon: Eye, label: "Avg views", value: avgViews },
+                      ].filter((f) => !isUnknownMetric(f.value));
+                      const firstUnknown = [followers, avgViews].find(isUnknownMetric);
+                      return (
+                        <>
+                          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                            <PlatformTile platform={acct.platform} size={40} />
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <div style={{ fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)" }}>
+                                {platformLabel(acct.platform)}
+                              </div>
+                              <div style={{ fontWeight: 700, fontSize: "var(--cc-t-15)", color: "var(--cc-text)", overflowWrap: "anywhere" }}>
+                                {acct.handle.startsWith("@") ? acct.handle : `@${acct.handle}`}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => handleRemoveSocial(acct.id)}
+                              disabled={removingSocial === acct.id}
+                              aria-busy={removingSocial === acct.id}
+                              aria-label={`Remove ${acct.platform} account ${acct.handle}`}
+                              style={{
+                                alignSelf: "flex-start",
+                                background: "none", border: "none",
+                                cursor: removingSocial === acct.id ? "not-allowed" : "pointer",
+                                opacity: removingSocial === acct.id ? 0.5 : 1,
+                                padding: 4,
+                                color: "var(--cc-text-muted)", borderRadius: 4,
+                              }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                          {/* Only the figures we have. Both columns default to 0 on a
+                              connected account, so an unknown one is left out and the
+                              reason is said once, instead of a row of dashes. */}
+                          {figures.length > 0 ? (
+                            <div style={{ display: "grid", gridTemplateColumns: `repeat(${figures.length}, minmax(0, 1fr))`, gap: 8, marginTop: 14 }}>
+                              {figures.map(({ key, icon: Icon, label, value }) => (
+                                <div key={key} style={{ padding: "10px 12px", borderRadius: 10, background: "var(--cc-bg)", border: "1px solid var(--cc-border)" }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
+                                    <Icon size={12} aria-hidden="true" /> {label}
+                                  </div>
+                                  <div style={{ fontSize: "var(--cc-t-18)", fontWeight: 700, color: "var(--cc-text)", fontVariantNumeric: "tabular-nums", marginTop: 2 }}>
+                                    <MetricFigure value={value} format={formatNumber} breakable />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            firstUnknown && (
+                              <p style={{ margin: "14px 0 0", fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", lineHeight: 1.45 }}>
+                                {firstUnknown.reason}
+                              </p>
+                            )
+                          )}
+                          {/* The account's own statistics are read daily (plan A6); one
+                              entered by hand has never been read, and says so. "Connected"
+                              only for a creator's own connection; a handle the agency
+                              typed in was added, nobody connected anything. */}
+                          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px 16px", marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--cc-border)", fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                              <RefreshCw size={12} aria-hidden="true" />
+                              <AgeLabel at={acct.statsSyncedAt ?? null} field="account" prefix="Read" source="Connected account" never="never read by us" />
+                            </span>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                              {acct.addedByHand ? <Plus size={12} aria-hidden="true" /> : <Link2 size={12} aria-hidden="true" />}
+                              {acct.addedByHand ? "Added" : "Connected"} {formatDateAbs(acct.createdAt)}
+                            </span>
+                          </div>
+                        </>
+                      );
+                    })()}
                   </Card>
                 ))}
               </div>

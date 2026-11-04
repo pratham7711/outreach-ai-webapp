@@ -1,6 +1,8 @@
 import React from "react";
 import type { Metadata } from "next";
-import { LegalShell, LegalSection, LEGAL } from "@/components/LegalShell";
+import { MessageSquareOff, ShieldCheck, Unplug } from "lucide-react";
+import { LegalShell, LegalSection, LegalPlatform, LEGAL } from "@/components/LegalShell";
+import { PlatformTile } from "@/components/ui/PlatformTile";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
@@ -11,6 +13,11 @@ export default function PrivacyPage() {
   return (
     <LegalShell
       title="Privacy Policy"
+      highlights={[
+        { icon: ShieldCheck, text: "Connecting an account is always optional, and happens on the platform’s own consent screen." },
+        { icon: MessageSquareOff, text: "We never post on your behalf, and we never read direct messages." },
+        { icon: Unplug, text: "Disconnecting the account stops all further collection immediately." },
+      ]}
       intro={`This policy explains what ${LEGAL.name} collects, why we collect it, who we share it with, and how you can get it deleted. It covers both the campaign management application and any social accounts you choose to connect.`}
     >
       <LegalSection heading="Who we are">
@@ -25,24 +32,24 @@ export default function PrivacyPage() {
       <LegalSection heading="What we collect">
         <ul>
           <li>
-            <strong>Account data</strong> &mdash; your name, email address, hashed password, and the
+            <strong>Account data</strong>{" "}&mdash; your name, email address, hashed password, and the
             organisation you belong to.
           </li>
           <li>
-            <strong>Campaign data</strong> &mdash; campaigns, briefs, budgets, deliverables, creator
+            <strong>Campaign data</strong>{" "}&mdash; campaigns, briefs, budgets, deliverables, creator
             records, client records, and payout amounts that you or your team enter.
           </li>
           <li>
-            <strong>Connected platform data</strong> &mdash; when a creator connects a social
+            <strong>Connected platform data</strong>{" "}&mdash; when a creator connects a social
             account, the profile, posts and post insights described in the next section.
           </li>
           <li>
-            <strong>Public profile data</strong> &mdash; for creators an organisation adds to its
+            <strong>Public profile data</strong>{" "}&mdash; for creators an organisation adds to its
             roster or tracker, the numbers their public profile shows to anyone. See{" "}
             <a href="#public-lookups">Creators who have not connected an account</a>.
           </li>
           <li>
-            <strong>Technical data</strong> &mdash; server logs containing IP address, browser user
+            <strong>Technical data</strong>{" "}&mdash; server logs containing IP address, browser user
             agent, and timestamps, kept for security and debugging.
           </li>
         </ul>
@@ -60,11 +67,11 @@ export default function PrivacyPage() {
           messages.
         </p>
         <ul>
-          <li>
-            <strong>TikTok</strong> &mdash; with the <code>user.info.basic</code>{" "}permission we read
+          <LegalPlatform mark={<PlatformTile platform="TIKTOK" size={36} />}>
+            <strong>TikTok</strong>{" "}&mdash; with the <code>user.info.basic</code>{" "}permission we read
             the account&rsquo;s open ID, display name, and avatar. With{" "}
-            <code>user.info.profile</code> we read the profile link, bio description, and
-            verification status. With <code>user.info.stats</code> we read the follower, following,
+            <code>user.info.profile</code>{" "}we read the profile link, bio description, and
+            verification status. With <code>user.info.stats</code>{" "}we read the follower, following,
             and likes counts, which is how campaign fees are agreed against audience size. With{" "}
             <code>video.list</code>{" "}we read the account&rsquo;s public videos and their view, like,
             comment, and share counts. This is shown only to the campaign manager in the
@@ -72,18 +79,18 @@ export default function PrivacyPage() {
             and to the creator in their own creator portal.
             We do not access private or unpublished videos, we do not read direct messages, and we
             do not post, edit, or delete content.
-          </li>
-          <li>
-            <strong>Instagram</strong> &mdash; a professional (Business or Creator) account is
+          </LegalPlatform>
+          <LegalPlatform mark={<PlatformTile platform="INSTAGRAM" size={36} />}>
+            <strong>Instagram</strong>{" "}&mdash; a professional (Business or Creator) account is
             connected through Facebook Login.
             <ul>
               <li>
                 <em>Through Facebook Login</em>, via the Facebook Page the Instagram account is
-                linked to. With <code>pages_show_list</code> and{" "}
-                <code>pages_read_engagement</code> we find the Page and the Instagram account linked
-                to it. With <code>instagram_basic</code> we read the username, name, bio, profile
+                linked to. With <code>pages_show_list</code>{" "}and{" "}
+                <code>pages_read_engagement</code>{" "}we find the Page and the Instagram account linked
+                to it. With <code>instagram_basic</code>{" "}we read the username, name, bio, profile
                 picture, follower, following and post counts, and recent posts (caption, link,
-                image, date, likes and comments). With <code>instagram_manage_insights</code> we
+                image, date, likes and comments). With <code>instagram_manage_insights</code>{" "}we
                 read views, reach and shares on recent posts, and reach, views, shares and saves on
                 the posts the creator submits to a campaign. With the same permission we read the
                 account&rsquo;s insights for the last 28 days (accounts reached, views, accounts
@@ -101,9 +108,9 @@ export default function PrivacyPage() {
                 posts with <code>instagram_business_manage_insights</code>.
               </li>
             </ul>
-          </li>
-          <li>
-            <strong>Facebook Pages</strong> &mdash; with <code>pages_show_list</code> we list the
+          </LegalPlatform>
+          <LegalPlatform mark={<PlatformTile platform="FACEBOOK" size={36} />}>
+            <strong>Facebook Pages</strong>{" "}&mdash; with <code>pages_show_list</code>{" "}we list the
             Pages you manage so you can choose one. With <code>pages_read_engagement</code>{" "}we read
             that Page&rsquo;s name, username, link, about text, picture, follower count and verified
             status, and its recent posts with their text, date, link, picture, and like, comment and
@@ -112,20 +119,20 @@ export default function PrivacyPage() {
             them on My stats in your creator portal, and the organisation running your campaign can
             read them on that campaign&rsquo;s post. They are read from Facebook each time someone
             asks to see them and are never saved. With{" "}
-            <code>read_insights</code> we read how many views each post got.
-          </li>
-          <li>
-            <strong>Threads</strong> &mdash; with <code>threads_basic</code> we read the username,
+            <code>read_insights</code>{" "}we read how many views each post got.
+          </LegalPlatform>
+          <LegalPlatform mark={<PlatformTile platform="THREADS" size={36} />}>
+            <strong>Threads</strong>{" "}&mdash; with <code>threads_basic</code>{" "}we read the username,
             name, profile picture and bio, and recent posts (text, link, media and date). With{" "}
-            <code>threads_manage_insights</code> we read views, likes, replies, reposts and quotes on
+            <code>threads_manage_insights</code>{" "}we read views, likes, replies, reposts and quotes on
             those posts, and the follower count.
-          </li>
-          <li>
-            <strong>YouTube</strong> &mdash; with <code>youtube.readonly</code>{" "}we read the
+          </LegalPlatform>
+          <LegalPlatform mark={<PlatformTile platform="YOUTUBE" size={36} />}>
+            <strong>YouTube</strong>{" "}&mdash; with <code>youtube.readonly</code>{" "}we read the
             connected channel&rsquo;s name, handle, picture and description, its subscriber, view
             and video counts, and its recent videos with their title, date, views, likes and
             comments.
-          </li>
+          </LegalPlatform>
         </ul>
         <p>
           Apart from the Instagram follower demographics above, which Instagram reports as
@@ -148,22 +155,22 @@ export default function PrivacyPage() {
           anyone, and only on the platforms below:
         </p>
         <ul>
-          <li>
-            <strong>Instagram</strong> &mdash; through Meta&rsquo;s Business Discovery API, which
+          <LegalPlatform mark={<PlatformTile platform="INSTAGRAM" size={36} />}>
+            <strong>Instagram</strong>{" "}&mdash; through Meta&rsquo;s Business Discovery API, which
             answers for Business and Creator accounts only: the username, name, biography, website,
             follower, following and post counts, profile picture, and recent public posts with their
             public view, like and comment counts. The organisation reads these through its own
             connected Instagram professional account. Personal and private accounts return
             nothing.
-          </li>
-          <li>
-            <strong>YouTube</strong> &mdash; through the YouTube Data API: the channel&rsquo;s public
+          </LegalPlatform>
+          <LegalPlatform mark={<PlatformTile platform="YOUTUBE" size={36} />}>
+            <strong>YouTube</strong>{" "}&mdash; through the YouTube Data API: the channel&rsquo;s public
             name, picture and subscriber count, and the public statistics of its recent videos.
-          </li>
-          <li>
-            <strong>TikTok</strong> &mdash; from the public profile page: the follower count and
+          </LegalPlatform>
+          <LegalPlatform mark={<PlatformTile platform="TIKTOK" size={36} />}>
+            <strong>TikTok</strong>{" "}&mdash; from the public profile page: the follower count and
             the public counts on recent videos.
-          </li>
+          </LegalPlatform>
         </ul>
         <p>
           We also read the public numbers on individual post links that a creator or an organisation
@@ -279,7 +286,7 @@ export default function PrivacyPage() {
           data on the Account screen deletes the login and every connected account. Removing{" "}
           {LEGAL.name} from Facebook, Instagram or Threads settings sends us a deletion request that
           deletes the linked account the moment it arrives. All three routes are described on the{" "}
-          <a href="/data-deletion">Data deletion</a> page.
+          <a href="/data-deletion">Data deletion</a>{" "}page.
         </p>
       </LegalSection>
 

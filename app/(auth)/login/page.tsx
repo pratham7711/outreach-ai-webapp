@@ -8,6 +8,7 @@ import { Input } from "@pratham7711/ui";
 import { Button } from "@/components/ds";
 import { Eye, EyeOff } from "lucide-react";
 import { BRAND } from "@/lib/brand";
+import { AUTH_BACKDROP, AuthBrand, AuthPlatforms } from "@/components/auth/AuthBrand";
 import { CALLBACK_PARAM, safeCallbackPath } from "@/lib/callbackPath";
 
 export default function LoginPage() {
@@ -99,7 +100,7 @@ export default function LoginPage() {
         alignItems: "center",
         justifyContent: "center",
         padding: "0 16px",
-        background: "var(--cc-bg)",
+        background: AUTH_BACKDROP,
         position: "relative",
         overflow: "hidden",
       }}
@@ -111,15 +112,8 @@ export default function LoginPage() {
         transition={{ duration: 0.5, ease: "easeOut" }}
       >
         {/* Logo */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center", marginBottom: 32 }}>
-          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <circle cx="12" cy="12" r="10" stroke="var(--cc-primary)" strokeWidth="2.5"/>
-            <circle cx="12" cy="12" r="5.5" stroke="var(--cc-primary)" strokeWidth="2"/>
-            <circle cx="12" cy="12" r="2" fill="var(--cc-primary)"/>
-          </svg>
-          <span style={{ fontWeight: 800, fontSize: 20, color: "var(--cc-text)", letterSpacing: "-0.02em" }}>
-            {BRAND.name}
-          </span>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 28 }}>
+          <AuthBrand />
         </div>
 
         {/* Card */}
@@ -331,6 +325,9 @@ export default function LoginPage() {
             </Link>
           </p>
         </motion.div>
+        <div style={{ marginTop: 24 }}>
+          <AuthPlatforms />
+        </div>
       </motion.div>
     </div>
   );

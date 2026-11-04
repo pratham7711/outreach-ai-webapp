@@ -1,4 +1,7 @@
 import Link from "next/link";
+import type { LucideIcon } from "lucide-react";
+import { ArrowLeft, CalendarClock, Coins, FolderOpen, ListChecks, PenLine, Smartphone, Timer, Users, Wallet } from "lucide-react";
+import { PlatformTile } from "@/components/ui/PlatformTile";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { fetchMarketplaceDetail } from "@/lib/marketplace/public";
@@ -110,7 +113,7 @@ export default async function CampaignLandingPage({
       {/* Hero / org branding */}
       <div
         style={{
-          background: "linear-gradient(135deg, var(--cc-accent-bg) 0%, color-mix(in srgb, var(--cc-accent-bg) 50%, var(--cc-card)) 45%, var(--cc-card) 100%)",
+          background: "radial-gradient(70% 140% at 0% 0%, var(--cc-landing-glow-a), transparent 70%), radial-gradient(60% 130% at 100% 0%, var(--cc-landing-glow-b), transparent 70%), var(--cc-card)",
           borderBottom: "1px solid var(--cc-border)",
         }}
       >
@@ -121,11 +124,14 @@ export default async function CampaignLandingPage({
               fontSize: 13,
               color: "var(--cc-text-muted)",
               textDecoration: "none",
-              display: "inline-block",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
               marginBottom: 20,
             }}
           >
-            ← Back to marketplace
+            <ArrowLeft size={14} aria-hidden="true" />
+            Back to marketplace
           </Link>
 
           <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
@@ -189,10 +195,19 @@ export default async function CampaignLandingPage({
             {/* A campaign stopped before its deadline shows no date: "Submit
                 by" would invite a post the portal refuses. */}
             {deadline && (open || deadlinePassed) && (
-              <span style={chipStyle}>{open ? `Submit by ${deadline}` : `Submissions closed ${deadline}`}</span>
+              <span style={chipStyle}>
+                <CalendarClock size={14} aria-hidden="true" style={chipIconStyle} />
+                {open ? `Submit by ${deadline}` : `Submissions closed ${deadline}`}
+              </span>
             )}
-            <span style={chipStyle}>{formatCount(campaign.creatorCount)} {campaign.creatorCount === 1 ? "creator" : "creators"} joined</span>
-            <span style={chipStyle}>Auto-approves in {campaign.autoApproveHours}h</span>
+            <span style={chipStyle}>
+              <Users size={14} aria-hidden="true" style={chipIconStyle} />
+              {formatCount(campaign.creatorCount)} {campaign.creatorCount === 1 ? "creator" : "creators"} joined
+            </span>
+            <span style={chipStyle}>
+              <Timer size={14} aria-hidden="true" style={chipIconStyle} />
+              Auto-approves in {campaign.autoApproveHours}h
+            </span>
           </div>
         </div>
       </div>
@@ -232,7 +247,7 @@ export default async function CampaignLandingPage({
         )}
         {/* Budget bar */}
         {SHOW_MONEY && (budget.capMajor != null || budget.earnedMajor > 0) && (
-          <Section title="Reward pool">
+          <Section title="Reward pool" icon={Wallet} tone="green">
             <div
               style={{
                 display: "flex",
@@ -278,10 +293,11 @@ export default async function CampaignLandingPage({
 
         {/* Rate table */}
         {!SHOW_MONEY && campaign.rates.length > 0 && (
-          <Section title="Platforms">
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          <Section title="Platforms" icon={Smartphone} tone="blue">
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
               {campaign.rates.map((r) => (
-                <span key={r.platform} style={chipStyle}>
+                <span key={r.platform} style={platformChipStyle}>
+                  <PlatformTile platform={r.platform} size={28} />
                   {PLATFORM_META[r.platform.toUpperCase()]?.label ?? r.platform}
                 </span>
               ))}
@@ -290,7 +306,7 @@ export default async function CampaignLandingPage({
         )}
 
         {SHOW_MONEY && campaign.rates.length > 0 && (
-          <Section title="Payout rates">
+          <Section title="Payout rates" icon={Coins} tone="green">
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {campaign.rates.map((r) => {
                 const meta = PLATFORM_META[r.platform.toUpperCase()] ?? {
@@ -352,19 +368,19 @@ export default async function CampaignLandingPage({
 
         {/* Brief */}
         {campaign.guidelines && (
-          <Section title="Creative brief">
+          <Section title="Creative brief" icon={PenLine} tone="violet">
             <p style={briefTextStyle}>{campaign.guidelines}</p>
           </Section>
         )}
 
         {campaign.requirements && (
-          <Section title="Requirements">
+          <Section title="Requirements" icon={ListChecks} tone="pink">
             <p style={briefTextStyle}>{campaign.requirements}</p>
           </Section>
         )}
 
         {campaign.contentAssetsUrl && (
-          <Section title="Assets">
+          <Section title="Assets" icon={FolderOpen} tone="orange">
             <a
               href={campaign.contentAssetsUrl}
               target="_blank"
@@ -539,7 +555,19 @@ export default async function CampaignLandingPage({
 
 /* ── Local building blocks ─────────────────────────────────────────────────── */
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+type Tone = "blue" | "violet" | "pink" | "green" | "orange";
+
+function Section({
+  title,
+  icon: Icon,
+  tone = "blue",
+  children,
+}: {
+  title: string;
+  icon?: LucideIcon;
+  tone?: Tone;
+  children: React.ReactNode;
+}) {
   return (
     <div
       style={{
@@ -552,12 +580,32 @@ function Section({ title, children }: { title: string; children: React.ReactNode
     >
       <h2
         style={{
-          fontSize: 15,
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          fontSize: 16,
           fontWeight: 700,
           color: "var(--cc-text)",
           margin: "0 0 16px",
         }}
       >
+        {Icon && (
+          <span
+            aria-hidden="true"
+            style={{
+              display: "inline-grid",
+              placeItems: "center",
+              flex: "none",
+              width: 32,
+              height: 32,
+              borderRadius: 9,
+              background: `var(--cc-landing-${tone}-soft)`,
+              color: `var(--cc-landing-${tone}-ink)`,
+            }}
+          >
+            <Icon size={17} />
+          </span>
+        )}
         {title}
       </h2>
       {children}
@@ -566,13 +614,31 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 const chipStyle: React.CSSProperties = {
-  fontSize: 12,
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+  fontSize: 13,
   fontWeight: 500,
-  color: "var(--cc-text-muted)",
+  color: "var(--cc-text)",
   background: "var(--cc-card)",
   border: "1px solid var(--cc-border)",
   borderRadius: 20,
   padding: "5px 12px",
+};
+
+const chipIconStyle: React.CSSProperties = { color: "var(--cc-landing-blue-ink)", flex: "none" };
+
+const platformChipStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 10,
+  fontSize: 14,
+  fontWeight: 600,
+  color: "var(--cc-text)",
+  background: "var(--cc-bg)",
+  border: "1px solid var(--cc-border)",
+  borderRadius: 12,
+  padding: "6px 14px 6px 6px",
 };
 
 const urgentChipStyle: React.CSSProperties = {

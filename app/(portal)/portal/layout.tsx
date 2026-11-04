@@ -84,6 +84,9 @@ function PortalNav() {
       >
         <div style={{ display: "flex", alignItems: "center", gap: 28, minWidth: 0 }}>
           <Link href="/portal/dashboard" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
+            <span className="lp-brand-mark" aria-hidden style={{ width: 28, height: 28, fontSize: 11 }}>
+              {BRAND.short}
+            </span>
             <span style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", whiteSpace: "nowrap" }}>
               {BRAND.name}
             </span>
