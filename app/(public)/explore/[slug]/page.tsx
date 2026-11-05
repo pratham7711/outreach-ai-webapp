@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
-import { ArrowLeft, CalendarClock, Coins, FolderOpen, ListChecks, PenLine, Smartphone, Timer, Users, Wallet } from "lucide-react";
+import { ArrowLeft, CalendarClock, Coins, FolderOpen, ListChecks, PenLine, Smartphone, Timer, Trophy, Users, Wallet } from "lucide-react";
 import { PlatformTile } from "@/components/ui/PlatformTile";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
@@ -402,7 +402,7 @@ export default async function CampaignLandingPage({
 
         {/* Leaderboard */}
         {leaderboard.length > 0 && (
-          <Section title="Top creators">
+          <Section title="Top creators" icon={Trophy} tone="blue">
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {leaderboard.map((entry, i) => {
                 const displayHandle = entry.handle.replace(/^@+/, "");

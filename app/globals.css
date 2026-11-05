@@ -11902,4 +11902,5 @@ a.cc-platform-chip[data-problem]:hover {
   .legal-body { padding: 28px 20px 72px; }
   .legal-prose { font-size: var(--cc-t-15); }
   .legal-prose code { white-space: normal; overflow-wrap: anywhere; }
+  .legal-prose ul > li.legal-platform { grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 14px; }
 }
