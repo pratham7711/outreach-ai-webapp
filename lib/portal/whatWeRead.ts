@@ -62,16 +62,16 @@ export const WHAT_WE_READ: Record<OAuthPlatform, PermissionRead[]> = {
   ],
   /* lib/platforms/tiktokDisplay.ts: USER_FIELDS and VIDEO_FIELDS. */
   tiktok: [
-    { scope: "user.info.basic", reads: "Your TikTok display name and profile picture." },
+    { scope: "user.info.basic", reads: "Your TikTok account ID, display name and profile picture." },
     {
       scope: "user.info.profile",
-      reads: "Your username, bio, profile link and whether you are verified.",
+      reads: "Your username, profile link, bio and whether you are verified.",
     },
-    { scope: "user.info.stats", reads: "Your follower, following, like and video counts." },
+    { scope: "user.info.stats", reads: "Your follower, following, total likes and video counts." },
     {
       scope: "video.list",
       reads:
-        "Your public videos: title, description, cover image, link, date, and their view, like, comment and share counts.",
+        "Your public videos: each video's ID, title, description, length, cover image, share link, embed link and date posted, and their view, like, comment and share counts.",
     },
   ],
   /* lib/platforms/youtube.ts: channels (snippet, statistics, contentDetails)

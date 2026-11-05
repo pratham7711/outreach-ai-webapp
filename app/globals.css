@@ -11681,7 +11681,7 @@ a.cc-platform-chip[data-problem]:hover {
   color: var(--cc-landing-muted);
 }
 .legal-intro {
-  max-width: 68ch;
+  max-width: 33em;
   margin: 18px 0 0;
   font-size: var(--cc-t-16);
   line-height: 1.7;
@@ -11767,7 +11767,7 @@ a.cc-platform-chip[data-problem]:hover {
 .legal-toc a:hover { color: var(--cc-landing-blue-ink); background: var(--cc-landing-blue-soft); }
 .legal-toc a:focus-visible { outline: 2px solid var(--cc-landing-blue); outline-offset: 1px; }
 
-.legal-article { min-width: 0; max-width: 760px; }
+.legal-article { min-width: 0; max-width: 640px; }
 .legal-section {
   scroll-margin-top: 84px;
   padding: 0 0 36px;
@@ -11787,11 +11787,13 @@ a.cc-platform-chip[data-problem]:hover {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  font-size: var(--cc-t-15);
+  font-size: var(--cc-t-16);
   line-height: 1.75;
   color: var(--cc-text);
 }
-.legal-prose p { margin: 0; max-width: 72ch; }
+/* 33em, not 72ch: Satoshi's "0" is wide, so 72ch let lines run to about
+   110 characters. 33em holds about 75. */
+.legal-prose p { margin: 0; max-width: 33em; }
 .legal-prose strong { font-weight: 700; color: var(--cc-text); }
 .legal-prose em { font-style: normal; font-weight: 600; color: var(--cc-landing-violet-ink); }
 .legal-prose a {
@@ -11801,7 +11803,8 @@ a.cc-platform-chip[data-problem]:hover {
   text-underline-offset: 3px;
 }
 .legal-prose a:hover { text-decoration-thickness: 2px; }
-.legal-prose code {
+.legal-prose code,
+.cc-scope-chip {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.84em;
   font-weight: 600;
@@ -11811,6 +11814,8 @@ a.cc-platform-chip[data-problem]:hover {
   color: var(--cc-landing-blue-ink);
   white-space: nowrap;
 }
+/* The same chip on My accounts sits in 13px text, where 0.84em is under 11px. */
+.cc-scope-chip { font-size: var(--cc-t-12); }
 .legal-prose ul,
 .legal-prose ol {
   margin: 0;
@@ -11824,7 +11829,7 @@ a.cc-platform-chip[data-problem]:hover {
 .legal-prose ol > li {
   position: relative;
   padding-left: 22px;
-  max-width: 72ch;
+  max-width: calc(33em + 22px);
 }
 .legal-prose ul > li::before {
   content: "";
@@ -11869,7 +11874,8 @@ a.cc-platform-chip[data-problem]:hover {
   grid-template-columns: auto minmax(0, 1fr);
   gap: 14px;
   padding: 16px;
-  max-width: none;
+  /* Body text at the same 33em measure: the 36px mark, the gap, padding and border. */
+  max-width: calc(33em + 84px);
   background: var(--cc-card);
   border: 1px solid var(--cc-border);
   border-radius: 14px;

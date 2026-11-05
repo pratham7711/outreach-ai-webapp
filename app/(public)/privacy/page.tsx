@@ -69,13 +69,14 @@ export default function PrivacyPage() {
         <ul>
           <LegalPlatform mark={<PlatformTile platform="TIKTOK" size={36} />}>
             <strong>TikTok</strong>{" "}&mdash; with the <code>user.info.basic</code>{" "}permission we read
-            the account&rsquo;s open ID, display name, and avatar. With{" "}
-            <code>user.info.profile</code>{" "}we read the profile link, bio description, and
-            verification status. With <code>user.info.stats</code>{" "}we read the follower, following,
-            and likes counts, which is how campaign fees are agreed against audience size. With{" "}
-            <code>video.list</code>{" "}we read the account&rsquo;s public videos and their view, like,
-            comment, and share counts. This is shown only to the campaign manager in the
-            organisation that added that creator, on that organisation&rsquo;s campaign dashboard,
+            the account ID, display name and profile picture. With{" "}
+            <code>user.info.profile</code>{" "}we read the username, profile link, bio and whether the
+            account is verified. With <code>user.info.stats</code>{" "}we read the follower, following,
+            total likes and video counts, which is how campaign fees are agreed against audience
+            size. With <code>video.list</code>{" "}we read the account&rsquo;s public videos: each
+            video&rsquo;s ID, title, description, length, cover image, share link, embed link and date
+            posted, and their view, like, comment and share counts. This is shown only to the
+            campaign manager in the organisation that added that creator, on that organisation&rsquo;s campaign dashboard,
             and to the creator in their own creator portal.
             We do not access private or unpublished videos, we do not read direct messages, and we
             do not post, edit, or delete content.
@@ -137,9 +138,9 @@ export default function PrivacyPage() {
         <p>
           Apart from the Instagram follower demographics above, which Instagram reports as
           totals per country, age band and gender and never per person, we do not read audience
-          demographics from any platform. The creator portal&rsquo;s My
-          accounts screen lists the same reads, permission by permission, beside each Connect
-          button.
+          demographics from any platform. The creator portal&rsquo;s My accounts screen also lists
+          what each permission reads, under &ldquo;What we read&rdquo; on the card of each platform a
+          creator can connect there.
         </p>
         <p>
           Access tokens are encrypted at rest with AES-256-GCM and are never exposed to other

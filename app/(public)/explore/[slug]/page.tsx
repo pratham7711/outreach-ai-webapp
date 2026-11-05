@@ -247,7 +247,7 @@ export default async function CampaignLandingPage({
         )}
         {/* Budget bar */}
         {SHOW_MONEY && (budget.capMajor != null || budget.earnedMajor > 0) && (
-          <Section title="Reward pool" icon={Wallet} tone="green">
+          <Section title="Reward pool" icon={Wallet}>
             <div
               style={{
                 display: "flex",
@@ -293,7 +293,7 @@ export default async function CampaignLandingPage({
 
         {/* Rate table */}
         {!SHOW_MONEY && campaign.rates.length > 0 && (
-          <Section title="Platforms" icon={Smartphone} tone="blue">
+          <Section title="Platforms" icon={Smartphone}>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
               {campaign.rates.map((r) => (
                 <span key={r.platform} style={platformChipStyle}>
@@ -306,7 +306,7 @@ export default async function CampaignLandingPage({
         )}
 
         {SHOW_MONEY && campaign.rates.length > 0 && (
-          <Section title="Payout rates" icon={Coins} tone="green">
+          <Section title="Payout rates" icon={Coins}>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {campaign.rates.map((r) => {
                 const meta = PLATFORM_META[r.platform.toUpperCase()] ?? {
@@ -368,19 +368,19 @@ export default async function CampaignLandingPage({
 
         {/* Brief */}
         {campaign.guidelines && (
-          <Section title="Creative brief" icon={PenLine} tone="violet">
+          <Section title="Creative brief" icon={PenLine}>
             <p style={briefTextStyle}>{campaign.guidelines}</p>
           </Section>
         )}
 
         {campaign.requirements && (
-          <Section title="Requirements" icon={ListChecks} tone="pink">
+          <Section title="Requirements" icon={ListChecks}>
             <p style={briefTextStyle}>{campaign.requirements}</p>
           </Section>
         )}
 
         {campaign.contentAssetsUrl && (
-          <Section title="Assets" icon={FolderOpen} tone="orange">
+          <Section title="Assets" icon={FolderOpen}>
             <a
               href={campaign.contentAssetsUrl}
               target="_blank"
@@ -402,7 +402,7 @@ export default async function CampaignLandingPage({
 
         {/* Leaderboard */}
         {leaderboard.length > 0 && (
-          <Section title="Top creators" icon={Trophy} tone="blue">
+          <Section title="Top creators" icon={Trophy}>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {leaderboard.map((entry, i) => {
                 const displayHandle = entry.handle.replace(/^@+/, "");
@@ -555,17 +555,13 @@ export default async function CampaignLandingPage({
 
 /* ── Local building blocks ─────────────────────────────────────────────────── */
 
-type Tone = "blue" | "violet" | "pink" | "green" | "orange";
-
 function Section({
   title,
   icon: Icon,
-  tone = "blue",
   children,
 }: {
   title: string;
   icon?: LucideIcon;
-  tone?: Tone;
   children: React.ReactNode;
 }) {
   return (
@@ -599,8 +595,9 @@ function Section({
               width: 32,
               height: 32,
               borderRadius: 9,
-              background: `var(--cc-landing-${tone}-soft)`,
-              color: `var(--cc-landing-${tone}-ink)`,
+              background: "var(--cc-bg)",
+              border: "1px solid var(--cc-border)",
+              color: "var(--cc-text-muted)",
             }}
           >
             <Icon size={17} />

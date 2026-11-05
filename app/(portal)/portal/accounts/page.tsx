@@ -11,7 +11,7 @@ import { OAUTH_PLATFORMS, toPlatformEnum, type OAuthPlatform } from "@/lib/oauth
 import { WHAT_WE_NEVER_DO, WHAT_WE_READ } from "@/lib/portal/whatWeRead";
 import { Button, useConfirm } from "@/components/ds";
 import { PlatformTile } from "@/components/ui/PlatformTile";
-import { YouTubeConnectAgreement } from "@/components/LegalLinks";
+import { TikTokConnectAgreement, YouTubeConnectAgreement } from "@/components/LegalLinks";
 import {
   Banner,
   ButtonLink,
@@ -100,8 +100,10 @@ function readConnectResult(): { tone: "success" | "danger"; text: string } | nul
 
 /* A button rather than <details>/<summary>: the phone touch rule in
    globals.css (rsp-touch, 44px) reaches buttons and links, not a summary. */
-function WhatWeRead({ platform }: { platform: OAuthPlatform }) {
-  const [open, setOpen] = useState(false);
+/* Open by default until the platform is connected: before Connect is when a
+   creator (and a platform reviewer) needs to see what the permissions read. */
+function WhatWeRead({ platform, defaultOpen }: { platform: OAuthPlatform; defaultOpen: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
   const id = `what-we-read-${platform}`;
   return (
     <>
@@ -128,10 +130,11 @@ function WhatWeRead({ platform }: { platform: OAuthPlatform }) {
         What we read
       </button>
       {open && (
-        <ul id={id} style={{ flex: "1 1 100%", minWidth: 0, margin: "0 0 2px", paddingLeft: 18, display: "flex", flexDirection: "column", gap: 6 }}>
+        <ul id={id} style={{ flex: "1 1 100%", minWidth: 0, margin: "0 0 2px", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }}>
           {WHAT_WE_READ[platform].map((r) => (
-            <li key={r.scope} style={{ fontSize: 13, color: "var(--cc-text)", lineHeight: 1.5 }}>
-              {r.reads} <span style={{ color: "var(--cc-text-muted)", fontSize: 12 }}>({r.scope.replace("https://www.googleapis.com/auth/", "")})</span>
+            <li key={r.scope} style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4, fontSize: 13, color: "var(--cc-text)", lineHeight: 1.5 }}>
+              <code className="cc-scope-chip">{r.scope.replace("https://www.googleapis.com/auth/", "")}</code>
+              <span>{r.reads}</span>
             </li>
           ))}
         </ul>
@@ -268,9 +271,12 @@ function PlatformCard({
             )}
           </>
         )}
-        <WhatWeRead platform={platform} />
+        <WhatWeRead platform={platform} defaultOpen={accounts.length === 0} />
         {platform === "youtube" && !gated && canConnect && (
           <YouTubeConnectAgreement style={{ flex: "1 1 100%" }} />
+        )}
+        {platform === "tiktok" && !gated && canConnect && (
+          <TikTokConnectAgreement style={{ flex: "1 1 100%" }} />
         )}
       </div>
     </Card>

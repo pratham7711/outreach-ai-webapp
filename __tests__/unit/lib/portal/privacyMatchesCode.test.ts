@@ -47,6 +47,62 @@ describe("privacy policy matches what the code reads", () => {
   });
 });
 
+/*
+ * TikTok returns only the fields a request names, so the field lists in
+ * lib/platforms/tiktokDisplay.ts are exactly what is read. Every one of them
+ * must be described in the policy's TikTok entry and on My accounts; a field
+ * added to a request without a phrase here fails until it is disclosed.
+ */
+describe("TikTok fields the code requests are disclosed", () => {
+  const display = read("lib/platforms/tiktokDisplay.ts");
+  const fieldsOf = (name: string) => {
+    const list = display.match(new RegExp(`const ${name} = \\[([\\s\\S]*?)\\]`));
+    if (!list) throw new Error(`${name} not found in tiktokDisplay.ts`);
+    return [...list[1].matchAll(/"([a-z_]+)"/g)].map((m) => m[1]);
+  };
+  const counts = "view, like, comment and share counts";
+  const PHRASE: Record<string, string> = {
+    open_id: "account ID",
+    username: "username",
+    display_name: "display name",
+    avatar_url: "profile picture",
+    bio_description: "bio",
+    profile_deep_link: "profile link",
+    is_verified: "verified",
+    follower_count: "follower",
+    following_count: "following",
+    likes_count: "total likes",
+    video_count: "video counts",
+    id: "ID",
+    title: "title",
+    video_description: "description",
+    duration: "length",
+    cover_image_url: "cover image",
+    share_url: "share link",
+    embed_link: "embed link",
+    create_time: "date posted",
+    view_count: counts,
+    like_count: counts,
+    comment_count: counts,
+    share_count: counts,
+  };
+  const fields = [...new Set([...fieldsOf("USER_FIELDS"), ...fieldsOf("VIDEO_FIELDS")])];
+  const start = privacy.indexOf('platform="TIKTOK"');
+  const policyEntry = privacy.slice(start, privacy.indexOf("</LegalPlatform>", start)).replace(/\s+/g, " ");
+  const inApp = WHAT_WE_READ.tiktok.map((r) => r.reads).join(" ");
+
+  it("finds the field lists", () => {
+    expect(fields.length).toBeGreaterThan(10);
+  });
+
+  it.each(fields)("describes %s in the policy and on My accounts", (field) => {
+    const phrase = PHRASE[field];
+    expect(phrase).toBeDefined();
+    expect(policyEntry).toContain(phrase);
+    expect(inApp).toContain(phrase);
+  });
+});
+
 describe("data deletion page", () => {
   it.each([
     ["Disconnect", /Disconnect one account/],

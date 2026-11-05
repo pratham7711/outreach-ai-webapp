@@ -66,3 +66,27 @@ export function YouTubeConnectAgreement({ style }: { style?: React.CSSProperties
     </p>
   );
 }
+
+/**
+ * The agreement line under a Connect TikTok button: the policies one tap away
+ * at the moment of consent, with a direct link to the policy's TikTok section.
+ */
+export function TikTokConnectAgreement({ style }: { style?: React.CSSProperties }) {
+  return (
+    <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: "var(--cc-text-muted)", ...style }}>
+      By connecting, you agree to our{" "}
+      <Link href="/terms" style={LINK_STYLE}>
+        Terms
+      </Link>{" "}
+      and{" "}
+      <Link href="/privacy" style={LINK_STYLE}>
+        Privacy Policy
+      </Link>
+      . See{" "}
+      <Link href="/privacy#tiktok-data-handling" style={LINK_STYLE}>
+        how we handle TikTok data
+      </Link>
+      .
+    </p>
+  );
+}
