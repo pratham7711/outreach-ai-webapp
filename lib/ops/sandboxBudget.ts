@@ -43,8 +43,10 @@ import { opsDb, opsTablesReady } from "./opsTables";
  */
 
 export const DEFAULT_SANDBOX_DAILY_CAP = 600;
-/** Vercel's default when a caller passes no resources (tiktokExit's note). */
-export const DEFAULT_SANDBOX_VCPUS = 2;
+/** Every caller only runs curl, which uses seconds of CPU in a minutes-long
+ *  life, and memory bills for the whole life at 2 GB per vCPU. Vercel's own
+ *  default is 2; a caller that needs more passes `resources`. */
+export const DEFAULT_SANDBOX_VCPUS = 1;
 
 /** What callers pass: Sandbox.create's own options, with the lifetime required. */
 export type SandboxParams = NonNullable<Parameters<typeof Sandbox.create>[0]> & { timeout: number };
@@ -184,6 +186,7 @@ export async function createSandbox(params: SandboxParams, caller: string): Prom
     throw new SandboxCapError(used ?? cap, cap);
   }
   const sandbox = await Sandbox.create({
+    resources: { vcpus: DEFAULT_SANDBOX_VCPUS },
     ...params,
     /* Whatever the caller passed: a persistent stop snapshots the whole
        filesystem and bills it for 30 days, and nothing here keeps state. */

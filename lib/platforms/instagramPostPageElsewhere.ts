@@ -56,6 +56,7 @@ async function readIn(region: string, shortcode: string): Promise<RegionPageRead
         "curl",
         [
           "-sL",
+          "--compressed",
           "--max-time",
           String(CURL_SECONDS),
           "-A",

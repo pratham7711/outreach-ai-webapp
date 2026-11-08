@@ -75,6 +75,7 @@ export function openSandboxProfileFetcher(): SandboxProfileFetcher {
           "curl",
           [
             "-sL",
+            "--compressed",
             "--max-time",
             "20",
             "-A",
@@ -112,6 +113,7 @@ export function openSandboxProfileFetcher(): SandboxProfileFetcher {
           "curl",
           [
             "-sL",
+            "--compressed",
             "--max-time",
             "25",
             "-A",
@@ -143,6 +145,7 @@ export function openSandboxProfileFetcher(): SandboxProfileFetcher {
           "curl",
           [
             "-sL",
+            "--compressed",
             "--max-time",
             "25",
             "-A",

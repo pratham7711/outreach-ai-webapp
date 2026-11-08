@@ -9,13 +9,13 @@
  *
  * Minutes already taken, for whoever adds the next one (plan §14 rule 1 keeps
  * releases away from them): :00 every 6 h and daily at 04:00 / 05:00, 04:20 and
- * 05:20 daily (the second only finishes what the first ran out of time for), :10 and
- * :12 and :13 hourly, :15 every 6 h, :30 every 2 h and at 00:30, :40 hourly.
- * The Instagram post pass sits at :13, inside the window :10 and :12 have already
- * woken Neon for. The canary
- * runs at :44, inside the database's awake window from the :40 reader rather
- * than waking Neon a fifth time an hour; the weekly meter at 03:14 on Monday,
- * after the :10 and :12 jobs have woken it.
+ * 05:20 daily (the second only finishes what the first ran out of time for), :10,
+ * :11, :12, :13 and :16 hourly, :15 every 6 h, :30 every 2 h and at 00:30.
+ * Every hourly job sits in the one window :10 opens: each separate window costs
+ * a Neon wake plus its 5-minute suspend tail, every hour (measured 2026-11: the
+ * old :40/:44 pair was half of production's ~73 wakes a day). The canary runs
+ * last, at :16, so the jobs it judges have started; the weekly meter at 03:14 on
+ * Monday, after the :10 and :12 jobs have woken it.
  */
 export const CRON_JOBS = [
   { job: "sync-posts", path: "/api/cron/sync-posts", schedule: "0 */6 * * *", label: "Post metric sync" },
@@ -25,12 +25,12 @@ export const CRON_JOBS = [
   { job: "snapshot-song-streams", path: "/api/cron/snapshot-song-streams", schedule: "20 4,5 * * *", label: "Spotify streams (daily)" },
   { job: "sync-trackers", path: "/api/cron/sync-trackers", schedule: "15 */6 * * *", label: "Sound trackers" },
   { job: "sync-creator-trackers", path: "/api/cron/sync-creator-trackers", schedule: "30 */2 * * *", label: "Creator trackers (legacy sweep)" },
-  { job: "read-creator-trackers", path: "/api/cron/read-creator-trackers", schedule: "40 * * * *", label: "Creator trackers (reader v2)" },
+  { job: "read-creator-trackers", path: "/api/cron/read-creator-trackers", schedule: "11 * * * *", label: "Creator trackers (reader v2)" },
   { job: "refresh-creator-avatars", path: "/api/cron/refresh-creator-avatars", schedule: "12 * * * *", label: "Creator avatars" },
   { job: "refresh-roster-profiles", path: "/api/cron/refresh-roster-profiles", schedule: "10 * * * *", label: "Roster profiles" },
   { job: "snapshot-org-views", path: "/api/cron/snapshot-org-views", schedule: "30 0 * * *", label: "Org view snapshots" },
   { job: "refresh-platform-tokens", path: "/api/cron/refresh-platform-tokens", schedule: "0 5 * * *", label: "Platform tokens" },
-  { job: "ops-canary", path: "/api/cron/ops-canary", schedule: "44 * * * *", label: "Ops canary" },
+  { job: "ops-canary", path: "/api/cron/ops-canary", schedule: "16 * * * *", label: "Ops canary" },
   { job: "ops-meters", path: "/api/cron/ops-meters", schedule: "14 3 * * 1", label: "Weekly spend meters" },
 ] as const;
 

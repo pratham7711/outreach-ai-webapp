@@ -7,7 +7,7 @@ import { bearerMatches } from "@/lib/http/bearer";
 /* The hourly canary (plan §13 C): heartbeats against their cadence, switches
    and breakers, and the values the readers wrote. Database reads only -- it
    never boots a sandbox or asks a platform anything -- so it is cheap enough
-   to run every hour, and it runs at :44, inside the window the :40 reader has
+   to run every hour, and it runs at :16, last in the window the :10 jobs have
    already woken Neon for. Alerts go to the operator through alertOps, once a
    day per problem. */
 export const maxDuration = 60;

@@ -270,6 +270,7 @@ export function openSandboxPostPool(size: number): SandboxPostFetcher {
         "curl",
         [
           "-sL",
+          "--compressed",
           "--max-time",
           "20",
           "-A",
