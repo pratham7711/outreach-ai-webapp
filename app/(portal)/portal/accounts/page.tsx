@@ -29,7 +29,7 @@ import {
 } from "@/components/portal/app/ui";
 import { portalSignInHere } from "@/lib/callbackPath";
 import { connectFailureText } from "@/lib/portal/connectFailureText";
-import { instagramCardLabel, instagramCardNote } from "@/lib/oauth/instagramUnified";
+import { instagramCardLabel, instagramCardNote, instagramUnifiedLogin } from "@/lib/oauth/instagramUnified";
 
 type Connection = {
   id: string;
@@ -39,6 +39,8 @@ type Connection = {
   followersCount: number;
   statsSyncedAt: string | null;
   origin: string | null;
+  avatarUrl?: string | null;
+  mediaCount?: number | null;
 };
 
 type PublicProfile = { platform: string; handle: string; lastReadAt: string | null };
@@ -209,7 +211,9 @@ function PlatformCard({
             return (
               <li key={a.id} style={{ borderTop: "1px solid var(--cc-border)", padding: "12px var(--cc-card-inset) 12px calc(var(--cc-card-inset) + 52px)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                  <div style={{ minWidth: 0 }}>
+                  <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 10 }}>
+                    <AccountAvatar url={a.avatarUrl} handle={a.handle} />
+                    <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflowWrap: "anywhere" }}>
                       {a.profileUrl ? (
                         <a href={a.profileUrl} target="_blank" rel="noreferrer" style={{ color: "var(--cc-text)" }}>
@@ -220,8 +224,10 @@ function PlatformCard({
                       )}
                     </div>
                     <div style={{ fontSize: 13, color: "var(--cc-text-muted)", fontVariantNumeric: "tabular-nums" }}>
-                      {formatCount(a.followersCount)} {followerWord} ·{" "}
+                      {formatCount(a.followersCount)} {followerWord}
+                      {typeof a.mediaCount === "number" ? ` · ${formatCount(a.mediaCount)} ${platform === "youtube" ? "videos" : "posts"}` : ""} ·{" "}
                       {a.statsSyncedAt ? `last synced ${formatDay(a.statsSyncedAt)} (${relativeDay(a.statsSyncedAt)})` : "not synced yet"}
+                    </div>
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
@@ -264,9 +270,17 @@ function PlatformCard({
           capability?.connectNote && <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}>{capability.connectNote}</p>
         ) : !canConnect ? null : (
           <>
-            <ButtonLink href={startHref} external variant={accounts.length > 0 ? "secondary" : "primary"}>
-              {accounts.length > 0 ? "Add another account" : `Connect ${BUTTON_NAME[platform]}`}
-            </ButtonLink>
+            <ConnectLink
+              href={startHref}
+              variant={accounts.length > 0 ? "secondary" : "primary"}
+              label={accounts.length > 0 ? "Add another account" : `Connect ${BUTTON_NAME[platform]}`}
+              pendingLabel={`Opening ${BUTTON_NAME[platform]} sign-in…`}
+            />
+            {platform === "instagram" && instagramUnifiedLogin() && accounts.length === 0 && (
+              <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: 0, flex: "1 1 220px", lineHeight: 1.45 }}>
+                Works with Instagram Creator and Business accounts. On Meta&rsquo;s screen, choose Continue with Instagram.
+              </p>
+            )}
             {capability?.connect === "gated" && capability.connectNote && accounts.length === 0 && (
               <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: 0, flex: "1 1 220px" }}>{capability.connectNote}</p>
             )}
@@ -281,6 +295,74 @@ function PlatformCard({
         )}
       </div>
     </Card>
+  );
+}
+
+/** Connect leaves the page for the platform's sign-in, which can take a few
+    seconds to start; the label says so instead of the button looking dead. A
+    page restored by Back after that navigation comes back with the label
+    reset. */
+function ConnectLink({
+  href,
+  variant,
+  label,
+  pendingLabel,
+}: {
+  href: string;
+  variant: "primary" | "secondary";
+  label: string;
+  pendingLabel: string;
+}) {
+  const [pending, setPending] = useState(false);
+  useEffect(() => {
+    const reset = (e: PageTransitionEvent) => {
+      if (e.persisted) setPending(false);
+    };
+    window.addEventListener("pageshow", reset);
+    return () => window.removeEventListener("pageshow", reset);
+  }, []);
+  return (
+    <span
+      aria-busy={pending || undefined}
+      onClickCapture={() => setPending(true)}
+      style={pending ? { pointerEvents: "none", opacity: 0.75 } : undefined}
+    >
+      <ButtonLink href={href} external variant={variant}>
+        {pending ? pendingLabel : label}
+      </ButtonLink>
+    </span>
+  );
+}
+
+function AccountAvatar({ url, handle }: { url: string | null | undefined; handle: string }) {
+  const [broken, setBroken] = useState(false);
+  const initial = handle.replace(/^@/, "").charAt(0).toUpperCase() || "?";
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        flex: "none",
+        width: 36,
+        height: 36,
+        borderRadius: "50%",
+        overflow: "hidden",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "var(--cc-hover-bg)",
+        color: "var(--cc-text-muted)",
+        fontSize: 14,
+        fontWeight: 600,
+        border: "1px solid var(--cc-border)",
+      }}
+    >
+      {url && !broken ? (
+        // eslint-disable-next-line @next/next/no-img-element -- platform CDN avatar, short-lived URL
+        <img src={url} alt="" width={36} height={36} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={() => setBroken(true)} />
+      ) : (
+        initial
+      )}
+    </span>
   );
 }
 

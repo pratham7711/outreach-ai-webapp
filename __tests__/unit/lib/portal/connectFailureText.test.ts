@@ -49,3 +49,21 @@ describe("connectFailureText", () => {
     expect(connectFailureText("YouTube", "exception", "the agency")).toContain("tell the agency");
   });
 });
+
+describe("connectFailureText under Instagram Unified login", () => {
+  const KEY = "NEXT_PUBLIC_META_INSTAGRAM_LOGIN_CONFIG_ID";
+  afterEach(() => {
+    delete process.env[KEY];
+  });
+
+  it("does not send a Unified-login creator after a Facebook Page", () => {
+    process.env[KEY] = "1789959975543946";
+    const text = connectFailureText("Instagram", "no_instagram", "the agency");
+    expect(text).not.toMatch(/Page/);
+    expect(text).toMatch(/Creator or Business account/);
+  });
+
+  it("keeps the Page wording on the Facebook Login path", () => {
+    expect(connectFailureText("Instagram", "no_instagram", "the agency")).toMatch(/Facebook Page/);
+  });
+});

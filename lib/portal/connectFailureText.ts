@@ -1,3 +1,5 @@
+import { instagramUnifiedLogin } from "@/lib/oauth/instagramUnified";
+
 /**
  * The sentence a creator reads when Connect fails, for each step the OAuth
  * callback can name (?error=<platform>&reason=<step>, see CallbackFailure in
@@ -26,6 +28,8 @@ export function connectFailureText(name: string, reason: string | null, contact:
     case "no_page":
       return `Facebook didn't share any Page with us. Press Connect again, choose “Opt in to current Pages only” and tick ${/instagram/i.test(name) ? "the Page your Instagram account is linked to" : "your Page"}.`;
     case "no_instagram":
+      if (instagramUnifiedLogin())
+        return "Meta didn't share an Instagram professional account with us. Press Connect again and tick your Instagram account on Meta's screen. A personal account can't be connected: switch it to a Creator or Business account in Instagram's settings first.";
       return "None of the Pages you shared has an Instagram professional account linked to it. Link your Instagram to your Facebook Page, then press Connect again and tick that Page.";
     case "link":
       return "This connect link was turned off before you finished. Ask the agency for a new one.";
