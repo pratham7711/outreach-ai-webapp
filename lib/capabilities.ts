@@ -1,4 +1,5 @@
 import { OAUTH_PLATFORMS, isProviderConfigured, type OAuthPlatform } from "@/lib/oauth/providers";
+import { instagramCardLabel, instagramUnifiedLogin } from "@/lib/oauth/instagramUnified";
 
 export type CapabilityStatus = "live" | "gated" | "coming_soon";
 
@@ -23,7 +24,7 @@ const LABELS: Record<OAuthPlatform, string> = {
   /* Each Instagram flow is named by how the creator signs in, so the two
      cards never share a title and each matches the Meta product a reviewer
      is testing: Facebook Login for Business or Instagram Login. */
-  instagram: "Instagram (via Facebook Page)",
+  instagram: instagramCardLabel(),
   "instagram-login": "Instagram (Instagram login)",
   tiktok: "TikTok",
   youtube: "YouTube",
@@ -138,7 +139,12 @@ function metricsNote(platform: OAuthPlatform, status: CapabilityStatus): string 
 }
 
 export function resolvePlatformCapability(platform: OAuthPlatform): PlatformCapability {
-  const rule = connectOverrides()[platform] ?? DEFAULT_CONNECT[platform];
+  /* Unified login already offers "Continue with Instagram" on the main
+     Instagram card, so the legacy Instagram-login card would be a second
+     button for the same account. An explicit override still wins. */
+  const unifiedDefault: StatusRule | undefined =
+    platform === "instagram-login" && instagramUnifiedLogin() ? "coming_soon" : undefined;
+  const rule = connectOverrides()[platform] ?? unifiedDefault ?? DEFAULT_CONNECT[platform];
   const connect = resolveRule(platform, rule);
   const metricsEnv = METRICS_ENV[platform];
   const metrics: CapabilityStatus =

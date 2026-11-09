@@ -10,6 +10,8 @@ import {
   buildTokenRequest,
   clientCredentialsFor,
   clientSecretFor,
+  requestedScopes,
+  facebookLoginScopes,
 } from "@/lib/oauth/providers";
 
 const ENV_KEYS = [
@@ -25,6 +27,7 @@ const ENV_KEYS = [
   "THREADS_CLIENT_SECRET",
   "INSTAGRAM_LOGIN_CLIENT_ID",
   "INSTAGRAM_LOGIN_CLIENT_SECRET",
+  "NEXT_PUBLIC_META_INSTAGRAM_LOGIN_CONFIG_ID",
   /* Reset between tests like any other credential. It was absent, so a test
      that set it narrowed the TikTok scopes for every test that ran after. */
   "TIKTOK_SCOPES",
@@ -423,5 +426,44 @@ describe("buildTokenRequest", () => {
     expect(req?.body.get("redirect_uri")).toContain(
       "/api/portal/connections/tiktok/callback",
     );
+  });
+});
+
+describe("Instagram Unified login configuration", () => {
+  beforeEach(() => {
+    process.env.INSTAGRAM_CLIENT_ID = "meta-app";
+    process.env.INSTAGRAM_CLIENT_SECRET = "meta-secret";
+  });
+
+  it("keeps the scope-based Facebook Login dialog while no configuration is set", () => {
+    const url = new URL(buildAuthorizeUrl("instagram", "st") as string);
+    expect(url.searchParams.get("config_id")).toBeNull();
+    expect(url.searchParams.get("scope")).toContain("pages_show_list");
+  });
+
+  it("sends config_id and prompt=login instead of scope once the configuration is set", () => {
+    process.env.NEXT_PUBLIC_META_INSTAGRAM_LOGIN_CONFIG_ID = "1104165949276251";
+    const url = new URL(buildAuthorizeUrl("instagram", "st") as string);
+    expect(url.origin + url.pathname).toBe("https://www.facebook.com/v26.0/dialog/oauth");
+    expect(url.searchParams.get("config_id")).toBe("1104165949276251");
+    expect(url.searchParams.get("prompt")).toBe("login");
+    expect(url.searchParams.get("scope")).toBeNull();
+    expect(url.searchParams.get("client_id")).toBe("meta-app");
+    expect(requestedScopes("instagram")).toEqual(["instagram_basic", "instagram_manage_insights"]);
+  });
+
+  it("leaves the agency lookup scopes and the Facebook button alone", () => {
+    process.env.NEXT_PUBLIC_META_INSTAGRAM_LOGIN_CONFIG_ID = "1104165949276251";
+    expect(facebookLoginScopes("instagram")).toContain("pages_read_engagement");
+    process.env.FACEBOOK_CLIENT_ID = "meta-app";
+    process.env.FACEBOOK_CLIENT_SECRET = "meta-secret";
+    const fb = new URL(buildAuthorizeUrl("facebook", "st") as string);
+    expect(fb.searchParams.get("config_id")).toBeNull();
+  });
+
+  it("ignores a configuration id that is not numeric", () => {
+    process.env.NEXT_PUBLIC_META_INSTAGRAM_LOGIN_CONFIG_ID = "not-an-id";
+    const url = new URL(buildAuthorizeUrl("instagram", "st") as string);
+    expect(url.searchParams.get("config_id")).toBeNull();
   });
 });

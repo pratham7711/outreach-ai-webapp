@@ -8,6 +8,7 @@ import { exchangeForLongLivedToken } from "@/lib/platforms/instagram";
 import { exchangeThreadsToken } from "@/lib/platforms/threads";
 import { exchangeInstagramLoginToken } from "@/lib/platforms/instagramLogin";
 import { originForPlatform } from "@/lib/platforms/accountOrigin";
+import { instagramLoginConfigId } from "@/lib/oauth/providers";
 import {
   buildTokenRequest,
   isOAuthPlatform,
@@ -197,7 +198,10 @@ export async function GET(
         : null;
     /* Facebook takes the same exchange as Instagram: both are Meta user tokens
        from the same dialog, and the short-lived one lasts about two hours. */
-    if (platform === "instagram" || platform === "facebook") {
+    /* A Unified login token is a system-user token that does not expire, so
+       there is nothing to lengthen and no user token to exchange. */
+    const unifiedInstagram = platform === "instagram" && instagramLoginConfigId() !== null;
+    if ((platform === "instagram" && !unifiedInstagram) || platform === "facebook") {
       try {
         const longLived = await exchangeForLongLivedToken(accessToken);
         if (longLived) {
@@ -276,6 +280,9 @@ export async function GET(
       }).warn("Authorised but no account identity could be read; not storing", {
         creatorId: creator.id,
       });
+      /* No Page is involved in a Unified login, so "share a Page" would send
+         the creator after the wrong fix. */
+      if (unifiedInstagram) return failureRedirect(req, platform, "no_instagram");
       if (platform === "instagram" || platform === "facebook") {
         const shared = await hasSharedFacebookPage(storedToken);
         if (shared === false) return failureRedirect(req, platform, "no_page");

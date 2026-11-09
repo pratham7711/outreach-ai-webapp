@@ -1,4 +1,7 @@
 import { BRAND } from "@/lib/brand";
+import { instagramLoginConfigId } from "@/lib/oauth/instagramUnified";
+
+export { instagramLoginConfigId };
 
 export const OAUTH_PLATFORMS = [
   "instagram",
@@ -229,7 +232,19 @@ export function toPlatformEnum(platform: OAuthPlatform): PlatformEnumValue {
 
 /** The scopes a platform's consent asks for, before any TIKTOK_SCOPES narrowing.
  *  Read by the "what we read" copy, so every scope asked for has words. */
+/** The Unified login configuration's permissions, set in the Meta console
+ *  alongside META_INSTAGRAM_LOGIN_CONFIG_ID. It grants no Page permission. */
+const INSTAGRAM_LOGIN_CONFIG_SCOPES = ["instagram_basic", "instagram_manage_insights"];
+
+/** The scope-based Facebook Login set, never the Unified login one. The
+ *  agency's lookup account needs the Page permissions business_discovery
+ *  requires, whatever the creator button uses. */
+export function facebookLoginScopes(platform: OAuthPlatform): string[] {
+  return [...PROVIDERS[platform].scopes];
+}
+
 export function requestedScopes(platform: OAuthPlatform): string[] {
+  if (platform === "instagram" && instagramLoginConfigId()) return [...INSTAGRAM_LOGIN_CONFIG_SCOPES];
   return [...PROVIDERS[platform].scopes];
 }
 
@@ -353,7 +368,17 @@ export function buildAuthorizeUrl(
   url.searchParams.set(provider.clientIdParam, creds.clientId);
   url.searchParams.set("redirect_uri", redirectUri(platform));
   url.searchParams.set("response_type", "code");
-  url.searchParams.set("scope", resolveScopes(platform, provider));
+  const configId = platform === "instagram" ? instagramLoginConfigId() : null;
+  if (configId) {
+    /* Unified login: a Facebook Login for Business configuration whose assets
+       are Instagram accounts. The configuration carries the permissions, so no
+       scope is sent, and prompt=login is what puts "Log in with Instagram"
+       beside the Facebook option on Meta's dialog. No Facebook Page is needed. */
+    url.searchParams.set("config_id", configId);
+    url.searchParams.set("prompt", "login");
+  } else {
+    url.searchParams.set("scope", resolveScopes(platform, provider));
+  }
   url.searchParams.set("state", state);
   if (platform === "tiktok") url.searchParams.set("disable_auto_auth", "1");
   if (platform === "youtube") {

@@ -129,7 +129,36 @@ describe("fetchInstagramAccount", () => {
     const fetchMock = routeFetch({ data: [{ id: "p1" }] });
     global.fetch = fetchMock as unknown as typeof fetch;
     await expect(fetchInstagramAccount("token")).resolves.toBeNull();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(new URL(fetchMock.mock.calls[1][0]).pathname).toMatch(/\/me\/assigned_instagram_accounts$/);
+  });
+
+  it("reads a Unified login token's account through assigned_instagram_accounts when the Pages edge refuses it", async () => {
+    const account = IG_ACCOUNT.data[0].instagram_business_account;
+    const fetchMock = jest.fn((url: string) => {
+      const path = new URL(url).pathname;
+      if (path.endsWith("/me/accounts"))
+        return Promise.resolve(jsonResponse({ error: { code: 200, message: "Requires pages_show_list" } }, false, 403));
+      if (path.endsWith("/me/assigned_instagram_accounts"))
+        return Promise.resolve(jsonResponse({ data: [{ id: account.id }] }));
+      if (new URL(url).searchParams.get("fields") === "media_count")
+        return Promise.resolve(jsonResponse({ id: account.id, media_count: 12 }));
+      return Promise.resolve(jsonResponse(account));
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    await expect(fetchInstagramAccount("token")).resolves.toMatchObject({
+      igUserId: account.id,
+      username: "boringbrand",
+      followerCount: 8421,
+      mediaCount: 12,
+    });
+  });
+
+  it("still fails as an auth error when both edges refuse the token", async () => {
+    global.fetch = jest.fn(() =>
+      Promise.resolve(jsonResponse({ error: { code: 190, message: "expired" } }, false, 401)),
+    ) as unknown as typeof fetch;
+    await expect(fetchInstagramAccount("token")).rejects.toThrow("expired");
   });
 });
 

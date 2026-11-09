@@ -29,6 +29,7 @@ import {
 } from "@/components/portal/app/ui";
 import { portalSignInHere } from "@/lib/callbackPath";
 import { connectFailureText } from "@/lib/portal/connectFailureText";
+import { instagramCardLabel, instagramCardNote } from "@/lib/oauth/instagramUnified";
 
 type Connection = {
   id: string;
@@ -47,7 +48,7 @@ type PublicProfile = { platform: string; handle: string; lastReadAt: string | nu
     never share a title: two cards both called "Instagram" read as a duplicate.
     Same names as the agency's connect link (lib/portal/permissionCopy.ts). */
 const CARD_LABEL: Record<OAuthPlatform, string> = {
-  instagram: "Instagram (via Facebook Page)",
+  instagram: instagramCardLabel(),
   "instagram-login": "Instagram (Instagram login)",
   tiktok: "TikTok",
   youtube: "YouTube",
@@ -55,7 +56,7 @@ const CARD_LABEL: Record<OAuthPlatform, string> = {
   threads: "Threads",
 };
 const CARD_NOTE: Partial<Record<OAuthPlatform, string>> = {
-  instagram: "Through the Facebook Page your Instagram is linked to.",
+  instagram: instagramCardNote(),
   "instagram-login": "For a professional account with no Facebook Page.",
 };
 /** What the Connect button names: the platform the creator signs in to. */

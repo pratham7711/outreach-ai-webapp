@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { appBaseUrl, clientCredentialsFor, requestedScopes } from "@/lib/oauth/providers";
+import { appBaseUrl, clientCredentialsFor, facebookLoginScopes } from "@/lib/oauth/providers";
 import { exchangeForLongLivedToken, listGrantedPages } from "@/lib/platforms/instagram";
 import { fetchMetaGrantorId } from "@/lib/platforms/metaGrantor";
 import { hasSharedFacebookPage } from "@/lib/platforms/facebookPage";
@@ -33,7 +33,7 @@ export function agencyRedirectUri(): string {
 }
 
 export function agencyScopes(): string[] {
-  return requestedScopes("instagram");
+  return facebookLoginScopes("instagram");
 }
 
 /** The cookie that binds a consent to this browser AND this org. */

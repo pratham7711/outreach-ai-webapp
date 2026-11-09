@@ -14,6 +14,7 @@ import {
   type OAuthPlatform,
 } from "@/lib/oauth/providers";
 import { Dropdown, Button } from "@/components/ds";
+import { instagramCardLabel } from "@/lib/oauth/instagramUnified";
 
 const PLATFORMS = [
   { value: "TIKTOK", label: "TikTok" },
@@ -46,7 +47,7 @@ type Connection = {
 type ProviderFlags = Partial<Record<OAuthPlatform, boolean>>;
 
 const PLATFORM_LABELS: Record<OAuthPlatform, string> = {
-  instagram: "Instagram (via Facebook Page)",
+  instagram: instagramCardLabel(),
   "instagram-login": "Instagram (Instagram login)",
   tiktok: "TikTok",
   youtube: "YouTube",

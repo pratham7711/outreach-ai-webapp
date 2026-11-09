@@ -1,4 +1,5 @@
 import type { OAuthPlatform } from "@/lib/oauth/providers";
+import { instagramUnifiedLogin } from "@/lib/oauth/instagramUnified";
 
 /**
  * "What we read", per permission, in the words the creator sees on My accounts.
@@ -114,6 +115,12 @@ export const WHAT_WE_READ: Record<OAuthPlatform, PermissionRead[]> = {
     },
   ],
 };
+
+/* A Unified login grant carries only the two Instagram permissions; no Page
+   permission is requested, so none is listed. */
+if (instagramUnifiedLogin()) {
+  WHAT_WE_READ.instagram = WHAT_WE_READ.instagram.filter((line) => !line.scope.startsWith("pages_"));
+}
 
 /** The same, for every platform: what connecting never lets us do. */
 export const WHAT_WE_NEVER_DO: string[] = [

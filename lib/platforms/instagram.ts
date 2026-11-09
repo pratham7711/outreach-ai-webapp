@@ -397,17 +397,65 @@ export async function resolveIgUserId(
   signal?: AbortSignal,
   options: Pick<GraphGetOptions, "rateLimitThrows" | "onHeaders"> = {},
 ): Promise<string | null> {
-  const pages = (await listGrantedPages(
-    token,
-    "instagram_business_account{id}",
-    signal,
-    options,
-  )) as Array<{ instagram_business_account?: { id?: string } }>;
+  let pages: Array<{ instagram_business_account?: { id?: string } }> = [];
+  let pagesError: unknown = null;
+  try {
+    pages = (await listGrantedPages(
+      token,
+      "instagram_business_account{id}",
+      signal,
+      options,
+    )) as typeof pages;
+  } catch (err) {
+    if (!(err instanceof InstagramAuthError)) throw err;
+    pagesError = err;
+  }
   for (const page of pages) {
     const igId = page.instagram_business_account?.id;
     if (igId) return igId;
   }
-  return null;
+  const assigned = await assignedInstagramAccountIds(token, signal, options, pagesError);
+  return assigned[0] ?? null;
+}
+
+/**
+ * The Instagram accounts a Unified login token was granted, read off
+ * `me/assigned_instagram_accounts`. That token is a business-integration
+ * system-user token: it holds no Page, so the Pages edge either answers empty
+ * or refuses it outright (#200, which graphGet throws as an auth failure).
+ *
+ * `pagesError` is the refusal the Pages edge gave, if any. When this edge
+ * refuses too, the token itself is dead or lacks the grant, and the Pages
+ * error is the one rethrown, so a revoked Facebook Login token keeps failing
+ * exactly as it did before this fallback existed.
+ */
+/* Measured 2026-11-09 on a fresh Unified login token: this edge did not answer
+   inside the default 5s deadline, and the connect failed on it. */
+const ASSIGNED_ACCOUNTS_TIMEOUT_MS = 20_000;
+
+export async function assignedInstagramAccountIds(
+  token: string,
+  signal?: AbortSignal,
+  options: Pick<GraphGetOptions, "rateLimitThrows" | "onHeaders"> = {},
+  pagesError: unknown = null,
+): Promise<string[]> {
+  let data: { data?: unknown } | null = null;
+  try {
+    data = await graphGet(
+      "me/assigned_instagram_accounts",
+      { fields: "id", access_token: token, limit: "25" },
+      signal,
+      { ...options, timeoutMs: ASSIGNED_ACCOUNTS_TIMEOUT_MS },
+    );
+  } catch (err) {
+    if (pagesError && err instanceof InstagramAuthError) throw pagesError;
+    throw err;
+  }
+  if (!data && pagesError) throw pagesError;
+  const rows: unknown[] = Array.isArray(data?.data) ? data.data : [];
+  return rows
+    .map((r) => (r as { id?: unknown })?.id)
+    .filter((id): id is string => typeof id === "string" && /^\d+$/.test(id));
 }
 
 /**

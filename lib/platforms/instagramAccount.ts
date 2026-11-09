@@ -1,4 +1,10 @@
-import { graphGet, InstagramAuthError, InstagramTimeoutError, listGrantedPages } from "./instagram";
+import {
+  assignedInstagramAccountIds,
+  graphGet,
+  InstagramAuthError,
+  InstagramTimeoutError,
+  listGrantedPages,
+} from "./instagram";
 import { createLogger } from "@/lib/observability/logger";
 
 /**
@@ -121,16 +127,40 @@ export async function fetchInstagramAccount(
     context: { platform: "INSTAGRAM", call: "account.fetch" },
   });
 
-  const pages = (await listGrantedPages(
-    token,
-    `instagram_business_account{${ACCOUNT_FIELDS}}`,
-    signal,
-  )) as Array<{ instagram_business_account?: Record<string, unknown> }>;
+  let pages: Array<{ instagram_business_account?: Record<string, unknown> }> = [];
+  let pagesError: unknown = null;
+  try {
+    pages = (await listGrantedPages(
+      token,
+      `instagram_business_account{${ACCOUNT_FIELDS}}`,
+      signal,
+    )) as typeof pages;
+  } catch (err) {
+    if (!(err instanceof InstagramAuthError)) throw err;
+    pagesError = err;
+  }
 
-  for (const page of pages) {
-    const ig = page.instagram_business_account;
-    if (!ig || typeof ig.id !== "string") continue;
+  const candidates = pages
+    .map((page) => page.instagram_business_account)
+    .filter((ig): ig is Record<string, unknown> => !!ig && typeof ig.id === "string");
 
+  /* A Unified login token reaches its Instagram account directly, with no Page
+     in between, so the account is read by id once the Pages edge has nothing. */
+  if (candidates.length === 0) {
+    const [assignedId] = await assignedInstagramAccountIds(token, signal, {}, pagesError);
+    if (assignedId) {
+      const ig = await graphGet(
+        assignedId,
+        { fields: ACCOUNT_FIELDS, access_token: token },
+        signal,
+        { timeoutMs: MEDIA_COUNT_TIMEOUT_MS },
+      );
+      if (ig && typeof ig.id === "string") candidates.push(ig);
+    }
+  }
+
+  for (const ig of candidates) {
+    if (typeof ig.id !== "string") continue;
     const mediaCount = await fetchMediaCount(ig.id, token, signal);
     const username = typeof ig.username === "string" ? ig.username : "";
     return {

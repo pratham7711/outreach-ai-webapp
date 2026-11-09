@@ -1,5 +1,6 @@
 import type { OAuthPlatform } from "@/lib/oauth/providers";
 import { WHAT_WE_READ, type PermissionRead } from "@/lib/portal/whatWeRead";
+import { instagramCardLabel } from "@/lib/oauth/instagramUnified";
 
 /**
  * The connect-link page's list of what each platform's permissions read.
@@ -21,7 +22,7 @@ export type PlatformReads = {
 };
 
 const LABELS: Record<OAuthPlatform, string> = {
-  instagram: "Instagram (via Facebook Page)",
+  instagram: instagramCardLabel(),
   "instagram-login": "Instagram (Instagram login)",
   tiktok: "TikTok",
   youtube: "YouTube",
