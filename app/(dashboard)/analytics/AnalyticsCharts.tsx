@@ -1,31 +1,42 @@
 "use client";
 import React from "react";
-import { formatCompact, platformLabel } from "@/lib/format";
+import { formatCompact } from "@/lib/format";
 import {
   AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar, ReferenceLine,
 } from "recharts";
+import { chartAxisTick, chartLegendProps, chartTooltipProps } from "@/components/charts/chartTheme";
 import { ChartFrame } from "@/components/ds/ChartFrame";
 import { nextPeriodBy, toChanges, toRunningTotals, type SeriesMode } from "@/lib/charts/seriesMode";
 import { formatNumber, SERIES_COLORS } from "./shared";
 
 type MonthlyTrend = { month: string; campaigns: number; active: number };
-type PlatformBreakdown = { platform: string; views: number; posts: number };
-
-const axisTick = { fontSize: 12, fill: "var(--muted-foreground)" } as const;
-const axisTickSm = { fontSize: 11, fill: "var(--muted-foreground)" } as const;
-
-const chartTooltipStyle: React.CSSProperties = {
-  background: "var(--popover)",
-  border: "1px solid var(--border)",
-  borderRadius: 12,
-  color: "var(--popover-foreground)",
-  fontSize: "var(--cc-t-13)",
-};
+const axisTick = chartAxisTick;
 
 export function MonthlyTrendArea({ data, mode = "daily" }: { data: MonthlyTrend[]; mode?: SeriesMode }) {
+  /* Whole campaigns per month. A smoothed area between two months drew
+     fractions of a campaign that never existed, so a month is a bar and the
+     running total is a step that holds its value until the next month.
+     The tooltip takes each series' own name ("Total", "Active"): the old
+     formatter compared that name with the dataKey, never matched, and
+     labelled both rows "Active". */
+  if (mode !== "cumulative") {
+    return (
+      <ChartFrame minHeight={200}>
+        <BarChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }} barGap={2}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+          <XAxis dataKey="month" tick={axisTick} axisLine={false} tickLine={false} />
+          <YAxis tick={axisTick} allowDecimals={false} axisLine={false} tickLine={false} />
+          <Tooltip {...chartTooltipProps} cursor={{ fill: "var(--cc-row-hover)" }} />
+          <Legend {...chartLegendProps} />
+          <Bar isAnimationActive={false} dataKey="campaigns" name="Total" fill="var(--chart-1)" radius={[3, 3, 0, 0]} maxBarSize={28} />
+          <Bar isAnimationActive={false} dataKey="active" name="Active" fill="var(--chart-2)" radius={[3, 3, 0, 0]} maxBarSize={28} />
+        </BarChart>
+      </ChartFrame>
+    );
+  }
   /* Every month of the window is present (empty ones as 0), so a running sum
      from the first month is the count started since then. */
-  const rows = mode === "cumulative" ? toRunningTotals(data, ["campaigns", "active"]) : data;
+  const rows = toRunningTotals(data, ["campaigns", "active"]);
   return (
     <ChartFrame minHeight={200}>
       <AreaChart data={rows} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
@@ -38,14 +49,11 @@ export function MonthlyTrendArea({ data, mode = "daily" }: { data: MonthlyTrend[
         <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
         <XAxis dataKey="month" tick={axisTick} axisLine={false} tickLine={false} />
         <YAxis tick={axisTick} allowDecimals={false} axisLine={false} tickLine={false} />
-        <Tooltip
-          contentStyle={chartTooltipStyle}
-          formatter={(v: any, name: any) => [v, name === "campaigns" ? "Total" : "Active"]}
-        />
-        <Legend itemSorter={null} wrapperStyle={{ fontSize: "var(--cc-t-12)"}} />
+        <Tooltip {...chartTooltipProps} />
+        <Legend {...chartLegendProps} />
         <Area
           isAnimationActive={false}
-          type="monotone"
+          type="stepAfter"
           dataKey="campaigns"
           name="Total"
           stroke="var(--chart-1)"
@@ -55,7 +63,7 @@ export function MonthlyTrendArea({ data, mode = "daily" }: { data: MonthlyTrend[
         />
         <Area
           isAnimationActive={false}
-          type="monotone"
+          type="stepAfter"
           dataKey="active"
           name="Active"
           stroke="var(--chart-2)"
@@ -65,37 +73,6 @@ export function MonthlyTrendArea({ data, mode = "daily" }: { data: MonthlyTrend[
           dot={false}
         />
       </AreaChart>
-    </ChartFrame>
-  );
-}
-
-export function PlatformBreakdownBar({ data }: { data: PlatformBreakdown[] }) {
-  return (
-    <ChartFrame minHeight={200}>
-      <BarChart data={data} layout="vertical" margin={{ left: 8, right: 8 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" horizontal={false} />
-        <XAxis
-          type="number"
-          tick={axisTickSm}
-          axisLine={false}
-          tickLine={false}
-          tickFormatter={(v) => formatCompact(Number(v))}
-        />
-        <YAxis
-          type="category"
-          dataKey="platform"
-          tick={axisTickSm}
-          tickFormatter={(v) => platformLabel(String(v))}
-          width={70}
-          axisLine={false}
-          tickLine={false}
-        />
-        <Tooltip
-          contentStyle={chartTooltipStyle}
-          formatter={(v: any) => [formatNumber(Number(v)), "Views"]}
-        />
-        <Bar isAnimationActive={false} dataKey="views" radius={[0, 4, 4, 0]} fill="var(--chart-1)" />
-      </BarChart>
     </ChartFrame>
   );
 }
@@ -121,21 +98,21 @@ export function CampaignComparisonLine({
     <ChartFrame minHeight={200}>
       <LineChart data={rows} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
-        <XAxis dataKey="date" tick={axisTickSm} axisLine={false} tickLine={false} />
+        <XAxis dataKey="date" tick={axisTick} axisLine={false} tickLine={false} />
         <YAxis
-          tick={axisTickSm}
+          tick={axisTick}
           axisLine={false}
           tickLine={false}
           tickFormatter={(v) => formatCompact(Number(v))}
         />
         <Tooltip
-          contentStyle={chartTooltipStyle}
+          {...chartTooltipProps}
           formatter={(v: any, name: any) => [
             v === null || v === undefined ? "—" : formatNumber(Number(v)),
             titleById[name] ?? name,
           ]}
         />
-        <Legend itemSorter={null} formatter={(value: any) => titleById[value] ?? value} wrapperStyle={{ fontSize: "var(--cc-t-12)"}} />
+        <Legend {...chartLegendProps} formatter={(value: any) => chartLegendProps.formatter(titleById[value] ?? value)} />
         {mode === "daily" ? <ReferenceLine y={0} stroke="var(--chart-grid)" /> : null}
         {selected.map((id) => (
           <Line

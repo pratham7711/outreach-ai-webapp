@@ -8,8 +8,39 @@ jest.mock("@pratham7711/ui", () => ({
   Skeleton: () => <div data-testid="skeleton" />,
 }), { virtual: true });
 
+/* The page is a SettingsForm now. The ds barrel re-exports the library, which
+   is stubbed above, so the real modules are pulled in one by one. */
 jest.mock("@/components/ds", () => ({
-  Button: ({ children, onClick }: any) => <button onClick={onClick}>{children}</button>,
+  Button: ({ children, onClick, loading: _l, variant: _v, size: _s, iconLeft: _i, ...rest }: any) => (
+    <button onClick={onClick} {...rest}>{children}</button>
+  ),
+  Field: jest.requireActual("@/components/ds/Field").Field,
+  LoadError: ({ title, onRetry }: any) => (
+    <div role="alert">
+      {title}
+      <button onClick={onRetry}>Try again</button>
+    </div>
+  ),
+  SettingsForm: ({ children, onSubmit, dirty, saveLabel }: any) => (
+    <form onSubmit={(e) => { e.preventDefault(); onSubmit(); }}>
+      {children}
+      <button type="submit" disabled={!dirty}>{saveLabel ?? "Save changes"}</button>
+    </form>
+  ),
+  Skeleton: () => <div data-testid="skeleton" />,
+  SectionCard: ({ children }: any) => <section>{children}</section>,
+  Banner: ({ children }: any) => <div role="status">{children}</div>,
+}));
+
+jest.mock("@/components/ds/Modal", () => ({
+  ModalOptionList: ({ children }: any) => <div>{children}</div>,
+  ModalOption: ({ title, description, control }: any) => (
+    <label>
+      {control}
+      {title}
+      {description}
+    </label>
+  ),
 }));
 
 jest.mock("sonner", () => ({ toast: { error: jest.fn(), success: jest.fn() } }));
@@ -62,15 +93,18 @@ describe("TrackerSettingsClient", () => {
     expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
   });
 
-  it("saves only the setting that changed, so the stored retentionDays survives", async () => {
+  it("saves only the setting that changed, on Save, so the stored retentionDays survives", async () => {
     mockFetch.mockResolvedValue(SETTINGS);
 
     render(<TrackerSettingsClient />);
     await screen.findByText("Read cadence");
 
-    const cadence = screen.getByRole("radiogroup", { name: "readCadence" });
+    const cadence = screen.getByRole("radiogroup", { name: "Read cadence" });
     const other = within(cadence).getAllByRole("radio").find((r) => !(r as HTMLInputElement).checked)!;
     fireEvent.click(other);
+    // One click no longer applies a cost-bearing setting; Save does.
+    expect(mockFetch.mock.calls.some((c) => c[1]?.method === "PATCH")).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
 
     await waitFor(() =>
       expect(mockFetch.mock.calls.some((c) => c[1]?.method === "PATCH")).toBe(true)

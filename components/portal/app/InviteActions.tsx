@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ds";
+import { ButtonLink } from "@/components/portal/app/ui";
 
 type Phase = "idle" | "accepting" | "declining" | "signin" | "declined" | "error";
 
@@ -81,45 +81,10 @@ export function InviteActions({ code }: { code: string }) {
           Create your free creator account to accept. It takes a minute, and you&apos;ll land on the campaign.
         </p>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <Link
-            href={`/portal/register?${q}`}
-            className="rsp-touch"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              minHeight: 40,
-              padding: "8px 16px",
-              borderRadius: 10,
-              fontSize: 15,
-              fontWeight: 600,
-              textDecoration: "none",
-              background: "var(--cc-primary)",
-              color: "var(--cc-on-primary)",
-            }}
-          >
-            Sign up
-          </Link>
-          <Link
-            href={`/portal/login?${q}`}
-            className="rsp-touch"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              minHeight: 40,
-              padding: "8px 16px",
-              borderRadius: 10,
-              fontSize: 15,
-              fontWeight: 600,
-              textDecoration: "none",
-              background: "var(--cc-card)",
-              color: "var(--cc-text)",
-              border: "1px solid var(--cc-border)",
-            }}
-          >
+          <ButtonLink href={`/portal/register?${q}`}>Sign up</ButtonLink>
+          <ButtonLink href={`/portal/login?${q}`} variant="secondary">
             I have an account
-          </Link>
+          </ButtonLink>
         </div>
       </div>
     );

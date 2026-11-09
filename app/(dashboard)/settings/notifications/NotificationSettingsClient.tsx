@@ -2,8 +2,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Bell } from "lucide-react";
-import { Card, Skeleton, Toggle } from "@pratham7711/ui";
-import { SectionCard } from "@/components/ds";
+import { LoadError, SectionCard, Skeleton } from "@/components/ds";
+import { Switch } from "@/components/ds/Switch";
 import { apiFetch } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessage";
 
@@ -33,13 +33,14 @@ type Payload = { prefs: Record<string, boolean>; catalog: EventDef[] };
 export function NotificationSettingsClient() {
   const [data, setData] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadKey, setLoadKey] = useState(0);
 
   useEffect(() => {
     apiFetch<Payload>("/api/settings/notifications")
       .then(setData)
       .catch((e) => toast.error(errorMessage(e, "Could not load notification settings")))
       .finally(() => setLoading(false));
-  }, []);
+  }, [loadKey]);
 
   const groups = useMemo(() => {
     if (!data) return [];
@@ -71,13 +72,25 @@ export function NotificationSettingsClient() {
 
   if (loading) {
     return (
-      <Card variant="outlined">
-        <Skeleton width={200} height={18} />
-        <div style={{ marginTop: 12 }}><Skeleton width="100%" height={120} /></div>
-      </Card>
+      <SectionCard icon={Bell} title="Notifications">
+        <div className="cc-settings-skeleton" aria-busy="true" aria-label="Loading notification settings">
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} width="100%" height={40} />
+          ))}
+        </div>
+      </SectionCard>
     );
   }
-  if (!data) return null;
+  /* A failed load was a blank space under the header. */
+  if (!data) {
+    return (
+      <LoadError
+        title="Notification settings could not be loaded"
+        description="Nothing was changed. Your switches are as you left them."
+        onRetry={() => (setLoading(true), setLoadKey((k) => k + 1))}
+      />
+    );
+  }
 
   return (
     <div className="cc-settings-groups">
@@ -92,19 +105,15 @@ export function NotificationSettingsClient() {
             {defs.map((def) => (
               <div key={def.key} className="cc-pref-row">
                 <div className="cc-pref-row-text">
-                  <div className="cc-pref-row-title">{def.label}</div>
+                  <div className="cc-pref-row-title" id={`notif-${def.key}`}>{def.label}</div>
                   <div className="cc-pref-row-desc">{def.description}</div>
                 </div>
-                {/* label names the switch itself (the library ties it to the
-                    button with htmlFor); the row's title above already shows
-                    it, so the label is visually hidden. Without it all twelve
-                    switches announced as an unnamed "switch". */}
-                <Toggle
+                {/* Named by the row's own title, so each switch announces what
+                    it controls; without a name all twelve read as "switch". */}
+                <Switch
                   checked={data.prefs[def.key] ?? def.defaultOn}
-                  onChange={(next: boolean) => flip(def.key, next)}
-                  size="md"
-                  label={def.label}
-                  className="cc-toggle-named"
+                  onChange={(next) => flip(def.key, next)}
+                  aria-labelledby={`notif-${def.key}`}
                 />
               </div>
             ))}

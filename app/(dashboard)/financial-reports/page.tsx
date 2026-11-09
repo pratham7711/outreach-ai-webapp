@@ -1,34 +1,40 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
-import { Card, Badge, Skeleton, EmptyState } from "@pratham7711/ui";
-import { PageHeader, MetricTile, Button } from "@/components/ds";
-import { TrendingUp, TrendingDown, Minus, DollarSign, Wallet, BarChart2, Clock, Download, FileText, Table, TriangleAlert } from "lucide-react";
+import { BarChart2, ChevronDown, Download } from "lucide-react";
+import {
+  Banner,
+  DataTable,
+  Dropdown,
+  LoadError,
+  MenuButton,
+  MetricTile,
+  NoResults,
+  PageHeader,
+  SectionCard,
+  Skeleton,
+  StatusBadge,
+  type DataTableColumn,
+} from "@/components/ds";
+import { TileGridSkeleton } from "@/components/ui/PageSkeleton";
 import { loadCharts } from "@/components/charts/lazyCharts";
 import { downloadCsv } from "@/lib/csv";
-import { campaignStatusCss, campaignStatusLabel, STATUS_PILL_RADIUS } from "@/lib/statusColors";
 import { toast } from "sonner";
-import { action } from "@/lib/ui/actions";
+import { FIN_TOP_WIDTHS } from "./columns";
 
 const PayoutTrendChart = dynamic(() => loadCharts().then((m) => m.PayoutTrendChart), {
   ssr: false,
-  loading: () => <Skeleton width="100%" height="100%" borderRadius="8px" />,
+  loading: () => <Skeleton width="100%" height="100%" />,
 });
 
 const PERIODS = [
-  { key: "THIS_MONTH", label: "This Month" },
-  { key: "LAST_MONTH", label: "Last Month" },
-  { key: "THIS_QUARTER", label: "This Quarter" },
-  { key: "LAST_QUARTER", label: "Last Quarter" },
-  { key: "THIS_YEAR", label: "This Year" },
-  { key: "ALL_TIME", label: "All Time" },
+  { key: "THIS_MONTH", label: "This month" },
+  { key: "LAST_MONTH", label: "Last month" },
+  { key: "THIS_QUARTER", label: "This quarter" },
+  { key: "LAST_QUARTER", label: "Last quarter" },
+  { key: "THIS_YEAR", label: "This year" },
+  { key: "ALL_TIME", label: "All time" },
 ];
-
-/* The campaign statuses here are the same statuses the campaigns list shows,
-   so they read from the one captured palette rather than a second private copy
-   that had drifted: this table painted Active as a pale indigo tint where the
-   reference gives it a solid blue, so the running campaigns were the ones that
-   disappeared into the page. */
 
 type Stats = {
   paidPayouts: number;
@@ -82,53 +88,6 @@ function toDelta(change: number | null | undefined) {
   };
 }
 
-function ChangeChip({ value }: { value: number | null }) {
-  if (value === null) return <span style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-subtle)" }}>—</span>;
-  const positive = value >= 0;
-  const Icon = value === 0 ? Minus : positive ? TrendingUp : TrendingDown;
-  return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", gap: 3, fontSize: "var(--cc-t-11)", fontWeight: "var(--cc-fw-strong)",
-      padding: "2px 7px", borderRadius: 20,
-      background: value === 0 ? "var(--cc-neutral-bg)" : positive ? "var(--cc-success-bg)" : "var(--cc-danger-bg)",
-      color: value === 0 ? "var(--cc-neutral-fg)" : positive ? "var(--cc-success-fg)" : "var(--cc-danger-fg)",
-    }}>
-      <Icon size={10} />
-      {value === 0 ? "No change" : `${Math.abs(value)}%`}
-    </span>
-  );
-}
-
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  sub,
-  change,
-  color = "var(--cc-primary)",
-}: {
-  icon: React.ElementType;
-  label: string;
-  value: string;
-  sub?: string;
-  change?: number | null;
-  color?: string;
-}) {
-  return (
-    <Card variant="outlined" style={{ padding: 20 }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
-        <div style={{ width: 36, height: 36, borderRadius: 9, background: `${color}18`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Icon size={16} color={color} />
-        </div>
-        {change !== undefined && <ChangeChip value={change ?? null} />}
-      </div>
-      <p style={{ fontSize: "var(--cc-t-24)", fontWeight: 700, color: "var(--cc-text)", margin: "0 0 4px" }}>{value}</p>
-      <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>{label}</p>
-      {sub && <p style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-subtle)", margin: "4px 0 0" }}>{sub}</p>}
-    </Card>
-  );
-}
-
 function fmt(n: number, currency = "USD") {
   return new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(n);
 }
@@ -161,6 +120,62 @@ function exportCSV(data: ReportData) {
 
   downloadCsv(`financial-report-${data.period.replace(/\s+/g, "-").toLowerCase()}`, rows);
 }
+
+const TOP_COLUMNS: DataTableColumn<Campaign>[] = [
+  {
+    key: "campaign",
+    header: "Campaign",
+    width: FIN_TOP_WIDTHS.campaign,
+    minWidth: 220,
+    primary: true,
+    truncate: (c) => c.title,
+    render: (c) => c.title,
+  },
+  {
+    key: "status",
+    header: "Status",
+    width: FIN_TOP_WIDTHS.status,
+    render: (c) => <StatusBadge status={c.status} />,
+  },
+  {
+    key: "budget",
+    header: "Budget",
+    align: "right",
+    width: FIN_TOP_WIDTHS.budget,
+    render: (c) => fmt(c.budget, c.currency),
+  },
+  {
+    key: "spend",
+    header: "Spend",
+    align: "right",
+    width: FIN_TOP_WIDTHS.spend,
+    render: (c) => fmt(c.spend, c.currency),
+  },
+  {
+    key: "utilization",
+    header: "Utilization",
+    width: FIN_TOP_WIDTHS.utilization,
+    render: (c) => (
+      <div className="flex items-center gap-3">
+        <div
+          className="h-1.5 min-w-[60px] flex-1 overflow-hidden rounded-full bg-[var(--cc-bg)]"
+          role="presentation"
+        >
+          {/* Hue here is status: near or over budget. */}
+          <div
+            className="h-full rounded-full"
+            style={{
+              width: `${Math.min(c.utilization, 100)}%`,
+              background:
+                c.utilization >= 90 ? "var(--cc-danger-solid)" : c.utilization >= 70 ? "var(--cc-warning-solid)" : "var(--cc-success-fg)",
+            }}
+          />
+        </div>
+        <span className="min-w-10 text-right text-[var(--cc-text-muted)] tabular-nums">{c.utilization}%</span>
+      </div>
+    ),
+  },
+];
 
 export default function FinancialReportsPage() {
   const [period, setPeriod] = useState("THIS_MONTH");
@@ -215,86 +230,71 @@ export default function FinancialReportsPage() {
     }
   };
 
+  const exporting = exportingPdf || exportingXlsx;
+
   return (
     <div className="rsp-page page-enter">
+      {/* The period and one Export menu, in place of six period pills and three
+          export buttons in a row. */}
       <PageHeader
         title="Financial Reports"
         subtitle={data ? `${data.period} vs ${data.previousPeriod}` : "Payout and budget summary with period comparison"}
         actions={
-          data ? (
-            <>
-              <Button variant="secondary" size="sm" onClick={() => exportGenerated("pdf")} disabled={exportingPdf}>
-                <FileText size={14} style={{ marginRight: 6 }} />
-                {exportingPdf ? "Generating..." : "Export PDF"}
-              </Button>
-              <Button variant="secondary" size="sm" onClick={() => exportGenerated("xlsx")} disabled={exportingXlsx}>
-                <Table size={14} style={{ marginRight: 6 }} />
-                {exportingXlsx ? "Generating..." : "Export Excel"}
-              </Button>
-              <Button variant="secondary" size="sm" onClick={() => exportCSV(data)} {...action("export-csv")}>
-                <Download size={14} style={{ marginRight: 6 }} />
-                Export CSV
-              </Button>
-            </>
-          ) : null
+          <>
+            <Dropdown
+              ariaLabel="Reporting period"
+              value={period}
+              onChange={setPeriod}
+              options={PERIODS.map((p) => ({ value: p.key, label: p.label }))}
+              minWidth={150}
+            />
+            {data ? (
+              <MenuButton
+                label="Export report"
+                triggerClassName="ui-btn ui-btn-secondary ui-btn-md"
+                portal
+                align="right"
+                trigger={
+                  <>
+                    <Download size={16} aria-hidden="true" />
+                    {exporting ? "Generating…" : "Export"}
+                    <ChevronDown size={14} aria-hidden="true" />
+                  </>
+                }
+                items={[
+                  { label: exportingPdf ? "Generating PDF…" : "Export PDF", disabled: exportingPdf, onClick: () => exportGenerated("pdf") },
+                  { label: exportingXlsx ? "Generating Excel…" : "Export Excel", disabled: exportingXlsx, onClick: () => exportGenerated("xlsx") },
+                  { label: "Export CSV", onClick: () => exportCSV(data) },
+                ]}
+              />
+            ) : null}
+          </>
         }
       />
 
-      {/* Period Tabs */}
-      <div style={{ display: "flex", gap: 4, marginBottom: 24, flexWrap: "wrap" }}>
-        {PERIODS.map(p => (
-          <button
-            key={p.key}
-            onClick={() => setPeriod(p.key)}
-            aria-pressed={period === p.key}
-            style={{
-              padding: "0 10px", height: 40, borderRadius: 20, fontSize: "var(--cc-t-13)", fontWeight: 500, cursor: "pointer",
-              border: period === p.key ? "1.5px solid var(--cc-primary)" : "1.5px solid var(--cc-border)",
-              background: period === p.key ? "var(--cc-primary)" : "var(--cc-card)",
-              color: period === p.key ? "var(--cc-on-primary)" : "var(--cc-text-muted)",
-              transition: "all 0.1s",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
-
       {error ? (
-        <Card variant="outlined" style={{ padding: 40, textAlign: "center" }}>
-          <p style={{ color: "var(--cc-danger-fg)", fontSize: "var(--cc-t-14)"}}>{error}</p>
-          <Button variant="secondary" size="sm" onClick={() => load(period)} style={{ marginTop: 12 }}>Retry</Button>
-        </Card>
+        <LoadError title="We couldn't load the financial report" description={error} onRetry={() => load(period)} />
       ) : loading ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16 }}>
-            {[...Array(4)].map((_, i) => <Skeleton key={i} width="100%" height="100px" borderRadius="12px" />)}
-          </div>
-          <Skeleton width="100%" height="260px" borderRadius="12px" />
-          <Skeleton width="100%" height="200px" borderRadius="12px" />
+        <div className="flex flex-col gap-6" aria-busy="true">
+          <TileGridSkeleton count={4} />
+          <SectionCard title="Payout trend" description="Last 6 months of payout activity">
+            <Skeleton width="100%" height={240} />
+          </SectionCard>
+          <SectionCard title="Top campaigns" description="By budget, most recent" padded={false}>
+            <DataTable bare caption="Top campaigns" columns={TOP_COLUMNS} rows={[]} rowKey={(c) => c.id} loading skeletonRows={5} />
+          </SectionCard>
         </div>
       ) : data ? (
-        <>
+        <div className="flex flex-col gap-6">
           {data.hasMixedCurrencies && (
-            <div
-              role="note"
-              style={{
-                display: "flex", alignItems: "center", gap: 8, marginBottom: 16, padding: "10px 14px",
-                borderRadius: 10, background: "var(--cc-warning-bg)", border: "1px solid color-mix(in srgb, var(--cc-warning-solid) 30%, transparent)",
-                fontSize: "var(--cc-t-13)", color: "var(--cc-warning-fg)",
-              }}
-            >
-              <TriangleAlert size={15} />
-              <span>
-                Summary totals are shown in {data.reportCurrency}. This org also holds amounts in{" "}
-                {(data.currenciesPresent ?? []).filter((c) => c !== data.reportCurrency).join(", ")} — those are
-                not converted; see per-currency balances and campaigns below.
-              </span>
-            </div>
+            <Banner tone="warning" role="status">
+              Summary totals are shown in {data.reportCurrency}. This org also holds amounts in{" "}
+              {(data.currenciesPresent ?? []).filter((c) => c !== data.reportCurrency).join(", ")} — those are
+              not converted; see per-currency balances and campaigns below.
+            </Banner>
           )}
-          {/* Stat Cards */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16, marginBottom: 24 }}>
+
+          <div className="cc-tiles-balanced">
             <MetricTile
               metric="paidPayouts"
               value={fmt(data.current.paidPayouts, data.reportCurrency)}
@@ -332,92 +332,50 @@ export default function FinancialReportsPage() {
             />
           </div>
 
-          {/* Balances */}
+          {/* Per-account balances, each in its own currency: figures inside one
+              card rather than a second row of tiles beside the KPIs. */}
           {data.balances.length > 0 && (
-            <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
-              {data.balances.map(b => (
-                <div key={b.label} style={{ padding: "10px 16px", borderRadius: 10, border: "1px solid var(--cc-border)", background: "var(--cc-card)" }}>
-                  <p style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)", margin: "0 0 4px", textTransform: "uppercase", letterSpacing: "0.05em" }}>{b.label}</p>
-                  <p style={{ fontSize: "var(--cc-t-18)", fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>{fmt(b.currentBalance, b.currency)}</p>
-                </div>
-              ))}
-            </div>
+            <SectionCard title="Balances">
+              <div className="cc-tiles-balanced">
+                {data.balances.map((b) => (
+                  <MetricTile key={b.label} variant="plain" label={b.label} value={fmt(b.currentBalance, b.currency)} />
+                ))}
+              </div>
+            </SectionCard>
           )}
 
-          {/* Monthly Trend Chart */}
-          <Card variant="outlined" style={{ padding: 24, marginBottom: 24 }}>
-            <h2 style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Payout Trend</h2>
-            <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginBottom: 20 }}>Last 6 months of payout activity</p>
+          <SectionCard title="Payout trend" description="Last 6 months of payout activity">
             {data.monthlyTrend.length === 0 ? (
-              <EmptyState
-                icon={<BarChart2 size={32} color="var(--cc-text-subtle)" />}
+              <NoResults
+                icon={<BarChart2 size={32} strokeWidth={1.75} />}
                 title="No payout data"
                 description="Payouts will appear here as they are recorded."
               />
             ) : (
-              <div style={{ width: "100%", height: 240 }}>
-                <PayoutTrendChart data={data.monthlyTrend} />
+              <div className="h-60 w-full">
+                <PayoutTrendChart data={data.monthlyTrend} currency={data.reportCurrency} />
               </div>
             )}
-          </Card>
+          </SectionCard>
 
-          {/* Top Campaigns */}
-          <Card variant="outlined" noPadding>
-            <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid var(--cc-border)" }}>
-              <h2 style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>Top Campaigns</h2>
-              <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: "4px 0 0" }}>By budget, most recent</p>
-            </div>
-            {data.topCampaigns.length === 0 ? (
-              <div style={{ padding: 32 }}>
-                <EmptyState icon={<BarChart2 size={32} color="var(--cc-text-subtle)" />} title="No campaigns" description="Campaigns will appear here once created." />
-              </div>
-            ) : (
-              <div className="rsp-table-wrap">
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid var(--cc-border)" }}>
-                    {["Campaign", "Status", "Budget", "Spend", "Utilization"].map(col => (
-                      <th key={col} className="cc-microlabel" style={{ padding: "11px 20px", textAlign: "left" }}>{col}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.topCampaigns.map((c, idx) => (
-                    <tr key={c.id} style={{ borderBottom: idx < data.topCampaigns.length - 1 ? "1px solid var(--cc-border)" : "none" }}>
-                      <td style={{ padding: "14px 20px" }}>
-                        <a href={`/campaigns/${c.id}`} style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-primary)", textDecoration: "none" }}>{c.title}</a>
-                      </td>
-                      <td style={{ padding: "14px 20px" }}>
-                        <span style={{
-                          fontSize: "var(--cc-t-11)", fontWeight: "var(--cc-fw-strong)", padding: "3px 8px",
-                          borderRadius: STATUS_PILL_RADIUS,
-                          ...campaignStatusCss(c.status),
-                        }}>
-                          {campaignStatusLabel(c.status)}
-                        </span>
-                      </td>
-                      <td style={{ padding: "14px 20px", fontSize: "var(--cc-t-13)", color: "var(--cc-text)" }}>{fmt(c.budget, c.currency)}</td>
-                      <td style={{ padding: "14px 20px", fontSize: "var(--cc-t-13)", color: "var(--cc-text)" }}>{fmt(c.spend, c.currency)}</td>
-                      <td style={{ padding: "14px 20px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          <div style={{ flex: 1, height: 6, borderRadius: 3, background: "var(--cc-bg)", overflow: "hidden", minWidth: 60 }}>
-                            <div style={{
-                              height: "100%", borderRadius: 3,
-                              background: c.utilization >= 90 ? "var(--cc-danger-solid)" : c.utilization >= 70 ? "var(--cc-warning-solid)" : "var(--cc-success-fg)",
-                              width: `${Math.min(c.utilization, 100)}%`,
-                            }} />
-                          </div>
-                          <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", minWidth: 32, textAlign: "right" }}>{c.utilization}%</span>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              </div>
-            )}
-          </Card>
-        </>
+          <SectionCard title="Top campaigns" description="By budget, most recent" padded={false}>
+            <DataTable
+              bare
+              caption="Top campaigns"
+              columns={TOP_COLUMNS}
+              rows={data.topCampaigns}
+              rowKey={(c) => c.id}
+              rowHref={(c) => `/campaigns/${c.id}`}
+              empty={
+                <NoResults
+                  icon={<BarChart2 size={32} strokeWidth={1.75} />}
+                  title="No campaigns"
+                  description="Campaigns will appear here once created."
+                />
+              }
+            />
+          </SectionCard>
+        </div>
       ) : null}
     </div>
   );

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Card, Badge, Input, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
-import { DollarSign, CreditCard } from "lucide-react";
+import { useState, useEffect, useCallback, useId } from "react";
+import { Card, Badge, Input, EmptyState } from "@pratham7711/ui";
+import { Modal, ModalOption, ModalOptionList } from "@/components/ds/Modal";
+import { DollarSign, CreditCard, HandCoins, Wallet } from "lucide-react";
 import { formatDateAbs } from "@/lib/format";
 import { enumLabel } from "@/lib/ui/enumLabel";
-import { Dropdown, Button } from "@/components/ds";
+import { Dropdown, Button, Field, Skeleton } from "@/components/ds";
 
 type Deposit = {
   id: string;
@@ -40,6 +41,7 @@ export default function DepositsSection({ campaignId }: { campaignId: string }) 
   const [submitting, setSubmitting] = useState(false);
   const [createForm, setCreateForm] = useState({ amountRequested: "", currency: "USD", gateway: "STRIPE", method: "" });
   const [releaseAmount, setReleaseAmount] = useState("");
+  const currencyId = useId();
 
   const fetchDeposit = useCallback(async () => {
     const res = await fetch(`/api/campaigns/${campaignId}/deposits`);
@@ -111,11 +113,11 @@ export default function DepositsSection({ campaignId }: { campaignId: string }) 
       </div>
 
       {!deposit ? (
-        <Card variant="outlined" style={{ padding: 24 }}>
+        <Card variant="outlined">
           <EmptyState icon={<CreditCard size={32} color="var(--cc-text-subtle)" />} title="No deposit" description="Create a deposit to hold funds for this campaign." />
         </Card>
       ) : (
-        <Card variant="outlined" style={{ padding: 24 }}>
+        <Card variant="outlined">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 16 }}>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
@@ -154,33 +156,41 @@ export default function DepositsSection({ campaignId }: { campaignId: string }) 
 
       {/* Create Deposit Modal */}
       {showCreate && (
-        <Modal open={true} onClose={() => setShowCreate(false)} title="Create Deposit" size="md" footer={
-          <div className="cc-modal-footer">
-            <Button variant="secondary" onClick={() => setShowCreate(false)}>Cancel</Button>
-            <Button variant="primary" loading={submitting} onClick={handleCreate} disabled={!createForm.amountRequested}>Create</Button>
-          </div>
-        }>
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div style={{ display: "flex", gap: 12 }}>
-              <div style={{ flex: 1 }}>
+        <Modal
+          open={true}
+          onClose={() => setShowCreate(false)}
+          icon={Wallet}
+          tone="brand"
+          title="Create Deposit"
+          description="Set the deposit amount, currency and payment gateway for this campaign."
+          size="md"
+          dismissible={false}
+          footer={
+            <div className="cc-modal-footer">
+              <Button variant="secondary" size="sm" onClick={() => setShowCreate(false)}>Cancel</Button>
+              <Button variant="primary" size="sm" loading={submitting} onClick={handleCreate} disabled={!createForm.amountRequested}>Create</Button>
+            </div>
+          }
+        >
+          <div className="cc-dialog-stack">
+            <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <Input label="Amount" type="number" value={createForm.amountRequested} onChange={(e) => setCreateForm(f => ({ ...f, amountRequested: e.target.value }))} placeholder="e.g. 5000" required />
               </div>
-              <div style={{ width: 110 }}>
-                <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Currency</label>
+              <div className="ui-input-root" style={{ width: 120 }}>
+                <label htmlFor={currencyId} className="ui-input-label">Currency</label>
                 <Dropdown
-                    ariaLabel="Currency"
-                    align="left"
-                    fullWidth
-                    value={createForm.currency}
-                    onChange={(v) => setCreateForm(f => ({ ...f, currency: v }))}
-                    options={["USD", "EUR", "GBP", "INR"].map((c) => ({ value: c, label: c }))}
-                  />
+                  id={currencyId}
+                  align="left"
+                  fullWidth
+                  value={createForm.currency}
+                  onChange={(v) => setCreateForm(f => ({ ...f, currency: v }))}
+                  options={["USD", "EUR", "GBP", "INR"].map((c) => ({ value: c, label: c }))}
+                />
               </div>
             </div>
-            <div>
-              <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Payment Gateway</label>
+            <Field label="Payment gateway">
               <Dropdown
-                ariaLabel="Payment Gateway"
                 align="left"
                 fullWidth
                 value={createForm.gateway}
@@ -190,11 +200,9 @@ export default function DepositsSection({ campaignId }: { campaignId: string }) 
                   { value: "RAZORPAY", label: "Razorpay" },
                 ]}
               />
-            </div>
-            <div>
-              <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Payment Method</label>
+            </Field>
+            <Field label="Payment method">
               <Dropdown
-                ariaLabel="Payment Method"
                 align="left"
                 fullWidth
                 value={createForm.method}
@@ -207,26 +215,41 @@ export default function DepositsSection({ campaignId }: { campaignId: string }) 
                   { value: "IMPS", label: "IMPS" },
                   { value: "RTGS", label: "RTGS" },
                   { value: "ENACH", label: "eNACH" },
-                  { value: "WIRE", label: "Wire Transfer" },
+                  { value: "WIRE", label: "Wire transfer" },
                 ]}
               />
-            </div>
+            </Field>
           </div>
         </Modal>
       )}
 
       {/* Release Funds Modal */}
       {showRelease && deposit && (
-        <Modal open={true} onClose={() => setShowRelease(false)} title="Release Funds" size="sm" footer={
-          <div className="cc-modal-footer">
-            <Button variant="secondary" onClick={() => setShowRelease(false)}>Cancel</Button>
-            <Button variant="primary" loading={submitting} onClick={handleRelease} disabled={!releaseAmount}>Release</Button>
-          </div>
-        }>
-          <div>
-            <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginBottom: 12 }}>
-              Available: {formatCurrency(deposit.amountUsd - deposit.releasedAmount, deposit.currency)}
-            </p>
+        <Modal
+          open={true}
+          onClose={() => setShowRelease(false)}
+          icon={HandCoins}
+          tone="brand"
+          title="Release Funds"
+          description="Release funds from this campaign's deposit."
+          size="sm"
+          dismissible={false}
+          footer={
+            <div className="cc-modal-footer">
+              <Button variant="secondary" size="sm" onClick={() => setShowRelease(false)}>Cancel</Button>
+              <Button variant="primary" size="sm" loading={submitting} onClick={handleRelease} disabled={!releaseAmount}>Release</Button>
+            </div>
+          }
+        >
+          <div className="cc-dialog-stack">
+            <ModalOptionList>
+              <ModalOption
+                as="div"
+                icon={Wallet}
+                title={formatCurrency(deposit.amountUsd - deposit.releasedAmount, deposit.currency)}
+                description="Available"
+              />
+            </ModalOptionList>
             <Input label="Amount to Release" type="number" value={releaseAmount} onChange={(e) => setReleaseAmount(e.target.value)} placeholder="e.g. 1000" required />
           </div>
         </Modal>

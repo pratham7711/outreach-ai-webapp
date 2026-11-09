@@ -9,7 +9,7 @@ import { ACTIONS, isActionId } from '../lib/ui/actions';
  * `lib/ui/actions.ts` makes a *typo* impossible -- `action("new-campiagn")` is a
  * compile error. It cannot make an *omission* impossible: a new button that
  * simply never calls `action()` type-checks perfectly, and the only symptom is
- * that `:root.creatorcore [data-action="..."]` matches nothing later. A missing
+ * that a `[data-action="..."]` rule matches nothing later. A missing
  * attribute is not a property of any one file, so no lint rule can see it. It is
  * a property of the rendered page, which is why this is a Playwright spec.
  *

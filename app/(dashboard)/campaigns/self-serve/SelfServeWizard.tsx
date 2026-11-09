@@ -272,7 +272,7 @@ export default function SelfServeWizard({
               <div style={{ width: 120 }}>
                 <label htmlFor="ss-currency" style={labelStyle}>Currency</label>
                 <Dropdown
-                  ariaLabel="Currency"
+                  id="ss-currency"
                   align="left"
                   fullWidth
                   size="md"
@@ -316,7 +316,7 @@ export default function SelfServeWizard({
                 onChange={(v) => setPlatformFilter(v as Platform | "")}
                 options={[
                   { value: "", label: "All platforms" },
-                  ...PLATFORMS.map((p) => ({ value: p, label: p })),
+                  ...PLATFORMS.map((p) => ({ value: p, label: platformLabel(p) })),
                 ]}
               />
               <Dropdown

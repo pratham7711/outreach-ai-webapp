@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Card, Badge, Input, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
-import { Dropdown, StatusTabs, Button } from "@/components/ds";
-import { Banknote, Check, X } from "lucide-react";
+import { useState, useEffect, useCallback, useId } from "react";
+import { Card, Badge, Input, EmptyState, Textarea } from "@pratham7711/ui";
+import { Modal, ModalSection } from "@/components/ds/Modal";
+import { Dropdown, StatusTabs, Button, Skeleton } from "@/components/ds";
+import { Banknote, Check, X, XCircle } from "lucide-react";
 import { CreatorSelect } from "@/components/CreatorSelect";
 import { formatDateAbs, stripAt } from "@/lib/format";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
@@ -54,6 +55,7 @@ export default function PayoutRequestsSection({ campaignId }: { campaignId: stri
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({ creatorId: "", requestedAmount: "", currency: "USD" });
   const [rejectionReason, setRejectionReason] = useState("");
+  const currencyId = useId();
 
   const fetchRequests = useCallback(async () => {
     const params = new URLSearchParams();
@@ -116,17 +118,6 @@ export default function PayoutRequestsSection({ campaignId }: { campaignId: stri
     fetchRequests();
   };
 
-  const selectStyle = {
-    width: "100%",
-    padding: "10px 14px",
-    borderRadius: 10,
-    border: "1px solid var(--cc-border)",
-    fontSize: "var(--cc-t-14)",
-    color: "var(--cc-text)",
-    background: "var(--cc-card)",
-    boxSizing: "border-box" as const,
-  };
-
   if (loading) return <Skeleton width="100%" height="100px" borderRadius="12px" />;
 
   return (
@@ -151,7 +142,7 @@ export default function PayoutRequestsSection({ campaignId }: { campaignId: stri
       />
 
       {requests.length === 0 ? (
-        <Card variant="outlined" style={{ padding: 24 }}>
+        <Card variant="outlined">
           <EmptyState icon={<Banknote size={32} color="var(--cc-text-subtle)" />} title="No payout requests" description="Payout requests from creators will appear here." />
         </Card>
       ) : (
@@ -197,52 +188,73 @@ export default function PayoutRequestsSection({ campaignId }: { campaignId: stri
 
       {/* Create Request Modal */}
       {showCreate && (
-        <Modal open={true} onClose={() => setShowCreate(false)} title="Request Payout" size="md" footer={
-          <div className="cc-modal-footer">
-            <Button variant="secondary" onClick={() => setShowCreate(false)}>Cancel</Button>
-            <Button variant="primary" loading={submitting} onClick={handleCreate} disabled={!form.creatorId || !form.requestedAmount}>Submit</Button>
-          </div>
-        }>
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div>
-              <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Creator</label>
-              <CreatorSelect
-                value={form.creatorId}
-                onChange={(id) => setForm(f => ({ ...f, creatorId: id }))}
-              />
+        <Modal
+          open={true}
+          onClose={() => setShowCreate(false)}
+          icon={Banknote}
+          tone="brand"
+          title="Request Payout"
+          description="Create a payout request for one creator on this campaign."
+          size="md"
+          dismissible={false}
+          footer={
+            <div className="cc-modal-footer">
+              <Button variant="secondary" size="sm" onClick={() => setShowCreate(false)}>Cancel</Button>
+              <Button variant="primary" size="sm" loading={submitting} onClick={handleCreate} disabled={!form.creatorId || !form.requestedAmount}>Submit</Button>
             </div>
-            <div style={{ display: "flex", gap: 12 }}>
-              <div style={{ flex: 1 }}>
+          }
+        >
+          <ModalSection title="Creator">
+            <CreatorSelect
+              value={form.creatorId}
+              onChange={(id) => setForm(f => ({ ...f, creatorId: id }))}
+            />
+          </ModalSection>
+          <ModalSection>
+            <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <Input label="Amount" type="number" value={form.requestedAmount} onChange={(e) => setForm(f => ({ ...f, requestedAmount: e.target.value }))} placeholder="e.g. 500" required />
               </div>
-              <div style={{ width: 110 }}>
-                <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Currency</label>
+              <div className="ui-input-root" style={{ width: 120 }}>
+                <label htmlFor={currencyId} className="ui-input-label">Currency</label>
                 <Dropdown
-                    ariaLabel="Currency"
-                    align="left"
-                    fullWidth
-                    value={form.currency}
-                    onChange={(v) => setForm(f => ({ ...f, currency: v }))}
-                    options={["USD", "EUR", "GBP", "INR"].map((c) => ({ value: c, label: c }))}
-                  />
+                  id={currencyId}
+                  align="left"
+                  fullWidth
+                  value={form.currency}
+                  onChange={(v) => setForm(f => ({ ...f, currency: v }))}
+                  options={["USD", "EUR", "GBP", "INR"].map((c) => ({ value: c, label: c }))}
+                />
               </div>
             </div>
-          </div>
+          </ModalSection>
         </Modal>
       )}
 
       {/* Reject Modal */}
       {showReject && (
-        <Modal open={true} onClose={() => { setShowReject(null); setRejectionReason(""); }} title="Reject Payout Request" size="sm" footer={
-          <div className="cc-modal-footer">
-            <Button variant="secondary" onClick={() => { setShowReject(null); setRejectionReason(""); }}>Cancel</Button>
-            <Button variant="primary" onClick={handleReject} style={{ background: "var(--cc-danger-solid)" }}>Reject</Button>
-          </div>
-        }>
-          <div>
-            <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Reason (optional)</label>
-            <textarea value={rejectionReason} onChange={(e) => setRejectionReason(e.target.value)} placeholder="Why is this request being rejected?" rows={3} style={{ ...selectStyle, resize: "vertical" as const }} />
-          </div>
+        <Modal
+          open={true}
+          onClose={() => { setShowReject(null); setRejectionReason(""); }}
+          icon={XCircle}
+          tone="danger"
+          title="Reject Payout Request"
+          description="The request is marked Rejected, with your reason stored on it."
+          size="sm"
+          footer={
+            <div className="cc-modal-footer">
+              <Button variant="secondary" size="sm" onClick={() => { setShowReject(null); setRejectionReason(""); }}>Cancel</Button>
+              <Button variant="danger" size="sm" onClick={handleReject}>Reject</Button>
+            </div>
+          }
+        >
+          <Textarea
+            label="Reason"
+            value={rejectionReason}
+            onChange={(e) => setRejectionReason(e.target.value)}
+            placeholder="Why is this request being rejected?"
+            rows={3}
+          />
         </Modal>
       )}
     </div>

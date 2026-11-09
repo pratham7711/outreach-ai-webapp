@@ -1,9 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { useAnchoredMenu } from "./useAnchoredMenu";
 
 /**
- * A button that opens a menu of actions: the account menu and the bell.
+ * A button that opens a menu of actions: the account menu, the bell, and the
+ * ⋯ overflow (MoreMenu) that holds a row's less-used and destructive actions.
  *
  * Both used the ui package's Dropdown, which puts aria-haspopup and
  * aria-expanded on a bare <div> inside whatever wrapper it is given. A div has
@@ -31,6 +34,15 @@ export type MenuButtonItem = {
   strong?: boolean;
   /** Drawn after the label, e.g. an unread dot. */
   trailing?: ReactNode;
+  /** A download or a link, drawn as an <a> so the browser does the saving. */
+  href?: string;
+  download?: boolean;
+  /** Shown but not runnable, e.g. while the same action is in flight. Stays
+   *  focusable, as a disabled menu item should, so it is still announced. */
+  disabled?: boolean;
+  /** Draw a rule above this item, to start a new group. A danger item that
+   *  follows a safe one gets the rule without asking. */
+  startsGroup?: boolean;
 };
 
 export function MenuButton({
@@ -40,6 +52,9 @@ export function MenuButton({
   align = "left",
   onOpen,
   menuStyle,
+  triggerClassName = "cc-menu-button",
+  triggerTitle,
+  portal = false,
 }: {
   trigger: ReactNode;
   items: MenuButtonItem[];
@@ -49,6 +64,15 @@ export function MenuButton({
   onOpen?: () => void;
   /** Extra style for the open menu, e.g. a max height for a long list. */
   menuStyle?: CSSProperties;
+  /** The trigger's look. The default is a bare reset for the bell and avatar;
+   *  MoreMenu passes the library's button classes. */
+  triggerClassName?: string;
+  /** Hover text for an icon-only trigger. */
+  triggerTitle?: string;
+  /** Draw the menu on <body>, anchored to the button, so no card, table or
+   *  stacking context around the button can cut it off or paint over it.
+   *  MoreMenu sets it; the top bar's two menus do not need it. */
+  portal?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
@@ -56,6 +80,7 @@ export function MenuButton({
   const button = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const menuId = useId();
+  const { pos } = useAnchoredMenu(portal && open, button, menu, { align, fitContent: true });
 
   const close = useCallback((refocus: boolean) => {
     setOpen(false);
@@ -72,7 +97,8 @@ export function MenuButton({
   useEffect(() => {
     if (!open) return;
     const outside = (e: MouseEvent) => {
-      if (!root.current?.contains(e.target as Node)) close(false);
+      const target = e.target as Node;
+      if (!root.current?.contains(target) && !menu.current?.contains(target)) close(false);
     };
     const escape = (e: globalThis.KeyboardEvent) => {
       if (e.key === "Escape") close(true);
@@ -85,10 +111,16 @@ export function MenuButton({
     };
   }, [open, close]);
 
+  // A portalled menu is hidden until it has been placed, and a hidden item
+  // cannot take focus, so the keyboard's first item waits for the placement.
+  const ready = !portal || pos !== null;
   useEffect(() => {
-    if (!open || active < 0) return;
+    if (!open || active < 0 || !ready) return;
     menu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]')[active]?.focus();
-  }, [open, active]);
+  }, [open, active, ready]);
+
+  const portalled = (node: ReactNode) =>
+    portal && typeof document !== "undefined" ? createPortal(node, document.body) : node;
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const last = items.length - 1;
@@ -112,7 +144,10 @@ export function MenuButton({
       e.preventDefault();
       setActive(last);
     } else if (e.key === "Tab") {
-      close(false);
+      // A portalled menu sits at the end of <body>, so Tab from it would leave
+      // the page; handing focus back to the button first lets Tab carry on
+      // from where the menu was opened.
+      close(portal);
     }
   };
 
@@ -121,7 +156,8 @@ export function MenuButton({
       <button
         ref={button}
         type="button"
-        className="ui-dropdown-trigger cc-menu-button"
+        className={`ui-dropdown-trigger ${triggerClassName}`}
+        title={triggerTitle}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
@@ -133,37 +169,68 @@ export function MenuButton({
       >
         {trigger}
       </button>
-      {open && (
+      {open && portalled(
         <div
           ref={menu}
           id={menuId}
-          className={`ui-dropdown-menu ui-dropdown-${align}`}
+          className={portal ? "ui-dropdown-menu cc-menu-portal" : `ui-dropdown-menu ui-dropdown-${align}`}
           role="menu"
           aria-label={label}
-          style={menuStyle}
+          style={
+            portal
+              ? { ...menuStyle, top: pos?.top ?? 0, left: pos?.left ?? 0, visibility: pos ? undefined : "hidden" }
+              : menuStyle
+          }
         >
-          {items.map((item, i) => (
-            <button
-              key={`${i}-${item.label}`}
-              type="button"
-              role="menuitem"
-              tabIndex={active === i ? 0 : -1}
-              className={item.danger ? "ui-dropdown-item ui-dropdown-item-danger" : "ui-dropdown-item"}
-              onClick={() => {
-                item.onClick?.();
-                if (!item.keepOpen) close(true);
-              }}
-            >
-              {item.icon && (
-                <span className="ui-dropdown-icon" aria-hidden="true">
-                  {item.icon}
-                </span>
-              )}
-              {item.strong ? <span style={{ fontWeight: "var(--cc-fw-strong)" }}>{item.label}</span> : item.label}
-              {item.trailing}
-            </button>
-          ))}
-        </div>
+          {items.map((item, i) => {
+            const rule = i > 0 && (item.startsGroup || (item.danger && !items[i - 1].danger));
+            const className = item.danger ? "ui-dropdown-item ui-dropdown-item-danger" : "ui-dropdown-item";
+            const body = (
+              <>
+                {item.icon && (
+                  <span className="ui-dropdown-icon" aria-hidden="true">
+                    {item.icon}
+                  </span>
+                )}
+                {item.strong ? <span style={{ fontWeight: "var(--cc-fw-strong)" }}>{item.label}</span> : item.label}
+                {item.trailing}
+              </>
+            );
+            const run = () => {
+              if (item.disabled) return;
+              item.onClick?.();
+              if (!item.keepOpen) close(true);
+            };
+            return (
+              <Fragment key={`${i}-${item.label}`}>
+                {rule && <div role="separator" className="cc-menu-sep" />}
+                {item.href && !item.disabled ? (
+                  <a
+                    role="menuitem"
+                    tabIndex={active === i ? 0 : -1}
+                    className={className}
+                    href={item.href}
+                    download={item.download}
+                    onClick={run}
+                  >
+                    {body}
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    tabIndex={active === i ? 0 : -1}
+                    className={className}
+                    aria-disabled={item.disabled || undefined}
+                    onClick={run}
+                  >
+                    {body}
+                  </button>
+                )}
+              </Fragment>
+            );
+          })}
+        </div>,
       )}
     </div>
   );

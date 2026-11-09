@@ -1,11 +1,20 @@
 "use client";
 import { useState } from "react";
-import { Plus, Search, Building2 } from "lucide-react";
-import Link from "next/link";
-import { Card, Input, Avatar, EmptyState } from "@pratham7711/ui";
-import { PageHeader, MetricTile, Button } from "@/components/ds";
+import { Plus, Building2 } from "lucide-react";
+import { Avatar, EmptyState } from "@pratham7711/ui";
+import {
+  PageHeader,
+  MetricTile,
+  Button,
+  ListToolbar,
+  DataTable,
+  NoResults,
+  type DataTableColumn,
+} from "@/components/ds";
 import AddClientModal from "@/components/modals/AddClientModal";
 import { action } from "@/lib/ui/actions";
+import { formatFull } from "@/lib/format";
+import { CLIENTS_WIDTHS } from "./columns";
 
 type Client = {
   id: string;
@@ -15,6 +24,63 @@ type Client = {
   _count: { campaigns: number };
 };
 
+/** contactInfo is stored as JSON, sometimes as a string of it. */
+function parseContact(raw: unknown): Record<string, string> {
+  if (!raw) return {};
+  try {
+    return typeof raw === "string" ? JSON.parse(raw) : (raw as Record<string, string>);
+  } catch {
+    return {};
+  }
+}
+
+const COLUMNS: DataTableColumn<Client>[] = [
+  {
+    key: "client",
+    header: "Client",
+    minWidth: 220,
+    primary: true,
+    render: (c) => (
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 12, minWidth: 0, maxWidth: "100%" }}>
+        <Avatar name={c.name} size="sm" src={c.logoUrl ?? undefined} />
+        <span className="cc-dt-truncate" title={c.name}>
+          {c.name}
+        </span>
+      </span>
+    ),
+  },
+  {
+    key: "contact",
+    header: "Contact",
+    width: CLIENTS_WIDTHS.contact,
+    render: (c) => {
+      const contact = parseContact(c.contactInfo);
+      const person = contact.contactPerson?.trim();
+      const email = contact.email?.trim();
+      if (!person && !email) return <span style={{ color: "var(--cc-text-muted)" }}>—</span>;
+      return (
+        <>
+          <span className="cc-dt-truncate" title={person || email}>
+            {person || email}
+          </span>
+          {person && email ? (
+            <span className="cc-dt-sub cc-dt-truncate" title={email}>
+              {email}
+            </span>
+          ) : null}
+        </>
+      );
+    },
+  },
+  {
+    key: "campaigns",
+    header: "Campaigns",
+    width: CLIENTS_WIDTHS.campaigns,
+    align: "right",
+    render: (c) => formatFull(c._count.campaigns),
+  },
+];
+
 export default function ClientsClient({ clients, stats }: {
   clients: Client[];
   stats: { total: number; totalCampaigns: number };
@@ -22,109 +88,74 @@ export default function ClientsClient({ clients, stats }: {
   const [showModal, setShowModal] = useState(false);
   const [search, setSearch] = useState("");
 
-  const filtered = clients.filter((c) =>
-    c.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const q = search.trim().toLowerCase();
+  const filtered = q ? clients.filter((c) => c.name.toLowerCase().includes(q)) : clients;
+  const noun = (n: number) => `${formatFull(n)} client${n === 1 ? "" : "s"}`;
 
   return (
     <div className="rsp-page cc-listpage">
       <PageHeader
         title="Clients"
-        subtitle="Manage your client relationships and billing"
-        caption={`${filtered.length} Client${filtered.length !== 1 ? "s" : ""}`}
+        subtitle={
+          q
+            ? `Manage your client relationships and billing · ${formatFull(filtered.length)} of ${noun(clients.length)}`
+            : `Manage your client relationships and billing · ${noun(clients.length)}`
+        }
         actions={
-          <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setShowModal(true)} {...action("new-client")}>
-            New Client
+          <Button variant="primary" iconLeft={<Plus size={16} aria-hidden="true" />} onClick={() => setShowModal(true)} {...action("new-client")}>
+            New client
           </Button>
         }
       />
 
-      {/* Stats */}
-      <div className="cc-stagger cc-listpage-tiles grid grid-cols-1 sm:grid-cols-2" style={{ gap: 20, marginBottom: 32, maxWidth: 480 }}>
-        <MetricTile metric="clientsTotal" value={String(stats.total)} />
+      <div className="cc-tiles-balanced cc-listpage-tiles" style={{ marginBottom: 24 }}>
+        <MetricTile metric="clientsTotal" value={formatFull(stats.total)} />
         {/* Org-wide, not "campaigns belonging to these clients": the count includes
             campaigns with no client assigned, so it does not add up from the rows. */}
         <MetricTile
           metric="campaigns"
           label="Campaigns org-wide"
-          value={String(stats.totalCampaigns)}
+          value={formatFull(stats.totalCampaigns)}
           footer="Across every client, including campaigns with none assigned"
         />
       </div>
 
-      {/* Search */}
-      <div className="cc-clientspage-search" style={{ marginBottom: 24 }}>
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search Clients"
-          iconLeft={<Search size={16} />}
-        />
-      </div>
+      {/* Search waits for something to search: one client is not a list. */}
+      {clients.length > 0 ? (
+        <ListToolbar search={{ value: search, onChange: setSearch, placeholder: "Search clients" }} />
+      ) : null}
 
-      {/* Clients table */}
-      <Card variant="solid" noPadding>
-        <div style={{ padding: "14px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-hover-bg)" }}>
-          <span style={{ fontWeight: 700, fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>All Clients</span>
-        </div>
-
-        {filtered.length === 0 ? (
-          <div style={{ padding: "48px 24px" }}>
-            {/* A filtered miss is not an empty account. Telling somebody with 40
-                clients to "add your first client" because their search matched
-                none of them offers the one action that will not help. */}
-            {search.trim() ? (
-              <EmptyState
-                icon={<Search size={32} color="var(--cc-text-subtle)" />}
-                title="No clients match that search"
-                description={`None of your ${clients.length} client${clients.length === 1 ? "" : "s"} match “${search.trim()}”.`}
-                action={
-                  <Button variant="secondary" onClick={() => setSearch("")}>
-                    Clear search
-                  </Button>
-                }
-              />
-            ) : (
-              <EmptyState
-                icon={<Building2 size={32} color="var(--cc-text-subtle)" />}
-                title="No clients yet"
-                description="Add your first client to start managing campaigns"
-                action={
-                  <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowModal(true)}>
-                    New Client
-                  </Button>
-                }
-              />
-            )}
-          </div>
-        ) : (
-          <div className="cc-stagger">
-            {filtered.map((c, i) => (
-              <Link prefetch={false} key={c.id} href={`/clients/${c.id}`} style={{ textDecoration: "none" }}>
-                <div
-                  className="cc-table-row"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 16,
-                    padding: "14px 24px",
-                    borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
-                  }}
-                >
-                  <Avatar name={c.name} size="md" src={c.logoUrl ?? undefined} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: "var(--cc-fw-strong)", fontSize: "var(--cc-t-15)", color: "var(--cc-text)" }}>{c.name}</div>
-                    <div style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
-                      {c._count.campaigns} campaign{c._count.campaigns !== 1 ? "s" : ""}
-                    </div>
-                  </div>
-                  <Button variant="ghost" size="sm">View</Button>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
-      </Card>
+      <DataTable
+        caption="Clients"
+        columns={COLUMNS}
+        rows={filtered}
+        rowKey={(c) => c.id}
+        rowHref={(c) => `/clients/${c.id}`}
+        empty={
+          /* A filtered miss is not an empty account. Telling somebody with 40
+             clients to "add your first client" because their search matched
+             none of them offers the one action that will not help. */
+          q ? (
+            <NoResults
+              title="No clients match that search"
+              description={`None of your ${noun(clients.length)} match “${search.trim()}”.`}
+              onClear={() => setSearch("")}
+              clearLabel="Clear search"
+            />
+          ) : (
+            <EmptyState
+              icon={<Building2 size={32} color="var(--cc-text-subtle)" />}
+              title="No clients yet"
+              description="Add your first client to start managing campaigns."
+              action={
+                <Button variant="primary" iconLeft={<Plus size={16} aria-hidden="true" />} onClick={() => setShowModal(true)}>
+                  New client
+                </Button>
+              }
+            />
+          )
+        }
+      />
 
       {showModal && <AddClientModal onClose={() => setShowModal(false)} />}
     </div>

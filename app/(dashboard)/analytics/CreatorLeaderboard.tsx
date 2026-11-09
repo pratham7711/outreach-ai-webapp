@@ -1,8 +1,8 @@
 "use client";
 import React from "react";
-import Link from "next/link";
-import { Card, EmptyState } from "@pratham7711/ui";
-import { User } from "lucide-react";
+import { EmptyState } from "@pratham7711/ui";
+import { Trophy, User } from "lucide-react";
+import { DataTable, SectionCard, type DataTableColumn } from "@/components/ds";
 import { formatNumber, formatPercent } from "./shared";
 import { stripAt, UNKNOWN } from "@/lib/format";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
@@ -25,83 +25,71 @@ export type LeaderboardCreator = {
   engagementRate: number | null;
 };
 
+const COLUMNS: DataTableColumn<LeaderboardCreator & { rank: number }>[] = [
+  { key: "rank", header: "Rank", width: 64, align: "right", render: (c) => c.rank },
+  {
+    key: "creator",
+    header: "Creator",
+    primary: true,
+    minWidth: 200,
+    render: (c) => (
+      <span className="flex min-w-0 items-center gap-2.5">
+        <CreatorAvatar id={c.id} name={c.name} size="sm" />
+        <span className="min-w-0">
+          <span className="cc-dt-truncate" title={c.name}>{c.name}</span>
+          <span className="cc-dt-sub cc-dt-truncate" title={`@${stripAt(c.handle)}`}>@{stripAt(c.handle)}</span>
+        </span>
+      </span>
+    ),
+  },
+  { key: "campaigns", header: "Campaigns", width: 120, align: "right", render: (c) => formatNumber(c.campaigns) },
+  {
+    key: "views",
+    header: "Views",
+    width: 120,
+    align: "right",
+    /* "—" with the reason, never 0: these creators' posts carry no view count
+       we read (Instagram photos publish none), and the route ranks them last. */
+    render: (c) =>
+      c.views === null ? (
+        <span title={`No view count read for any of their ${c.posts} post${c.posts === 1 ? "" : "s"} in this range`}>{UNKNOWN}</span>
+      ) : (
+        formatNumber(c.views)
+      ),
+  },
+  {
+    key: "engagement",
+    header: "Engagement",
+    width: 124,
+    align: "right",
+    render: (c) =>
+      c.engagementRate === null ? (
+        <span title="No post of theirs in this range had both views and likes read">{UNKNOWN}</span>
+      ) : (
+        formatPercent(c.engagementRate)
+      ),
+  },
+];
+
+/**
+ * The ranked creators, as a listing table in a titled card: the same header,
+ * cell padding and right-aligned figures as every other table, and each row
+ * opens the creator.
+ */
 export default function CreatorLeaderboard({ creators }: { creators: LeaderboardCreator[] }) {
   return (
-    <Card variant="solid" noPadding>
-      <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--cc-border)" }}>
-        <span className="cc-panel-title">Creator Leaderboard</span>
-      </div>
-      {creators.length === 0 ? (
-        <div style={{ padding: 24 }}>
+    <SectionCard icon={Trophy} title="Creator leaderboard" padded={false}>
+      <DataTable
+        bare
+        caption="Creator leaderboard"
+        columns={COLUMNS}
+        rows={creators.map((c, i) => ({ ...c, rank: i + 1 }))}
+        rowKey={(c) => c.id}
+        rowHref={(c) => `/creators/${c.id}`}
+        empty={
           <EmptyState icon={<User size={32} color="var(--cc-text-subtle)" />} title="No post data yet" description="Sync posts to see creator rankings." />
-        </div>
-      ) : (
-        <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-          <div style={{ minWidth: 460 }}>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "28px 1fr 64px 84px 72px",
-              gap: 12,
-              padding: "10px 24px",
-              borderBottom: "1px solid var(--cc-border)",
-            }}
-          >
-            {["", "Creator", "Camps", "Views", "Eng."].map((h, i) => (
-              <span
-                key={i}
-                className="cc-microlabel" style={{ textAlign: i >= 2 ? "right" : "left" }}
-              >
-                {h}
-              </span>
-            ))}
-          </div>
-          {creators.map((creator, i) => (
-            <Link prefetch={false}
-              key={creator.id}
-              href={`/creators/${creator.id}`}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "28px 1fr 64px 84px 72px",
-                gap: 12,
-                padding: "12px 24px",
-                alignItems: "center",
-                borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
-                textDecoration: "none",
-                color: "inherit",
-              }}
-            >
-              <span style={{ fontSize: "var(--cc-t-12)", fontWeight: 700, color: i < 3 ? "var(--cc-primary)" : "var(--cc-text-subtle)", textAlign: "center" }}>
-                {i + 1}
-              </span>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-                <CreatorAvatar id={creator.id} name={creator.name} size="sm" />
-                <div style={{ minWidth: 0 }}>
-                  <p title={creator.name} style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{creator.name}</p>
-                  <p title={`@${stripAt(creator.handle)}`} style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>@{stripAt(creator.handle)}</p>
-                </div>
-              </div>
-              <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", textAlign: "right" }}>{creator.campaigns}</span>
-              {/* "—" with the reason, never 0: these creators' posts carry no
-                  view count we read (Instagram photos publish none), and the
-                  route ranks them last. */}
-              <span
-                title={creator.views === null ? `No view count read for any of their ${creator.posts} post${creator.posts === 1 ? "" : "s"} in this range` : undefined}
-                style={{ fontSize: "var(--cc-t-13)", fontWeight: 700, color: creator.views === null ? "var(--cc-text-muted)" : "var(--cc-text)", textAlign: "right" }}
-              >
-                {creator.views === null ? UNKNOWN : formatNumber(creator.views)}
-              </span>
-              <span
-                title={creator.engagementRate === null ? "No post of theirs in this range had both views and likes read" : undefined}
-                style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: creator.engagementRate === null ? "var(--cc-text-muted)" : "var(--cc-text)", textAlign: "right" }}
-              >
-                {creator.engagementRate === null ? UNKNOWN : formatPercent(creator.engagementRate)}
-              </span>
-            </Link>
-          ))}
-          </div>
-        </div>
-      )}
-    </Card>
+        }
+      />
+    </SectionCard>
   );
 }

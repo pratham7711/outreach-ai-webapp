@@ -56,8 +56,8 @@ export function TenantProvider({
         setConfig((prev) => ({ ...prev, ...data }));
         // The org's colours are deliberately NOT written here any more. An
         // inline custom property on <html> outranks every theme block, so a
-        // brand colour repainted Light, Dark and CreatorCore alike; the three
-        // themes now own the app's colours outright (October 2026).
+        // brand colour repainted every theme alike; the themes now own the
+        // app's colours outright (October 2026).
         const fontFamily = customBrandingValue("fontFamily", data.fontFamily);
         if (fontFamily) document.documentElement.style.setProperty("--font-family", fontFamily);
       })

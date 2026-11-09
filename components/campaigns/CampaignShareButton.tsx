@@ -36,10 +36,10 @@ export function CampaignShareButton({
         variant="secondary"
         iconLeft={<Share2 size={16} />}
         onClick={() => setOpen(true)}
-        aria-label="Share Campaign"
+        aria-label="Share campaign"
         {...action("share-campaign")}
       >
-        <span className="cc-share-label">Share Campaign</span>
+        <span className="cc-share-label">Share campaign</span>
       </Button>
       {open && (
         <ShareModal campaignId={campaignId} campaignTitle={campaignTitle} onClose={() => setOpen(false)} />

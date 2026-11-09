@@ -2,8 +2,8 @@
 
 import React from "react";
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Card, EmptyState, Skeleton } from "@pratham7711/ui";
-import { StatusTabs, Button } from "@/components/ds";
+import { Textarea } from "@pratham7711/ui";
+import { StatusTabs, Button, SectionCard, NoResults, Skeleton } from "@/components/ds";
 import { History } from "lucide-react";
 
 type ActivityEvent = {
@@ -91,9 +91,10 @@ export default function ActivityFeed({ campaignId }: { campaignId: string }) {
   );
 
   return (
-    <Card variant="outlined" className="cc-activity-card">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
-        <span className="cc-panel-title">Activity</span>
+    <SectionCard
+      title="Activity"
+      className="cc-activity-card"
+      action={
         <div className="cc-activity-filter">
           <StatusTabs
             variant="pill"
@@ -103,13 +104,14 @@ export default function ActivityFeed({ campaignId }: { campaignId: string }) {
             onChange={setFilter}
           />
         </div>
-      </div>
+      }
+    >
 
       {/* The composer. Without it CampaignComment was a table nothing could
           write to, so the read path and the Comments filter both sat over
           permanently empty data. */}
-      <div style={{ marginBottom: 18 }}>
-        <textarea
+      <div className="cc-activity-composer">
+        <Textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
@@ -117,19 +119,13 @@ export default function ActivityFeed({ campaignId }: { campaignId: string }) {
                everywhere else people leave short notes. */
             if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void postComment(); }
           }}
-          placeholder="Leave a note for the team…"
+          placeholder="Leave a note for the team"
           aria-label="Write a comment"
           rows={2}
           disabled={posting}
-          style={{
-            width: "100%", resize: "vertical", padding: "10px 12px",
-            borderRadius: 10, border: "1px solid var(--cc-border)",
-            background: "var(--cc-card)", color: "var(--cc-text)",
-            fontSize: "var(--cc-t-13)", fontFamily: "inherit", lineHeight: 1.5,
-          }}
         />
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
-          <span style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}>
+        <div className="cc-activity-composer-foot">
+          <span>
             Enter to post · Shift+Enter for a new line
           </span>
           <Button
@@ -146,14 +142,15 @@ export default function ActivityFeed({ campaignId }: { campaignId: string }) {
       {loading ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {[0, 1, 2].map((i) => (
-            <Skeleton key={i} width="100%" height="20px" borderRadius="6px" />
+            <Skeleton key={i} width="100%" height={20} radius={6} />
           ))}
         </div>
       ) : error ? (
         <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{error}</span>
       ) : shown.length === 0 ? (
-        <EmptyState
-          icon={<History size={28} color="var(--cc-text-subtle)" />}
+        <NoResults
+          className="cc-activity-empty"
+          icon={<History size={24} />}
           title={filter === "comments" ? "No comments yet" : "No activity yet"}
           description={
             filter === "comments"
@@ -174,6 +171,6 @@ export default function ActivityFeed({ campaignId }: { campaignId: string }) {
           ))}
         </div>
       )}
-    </Card>
+    </SectionCard>
   );
 }

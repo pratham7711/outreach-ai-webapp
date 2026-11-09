@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Card, Badge, EmptyState, Skeleton, Avatar } from "@pratham7711/ui";
-import { StatusTabs, Button } from "@/components/ds";
+import { Card, Badge, EmptyState, Avatar } from "@pratham7711/ui";
+import { StatusTabs, Button, Skeleton } from "@/components/ds";
 import { Check, X, Users, Star, TrendingUp, Inbox } from "lucide-react";
 import { toast } from "sonner";
-import { stripAt, formatDateAbs, formatFull } from "@/lib/format";
+import { stripAt, formatDateAbs, formatFull, platformLabel } from "@/lib/format";
 import { imgSrc } from "@/lib/postMedia";
 
 type Proposal = {
@@ -119,13 +119,13 @@ export default function ProposalsSection({ campaignId }: { campaignId: string })
       />
 
       {proposals.length === 0 ? (
-        <Card variant="outlined" style={{ padding: 24 }}>
+        <Card variant="outlined">
           <EmptyState icon={<Inbox size={32} color="var(--cc-text-subtle)" />} title="No proposals" description="Creators will submit proposals when this campaign is listed on the marketplace." />
         </Card>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {proposals.map(p => (
-            <Card key={p.id} variant="outlined" style={{ padding: 16 }}>
+            <Card key={p.id} variant="outlined">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
                 <div style={{ display: "flex", gap: 12, alignItems: "start" }}>
                   <Avatar name={p.creatorUser.name} size="md" src={imgSrc(p.creatorUser.avatarUrl, 96) ?? undefined} />
@@ -133,7 +133,7 @@ export default function ProposalsSection({ campaignId }: { campaignId: string })
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                       <span style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)" }}>{p.creatorUser.name}</span>
                       <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>@{stripAt(p.creatorUser.handle)}</span>
-                      <Badge variant="neutral" style={{ fontSize: "var(--cc-t-10)"}}>{p.creatorUser.platform}</Badge>
+                      <Badge variant="neutral" style={{ fontSize: "var(--cc-t-10)"}}>{platformLabel(p.creatorUser.platform)}</Badge>
                       <Badge variant={STATUS_BADGE[p.status] ?? "neutral"}>{p.status}</Badge>
                     </div>
 

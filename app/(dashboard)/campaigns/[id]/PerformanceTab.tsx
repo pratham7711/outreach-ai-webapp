@@ -1,13 +1,18 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
-import { Card, Badge, EmptyState, Skeleton, Modal } from "@pratham7711/ui";
-import { MetricTile, Button } from "@/components/ds";
+import { Card, EmptyState } from "@pratham7711/ui";
+import { Modal, ModalOption, ModalOptionList, ModalSection } from "@/components/ds/Modal";
+import { MetricTile, Button, SectionCard, DataTable, Skeleton, type DataTableColumn } from "@/components/ds";
+import { TileGridSkeleton } from "@/components/ui/PageSkeleton";
 import { ChartFrame } from "@/components/ds/ChartFrame";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  PieChart, Pie, Cell, Legend, BarChart, Bar, ReferenceLine,
+  Legend, BarChart, Bar, ReferenceLine,
 } from "recharts";
-import { Eye, Heart, Percent, DollarSign, Target, TrendingUp, AlertTriangle, BarChart3, PieChart as PieChartIcon, Trophy, Download } from "lucide-react";
+import { TrendingUp, AlertTriangle, BarChart3, PieChart as PieChartIcon, Trophy, Download, FileSpreadsheet, FileText, FileType } from "lucide-react";
+import { CampaignHeaderActions } from "@/components/campaigns/CampaignHeaderActions";
+import { PlatformSplit, type PlatformSplitRow } from "@/components/charts/PlatformSplit";
+import { chartAxisTick, chartLegendProps, chartTooltipProps } from "@/components/charts/chartTheme";
 import { formatFull, formatCompact } from "@/lib/format";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import { AudioCard } from "@/components/campaigns/AudioCard";
@@ -31,12 +36,9 @@ import { platformLabel } from "@/lib/platforms/registry";
    two drifted the moment the seam grew the per-counter totals. */
 type Kpis = CampaignPerformance["kpis"];
 
-const LEADERBOARD_COLS = (withEngagement: boolean) =>
-  withEngagement ? "1fr 70px 90px 80px" : "1fr 70px 90px";
-
 /** One key per platform the campaign posted on — see lib/reports/campaignPerformance. */
 type TimeSeriesPoint = { date: string } & { [platform: string]: number | string };
-type PlatformSplit = { platform: string; views: number; posts: number };
+type PlatformShare = { platform: string; views: number; posts: number };
 type LeaderboardRow = {
   creatorId: string;
   name: string;
@@ -54,7 +56,7 @@ type PerformanceData = {
   timeSeries: TimeSeriesPoint[];
   /** The keys in `timeSeries`, in the order the chart should stack them. */
   seriesPlatforms: string[];
-  platformSplit: PlatformSplit[];
+  platformSplit: PlatformShare[];
   leaderboard: LeaderboardRow[];
   /** Null when the campaign has no song, or a song with no tracked TikTok sound. */
   audio: CampaignAudio | null;
@@ -97,17 +99,13 @@ function formatNumber(num: number): string {
 function LoadingState() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      <style>{`
-        .perf-split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; align-items: start; }
-        @media (min-width: 1024px) { .perf-split { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); } }
-      `}</style>
-      <div className="rsp-grid-tiles">
-        {[1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} height="88px" borderRadius="12px" />)}
-      </div>
-      <Skeleton width="100%" height="320px" borderRadius="12px" />
+      {/* The same shapes as the page's own loader for this section
+          (campaigns/[id]/page.tsx), so nothing jumps between the two. */}
+      <TileGridSkeleton count={9} />
+      <Skeleton width="100%" height={320} radius="var(--cc-r-card)" />
       <div className="perf-split">
-        <Skeleton width="100%" height="300px" borderRadius="12px" />
-        <Skeleton width="100%" height="300px" borderRadius="12px" />
+        <Skeleton width="100%" height={240} radius="var(--cc-r-card)" />
+        <Skeleton width="100%" height={240} radius="var(--cc-r-card)" />
       </div>
     </div>
   );
@@ -115,21 +113,15 @@ function LoadingState() {
 
 function ErrorState({ onRetry }: { onRetry: () => void }) {
   return (
-    <Card variant="outlined" style={{ padding: 32 }}>
+    <Card variant="outlined">
       <EmptyState
         icon={<AlertTriangle size={32} color="var(--cc-text-subtle)" />}
         title="Couldn't load performance"
         description="Something went wrong while fetching campaign performance."
         action={
-          <button
-            onClick={onRetry}
-            style={{
-              background: "var(--cc-primary)", color: "var(--cc-card)", border: "none",
-              borderRadius: 8, padding: "8px 16px", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", cursor: "pointer",
-            }}
-          >
+          <Button variant="primary" size="sm" onClick={onRetry}>
             Retry
-          </button>
+          </Button>
         }
       />
     </Card>
@@ -138,10 +130,10 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
 
 type ExportFormat = "xlsx" | "csv" | "pdf";
 
-const EXPORT_FORMATS: { key: ExportFormat; label: string; hint: string }[] = [
-  { key: "xlsx", label: "Excel (.xlsx)", hint: "Summary, posts and creators as separate sheets" },
-  { key: "csv", label: "CSV (.csv)", hint: "Same sections in one plain-text file" },
-  { key: "pdf", label: "PDF (.pdf)", hint: "Formatted performance report" },
+const EXPORT_FORMATS: { key: ExportFormat; label: string; hint: string; icon: React.ElementType }[] = [
+  { key: "xlsx", label: "Excel (.xlsx)", hint: "Summary, posts and creators as separate sheets", icon: FileSpreadsheet },
+  { key: "csv", label: "CSV (.csv)", hint: "Same sections in one plain-text file", icon: FileText },
+  { key: "pdf", label: "PDF (.pdf)", hint: "Formatted performance report", icon: FileType },
 ];
 
 function ExportModal({ campaignId, onClose }: { campaignId: string; onClose: () => void }) {
@@ -156,40 +148,73 @@ function ExportModal({ campaignId, onClose }: { campaignId: string; onClose: () 
     <Modal
       open
       onClose={onClose}
+      icon={Download}
+      tone="brand"
       title="Export campaign data"
+      description="Download the latest data for this campaign in your preferred format."
       size="sm"
       footer={
-        <>
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" iconLeft={<Download size={15} />} onClick={download}>Download</Button>
-        </>
+        <div className="cc-modal-footer">
+          <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" size="sm" iconLeft={<Download size={16} aria-hidden="true" />} onClick={download}>Download</Button>
+        </div>
       }
     >
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", margin: 0, lineHeight: 1.6 }}>
-          Download the latest data for this campaign in your preferred format.
-        </p>
-        {EXPORT_FORMATS.map((f) => {
-          const selected = f.key === format;
-          return (
-            <button
+      <ModalSection title="Format">
+        <ModalOptionList>
+          {EXPORT_FORMATS.map((f) => (
+            <ModalOption
               key={f.key}
-              onClick={() => setFormat(f.key)}
-              aria-pressed={selected}
-              style={{
-                textAlign: "left", cursor: "pointer", borderRadius: 8, padding: 12,
-                background: selected ? "var(--cc-bg)" : "var(--cc-card)",
-                border: selected ? "1.5px solid var(--cc-primary)" : "1px solid var(--cc-border)",
-              }}
-            >
-              <span style={{ display: "block", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{f.label}</span>
-              <span style={{ display: "block", fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginTop: 4 }}>{f.hint}</span>
-            </button>
-          );
-        })}
-      </div>
+              icon={f.icon}
+              title={f.label}
+              description={f.hint}
+              control={
+                <input
+                  type="radio"
+                  name="export-format"
+                  value={f.key}
+                  checked={f.key === format}
+                  onChange={() => setFormat(f.key)}
+                  style={{ width: 18, height: 18, accentColor: "var(--cc-primary)", cursor: "pointer" }}
+                />
+              }
+            />
+          ))}
+        </ModalOptionList>
+      </ModalSection>
     </Modal>
   );
+}
+
+/* Top creators: numbers right-aligned and tabular (DataTable), the rate as
+   plain text. Rows do not link -- they never did here. */
+function leaderboardColumns(withEngagement: boolean): DataTableColumn<LeaderboardRow>[] {
+  const cols: DataTableColumn<LeaderboardRow>[] = [
+    {
+      key: "creator",
+      header: "Creator",
+      primary: true,
+      minWidth: 200,
+      render: (row) => (
+        <span className="flex min-w-0 items-center gap-2.5">
+          <CreatorAvatar id={row.creatorId} name={row.name} size="sm" />
+          <CreatorName name={row.name} handle={row.handle} />
+        </span>
+      ),
+    },
+    { key: "posts", header: "Posts", width: 80, align: "right", render: (row) => formatNumber(row.posts) },
+    { key: "views", header: "Views", width: 110, align: "right", render: (row) => (row.views === null ? "—" : formatNumber(row.views)) },
+  ];
+  if (withEngagement) {
+    cols.push({
+      key: "eng",
+      header: "Eng.",
+      width: 90,
+      align: "right",
+      render: (row) => (row.engagementRate === null ? "—" : `${(row.engagementRate * 100).toFixed(2)}%`),
+    });
+  }
+  return cols;
 }
 
 /**
@@ -248,9 +273,9 @@ function ViewsChart({
   return (
     <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
-        <span className="cc-panel-title cc-chart-title" style={{ display: "block" }}>
-          {viewsMode === "daily" ? "Views Gained per Day by Platform" : "Views Over Time by Platform"}
-        </span>
+        <p className="cc-chart-caption">
+          {viewsMode === "daily" ? "Views gained per day by platform" : "Cumulative views by platform"}
+        </p>
         {enough ? <SeriesModeToggle label="Views over time" value={viewsMode} onChange={setViewsMode} /> : null}
       </div>
       {enough && shown.length === 0 ? (
@@ -261,17 +286,17 @@ function ViewsChart({
         <ChartFrame height={320}>
           <BarChart data={shownDaily} stackOffset="sign" margin={{ top: 8, right: 24, left: -8, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--cc-border)" vertical={false} />
-            <XAxis dataKey="date" ticks={dateAxis.ticks} interval="preserveStartEnd" minTickGap={14} tickFormatter={dateAxis.tick} tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} />
-            <YAxis tickFormatter={(v) => formatTick(Number(v))} tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} width={72} {...niceAxis(stackExtent(shownDaily, seriesKeys))} />
+            <XAxis dataKey="date" ticks={dateAxis.ticks} interval="preserveStartEnd" minTickGap={14} tickFormatter={dateAxis.tick} tick={chartAxisTick} />
+            <YAxis tickFormatter={(v) => formatTick(Number(v))} tick={chartAxisTick} width={72} {...niceAxis(stackExtent(shownDaily, seriesKeys))} />
             <ReferenceLine y={0} stroke="var(--cc-border)" />
             {marker}
             <Tooltip
+              {...chartTooltipProps}
               itemSorter={topBandFirst}
               labelFormatter={(l) => dateAxis.label(String(l))}
               formatter={(v: unknown) => (v === null || v === undefined ? "—" : formatNumber(Number(v)))}
-              contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, fontSize: "var(--cc-t-13)"}}
             />
-            <Legend itemSorter={null} wrapperStyle={{ fontSize: "var(--cc-t-12)"}} />
+            <Legend {...chartLegendProps} itemSorter={null} />
             {activeSeries.map((s) => (
               <Bar isAnimationActive={false} key={s.key} dataKey={s.key} name={platformLabel(s.key)} stackId="views" fill={s.color} maxBarSize={28} />
             ))}
@@ -289,16 +314,16 @@ function ViewsChart({
               ))}
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--cc-border)" />
-            <XAxis dataKey="date" ticks={dateAxis.ticks} interval="preserveStartEnd" minTickGap={14} tickFormatter={dateAxis.tick} tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} />
-            <YAxis tickFormatter={(v) => formatTick(Number(v))} tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} width={72} {...niceAxis(stackExtent(shown, seriesKeys))} />
+            <XAxis dataKey="date" ticks={dateAxis.ticks} interval="preserveStartEnd" minTickGap={14} tickFormatter={dateAxis.tick} tick={chartAxisTick} />
+            <YAxis tickFormatter={(v) => formatTick(Number(v))} tick={chartAxisTick} width={72} {...niceAxis(stackExtent(shown, seriesKeys))} />
             {marker}
             <Tooltip
+              {...chartTooltipProps}
               itemSorter={topBandFirst}
               labelFormatter={(l) => dateAxis.label(String(l))}
               formatter={(v: unknown) => formatNumber(Number(v ?? 0))}
-              contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, fontSize: "var(--cc-t-13)"}}
             />
-            <Legend itemSorter={null} wrapperStyle={{ fontSize: "var(--cc-t-12)"}} />
+            <Legend {...chartLegendProps} itemSorter={null} />
             {activeSeries.map((s) => (
               <Area
                 isAnimationActive={false}
@@ -358,8 +383,10 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
   );
   const launch = data.launch ?? null;
 
+  /* Export sits in the campaign header beside Share Campaign, like every other
+     section's own action, rather than alone on a row above the tiles. */
   const headerActions = (
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+    <CampaignHeaderActions>
       {/* No audio control here. Attaching a sound is a property of the
           campaign, not an act on the report, so it lives in Settings beside the
           rest of what the campaign is -- and is asked for when the campaign is
@@ -368,17 +395,17 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
           every section, this one included (components/campaigns/
           CampaignShareButton). A second one on this tab was the same dialog
           twice on one screen. */}
-      <Button variant="secondary" iconLeft={<Download size={15} />} onClick={() => setShowExport(true)}>
+      <Button variant="secondary" size="sm" iconLeft={<Download size={16} aria-hidden="true" />} onClick={() => setShowExport(true)}>
         Export
       </Button>
-    </div>
+    </CampaignHeaderActions>
   );
 
   if (kpis.views === 0 && leaderboard.length === 0 && timeSeries.length === 0) {
     return (
       <>
-        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>{headerActions}</div>
-        <Card variant="outlined" style={{ padding: 32 }}>
+        {headerActions}
+        <Card variant="outlined">
           <EmptyState
             icon={<BarChart3 size={32} color="var(--cc-text-subtle)" />}
             title="No posts yet — add posts to see performance"
@@ -390,7 +417,12 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
     );
   }
 
-  const pieData = platformSplit.filter((p) => p.views > 0);
+  /* Every platform the campaign posted on. A platform whose posts have no view
+     count read yet sums to 0 and reads "—", not a measured 0 -- the same rows
+     the Analytics section draws. */
+  const splitRows: PlatformSplitRow[] = platformSplit
+    .filter((p) => p.posts > 0 || p.views > 0)
+    .map((p) => ({ platform: p.platform, views: p.views > 0 ? p.views : null, posts: p.posts }));
   /* Every post here carries a view count; engagement only exists for the ones we
      fetched ourselves, so those tiles appear only when there is something in
      them. See lib/metricDisplay. */
@@ -405,14 +437,8 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      <style>{`
-        .perf-split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; align-items: start; }
-        @media (min-width: 1024px) { .perf-split { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); } }
-        .perf-tiles .ui-statcard { min-width: 0; }
-        .perf-tiles .ui-statcard-value { overflow-wrap: anywhere; font-size: clamp(16px, 1.5vw, 22px); }
-      `}</style>
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>{headerActions}</div>
-      <div className="cc-tiles-balanced perf-tiles">
+      {headerActions}
+      <div className="cc-tiles-balanced">
         {/* The same per-counter breakout CreatorCore's client report shows, so the
             campaign's own tab and the shared link tell one story. A counter no
             post has measured has no tile -- see lib/metricDisplay. */}
@@ -496,95 +522,24 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
       />
 
       <div className="perf-split">
-        <Card variant="outlined" style={{ padding: 24 }}>
-          <span className="cc-panel-title cc-chart-title" style={{ display: "block", marginBottom: 16 }}>
-            Views by Platform
-          </span>
-          {pieData.length > 0 ? (
-            <ChartFrame height={260}>
-              <PieChart>
-                <Pie
-                  isAnimationActive={false}
-                  data={pieData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={55}
-                  outerRadius={85}
-                  dataKey="views"
-                  nameKey="platform"
-                  paddingAngle={2}
-                  label={false}
-                  /* The stroke separates slices; on a lone slice it is a seam
-                     drawn across a full ring. */
-                  stroke="var(--cc-card)"
-                  strokeWidth={pieData.length > 1 ? 2 : 0}
-                >
-                  {pieData.map((entry) => (
-                    <Cell
-                      key={entry.platform}
-                      fill={platformSeriesColor(entry.platform, platformColor(entry.platform)).color}
-                    />
-                  ))}
-                </Pie>
-                <Legend itemSorter={null} verticalAlign="bottom" height={24} wrapperStyle={{ fontSize: "var(--cc-t-12)"}} formatter={(value: any) => <span style={{ color: "var(--cc-text-muted)" }}>{platformLabel(String(value))}</span>} />
-                <Tooltip
-                  formatter={(v: any, _n: any, item: any) => [`${formatNumber(Number(v ?? 0))} views · ${(item?.payload as PlatformSplit)?.posts ?? 0} posts`, platformLabel((item?.payload as PlatformSplit)?.platform)]}
-                  contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, fontSize: "var(--cc-t-13)"}}
-                />
-              </PieChart>
-            </ChartFrame>
+        <SectionCard title="Views by platform">
+          {splitRows.some((r) => r.views !== null) ? (
+            <PlatformSplit rows={splitRows} ariaLabel="Views by platform" />
           ) : (
             <EmptyState icon={<PieChartIcon size={32} color="var(--cc-text-subtle)" />} title="No platform data" />
           )}
-        </Card>
+        </SectionCard>
 
-        <Card variant="solid" noPadding style={{ overflowX: "auto" }}>
-          <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--cc-border)" }}>
-            <span className="cc-panel-title">Top Creators</span>
-          </div>
-          {leaderboard.length > 0 ? (
-            <div style={{ minWidth: 480 }}>
-              <div style={{
-                display: "grid", gridTemplateColumns: LEADERBOARD_COLS(anyEngagementMeasured),
-                gap: 12, padding: "10px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",
-              }}>
-                {["Creator", "Posts", "Views", ...(anyEngagementMeasured ? ["Eng."] : [])].map((h) => (
-                  <span key={h} className="cc-microlabel">{h}</span>
-                ))}
-              </div>
-              {leaderboard.map((row, i) => (
-                <div
-                  key={row.creatorId}
-                  style={{
-                    display: "grid", gridTemplateColumns: LEADERBOARD_COLS(anyEngagementMeasured), gap: 12,
-                    padding: "12px 24px", alignItems: "center",
-                    borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-                    <CreatorAvatar id={row.creatorId} name={row.name} size="sm" />
-                    <CreatorName name={row.name} handle={row.handle} />
-                  </div>
-                  <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{row.posts}</span>
-                  <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{row.views === null ? "—" : formatNumber(row.views)}</span>
-                  {anyEngagementMeasured && (
-                    <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
-                      {row.engagementRate !== null ? (
-                        <Badge variant="neutral" size="sm">{(row.engagementRate * 100).toFixed(2)}%</Badge>
-                      ) : (
-                        "—"
-                      )}
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div style={{ padding: 24 }}>
-              <EmptyState icon={<Trophy size={32} color="var(--cc-text-subtle)" />} title="No creators yet" />
-            </div>
-          )}
-        </Card>
+        <SectionCard title="Top creators" padded={false}>
+          <DataTable
+            bare
+            caption="Top creators"
+            columns={leaderboardColumns(anyEngagementMeasured)}
+            rows={leaderboard}
+            rowKey={(row) => row.creatorId}
+            empty={<EmptyState icon={<Trophy size={32} color="var(--cc-text-subtle)" />} title="No creators yet" />}
+          />
+        </SectionCard>
       </div>
 
       {showExport && <ExportModal campaignId={campaignId} onClose={() => setShowExport(false)} />}

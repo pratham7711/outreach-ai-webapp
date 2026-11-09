@@ -3,9 +3,27 @@
 import React from "react";
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Card, Badge, Skeleton, Tag, EmptyState } from "@pratham7711/ui";
-import { Button } from "@/components/ds";
-import { ArrowLeft, ExternalLink, RefreshCw, Eye, Heart, MessageCircle, Share2, Download, Bookmark, TrendingUp, Flag, Lock, Activity, ShieldAlert, Shield, Play, Users } from "lucide-react";
+import { Card } from "@pratham7711/ui";
+import {
+  Button,
+  MoreMenu,
+  PageHeader,
+  MetricTile,
+  SectionCard,
+  DataTable,
+  NoResults,
+  Dropdown,
+  LoadError,
+  Skeleton,
+  type DataTableColumn,
+  type StatusTone,
+} from "@/components/ds";
+import { TileGridSkeleton } from "@/components/ui/PageSkeleton";
+import { enumLabel } from "@/lib/ui/enumLabel";
+import { Banner } from "@/components/ds/Banner";
+import { StatusBadge } from "@/components/ds/StatusBadge";
+import { ShareModal } from "@/app/(dashboard)/campaigns/ShareModal";
+import { ExternalLink, RefreshCw, Eye, Heart, MessageCircle, Share2, Download, Bookmark, TrendingUp, Flag, Lock, Activity, ShieldAlert, Shield, Play, Users, History } from "lucide-react";
 import dynamic from "next/dynamic";
 import { computeEngagementRate } from "@/lib/metrics";
 import {
@@ -28,15 +46,12 @@ import PostStatusChip from "@/components/posts/PostStatusChip";
 import { AgeLabel } from "@/components/ds/AgeLabel";
 import { isUnknownMetric, metricReason, metricText, postCounterValue, unknownMetric, type MetricValue } from "@/lib/creators/metricValue";
 import { imgSrc, embedSrcFor, postThumbnailUrl } from "@/lib/postMedia";
-import { stripAt, formatDateAbs, formatDateTimeAbs, formatFull, fitFigureSize, platformLabel } from "@/lib/format";
-import { enumLabel } from "@/lib/ui/enumLabel";
+import { stripAt, formatDateAbs, formatDateTimeAbs, formatFull, platformLabel } from "@/lib/format";
 import { MIN_SNAPSHOTS } from "@/lib/fraud/botSignals";
 import { loadCharts } from "@/components/charts/lazyCharts";
-import { breakableFigure } from "@/components/ds/BreakableFigure";
 import { readCadenceLabel, DEFAULT_POST_TRACKING } from "@/lib/trackers/granularity";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import { useCampaignNav } from "@/components/providers/CampaignNavProvider";
-import { CampaignShareButton } from "@/components/campaigns/CampaignShareButton";
 import { useConfirm } from "@/components/ds/ConfirmDialog";
 import { removeConfirmText, removePostsSummary, removePostsUndoHint, restorePostsSummary } from "@/lib/posts/bulkActions";
 import { toast } from "sonner";
@@ -50,12 +65,12 @@ const TRACK_PERIOD_LABEL: Record<ChartGranularity, string> = { "6hourly": "Per 6
 
 const PerformanceOverTimeArea = dynamic(() => loadCharts().then((m) => m.PerformanceOverTimeArea), {
   ssr: false,
-  loading: () => <Skeleton width="100%" height="300px" borderRadius="8px" />,
+  loading: () => <Skeleton width="100%" height={300} />,
 });
 
 const TrackingLine = dynamic(() => loadCharts().then((m) => m.TrackingLine), {
   ssr: false,
-  loading: () => <Skeleton width="100%" height="280px" borderRadius="8px" />,
+  loading: () => <Skeleton width="100%" height={280} />,
 });
 
 type PostDetail = {
@@ -187,38 +202,11 @@ const SIGNAL_LABEL: Record<BotSignal["type"], string> = {
   BOT_PATTERN: "Bot pattern",
 };
 
-const SEVERITY_STYLE: Record<BotSignal["severity"], { bg: string; color: string }> = {
-  HIGH: { bg: "var(--cc-danger-bg)", color: "var(--cc-danger-fg)" },
-  MEDIUM: { bg: "var(--cc-warning-bg)", color: "var(--cc-warning-fg)" },
-  LOW: { bg: "var(--cc-accent-bg)", color: "var(--cc-accent-fg)" },
+const SEVERITY_TONE: Record<BotSignal["severity"], StatusTone> = {
+  HIGH: "danger",
+  MEDIUM: "warning",
+  LOW: "info",
 };
-
-const STATUS_BADGE: Record<string, "warning" | "success" | "danger" | "neutral"> = {
-  PENDING_REVIEW: "warning",
-  APPROVED: "success",
-  REJECTED: "danger",
-};
-
-/** A metric-card figure that shrinks to fit, and wraps between digit groups
-    when shrinking is not enough -- never an ellipsis: "340,…" on a phone tile
-    read as a different number (MEASURED 2026-10-13 at 390). */
-function FigureValue({ text, color = "var(--cc-text)" }: { text: string; color?: string }) {
-  return (
-    <span
-      title={text}
-      style={{
-        fontSize: fitFigureSize(text, 24),
-        fontWeight: 700,
-        color,
-        fontVariantNumeric: "tabular-nums",
-        display: "block",
-        overflowWrap: "break-word",
-      }}
-    >
-      {breakableFigure(text)}
-    </span>
-  );
-}
 
 function formatNumber(num: number): string {
   return formatFull(num);
@@ -238,10 +226,10 @@ const UNWRITTEN_CARDS = new Set(["savesCount", "reachCount", "downloadsCount"]);
 const META_INSIGHT_CARDS = new Set(["viewsCount", "reachCount", "savesCount"]);
 
 const BASE_METRIC_CARDS = [
-  { key: "viewsCount", field: "views", label: "Views", icon: Eye, color: "var(--cc-primary)" },
-  { key: "likesCount", field: "likes", label: "Likes", icon: Heart, color: "var(--chart-5)" },
-  { key: "commentsCount", field: "comments", label: "Comments", icon: MessageCircle, color: "var(--chart-4)" },
-  { key: "sharesCount", field: "shares", label: "Shares", icon: Share2, color: "var(--cc-success)" },
+  { key: "viewsCount", field: "views", label: "Views", icon: Eye },
+  { key: "likesCount", field: "likes", label: "Likes", icon: Heart },
+  { key: "commentsCount", field: "comments", label: "Comments", icon: MessageCircle },
+  { key: "sharesCount", field: "shares", label: "Shares", icon: Share2 },
 ] as const;
 
 export default function PostDetailPage() {
@@ -261,6 +249,7 @@ export default function PostDetailPage() {
   const [flagging, setFlagging] = useState(false);
   const [flagged, setFlagged] = useState(false);
   const [playing, setPlaying] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [timeseries, setTimeseries] = useState<Timeseries | null>(null);
   const [perfMode, setPerfMode] = useState<SeriesMode>("cumulative");
   const [trackMode, setTrackMode] = useState<SeriesMode>("cumulative");
@@ -383,7 +372,18 @@ export default function PostDetailPage() {
   const confirm = useConfirm();
   const [removing, setRemoving] = useState(false);
   const handleRemove = async () => {
-    if (!(await confirm({ ...removeConfirmText(1), tone: "danger" }))) return;
+    if (
+      !(await confirm({
+        verb: "remove",
+        subject: post ? `${post.creator.name || `@${stripAt(post.creator.handle)}`}'s ${platformLabel(post.platform)} post` : "this post",
+        /* A soft remove: keep the sentence about getting it back rather than
+           the default "can't be undone". */
+        description: removeConfirmText(1).description,
+        confirmLabel: "Remove post",
+        tone: "danger",
+      }))
+    )
+      return;
     setRemoving(true);
     setSyncNote(null);
     try {
@@ -463,14 +463,13 @@ export default function PostDetailPage() {
   };
 
   if (loading) {
+    /* Shaped like the page: header band, the tile row, then a chart card. */
     return (
-      <div style={{ padding: 32, maxWidth: 1200, margin: "0 auto" }}>
-        <Skeleton width="200px" height="32px" borderRadius="8px" />
-        <div style={{ marginTop: 24, display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-          {[1, 2, 3].map(i => <Skeleton key={i} width="100%" height="100px" borderRadius="12px" />)}
-        </div>
-        <div style={{ marginTop: 24 }}>
-          <Skeleton width="100%" height="300px" borderRadius="12px" />
+      <div className="rsp-page" aria-busy="true">
+        <div className="cc-postpage-body">
+          <Skeleton width={320} height={32} />
+          <TileGridSkeleton count={5} />
+          <Skeleton width="100%" height={300} radius="var(--cc-r-card)" />
         </div>
       </div>
     );
@@ -478,11 +477,10 @@ export default function PostDetailPage() {
 
   if (error) {
     return (
-      <div style={{ padding: 32, textAlign: "center" }}>
-        <p style={{ color: "var(--cc-text-muted)", marginBottom: 12 }}>{error}</p>
-        <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
-          <Button variant="secondary" onClick={() => router.back()}>Go Back</Button>
-          <Button variant="primary" onClick={fetchPost}>Retry</Button>
+      <div className="rsp-page">
+        <LoadError title="This post didn't load" description={error} onRetry={fetchPost} />
+        <div style={{ marginTop: 16 }}>
+          <Button variant="secondary" onClick={() => router.back()}>Go back</Button>
         </div>
       </div>
     );
@@ -490,9 +488,14 @@ export default function PostDetailPage() {
 
   if (!post) {
     return (
-      <div style={{ padding: 32, textAlign: "center" }}>
-        <p style={{ color: "var(--cc-text-muted)" }}>Post not found.</p>
-        <Button variant="secondary" onClick={() => router.back()}>Go Back</Button>
+      <div className="rsp-page">
+        <NoResults
+          title="Post not found"
+          description="It may have been deleted, or the link is from another workspace."
+        />
+        <div style={{ display: "flex", justifyContent: "center" }}>
+          <Button variant="secondary" onClick={() => router.back()}>Go back</Button>
+        </div>
       </div>
     );
   }
@@ -538,9 +541,9 @@ export default function PostDetailPage() {
      fraction here because the tile and the table below multiply by 100. */
   const engRatePct = postEngagementPercent(post);
   const engRate = engRatePct === null ? null : engRatePct / 100;
-  const allMetricCards = [...BASE_METRIC_CARDS] as { key: string; field: MetricField; label: string; icon: typeof Eye; color: string }[];
+  const allMetricCards = [...BASE_METRIC_CARDS] as { key: string; field: MetricField; label: string; icon: typeof Eye }[];
   if (post.platform === "INSTAGRAM") {
-    allMetricCards.push({ key: "savesCount", field: "saves", label: "Saves", icon: Bookmark, color: "var(--chart-2)" });
+    allMetricCards.push({ key: "savesCount", field: "saves", label: "Saves", icon: Bookmark });
     /* Reach is the counter instagram_manage_insights uniquely unlocks — no
        other permission, and no unauthorised read, yields it. It had no card
        because it had no value: assemblePostMetrics parsed reach off the
@@ -551,10 +554,10 @@ export default function PostDetailPage() {
        Gated on the measured-field list rather than on the number, because the
        legacy zeroes carry a lastSyncedAt from a TikTok-era sync and would
        otherwise read as a measured "reached nobody". */
-    allMetricCards.push({ key: "reachCount", field: "reach", label: "Reach", icon: Users, color: "var(--cc-info)" });
+    allMetricCards.push({ key: "reachCount", field: "reach", label: "Reach", icon: Users });
   }
   if (post.platform === "YOUTUBE") {
-    allMetricCards.push({ key: "downloadsCount", field: "downloads", label: "Downloads", icon: Download, color: "var(--chart-2)" });
+    allMetricCards.push({ key: "downloadsCount", field: "downloads", label: "Downloads", icon: Download });
   }
   /* Views came across in the import; every other counter defaults to 0 for a
      post we never fetched, so its card would state a figure nobody measured.
@@ -589,19 +592,73 @@ export default function PostDetailPage() {
      when there is a rate at all. */
   const snapshotSaves = post.snapshots.some((s) => unwrittenMetricValue(s.savesCount) !== null);
   const snapshotSealed = post.snapshots.some((s) => s.isFinalSnapshot);
-  const snapshotCols = [
-    { key: "recorded", label: "Recorded", width: "1.4fr", min: 160 },
-    { key: "views", label: "Views", width: "90px", min: 90 },
-    { key: "likes", label: "Likes", width: "80px", min: 80 },
-    { key: "comments", label: "Comments", width: "90px", min: 90 },
-    { key: "shares", label: "Shares", width: "80px", min: 80 },
-    ...(snapshotSaves ? [{ key: "saves", label: "Saves", width: "80px", min: 80 }] : []),
-    ...(engRate !== null ? [{ key: "eng", label: "Eng %", width: "90px", min: 90 }] : []),
-    { key: "source", label: "Source", width: "110px", min: 110 },
-    ...(snapshotSealed ? [{ key: "sealed", label: "Sealed", width: "90px", min: 90 }] : []),
+  const snapshotRate = (s: Snapshot): string => {
+    const views = snapshotMetric(s.viewsCount, s.platformMetrics, "views");
+    const likes = snapshotMetric(s.likesCount, s.platformMetrics, "likes");
+    const r = views === null || likes === null ? null : computeEngagementRate({
+      views,
+      likes,
+      comments: snapshotMetric(s.commentsCount, s.platformMetrics, "comments"),
+      shares: snapshotMetric(s.sharesCount, s.platformMetrics, "shares"),
+      saves: s.savesCount,
+    });
+    return r === null ? "\u2014" : `${(r * 100).toFixed(2)}%`;
+  };
+  const snapshotColumns: DataTableColumn<Snapshot>[] = [
+    { key: "recorded", header: "Recorded", minWidth: 176, render: (s) => formatDateTimeAbs(s.recordedAt) },
+    { key: "views", header: "Views", width: 112, align: "right", render: (s) => snapshotCell(s.viewsCount, s.platformMetrics, "views") },
+    { key: "likes", header: "Likes", width: 96, align: "right", render: (s) => snapshotCell(s.likesCount, s.platformMetrics, "likes") },
+    { key: "comments", header: "Comments", width: 120, align: "right", render: (s) => snapshotCell(s.commentsCount, s.platformMetrics, "comments") },
+    /* A YouTube (or non-connected Instagram) reading's 0 shares is a count
+       the platform never published -- see sharesPublished. */
+    {
+      key: "shares", header: "Shares", width: 100, align: "right",
+      render: (s) => ((s.sharesCount ?? 0) <= 0 && !sharesPublished(post.platform, s.platformMetrics) ? "\u2014" : snapshotCell(s.sharesCount, s.platformMetrics, "shares")),
+    },
+    ...(snapshotSaves
+      ? [{ key: "saves", header: "Saves", width: 92, align: "right" as const, render: (s: Snapshot) => formatNumber(s.savesCount ?? 0) }]
+      : []),
+    ...(engRate !== null
+      ? [{ key: "eng", header: "Eng %", width: 92, align: "right" as const, render: (s: Snapshot) => snapshotRate(s) }]
+      : []),
+    { key: "source", header: "Source", width: 128, render: (s) => <StatusBadge tone="neutral">{enumLabel(s.syncSource ?? "system")}</StatusBadge> },
+    ...(snapshotSealed
+      ? [{
+          key: "sealed", header: "Sealed", width: 112,
+          render: (s: Snapshot) =>
+            s.isFinalSnapshot ? (
+              <StatusBadge tone="success">
+                <Lock size={12} aria-hidden="true" /> Sealed
+              </StatusBadge>
+            ) : null,
+        }]
+      : []),
   ];
-  const snapshotGrid = snapshotCols.map((c) => c.width).join(" ");
-  const snapshotMinWidth = snapshotCols.reduce((sum, c) => sum + c.min + 12, 48);
+  /* "—" with its reason under it for a counter nobody read, never a 0; a
+     hidden or deleted post keeps its last real figures. */
+  const metricTiles = metricCards.map(({ key, field, label, icon }) => {
+    const raw = (post as unknown as Record<string, number>)[key];
+    /* Saves and reach on a post with no measured-field list are the column
+       default, not a reading: positive or unknown, never 0. */
+    const value: MetricValue =
+      UNWRITTEN_CARDS.has(key) && measuredFields(post.platformMetrics) === null
+        ? (unwrittenMetricValue(raw) ?? unknownMetric(`The platform did not report ${field} for this post.`))
+        : postCounterValue(raw, post, field);
+    if (metaPost && META_INSIGHT_CARDS.has(key) && isUnknownMetric(value)) {
+      return { key, label, icon, value: META_UNAVAILABLE, footer: META_CONNECTED_NOTE as React.ReactNode };
+    }
+    /* Only a views figure the latest read did not return says when it was
+       read; every other figure is from the read dated above the tiles. */
+    const footer: React.ReactNode = isUnknownMetric(value)
+      ? metricReason(value)
+      : field === "views" && viewsNote
+        ? <span title={viewsNote.title}>{viewsNote.sentence}</span>
+        : undefined;
+    return { key, label, icon, value: metricText(value, formatNumber), footer };
+  });
+  /* One figure size for the whole row: the longest number decides it. A word
+     ("Not available") is not a figure and does not shrink the others. */
+  const tileFit = metricTiles.reduce((n, t) => (/\d/.test(t.value) ? Math.max(n, t.value.length) : n), 0);
 
   /* Oldest first: the route sends the newest 50 newest-first for the table
      below, and charting them in that order ran the time axis backwards. Only
@@ -633,114 +690,132 @@ export default function PostDetailPage() {
   }));
 
   return (
-    <div className="rsp-page" style={{ maxWidth: 1200 }}>
-      <div style={{ marginBottom: 24 }}>
-        <button
-          onClick={() => router.back()}
-          style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)", fontSize: "var(--cc-t-14)", padding: 0, marginBottom: 16 }}
-        >
-          <ArrowLeft size={16} /> Back to Posts
-        </button>
-
-        <div style={{ display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
-          {thumb && (
+    <div className="rsp-page">
+      {/* One main action (View post), one labelled secondary (Sync now, or
+          Restore while the post is removed), then the menu with Remove last
+          under its rule. The page runs the content column's full width, as
+          every other page does; a 1200px cap stopped the header band short
+          of the top bar's right edge on a wide screen. Back is a link to the campaign's Posts section,
+          not history.back(): a deep-linked visitor's history is another
+          site. */}
+      <PageHeader
+        title={post.caption?.slice(0, 80) ?? "Untitled Post"}
+        back={{ href: `/campaigns/${params.id}?section=posts`, label: "Posts" }}
+        leading={
+          thumb ? (
             embedSrc ? (
-              <button
-                type="button"
-                onClick={() => setPlaying(true)}
-                aria-label="Play post"
-                style={{ position: "relative", width: 120, height: 80, borderRadius: 10, overflow: "hidden", flexShrink: 0, border: "1px solid var(--cc-border)", padding: 0, cursor: "pointer", background: "none" }}
-              >
-                <img src={thumb} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "color-mix(in srgb, var(--cc-media-ink) 35%, transparent)" }}>
-                  <Play size={22} color="var(--cc-overlay-ink-text)" fill="var(--cc-overlay-ink-text)" />
+              <button type="button" className="cc-page-thumb" data-shape="wide" onClick={() => setPlaying(true)} aria-label="Play post">
+                <img src={thumb} alt="" />
+                <span className="cc-page-thumb-play" aria-hidden="true">
+                  <Play size={14} color="var(--cc-overlay-ink-text)" fill="var(--cc-overlay-ink-text)" />
                 </span>
               </button>
             ) : (
-              <div style={{ width: 120, height: 80, borderRadius: 10, overflow: "hidden", flexShrink: 0, border: "1px solid var(--cc-border)" }}>
-                <img src={thumb} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              <div className="cc-page-thumb" data-shape="wide">
+                <img src={thumb} alt="" />
               </div>
             )
-          )}
-          <div className="cc-post-headtext">
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4, flexWrap: "wrap" }}>
-              <h1 className="cc-page-title" data-mb="0" data-wrap="anywhere">
-                {post.caption?.slice(0, 80) ?? "Untitled Post"}
-              </h1>
-              <Badge variant={STATUS_BADGE[post.status] ?? "neutral"}>{enumLabel(post.status)}</Badge>
-              {/* Beside the status rather than over the 120x80 thumbnail: the
-                  pill is wider than the image. Every metric card below stays
-                  put — they are the post's last real numbers. */}
-              <PostStatusChip status={status} showLive />
-            </div>
-            <p style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>
+          ) : undefined
+        }
+        badges={
+          <>
+            <StatusBadge status={post.status} dot />
+            {/* Beside the status: every metric card below stays put -- they
+                are the post's last real numbers. */}
+            <PostStatusChip status={status} showLive />
+          </>
+        }
+        meta={
+          <>
+            <span>
               <CreatorAvatar id={post.creator.id} name={post.creator.name} size="sm" />
-              by <strong>{post.creator.name}</strong>{stripAt(post.creator.handle) ? ` (@${stripAt(post.creator.handle)})` : ""} · {post.platform} · Posted {formatDateAbs(post.postedAt)}
-            </p>
-            {post.lastSyncedAt ? (
-              <p style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)", margin: "4px 0 0" }}>
-                Last synced: {formatDateTimeAbs(post.lastSyncedAt)}
-                <AgeLabel at={post.lastSyncedAt} field="post" ctx={postAgeContext({ postedAt: post.postedAt, trackingEnabled: timeseries?.trackingEnabled, trackingExpiresAt: timeseries?.trackingExpiresAt }, status)} source={measured.source} />
-              </p>
-            ) : measured.at ? (
-              <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)", margin: "4px 0 0" }}>
-                Not read by us yet. The figures below are the CreatorCore import&apos;s, as of {formatDateTimeAbs(measured.at)}.{" "}
-                <AgeLabel at={measured.at} field="post" ctx={postAgeContext({ postedAt: post.postedAt, trackingEnabled: timeseries?.trackingEnabled, trackingExpiresAt: timeseries?.trackingExpiresAt }, status)} source={measured.source} />
-              </p>
-            ) : [post.viewsCount, post.likesCount, post.commentsCount, post.sharesCount, post.savesCount].some((n) => (n ?? 0) > 0) ? (
-              /* Figures on file that no read of ours produced and no import
-                 dated: say where they came from, as the creator page does
-                 ("Unverified · not read by us yet"), rather than "never synced"
-                 above real counts. */
-              <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)", margin: "4px 0 0" }}>
-                Imported figures · not read by us yet · {TIME_NOT_RECORDED}
-              </p>
-            ) : (
-              <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)", margin: "4px 0 0" }}>
-                Not read by us yet — the counts below are unknown, not zero.
-              </p>
-            )}
-            {syncNote && (
-              <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "4px 0 0" }}>{syncNote}</p>
-            )}
-            {post.removedAt && (
-              <p data-removed-note style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-danger-fg)", margin: "4px 0 0" }}>
-                Removed from this campaign on {formatDateTimeAbs(post.removedAt)}. It doesn&apos;t count toward the campaign&apos;s totals and isn&apos;t synced until you restore it.
-              </p>
-            )}
-          </div>
-          <div className="cc-post-actions">
-            {/* The campaign's, not the post's: the share link is the campaign
-                report. First, as in the campaign header on every section. */}
-            <CampaignShareButton campaignId={params.id} campaignTitle={post.campaignTitle} />
-            <Button variant="secondary" onClick={handleFlag} loading={flagging} disabled={flagged}>
-              <span style={{ display: "flex", alignItems: "center", gap: 4, color: flagged ? "var(--cc-danger-fg)" : undefined }}>
-                <Flag size={14} /> {flagged ? "Flagged" : "Flag Suspicious"}
+              <span>
+                by <strong>{post.creator.name}</strong>
+                {stripAt(post.creator.handle) ? ` (@${stripAt(post.creator.handle)})` : ""}
               </span>
-            </Button>
-            <Button variant="secondary" onClick={handleSync} loading={syncing} disabled={Boolean(post.removedAt)}>
-              <span style={{ display: "flex", alignItems: "center", gap: 4 }}><RefreshCw size={14} /> Sync Now</span>
-            </Button>
+            </span>
+            <span>{platformLabel(post.platform)}</span>
+            <span>Posted {formatDateAbs(post.postedAt)}</span>
+          </>
+        }
+        actions={
+          <>
             {post.removedAt ? (
-              <Button variant="secondary" onClick={() => void handleRestore()} loading={restoring}>
-                <span style={{ display: "flex", alignItems: "center", gap: 4 }}><RotateCcw size={14} /> Restore to campaign</span>
+              <Button variant="secondary" iconLeft={<RotateCcw size={16} />} onClick={() => void handleRestore()} loading={restoring}>
+                Restore to campaign
               </Button>
             ) : (
-            <Button variant="secondary" onClick={handleRemove} loading={removing}>
-              <span style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--cc-danger)" }}><Trash2 size={14} /> Remove</span>
-            </Button>
-            )}
-            <a href={post.postUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-              <Button variant="primary">
-                <span style={{ display: "flex", alignItems: "center", gap: 4 }}><ExternalLink size={14} /> View Post</span>
+              <Button variant="secondary" iconLeft={<RefreshCw size={16} />} onClick={handleSync} loading={syncing}>
+                Sync now
               </Button>
+            )}
+            <a href={post.postUrl} target="_blank" rel="noopener noreferrer" className="ui-btn ui-btn-primary ui-btn-md" data-cc-slot="primary">
+              <ExternalLink size={16} aria-hidden="true" />
+              View post
             </a>
-          </div>
-        </div>
+            <MoreMenu
+              label="More post actions"
+              items={[
+                /* The campaign's, not the post's: the share link is the
+                   campaign report. */
+                { label: "Share campaign", icon: <Share2 size={16} />, onClick: () => setShareOpen(true) },
+                {
+                  label: flagged ? "Flagged as suspicious" : "Flag as suspicious",
+                  icon: <Flag size={16} />,
+                  onClick: () => void handleFlag(),
+                  disabled: flagged || flagging,
+                },
+                ...(post.removedAt
+                  ? []
+                  : [{ label: "Remove post", icon: <Trash2 size={16} />, danger: true, onClick: () => void handleRemove(), disabled: removing }]),
+              ]}
+            />
+          </>
+        }
+      />
+      {shareOpen && (
+        <ShareModal campaignId={params.id} campaignTitle={post.campaignTitle} onClose={() => setShareOpen(false)} />
+      )}
+
+      {post.removedAt && (
+        <Banner tone="warning" style={{ marginBottom: 24 }}>
+          Removed from this campaign on {formatDateTimeAbs(post.removedAt)}. It doesn&apos;t count toward the campaign&apos;s totals and isn&apos;t synced until you restore it.
+        </Banner>
+      )}
+
+      {/* How fresh the figures below are, right above them. */}
+      <div style={{ marginBottom: 12 }}>
+        {post.lastSyncedAt ? (
+          <p style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)", margin: 0 }}>
+            Last synced: {formatDateTimeAbs(post.lastSyncedAt)}
+            <AgeLabel at={post.lastSyncedAt} field="post" ctx={postAgeContext({ postedAt: post.postedAt, trackingEnabled: timeseries?.trackingEnabled, trackingExpiresAt: timeseries?.trackingExpiresAt }, status)} source={measured.source} />
+          </p>
+        ) : measured.at ? (
+          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)", margin: 0 }}>
+            Not read by us yet. The figures below were imported, as of {formatDateTimeAbs(measured.at)}.{" "}
+            <AgeLabel at={measured.at} field="post" ctx={postAgeContext({ postedAt: post.postedAt, trackingEnabled: timeseries?.trackingEnabled, trackingExpiresAt: timeseries?.trackingExpiresAt }, status)} source={measured.source} />
+          </p>
+        ) : [post.viewsCount, post.likesCount, post.commentsCount, post.sharesCount, post.savesCount].some((n) => (n ?? 0) > 0) ? (
+          /* Figures on file that no read of ours produced and no import
+             dated: say where they came from, as the creator page does
+             ("Unverified · not read by us yet"), rather than "never synced"
+             above real counts. */
+          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)", margin: 0 }}>
+            Imported figures · not read by us yet · {TIME_NOT_RECORDED}
+          </p>
+        ) : (
+          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)", margin: 0 }}>
+            Not read by us yet — the counts below are unknown, not zero.
+          </p>
+        )}
+        {syncNote && (
+          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "4px 0 0" }}>{syncNote}</p>
+        )}
       </div>
 
+      <div className="cc-postpage-body">
       {playing && embedSrc && (
-        <Card variant="solid" style={{ padding: 0, marginBottom: 24, overflow: "hidden" }}>
+        <Card variant="solid" noPadding style={{ overflow: "hidden" }}>
           <div style={{ position: "relative", width: "100%", maxWidth: 620, margin: "0 auto", aspectRatio: post.platform === "YOUTUBE" ? "16 / 9" : "9 / 16" }}>
             <iframe
               src={embedSrc}
@@ -753,70 +828,22 @@ export default function PostDetailPage() {
         </Card>
       )}
 
-      <div className="cc-tiles-balanced" style={{ marginBottom: 24 }}>
-        {metricCards.map(({ key, field, label, icon: Icon, color }) => (
-          /* noPadding: the library's .ui-card-body added 24 a side inside
-             this card's own 16/20, leaving an 85px box for the figure in a
-             173px phone tile -- why "340,000" was cut to "340,…". */
-          <Card key={key} variant="outlined" noPadding style={{ padding: "16px 20px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-              <Icon size={16} color={color} />
-              <span className="cc-microlabel">{label}</span>
-            </div>
-            {/* "—" with its reason for a counter nobody read, never a 0;
-                a hidden or deleted post keeps its last real figures. */}
-            {(() => {
-              const raw = (post as unknown as Record<string, number>)[key];
-              /* Saves and reach on a post with no measured-field list are the
-                 column default, not a reading: positive or unknown, never 0. */
-              const value: MetricValue =
-                UNWRITTEN_CARDS.has(key) && measuredFields(post.platformMetrics) === null
-                  ? (unwrittenMetricValue(raw) ?? unknownMetric(`The platform did not report ${field} for this post.`))
-                  : postCounterValue(raw, post, field);
-              if (metaPost && META_INSIGHT_CARDS.has(key) && isUnknownMetric(value)) {
-                return (
-                  <span title={META_CONNECTED_NOTE}>
-                    <span style={{ display: "block", fontSize: "var(--cc-t-14)", fontWeight: 600, lineHeight: "30px", color: "var(--cc-text-muted)" }}>
-                      {META_UNAVAILABLE}
-                    </span>
-                    <span style={{ display: "block", marginTop: 4, fontSize: "var(--cc-t-11)", lineHeight: 1.3, color: "var(--cc-text-muted)" }}>
-                      {META_CONNECTED_NOTE}
-                    </span>
-                  </span>
-                );
-              }
-              return (
-                <>
-                  <span title={metricReason(value)}>
-                    <FigureValue text={metricText(value, formatNumber)} />
-                  </span>
-                  {/* Only a views figure that the latest read did not return
-                      says when it was read. Every other figure is from the read
-                      the header already dates, and repeating its "Stale · 10d
-                      ago" under each tile said the same thing four times. */}
-                  {field === "views" && viewsNote ? (
-                    <span
-                      title={viewsNote.title}
-                      style={{ display: "block", marginTop: 4, fontSize: "var(--cc-t-11)", lineHeight: 1.3, color: "var(--cc-text-muted)" }}
-                    >
-                      {viewsNote.sentence}
-                    </span>
-                  ) : null}
-                </>
-              );
-            })()}
-          </Card>
+      {/* The shared tile: one inset, one label size, one figure size across the
+          row (fitTo), muted icons. A counter nobody read shows "—" and says
+          why under it, rather than only in a tooltip. */}
+      <div className="cc-tiles-balanced">
+        {metricTiles.map((t) => (
+          <MetricTile key={t.key} label={t.label} icon={t.icon} value={t.value} footer={t.footer} fitTo={tileFit} />
         ))}
         {engRate !== null && (
-          <Card variant="outlined" style={{ padding: "16px 20px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-              <TrendingUp size={16} color="var(--cc-primary)" />
-              <span className="cc-microlabel">Engagement</span>
-            </div>
-            <span style={{ fontSize: "var(--cc-t-24)", fontWeight: 700, color: "var(--cc-primary)" }}>
-              {`${(engRate * 100).toFixed(2)}%`}
-            </span>
-          </Card>
+          <MetricTile
+            label="Engagement rate"
+            icon={TrendingUp}
+            what="How actively people responded to this post rather than scrolling past."
+            how="Likes plus comments plus shares plus saves, divided by views."
+            value={`${(engRate * 100).toFixed(2)}%`}
+            fitTo={tileFit}
+          />
         )}
       </div>
 
@@ -825,29 +852,25 @@ export default function PostDetailPage() {
           and TikTok publishes no comments API — so the panel is absent rather
           than present-and-broken on those platforms. */}
       {post.platform === "FACEBOOK" && (
-        <Card variant="outlined" style={{ padding: 24, marginBottom: 24 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                <MessageCircle size={18} color="var(--cc-primary)" />
-                <h3 style={{ fontSize: "var(--cc-t-16)", fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>Comments on this post</h3>
-              </div>
-              <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0, maxWidth: "60ch" }}>
-                Read live from the creator&rsquo;s Facebook Page when you ask for them.
-                Comments are shown here and never saved — reload and they are read again.
-              </p>
-            </div>
-            <Button variant="secondary" onClick={loadComments} loading={commentsLoading}>
+        <SectionCard
+          icon={MessageCircle}
+          title="Comments on this post"
+          description="Read live from the creator's Facebook Page when you ask for them. Comments are shown here and never saved; reload and they are read again."
+          action={
+            <Button variant="secondary" size="sm" onClick={loadComments} loading={commentsLoading}>
               {commentsLoading ? "Reading…" : comments ? "Read again" : "Show comments"}
             </Button>
-          </div>
-
+          }
+        >
           {commentsError && (
-            <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-danger)", margin: "16px 0 0" }}>{commentsError}</p>
+            <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-danger)", margin: 0 }}>{commentsError}</p>
+          )}
+          {!comments && !commentsError && (
+            <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>Nothing read yet.</p>
           )}
 
           {comments && (
-            <div style={{ marginTop: 20 }}>
+            <div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 12 }}>
                 <span style={{ fontSize: "var(--cc-t-24)", fontWeight: 700, color: "var(--cc-text)" }}>
                   {comments.total === null ? "—" : formatNumber(comments.total)}
@@ -902,81 +925,74 @@ export default function PostDetailPage() {
               </p>
             </div>
           )}
-        </Card>
+        </SectionCard>
       )}
 
       {chartData.length > 1 && (
-        <Card variant="outlined" style={{ padding: 24, marginBottom: 24 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
-            <h3 style={{ fontSize: "var(--cc-t-16)", fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>Performance Over Time</h3>
-            <SeriesModeToggle label="Performance over time" value={perfMode} onChange={setPerfMode} />
-          </div>
+        <SectionCard
+          icon={TrendingUp}
+          title="Performance over time"
+          action={<SeriesModeToggle label="Performance over time" value={perfMode} onChange={setPerfMode} />}
+        >
           <PerformanceOverTimeArea data={chartData} mode={perfMode} />
-        </Card>
+        </SectionCard>
       )}
 
-      <Card variant="outlined" style={{ padding: 24, marginBottom: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: trackingSeries.length > 1 ? 20 : 0 }}>
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-              <Activity size={18} color="var(--cc-primary)" />
-              <h3 style={{ fontSize: "var(--cc-t-16)", fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>Tracking</h3>
-            </div>
-            <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>
-              {trackingEnabled
-                ? trackingSummary(
-                    timeseries?.trackingSource ?? null,
-                    readCadenceLabel(timeseries?.readCadence ?? DEFAULT_POST_TRACKING.readCadence),
-                    formatRemaining(timeseries?.hoursRemaining ?? null),
-                  )
-                : /* Named for this post's own platform: the line said "Meta and IG"
-                     on TikTok and YouTube posts too. Every platform we read
-                     answers with today's lifetime totals only. */
-                  `Tracking off. ${platformLabel(post.platform) || "The platform"} only reports a post's lifetime totals, not their history, so turn tracking on to record how they change over time.`}
-            </p>
-            {trackingEnabled && timeseries?.trackingExpiresAt && (timeseries.trackingSource ?? "tracker") === "tracker" && (
-              <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)", margin: "4px 0 0" }}>
-                Stops on {formatDateAbs(timeseries.trackingExpiresAt)} and seals
-                its final numbers. Tracked posts are unlimited because each one expires.
-              </p>
-            )}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <SectionCard
+        icon={Activity}
+        title="Tracking"
+        description={
+          trackingEnabled
+            ? trackingSummary(
+                timeseries?.trackingSource ?? null,
+                readCadenceLabel(timeseries?.readCadence ?? DEFAULT_POST_TRACKING.readCadence),
+                formatRemaining(timeseries?.hoursRemaining ?? null),
+              )
+            : /* Named for this post's own platform: every platform we read
+                 answers with today's lifetime totals only. */
+              `Tracking off. ${platformLabel(post.platform) || "The platform"} only reports a post's lifetime totals, not their history, so turn tracking on to record how they change over time.`
+        }
+        action={
+          <div className="cc-postpage-track">
             {!trackingEnabled && (
               /* Every post tracker carries an expiry, so this is a required
-                 choice presented as a default rather than an optional extra —
-                 there is no "forever" entry to pick. */
-              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
-                <span>Track for</span>
-                <select
-                  value={ttlDays}
-                  onChange={(e) => setTtlDays(Number(e.target.value))}
+                 choice presented as a default; there is no "forever". */
+              <>
+                <span className="cc-postpage-track-label">Track for</span>
+                <Dropdown
+                  ariaLabel="Tracking window"
+                  size="sm"
+                  align="right"
+                  minWidth={104}
+                  value={String(ttlDays)}
+                  onChange={(v) => setTtlDays(Number(v))}
                   disabled={trackToggling}
-                  style={{
-                    padding: "6px 8px",
-                    borderRadius: 6,
-                    border: "1px solid var(--cc-border)",
-                    background: "var(--cc-surface)",
-                    color: "var(--cc-text)",
-                    fontSize: "var(--cc-t-13)",
-                  }}
-                >
-                  {TTL_CHOICES.map((d) => (
-                    <option key={d} value={d}>
-                      {d} day{d === 1 ? "" : "s"}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  options={TTL_CHOICES.map((d) => ({ value: String(d), label: `${d} day${d === 1 ? "" : "s"}` }))}
+                />
+              </>
             )}
-            <Button variant={trackingEnabled ? "secondary" : "primary"} onClick={handleToggleTracking} loading={trackToggling} disabled={Boolean(post.removedAt)}>
+            <Button
+              variant={trackingEnabled ? "secondary" : "primary"}
+              size="sm"
+              onClick={handleToggleTracking}
+              loading={trackToggling}
+              disabled={Boolean(post.removedAt)}
+            >
               {trackingEnabled ? "Untrack" : "Track"}
             </Button>
           </div>
-        </div>
+        }
+      >
+        <div className="cc-postpage-stack">
+        {trackingEnabled && timeseries?.trackingExpiresAt && (timeseries.trackingSource ?? "tracker") === "tracker" && (
+          <p className="cc-postpage-note">
+            Stops on {formatDateAbs(timeseries.trackingExpiresAt)} and seals
+            its final numbers. Tracked posts are unlimited because each one expires.
+          </p>
+        )}
 
         {trackingSeries.length > 1 && (
-          <>
+          <div>
             <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
               <SeriesModeToggle
                 label="Tracking chart"
@@ -986,133 +1002,87 @@ export default function PostDetailPage() {
               />
             </div>
             <TrackingLine data={trackingSeries} mode={trackMode} bucketHours={CHART_BUCKET_HOURS[trackingGranularity]} />
-          </>
+          </div>
         )}
         {trackingSeries.length <= 1 && trackingEnabled && (
-          <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-subtle)", margin: "12px 0 0" }}>
+          <p className="cc-postpage-note">
             Collecting snapshots. The time series appears once at least two have been recorded.
           </p>
+        )}
+        {trackingSeries.length <= 1 && !trackingEnabled && (timeseries?.snapshots?.length ?? 0) < MIN_SNAPSHOTS && (
+          <p className="cc-postpage-note">No tracking history for this post.</p>
         )}
 
         {/* The heuristics need MIN_SNAPSHOTS readings and return nothing below
             that, so "No bot signals detected" on a post with one reading claimed
             a check that never ran. The section waits until it has. */}
         {(timeseries?.snapshots?.length ?? 0) >= MIN_SNAPSHOTS && (
-        <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid var(--cc-border)" }}>
+        <div className="cc-postpage-signals">
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-            <ShieldAlert size={16} color={botSignals.length > 0 ? "var(--cc-danger-fg)" : "var(--cc-text-muted)"} />
-            <h4 style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>Bot Signals</h4>
+            <ShieldAlert size={16} aria-hidden="true" color={botSignals.length > 0 ? "var(--cc-danger-fg)" : "var(--cc-text-muted)"} />
+            <h3 style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}>Bot signals</h3>
           </div>
           {botSignals.length === 0 ? (
-            <EmptyState
-              icon={<Shield size={32} color="var(--cc-text-subtle)" />}
+            <NoResults
+              icon={<Shield size={32} strokeWidth={1.75} />}
               title="No bot signals detected"
               description="Botted-view heuristics run over this post's snapshot history. Flags will appear here if suspicious growth is detected."
             />
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {botSignals.map((s, i) => {
-                const sev = SEVERITY_STYLE[s.severity];
-                return (
-                  <div key={`${s.type}-${i}`} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: 12, borderRadius: 8, border: "1px solid var(--cc-border)", background: "var(--cc-bg)" }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", padding: "3px 8px", borderRadius: 6, background: sev.bg, color: sev.color, flexShrink: 0 }}>
-                      {s.severity}
-                    </span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{SIGNAL_LABEL[s.type]}</div>
-                      <div style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginTop: 2 }}>{s.detail}</div>
-                      <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-subtle)", marginTop: 4 }}>Detected {formatDateTimeAbs(s.at)}</div>
-                    </div>
+              {botSignals.map((s, i) => (
+                <div key={`${s.type}-${i}`} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: 12, borderRadius: "var(--cc-r-control)", border: "1px solid var(--cc-border)", background: "var(--cc-bg)" }}>
+                  <StatusBadge tone={SEVERITY_TONE[s.severity]}>{enumLabel(s.severity)}</StatusBadge>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{SIGNAL_LABEL[s.type]}</div>
+                    <div style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginTop: 2 }}>{s.detail}</div>
+                    <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-subtle)", marginTop: 4 }}>Detected {formatDateTimeAbs(s.at)}</div>
                   </div>
-                );
-              })}
+                </div>
+              ))}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginTop: 4 }}>
                 <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: 0 }}>
                   These signals are advisory. Flagging a post routes it into the existing fraud review queue.
                 </p>
-                <Button variant="secondary" onClick={() => handleFlagFromSignal(botSignals[0])} loading={flagging} disabled={flagged}>
-                  <span style={{ display: "flex", alignItems: "center", gap: 4, color: flagged ? "var(--cc-danger-fg)" : undefined }}>
-                    <Flag size={14} /> {flagged ? "Flagged" : "Flag post"}
-                  </span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  iconLeft={<Flag size={16} />}
+                  onClick={() => handleFlagFromSignal(botSignals[0])}
+                  loading={flagging}
+                  disabled={flagged}
+                >
+                  {flagged ? "Flagged" : "Flag post"}
                 </Button>
               </div>
             </div>
           )}
         </div>
         )}
-      </Card>
+        </div>
+      </SectionCard>
 
-      {post.snapshots.length > 0 ? (
-        <Card variant="solid" noPadding style={{ overflowX: "auto" }}>
-          <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--cc-border)" }}>
-            <h3 style={{ fontSize: "var(--cc-t-16)", fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>Metric Snapshots</h3>
-          </div>
-          <div style={{
-            display: "grid", gridTemplateColumns: snapshotGrid, minWidth: snapshotMinWidth,
-            gap: 12, padding: "10px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",
-          }}>
-            {snapshotCols.map(c => (
-              <span key={c.key} className="cc-microlabel">{c.label}</span>
-            ))}
-          </div>
-          {post.snapshots.map((s, i) => (
-            <div
-              key={s.id}
-              style={{
-                display: "grid", gridTemplateColumns: snapshotGrid, minWidth: snapshotMinWidth,
-                gap: 12, padding: "12px 24px", alignItems: "center",
-                borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
-              }}
-            >
-              <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text)" }}>{formatDateTimeAbs(s.recordedAt)}</span>
-              <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{snapshotCell(s.viewsCount, s.platformMetrics, "views")}</span>
-              <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{snapshotCell(s.likesCount, s.platformMetrics, "likes")}</span>
-              <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{snapshotCell(s.commentsCount, s.platformMetrics, "comments")}</span>
-              {/* A YouTube (or non-connected Instagram) reading's 0 shares is a
-                  count the platform never published -- see sharesPublished. */}
-              <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{(s.sharesCount ?? 0) <= 0 && !sharesPublished(post.platform, s.platformMetrics) ? "\u2014" : snapshotCell(s.sharesCount, s.platformMetrics, "shares")}</span>
-              {snapshotSaves && (
-                <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{formatNumber(s.savesCount ?? 0)}</span>
-              )}
-              {engRate !== null && (
-                <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-primary)" }}>
-                  {(() => {
-                    const views = snapshotMetric(s.viewsCount, s.platformMetrics, "views");
-                    const likes = snapshotMetric(s.likesCount, s.platformMetrics, "likes");
-                    const r = views === null || likes === null ? null : computeEngagementRate({
-                      views,
-                      likes,
-                      comments: snapshotMetric(s.commentsCount, s.platformMetrics, "comments"),
-                      shares: snapshotMetric(s.sharesCount, s.platformMetrics, "shares"),
-                      saves: s.savesCount,
-                    });
-                    return r === null ? "—" : `${(r * 100).toFixed(2)}%`;
-                  })()}
-                </span>
-              )}
-              <Badge variant="neutral" style={{ fontSize: "var(--cc-t-11)"}}>{s.syncSource ?? "system"}</Badge>
-              {snapshotSealed && (
-                <span>
-                  {s.isFinalSnapshot ? (
-                    <Tag variant="success" outlined>
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><Lock size={10} /> Sealed</span>
-                    </Tag>
-                  ) : (
-                    <span />
-                  )}
-                </span>
-              )}
-            </div>
-          ))}
-        </Card>
-      ) : trackingEnabled ? null : (
-        /* While tracking is on, the Tracking card above already says snapshots
-           are being collected; a second card saying "No metric snapshots yet"
-           under it was the same empty state twice. */
-        <Card variant="outlined" style={{ padding: 32, textAlign: "center" }}>
-          <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", margin: 0 }}>No metric snapshots yet. Sync this post to start tracking history.</p>
-        </Card>
+      {/* While tracking is on, the Tracking card already says snapshots are
+          being collected, so an empty table under it would say it twice. */}
+      {(post.snapshots.length > 0 || !trackingEnabled) && (
+        <SectionCard icon={History} title="Metric snapshots" padded={false}>
+          <DataTable
+            bare
+            caption="Metric snapshots"
+            columns={snapshotColumns}
+            rows={post.snapshots}
+            rowKey={(s) => s.id}
+            empty={
+              <NoResults
+                icon={<Activity size={32} strokeWidth={1.75} />}
+                title="No metric snapshots yet"
+                description="Sync this post to start recording its history."
+              />
+            }
+          />
+        </SectionCard>
       )}
+      </div>
     </div>
   );
 }

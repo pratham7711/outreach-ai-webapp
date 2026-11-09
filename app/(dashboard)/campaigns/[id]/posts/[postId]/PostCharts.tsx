@@ -4,6 +4,7 @@ import {
   AreaChart, Area, LineChart, Line, BarChart, Bar, ReferenceLine, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import { MetricHint } from "@/components/ds";
+import { chartAxisTick, chartLegendProps, chartTooltipProps } from "@/components/charts/chartTheme";
 import { formatCompact, formatFull } from "@/lib/format";
 import { bucketChanges, type SeriesMode } from "@/lib/charts/seriesMode";
 
@@ -27,17 +28,6 @@ const timeAxis = {
 
 const utcInstant = (t: unknown) =>
   `${new Date(Number(t)).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "UTC" })} UTC`;
-
-const axisTick = { fontSize: 11, fill: "var(--muted-foreground)" } as const;
-
-const chartTooltipStyle: React.CSSProperties = {
-  background: "var(--popover)",
-  border: "1px solid var(--border)",
-  borderRadius: 10,
-  color: "var(--popover-foreground)",
-  fontSize: "var(--cc-t-13)",
-  padding: "8px 12px",
-};
 
 function PanelHeading({
   title,
@@ -106,14 +96,14 @@ function ChangeBars({
           dataKey="t"
           tickFormatter={(t: number) => new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
           minTickGap={24}
-          tick={axisTick}
+          tick={chartAxisTick}
           axisLine={false}
           tickLine={false}
         />
-        <YAxis tick={axisTick} axisLine={false} tickLine={false} width={52} tickFormatter={(v) => formatCompact(Number(v))} />
+        <YAxis tick={chartAxisTick} axisLine={false} tickLine={false} width={52} tickFormatter={(v) => formatCompact(Number(v))} />
         <ReferenceLine y={0} stroke="var(--chart-grid)" />
-        <Tooltip contentStyle={chartTooltipStyle} labelFormatter={label} formatter={(value, name) => [signed(value), String(name)]} />
-        {series.length > 1 ? <Legend itemSorter={null} wrapperStyle={{ fontSize: "var(--cc-t-12)" }} /> : null}
+        <Tooltip {...chartTooltipProps} labelFormatter={label} formatter={(value, name) => [signed(value), String(name)]} />
+        {series.length > 1 ? <Legend {...chartLegendProps} /> : null}
         {series.map((s) => (
           <Bar key={s.key} isAnimationActive={false} dataKey={s.key} name={s.name} fill={s.color} radius={[2, 2, 0, 0]} maxBarSize={24} />
         ))}
@@ -165,16 +155,16 @@ export function PerformanceOverTimeArea({ data, mode = "cumulative" }: { data: P
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
-            <XAxis {...timeAxis} tick={axisTick} axisLine={false} tickLine={false} />
+            <XAxis {...timeAxis} tick={chartAxisTick} axisLine={false} tickLine={false} />
             <YAxis
-              tick={axisTick}
+              tick={chartAxisTick}
               axisLine={false}
               tickLine={false}
               width={52}
               tickFormatter={(v) => formatCompact(Number(v))}
             />
             <Tooltip
-              contentStyle={chartTooltipStyle}
+              {...chartTooltipProps}
               labelFormatter={utcInstant}
               formatter={(value) => [formatFull(Number(value)), "Views"]}
             />
@@ -201,20 +191,20 @@ export function PerformanceOverTimeArea({ data, mode = "cumulative" }: { data: P
         <ResponsiveContainer width="100%" height={140}>
           <AreaChart data={data} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
-            <XAxis {...timeAxis} tick={axisTick} axisLine={false} tickLine={false} />
+            <XAxis {...timeAxis} tick={chartAxisTick} axisLine={false} tickLine={false} />
             <YAxis
-              tick={axisTick}
+              tick={chartAxisTick}
               axisLine={false}
               tickLine={false}
               width={52}
               tickFormatter={(v) => formatCompact(Number(v))}
             />
             <Tooltip
-              contentStyle={chartTooltipStyle}
+              {...chartTooltipProps}
               labelFormatter={utcInstant}
               formatter={(value, name) => [formatFull(Number(value)), String(name)]}
             />
-            <Legend itemSorter={null} wrapperStyle={{ fontSize: "var(--cc-t-12)"}} />
+            <Legend {...chartLegendProps} />
             <Area
               isAnimationActive={false}
               type="monotone"
@@ -279,16 +269,16 @@ export function TrackingLine({
         <ResponsiveContainer width="100%" height={130}>
           <LineChart data={data} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
-            <XAxis {...timeAxis} tick={axisTick} axisLine={false} tickLine={false} />
+            <XAxis {...timeAxis} tick={chartAxisTick} axisLine={false} tickLine={false} />
             <YAxis
-              tick={axisTick}
+              tick={chartAxisTick}
               axisLine={false}
               tickLine={false}
               width={52}
               tickFormatter={(v) => formatCompact(Number(v))}
             />
             <Tooltip
-              contentStyle={chartTooltipStyle}
+              {...chartTooltipProps}
               labelFormatter={utcInstant}
               formatter={(value) => [formatFull(Number(value)), "Views"]}
             />
@@ -315,16 +305,16 @@ export function TrackingLine({
         <ResponsiveContainer width="100%" height={130}>
           <LineChart data={data} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
-            <XAxis {...timeAxis} tick={axisTick} axisLine={false} tickLine={false} />
+            <XAxis {...timeAxis} tick={chartAxisTick} axisLine={false} tickLine={false} />
             <YAxis
-              tick={axisTick}
+              tick={chartAxisTick}
               axisLine={false}
               tickLine={false}
               width={52}
               tickFormatter={(v) => formatCompact(Number(v))}
             />
             <Tooltip
-              contentStyle={chartTooltipStyle}
+              {...chartTooltipProps}
               labelFormatter={utcInstant}
               formatter={(value) => [formatFull(Number(value)), "Engagement"]}
             />

@@ -1,9 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Skeleton } from "@pratham7711/ui";
 import { Instagram } from "lucide-react";
-import { Button, SectionCard, useConfirm } from "@/components/ds";
+import { Button, SectionCard, Skeleton, useConfirm } from "@/components/ds";
 import { apiFetch } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessage";
 import { formatFull } from "@/lib/format";

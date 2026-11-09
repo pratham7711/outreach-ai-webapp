@@ -15,17 +15,16 @@ describe('ThemeRadioGroup', () => {
     (useTheme as jest.Mock).mockReturnValue({ theme: 'light', setTheme });
   });
 
-  it('offers CreatorCore, Light, Dark and System, in that order', () => {
+  it('offers Light, Dark and System, in that order', () => {
     render(<ThemeRadioGroup />);
-    expect(screen.getAllByRole('radio').map((r) => r.textContent)).toEqual(['CreatorCore', 'Light', 'Dark', 'System']);
+    expect(screen.getAllByRole('radio').map((r) => r.textContent)).toEqual(['Light', 'Dark', 'System']);
   });
 
   it('keeps the theme names next-themes already saved', () => {
-    expect(THEME_CHOICES.map((c) => c.key)).toEqual(['creatorcore', 'light', 'dark', 'system']);
+    expect(THEME_CHOICES.map((c) => c.key)).toEqual(['light', 'dark', 'system']);
   });
 
   it.each([
-    ['creatorcore', 'CreatorCore'],
     ['light', 'Light'],
     ['dark', 'Dark'],
     ['system', 'System'],

@@ -1,6 +1,7 @@
 "use client";
 
-import { AlertTriangle, RotateCw } from "lucide-react";
+import { RotateCw } from "lucide-react";
+import { Banner } from "./Banner";
 import { Button } from "./Button";
 
 /**
@@ -14,7 +15,9 @@ import { Button } from "./Button";
  * and the person reading it has no reason to retry or report anything.
  *
  * So: says it failed, says nothing about how much data there is, and offers
- * the one action that might work.
+ * the one action that might work. Drawn as the shared danger Banner (a tinted
+ * ground and a hairline in the tone, the action at the right), not a card with
+ * a thick coloured stripe down its left edge.
  */
 export function LoadError({
   title = "We couldn't load this",
@@ -28,27 +31,17 @@ export function LoadError({
   retrying?: boolean;
 }) {
   return (
-    <div
+    <Banner
+      tone="danger"
       role="alert"
-      style={{
-        background: "var(--cc-card)",
-        border: "1px solid var(--cc-border)",
-        borderLeft: "3px solid var(--cc-danger)",
-        borderRadius: 12,
-        padding: 24,
-        display: "flex",
-        gap: 14,
-        alignItems: "flex-start",
-      }}
-    >
-      <AlertTriangle size={20} color="var(--cc-danger)" aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontSize: "var(--cc-t-15)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: "0 0 4px" }}>{title}</p>
-        <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: "0 0 14px" }}>{description}</p>
+      title={title}
+      action={
         <Button variant="secondary" size="sm" loading={retrying} onClick={onRetry} iconLeft={<RotateCw size={14} />}>
           Try again
         </Button>
-      </div>
-    </div>
+      }
+    >
+      {description}
+    </Banner>
   );
 }

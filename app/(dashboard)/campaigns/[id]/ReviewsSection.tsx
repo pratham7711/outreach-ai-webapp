@@ -1,10 +1,11 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { Card, Badge, EmptyState, Skeleton, Modal } from "@pratham7711/ui";
-import { Star } from "lucide-react";
+import { Card, Badge, EmptyState, Textarea } from "@pratham7711/ui";
+import { Modal, ModalSection } from "@/components/ds/Modal";
+import { Check, Star } from "lucide-react";
 import { toast } from "sonner";
 import { stripAt, formatDateAbs } from "@/lib/format";
-import { Dropdown, Button } from "@/components/ds";
+import { Dropdown, Button, Field, Skeleton } from "@/components/ds";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import { creatorNameText } from "@/lib/creators/creatorName";
 
@@ -249,13 +250,29 @@ export default function ReviewsSection({
       <Modal
         open={showModal}
         onClose={() => setShowModal(false)}
+        icon={Star}
+        tone="brand"
         title="Leave Review"
+        description="Rate a creator from this campaign you haven't reviewed yet."
+        dismissible={false}
+        footer={
+          <div className="cc-modal-footer">
+            <Button variant="secondary" size="sm" onClick={() => setShowModal(false)}>Cancel</Button>
+            <Button
+              variant="primary"
+              size="sm"
+              loading={submitting}
+              onClick={handleSubmit}
+              disabled={form.rating === 0 || !form.creatorId}
+            >
+              Submit Review
+            </Button>
+          </div>
+        }
       >
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {/* Creator select */}
-          <div style={{ marginBottom: 16 }}>
+        <div className="cc-dialog-stack">
+          <Field label="Creator" required>
             <Dropdown
-              ariaLabel="Creator"
               align="left"
               fullWidth
               value={form.creatorId}
@@ -268,120 +285,53 @@ export default function ReviewsSection({
                 })),
               ]}
             />
-          </div>
-
-          {/* Star picker */}
-          <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: "var(--cc-t-13)",
-                fontWeight: "var(--cc-fw-strong)",
-                color: "var(--cc-text)",
-                marginBottom: 8,
-              }}
-            >
-              Rating
-            </label>
-            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              {[0, 1, 2, 3, 4].map((i) => (
-                <Star
-                  key={i}
-                  size={24}
-                  fill={i < form.rating ? "var(--cc-warning)" : "none"}
-                  color={i < form.rating ? "var(--cc-warning)" : "var(--cc-text-subtle)"}
-                  style={{ cursor: "pointer" }}
-                  onClick={() => setForm((f) => ({ ...f, rating: i + 1 }))}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Tag checkboxes */}
-          <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: "var(--cc-t-13)",
-                fontWeight: "var(--cc-fw-strong)",
-                color: "var(--cc-text)",
-                marginBottom: 8,
-              }}
-            >
-              Tags
-            </label>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {AVAILABLE_TAGS.map((tag) => {
-                const selected = form.tags.includes(tag);
-                return (
-                  <span
-                    key={tag}
-                    onClick={() => toggleTag(tag)}
-                    style={{
-                      cursor: "pointer",
-                      borderRadius: 10,
-                      padding: "4px 12px",
-                      fontSize: "var(--cc-t-12)",
-                      fontWeight: 500,
-                      background: selected ? "var(--cc-primary-light)" : "var(--cc-bg)",
-                      color: selected ? "var(--cc-primary)" : "var(--cc-text-muted)",
-                      border: selected
-                        ? "1.5px solid var(--cc-primary)"
-                        : "1px solid var(--cc-border)",
-                      transition: "all 0.15s",
-                    }}
-                  >
-                    {tag.replace(/_/g, " ")}
-                  </span>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Comment */}
-          <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: "var(--cc-t-13)",
-                fontWeight: "var(--cc-fw-strong)",
-                color: "var(--cc-text)",
-                marginBottom: 8,
-              }}
-            >
-              Comment (optional)
-            </label>
-            <textarea
-              rows={3}
-              value={form.comment}
-              onChange={(e) => setForm((f) => ({ ...f, comment: e.target.value }))}
-              placeholder="Share your experience working with this creator..."
-              style={{
-                width: "100%",
-                borderRadius: 8,
-                border: "1px solid var(--cc-border)",
-                padding: 10,
-                fontSize: "var(--cc-t-14)",
-                color: "var(--cc-text)",
-                background: "var(--cc-card)",
-                resize: "vertical",
-                boxSizing: "border-box",
-              }}
-            />
-          </div>
-
-          {/* Submit */}
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <Button
-              variant="primary"
-              loading={submitting}
-              onClick={handleSubmit}
-              disabled={form.rating === 0 || !form.creatorId}
-            >
-              Submit Review
-            </Button>
-          </div>
+          </Field>
         </div>
+
+        <ModalSection title="Rating">
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            {[0, 1, 2, 3, 4].map((i) => (
+              <Star
+                key={i}
+                size={24}
+                fill={i < form.rating ? "var(--cc-warning)" : "none"}
+                color={i < form.rating ? "var(--cc-warning)" : "var(--cc-text-subtle)"}
+                style={{ cursor: "pointer" }}
+                onClick={() => setForm((f) => ({ ...f, rating: i + 1 }))}
+              />
+            ))}
+          </div>
+        </ModalSection>
+
+        <ModalSection title="Tags">
+          <div className="cc-dialog-chips" role="group" aria-label="Tags">
+            {AVAILABLE_TAGS.map((tag) => {
+              const selected = form.tags.includes(tag);
+              return (
+                <button
+                  key={tag}
+                  type="button"
+                  className="cc-dialog-chip"
+                  aria-pressed={selected}
+                  onClick={() => toggleTag(tag)}
+                >
+                  {tag.replace(/_/g, " ")}
+                  {selected && <Check size={14} strokeWidth={2.5} className="cc-dialog-chip__check" aria-hidden="true" />}
+                </button>
+              );
+            })}
+          </div>
+        </ModalSection>
+
+        <ModalSection>
+          <Textarea
+            label="Comment"
+            rows={3}
+            value={form.comment}
+            onChange={(e) => setForm((f) => ({ ...f, comment: e.target.value }))}
+            placeholder="Share your experience working with this creator..."
+          />
+        </ModalSection>
       </Modal>
     </div>
   );

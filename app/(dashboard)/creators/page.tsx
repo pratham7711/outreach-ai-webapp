@@ -40,7 +40,7 @@ export default async function CreatorsPage({
   const page = Math.max(1, parseInt(firstParam(sp.page) ?? "1", 10) || 1);
 
   // Search, filter and paginate in the database: the roster is ~1.8k creators
-  // after the CreatorCore import, and shipping all of them was a 1 MB payload
+  // after the roster import, and shipping all of them was a 1 MB payload
   // per view. /api/creators reads the same params through the same parse.
   const filters = readCreatorFilters(sp);
   const sort = readCreatorSort(sp);

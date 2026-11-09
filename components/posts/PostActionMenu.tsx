@@ -39,11 +39,18 @@ export default function PostActionMenu({
   y,
   items,
   onClose,
+  align = "start",
+  anchor = null,
 }: {
   x: number;
   y: number;
   items: PostMenuItem[];
   onClose: () => void;
+  /** "end": x is the menu's right edge, for a menu opened from a ⋯ button. */
+  align?: "start" | "end";
+  /** The button that opened it: clicking it again is not "outside", and focus
+      returns to it when the menu closes from the keyboard or an item. */
+  anchor?: HTMLElement | null;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [pos, setPos] = useState({ left: x, top: y });
@@ -55,22 +62,25 @@ export default function PostActionMenu({
     const el = ref.current;
     if (!el) return;
     const box = el.getBoundingClientRect();
-    const left = Math.max(EDGE_GAP, Math.min(x, window.innerWidth - box.width - EDGE_GAP));
+    const startX = align === "end" ? x - box.width : x;
+    const left = Math.max(EDGE_GAP, Math.min(startX, window.innerWidth - box.width - EDGE_GAP));
     const top = Math.max(EDGE_GAP, Math.min(y, window.innerHeight - box.height - EDGE_GAP));
     setPos({ left, top });
     /* Focus the first thing that can be chosen, so the menu is usable from the
        keyboard and so Escape has somewhere to return from. */
     el.querySelector<HTMLElement>("[data-menuitem]:not([disabled])")?.focus();
-  }, [x, y]);
+  }, [x, y, align]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.stopPropagation();
         onClose();
+        anchor?.focus();
       }
     };
     const onDown = (e: MouseEvent) => {
+      if (anchor?.contains(e.target as Node)) return;
       if (!ref.current?.contains(e.target as Node)) onClose();
     };
     /* Closed on scroll rather than repositioned: the menu is anchored to a
@@ -100,7 +110,7 @@ export default function PostActionMenu({
       window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("resize", onResize);
     };
-  }, [onClose]);
+  }, [onClose, anchor]);
 
   /* Arrow keys walk the items. Without this the menu is reachable by keyboard
      but not navigable by it, which is the more annoying half-measure. */
@@ -164,6 +174,7 @@ export default function PostActionMenu({
             onClick={() => {
               item.onSelect();
               onClose();
+              anchor?.focus();
             }}
           >
             {item.icon}

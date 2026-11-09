@@ -2,10 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Modal } from "@pratham7711/ui";
-import { Copy } from "lucide-react";
+import { Input } from "@pratham7711/ui";
+import { Modal, ModalNotice, ModalOption, ModalOptionList, ModalSection } from "@/components/ds/Modal";
+import { AlertCircle, BadgeCheck, Copy, Info, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ds";
+
+/* Native radios at the end of a dialog option row, in the brand colour. */
+const RADIO = "m-0 size-4 cursor-pointer [accent-color:var(--cc-primary)]";
 
 /**
  * Starts a new pitch from this list. "Approved only" is the case it exists
@@ -56,45 +60,67 @@ export default function DuplicateListDialog({
     <Modal
       open
       onClose={onClose}
+      icon={Copy}
       title="Duplicate list"
+      description={<>Start a new list from <strong className="cc-dialog__subject">{listName}</strong>.</>}
       size="md"
+      dismissible={false}
       footer={
         <div className="cc-modal-footer">
-          <Button variant="secondary" onClick={onClose} disabled={busy}>
+          <Button variant="secondary" size="sm" onClick={onClose} disabled={busy}>
             Cancel
           </Button>
-          <Button variant="primary" iconLeft={<Copy size={15} />} loading={busy} disabled={!name.trim()} onClick={submit}>
+          <Button variant="primary" size="sm" iconLeft={<Copy size={16} aria-hidden="true" />} loading={busy} disabled={!name.trim()} onClick={submit}>
             Duplicate
           </Button>
         </div>
       }
     >
-      <div className="cc-import">
+      <div className="cc-dialog-stack">
         {error && (
-          <div role="alert" className="cc-import-alert">
+          <ModalNotice tone="danger" icon={AlertCircle}>
             {error}
-          </div>
+          </ModalNotice>
         )}
-        <label className="cc-field-label" htmlFor="cc-duplicate-name">
-          New list name
-        </label>
-        <input id="cc-duplicate-name" className="cc-field" value={name} maxLength={200} onChange={(e) => setName(e.target.value)} />
-        <fieldset className="cc-share-fields">
-          <legend className="cc-field-label">Creators to copy</legend>
-          <label className="cc-share-field">
-            <input type="radio" name="cc-duplicate-scope" checked={scope === "approved"} disabled={approvedCount === 0} onChange={() => setScope("approved")} />
-            <span>
-              Approved by the client only ({approvedCount})
-              {approvedCount === 0 && <small>Nobody on this list has been approved yet.</small>}
-            </span>
-          </label>
-          <label className="cc-share-field">
-            <input type="radio" name="cc-duplicate-scope" checked={scope === "all"} onChange={() => setScope("all")} />
-            <span>Every creator on the list</span>
-          </label>
-          <p className="cc-import-hint">Rates and notes are copied. Client decisions start over, and the copy has no share link.</p>
-        </fieldset>
+        <Input id="cc-duplicate-name" label="New list name" value={name} maxLength={200} onChange={(e) => setName(e.target.value)} />
+        {/* The choice below exists for the client's yeses. With none on the
+            list there is nothing to choose, so the copy simply takes everyone. */}
+        {approvedCount === 0 && (
+          <ModalNotice tone="neutral" icon={Info}>
+            Every creator is copied, with their rates and notes. Client decisions start over, and the copy has no share link.
+          </ModalNotice>
+        )}
       </div>
+
+      {approvedCount > 0 && (
+        <ModalSection title="Creators to copy">
+          <div role="radiogroup" aria-label="Creators to copy">
+            <ModalOptionList>
+              <ModalOption
+                icon={BadgeCheck}
+                title={`Approved by the client only (${approvedCount})`}
+                control={
+                  <input
+                    type="radio"
+                    className={RADIO}
+                    name="cc-duplicate-scope"
+                    checked={scope === "approved"}
+                    onChange={() => setScope("approved")}
+                  />
+                }
+              />
+              <ModalOption
+                icon={Users}
+                title="Every creator on the list"
+                control={<input type="radio" className={RADIO} name="cc-duplicate-scope" checked={scope === "all"} onChange={() => setScope("all")} />}
+              />
+            </ModalOptionList>
+          </div>
+          <ModalNotice tone="neutral" icon={Info}>
+            Rates and notes are copied. Client decisions start over, and the copy has no share link.
+          </ModalNotice>
+        </ModalSection>
+      )}
     </Modal>
   );
 }

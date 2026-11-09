@@ -1,12 +1,24 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Card, Badge, Skeleton, EmptyState } from "@pratham7711/ui";
-import { PageHeader, Button } from "@/components/ds";
-import { CalendarClock, AlertTriangle, CheckCircle2, Clock, CalendarOff, Edit2, X, Check } from "lucide-react";
-import { format, isAfter, isBefore, differenceInDays } from "date-fns";
-import { platformLabel, stripAt } from "@/lib/format";
-import { ACTIVATION_STATUS_LABEL, activationStatusBadgeStyle } from "@/lib/activationQueues";
+import Link from "next/link";
+import { EmptyState } from "@pratham7711/ui";
+import {
+  PageHeader,
+  Button,
+  DataTable,
+  LoadError,
+  MetricTile,
+  NoResults,
+  Skeleton,
+  StatusBadge,
+  StatusTabs,
+  type DataTableColumn,
+} from "@/components/ds";
+import { CalendarClock, AlertTriangle, CheckCircle2, Clock, CalendarOff, Pencil, X, Check } from "lucide-react";
+import { format, differenceInDays } from "date-fns";
+import { formatFull, platformLabel, stripAt } from "@/lib/format";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
+import { DEADLINES_WIDTHS } from "./columns";
 
 type DeadlineActivation = {
   id: string;
@@ -28,15 +40,15 @@ type Stats = {
 const FILTER_TABS = [
   { key: "ALL", label: "All" },
   { key: "OVERDUE", label: "Overdue" },
-  { key: "THIS_WEEK", label: "Due This Week" },
+  { key: "THIS_WEEK", label: "Due this week" },
   { key: "UPCOMING", label: "Upcoming" },
-  { key: "NO_DATE", label: "No Date Set" },
+  { key: "NO_DATE", label: "No date set" },
 ];
 
 function DaysLeft({ dueDate, status }: { dueDate: string | null; status: string }) {
-  if (!dueDate) return null;
+  if (!dueDate) return <span style={{ color: "var(--cc-text-muted)" }}>—</span>;
   if (["COMPLETE", "DECLINED"].includes(status)) {
-    return <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-success)" }}>Done</span>;
+    return <span style={{ color: "var(--cc-success-fg)" }}>Done</span>;
   }
 
   const due = new Date(dueDate);
@@ -45,26 +57,28 @@ function DaysLeft({ dueDate, status }: { dueDate: string | null; status: string 
 
   if (days < 0) {
     return (
-      <span style={{ fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-danger)" }}>
+      <span style={{ fontWeight: "var(--cc-fw-strong)", color: "var(--cc-danger-ink)" }}>
         {Math.abs(days)}d overdue
       </span>
     );
   }
   if (days === 0) {
-    return <span style={{ fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-warning)" }}>Due today</span>;
+    return <span style={{ fontWeight: "var(--cc-fw-strong)", color: "var(--cc-warning-ink)" }}>Due today</span>;
   }
   if (days <= 3) {
-    return <span style={{ fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-warning)" }}>{days}d left</span>;
+    return <span style={{ fontWeight: "var(--cc-fw-strong)", color: "var(--cc-warning-ink)" }}>{days}d left</span>;
   }
-  return <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{days}d left</span>;
+  return <span style={{ color: "var(--cc-text-muted)" }}>{days}d left</span>;
 }
 
 function InlineDateEditor({
   activationId,
+  creatorName,
   current,
   onSaved,
 }: {
   activationId: string;
+  creatorName: string;
   current: string | null;
   onSaved: (id: string, date: string | null) => void;
 }) {
@@ -109,16 +123,19 @@ function InlineDateEditor({
 
   if (!editing) {
     return (
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <span style={{ fontSize: "var(--cc-t-13)", color: current ? "var(--cc-text)" : "var(--cc-text-subtle)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        <span style={{ color: current ? "var(--cc-text)" : "var(--cc-text-muted)" }}>
           {current ? format(new Date(current), "MMM d, yyyy") : "Not set"}
         </span>
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label={`Edit due date for ${creatorName}`}
+          title="Edit due date"
           onClick={() => setEditing(true)}
-          style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)", padding: 2, display: "flex", alignItems: "center" }}
         >
-          <Edit2 size={12} />
-        </button>
+          <Pencil size={14} aria-hidden="true" />
+        </Button>
       </div>
     );
   }
@@ -127,41 +144,46 @@ function InlineDateEditor({
     <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
       <input
         type="date"
+        className="cc-field"
+        aria-label={`Due date for ${creatorName}`}
         value={value}
-        onChange={e => setValue(e.target.value)}
-        style={{
-          fontSize: "var(--cc-t-12)", padding: "3px 6px", border: "1px solid var(--cc-border)",
-          borderRadius: 6, color: "var(--cc-text)", background: "var(--cc-card)",
-        }}
+        onChange={(e) => setValue(e.target.value)}
+        style={{ width: "auto", flex: "1 1 8.5rem", minWidth: 0 }}
         autoFocus
       />
-      <button
+      <Button
+        variant="primary"
+        size="sm"
         onClick={save}
-        disabled={saving}
-        aria-busy={saving}
-        aria-label={saving ? "Saving due date" : "Save due date"}
-        style={{ background: "var(--cc-primary)", color: "var(--cc-on-primary)", border: "none", borderRadius: 4, padding: "3px 6px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1, display: "flex", alignItems: "center" }}
+        loading={saving}
+        aria-label="Save due date"
+        title="Save due date"
       >
-        <Check size={12} />
-      </button>
+        <Check size={14} aria-hidden="true" />
+      </Button>
       {current && (
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
+          className="cc-btn-danger-ghost"
           onClick={clear}
           disabled={saving}
           aria-label="Clear due date"
-          style={{ background: "color-mix(in srgb, var(--cc-danger) 14%, transparent)", border: "none", borderRadius: 4, padding: "3px 6px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1, display: "flex", alignItems: "center" }}
+          title="Clear due date"
         >
-          <X size={12} color="var(--cc-danger)" />
-        </button>
+          <X size={14} aria-hidden="true" />
+        </Button>
       )}
-      <button
+      <Button
+        variant="ghost"
+        size="sm"
         onClick={() => { setEditing(false); setError(null); }}
-        style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)", padding: 2 }}
+        aria-label="Cancel editing the due date"
       >
-        <X size={12} />
-      </button>
+        Cancel
+      </Button>
       {error && (
-        <span role="alert" style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-danger-ink)", width: "100%" }}>
+        <span role="alert" className="cc-form-error" style={{ width: "100%" }}>
           {error}
         </span>
       )}
@@ -202,214 +224,155 @@ export default function DeadlinesPage() {
     load(filter);
   };
 
-  const isRowOverdue = (a: DeadlineActivation) => {
-    if (!a.deliverableDueDate) return false;
-    if (["COMPLETE", "DECLINED"].includes(a.status)) return false;
-    return isBefore(new Date(a.deliverableDueDate), new Date());
-  };
-
   /* Five tiles all reading 0 above "No deadlines found" is five measurements of
      nothing. The stats come from the API and describe the whole org, not the
      current tab, so this is "has this org any deliverables at all" rather than
      "did this filter match". */
   const hasAnyDeadlineData = Object.values(stats).some((v) => v > 0);
+  const tile = (n: number) => (loading ? <Skeleton width={48} height={28} /> : formatFull(n));
+
+  const columns: DataTableColumn<DeadlineActivation>[] = [
+    {
+      key: "creator",
+      header: "Creator",
+      minWidth: 220,
+      render: (a) => (
+        <span style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+          <CreatorAvatar id={a.creator.id} name={a.creator.name} size="sm" />
+          <span style={{ minWidth: 0 }}>
+            <span className="cc-dt-truncate" style={{ fontWeight: "var(--cc-fw-medium)" }} title={a.creator.name}>
+              {a.creator.name}
+            </span>
+            {a.creator.handle && (
+              <span className="cc-dt-sub cc-dt-truncate">
+                @{stripAt(a.creator.handle)} · {platformLabel(a.creator.platform)}
+              </span>
+            )}
+          </span>
+        </span>
+      ),
+    },
+    {
+      key: "campaign",
+      header: "Campaign",
+      minWidth: 180,
+      render: (a) => (
+        <Link prefetch={false} href={`/campaigns/${a.campaign.id}`} className="cc-dt-primary cc-dt-truncate" title={a.campaign.title}>
+          {a.campaign.title}
+        </Link>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      width: DEADLINES_WIDTHS.status,
+      render: (a) => (
+        <StatusBadge status={a.status} />
+      ),
+    },
+    {
+      key: "due",
+      header: "Due date",
+      width: DEADLINES_WIDTHS.due,
+      render: (a) => (
+        <InlineDateEditor
+          activationId={a.id}
+          creatorName={a.creator.name}
+          current={a.deliverableDueDate}
+          onSaved={handleDateSaved}
+        />
+      ),
+    },
+    {
+      key: "daysLeft",
+      header: "Days left",
+      width: DEADLINES_WIDTHS.daysLeft,
+      align: "right",
+      render: (a) => <DaysLeft dueDate={a.deliverableDueDate} status={a.status} />,
+    },
+  ];
 
   return (
     <div className="rsp-page">
-      <PageHeader title="Deadlines" subtitle="Track deliverable due dates across all campaigns" />
+      <PageHeader
+        title="Deadlines"
+        subtitle="Track deliverable due dates across all campaigns"
+        tabs={
+          <StatusTabs
+            ariaLabel="Filter deadlines"
+            tabs={FILTER_TABS.map((t) => ({
+              key: t.key,
+              label: t.label,
+              count:
+                t.key === "OVERDUE" && stats.overdue > 0
+                  ? stats.overdue
+                  : t.key === "THIS_WEEK" && stats.dueThisWeek > 0
+                    ? stats.dueThisWeek
+                    : undefined,
+            }))}
+            active={filter}
+            onChange={setFilter}
+          />
+        }
+      />
 
-      {/* Stat Cards */}
       {(loading || hasAnyDeadlineData) && (
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 16, marginBottom: 24 }}>
-        <Card variant="outlined" style={{ padding: 20 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-            <CalendarClock size={18} color="var(--cc-primary)" />
-            <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>With Deadlines</span>
-          </div>
-          <div style={{ fontSize: "var(--cc-t-28)", fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
-            {loading ? <Skeleton width="48px" height="32px" borderRadius="6px" /> : stats.total}
-          </div>
-        </Card>
-
-        <Card variant="outlined" style={{ padding: 20 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-            <AlertTriangle size={18} color="var(--cc-danger)" />
-            <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>Overdue</span>
-          </div>
-          <div style={{ fontSize: "var(--cc-t-28)", fontWeight: 700, color: stats.overdue > 0 ? "var(--cc-danger)" : "var(--cc-text)", margin: 0 }}>
-            {loading ? <Skeleton width="48px" height="32px" borderRadius="6px" /> : stats.overdue}
-          </div>
-        </Card>
-
-        <Card variant="outlined" style={{ padding: 20 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-            <Clock size={18} color="var(--cc-warning)" />
-            <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>Due This Week</span>
-          </div>
-          <div style={{ fontSize: "var(--cc-t-28)", fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
-            {loading ? <Skeleton width="48px" height="32px" borderRadius="6px" /> : stats.dueThisWeek}
-          </div>
-        </Card>
-
-        <Card variant="outlined" style={{ padding: 20 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-            <CheckCircle2 size={18} color="var(--cc-success)" />
-            <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>Completed</span>
-          </div>
-          <div style={{ fontSize: "var(--cc-t-28)", fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
-            {loading ? <Skeleton width="48px" height="32px" borderRadius="6px" /> : stats.completed}
-          </div>
-        </Card>
-
-        <Card variant="outlined" style={{ padding: 20 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-            <CalendarOff size={18} color="var(--cc-text-muted)" />
-            <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>No Date Set</span>
-          </div>
-          <div style={{ fontSize: "var(--cc-t-28)", fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
-            {loading ? <Skeleton width="48px" height="32px" borderRadius="6px" /> : stats.noDate}
-          </div>
-        </Card>
-      </div>
+        <div className="cc-tiles-balanced" style={{ marginBottom: 24 }} aria-busy={loading || undefined}>
+          <MetricTile icon={CalendarClock} label="With deadlines" value={tile(stats.total)} />
+          <MetricTile
+            icon={AlertTriangle}
+            label="Overdue"
+            value={
+              !loading && stats.overdue > 0 ? (
+                <span style={{ color: "var(--cc-danger-ink)" }}>{formatFull(stats.overdue)}</span>
+              ) : (
+                tile(stats.overdue)
+              )
+            }
+          />
+          <MetricTile icon={Clock} label="Due this week" value={tile(stats.dueThisWeek)} />
+          <MetricTile icon={CheckCircle2} label="Completed" value={tile(stats.completed)} />
+          <MetricTile icon={CalendarOff} label="No date set" value={tile(stats.noDate)} />
+        </div>
       )}
 
-      {/* Filter Tabs */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
-        {FILTER_TABS.map(tab => (
-          <button
-            key={tab.key}
-            onClick={() => setFilter(tab.key)}
-            style={{
-              padding: "6px 14px", borderRadius: 20, fontSize: "var(--cc-t-13)", fontWeight: 500, cursor: "pointer",
-              border: filter === tab.key ? "1.5px solid var(--cc-primary)" : "1.5px solid var(--cc-border)",
-              background: filter === tab.key ? "var(--cc-primary)" : "var(--cc-card)",
-              color: filter === tab.key ? "var(--cc-on-primary)" : "var(--cc-text-muted)",
-              transition: "all 0.1s",
-            }}
-          >
-            {tab.label}
-            {tab.key === "OVERDUE" && stats.overdue > 0 && (
-              <span style={{ marginLeft: 6, background: "color-mix(in srgb, var(--cc-danger) 14%, transparent)", color: "var(--cc-danger-ink)", borderRadius: 10, padding: "1px 6px", fontSize: "var(--cc-t-11)", fontWeight: "var(--cc-fw-strong)"}}>
-                {stats.overdue}
-              </span>
-            )}
-            {tab.key === "THIS_WEEK" && stats.dueThisWeek > 0 && (
-              <span style={{ marginLeft: 6, background: "color-mix(in srgb, var(--cc-warning) 18%, transparent)", color: "var(--cc-warning)", borderRadius: 10, padding: "1px 6px", fontSize: "var(--cc-t-11)", fontWeight: "var(--cc-fw-strong)"}}>
-                {stats.dueThisWeek}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* Table */}
       {error ? (
-        <Card variant="outlined" style={{ padding: 40, textAlign: "center" }}>
-          <p role="alert" style={{ color: "var(--cc-danger)", fontSize: "var(--cc-t-14)"}}>{error}</p>
-          <Button variant="secondary" size="sm" onClick={() => load(filter)} style={{ marginTop: 12 }}>Retry</Button>
-        </Card>
-      ) : loading ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {[...Array(5)].map((_, i) => <Skeleton key={i} width="100%" height="56px" borderRadius="8px" />)}
-        </div>
-      ) : activations.length === 0 ? (
-        <EmptyState
-          icon={<CalendarClock size={40} color="var(--cc-text-subtle)" />}
-          title={filter === "ALL" ? "No deadlines yet" : "No deadlines found"}
-          /* "No activations match this filter" was shown on the All tab too,
-             where nothing is filtered — telling a new org to narrow a filter it
-             has not set. */
-          description={
-            filter === "NO_DATE"
-              ? "All activations have due dates set."
-              : filter === "ALL"
-                ? "Due dates you set on an activation's deliverable show up here."
-                : "No activations match this filter."
-          }
+        <LoadError
+          title="We couldn't load deadlines"
+          description={error}
+          onRetry={() => load(filter)}
+          retrying={loading}
         />
       ) : (
-        <Card variant="outlined" noPadding>
-          <div className="rsp-table-wrap">
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ borderBottom: "1px solid var(--cc-border)" }}>
-                {["Creator", "Campaign", "Status", "Due Date", "Days Left"].map(col => (
-                  <th
-                    key={col}
-                    className="cc-microlabel" style={{ padding: "12px 16px", textAlign: "left" }}
-                  >
-                    {col}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {activations.map((a, idx) => {
-                const overdue = isRowOverdue(a);
-                return (
-                  <tr
-                    key={a.id}
-                    style={{
-                      borderBottom: idx < activations.length - 1 ? "1px solid var(--cc-border)" : "none",
-                      background: overdue ? "color-mix(in srgb, var(--cc-danger) 5%, transparent)" : "transparent",
-                      transition: "background 0.1s",
-                    }}
-                  >
-                    {/* Creator */}
-                    <td style={{ padding: "14px 16px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <CreatorAvatar id={a.creator.id} name={a.creator.name} size="sm" />
-                      <div style={{ minWidth: 0 }}>
-                      <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}>{a.creator.name}</p>
-                      {a.creator.handle && (
-                        <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "2px 0 0" }}>
-                          @{stripAt(a.creator.handle)} · {platformLabel(a.creator.platform)}
-                        </p>
-                      )}
-                      </div>
-                      </div>
-                    </td>
-
-                    {/* Campaign */}
-                    <td style={{ padding: "14px 16px" }}>
-                      <a
-                        href={`/campaigns/${a.campaign.id}`}
-                        style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-primary)", textDecoration: "none", fontWeight: 500 }}
-                      >
-                        {a.campaign.title}
-                      </a>
-                    </td>
-
-                    {/* Activation Status */}
-                    <td style={{ padding: "14px 16px" }}>
-                      <span style={{
-                        fontSize: "var(--cc-t-11)", fontWeight: "var(--cc-fw-strong)", padding: "3px 8px", borderRadius: 12,
-                        ...activationStatusBadgeStyle(a.status),
-                      }}>
-                        {ACTIVATION_STATUS_LABEL[a.status] ?? a.status.replace(/_/g, " ")}
-                      </span>
-                    </td>
-
-                    {/* Due Date (inline editor) */}
-                    <td style={{ padding: "14px 16px" }}>
-                      <InlineDateEditor
-                        activationId={a.id}
-                        current={a.deliverableDueDate}
-                        onSaved={handleDateSaved}
-                      />
-                    </td>
-
-                    {/* Days Left */}
-                    <td style={{ padding: "14px 16px" }}>
-                      <DaysLeft dueDate={a.deliverableDueDate} status={a.status} />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          </div>
-        </Card>
+        <DataTable
+          caption="Deliverable deadlines"
+          columns={columns}
+          rows={activations}
+          rowKey={(a) => a.id}
+          loading={loading}
+          skeletonRows={5}
+          empty={
+            filter === "ALL" ? (
+              <EmptyState
+                icon={<CalendarClock size={32} color="var(--cc-text-subtle)" />}
+                title="No deadlines yet"
+                description="Due dates you set on an activation's deliverable show up here."
+              />
+            ) : (
+              /* "No activations match this filter" was shown on the All tab too,
+                 where nothing is filtered — telling a new org to narrow a filter it
+                 has not set. */
+              <NoResults
+                title="No deadlines found"
+                description={
+                  filter === "NO_DATE" ? "All activations have due dates set." : "No activations match this filter."
+                }
+                onClear={() => setFilter("ALL")}
+                clearLabel="Show all"
+              />
+            )
+          }
+        />
       )}
     </div>
   );

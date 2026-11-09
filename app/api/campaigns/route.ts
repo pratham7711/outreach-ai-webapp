@@ -20,6 +20,8 @@ import { CAMPAIGN_STATUSES, CAMPAIGN_TYPES, campaignFilterSchema, campaignWhere 
 import { CAMPAIGN_START_STATUS, STATUS_DEF_SELECT, defaultStatusDefFor } from "@/lib/campaigns/statusDefaults";
 import type { PaymentMode, PaymentRelease, PostApprovalMode, Prisma } from "@/lib/generated/prisma/client";
 import { campaignScopeWhereFor } from "@/lib/campaignScope";
+import { setupFromSchema, type CampaignSetup } from "@/lib/campaigns/templates/payload";
+import { readSetupSource, rulesTableReady, writeSetupExtras, type SetupWritten } from "@/lib/campaigns/templates/setup";
 
 // The list query is the page's filter set plus pagination, so a filter added to
 // the drawer reaches this route without a second schema to keep in step.
@@ -61,6 +63,12 @@ const createCampaignSchema = z.object({
   /* The song's Spotify track link, optional. Re-parsed here whatever the form
      said about it, and stored on the campaign's song as its track id. */
   spotifyUrl: z.string().trim().min(1).max(2048).nullable().optional(),
+  /* Start from a saved template or from a past campaign's setup. Only the
+     source is named: its brief, rules and phases are read here from the
+     server's own copy, in this org, never taken from the body. The fields
+     above that the body does send -- client, budget, currency, approval,
+     notes -- win over the source's. */
+  setupFrom: setupFromSchema.optional(),
 });
 
 // GET /api/campaigns - List campaigns with filters and pagination
@@ -146,7 +154,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { title, status, campaignType, typeConfig, budget, currency, notes, clientId, folderId, thumbnailUrl, paymentMode, paymentRelease, postApprovalMode, enrollmentOpen, audioUrl, instagramAudioUrl, spotifyUrl } = parsed.data;
+    const { title, status, campaignType, typeConfig, folderId, thumbnailUrl, paymentMode, paymentRelease, enrollmentOpen, audioUrl, instagramAudioUrl, spotifyUrl, setupFrom } = parsed.data;
+
+    /* The starting point, read before anything is written so a template or
+       campaign that is not this org's (or not in this member's scope) is a 404
+       and nothing more. */
+    let setup: CampaignSetup | null = null;
+    if (setupFrom) {
+      const read = await readSetupSource(result, setupFrom);
+      if (read.status === "missing") return NextResponse.json({ error: read.message }, { status: 404 });
+      if (read.status === "unreadable") return NextResponse.json({ error: read.message }, { status: 422 });
+      setup = read.source.setup;
+    }
+    /* A field the body names -- null included, which clears it -- is the
+       person's choice and wins; one it leaves out comes from the source. */
+    const given = <T,>(value: T | undefined, fromSetup: T | null | undefined): T | null | undefined =>
+      value !== undefined ? value : fromSetup ?? undefined;
+    const budget = given(parsed.data.budget, setup?.budget);
+    const currency = given(parsed.data.currency, setup?.currency) ?? undefined;
+    const notes = given(parsed.data.notes, setup?.notes);
+    const postApprovalMode = given(parsed.data.postApprovalMode, setup?.postApprovalMode) ?? undefined;
+    let clientId = parsed.data.clientId;
+    if (clientId === undefined && setup?.clientId) {
+      /* The source's client, only while it is still this org's: a client
+         deleted since the template was saved leaves the campaign unfiled
+         rather than failing the create. */
+      clientId = (await findForeignRef(orgId, { clientId: setup.clientId })) ? null : setup.clientId;
+    }
 
     // clientId and folderId arrive in the body, so they have to be proven to
     // belong to this org before they are written. Without this a caller could
@@ -229,6 +263,8 @@ export async function POST(request: NextRequest) {
        Instagram audio on its own goes where it always went, and only a second
        link that has nowhere to go is reported unsaved. */
     const linksReady = spotifyTrackId || instagramAudio ? await songLinksReady(orgId) : false;
+    /* The same question for the rules table, for the same reason. */
+    const rulesReady = setup?.rules ? await rulesTableReady() : false;
 
     /* One transaction, because the Song and TikTokSound rows exist only to be
        pointed at by this campaign. They used to be created first, on the global
@@ -236,6 +272,7 @@ export async function POST(request: NextRequest) {
        referencing them -- and a TikTokSound is a standing instruction to fetch
        a page on a schedule, so the orphan keeps costing something. */
     let instagramLinked: boolean | undefined;
+    let setupWritten: SetupWritten | undefined;
     const campaign = await db.$transaction(async (tx) => {
       const songId = audio
         ? await ensureSongForAudio(tx, orgId, audio, title, { linksReady })
@@ -267,7 +304,7 @@ export async function POST(request: NextRequest) {
         select: STATUS_DEF_SELECT,
       });
 
-      return tx.campaign.create({
+      const created = await tx.campaign.create({
       data: {
         title,
         songId,
@@ -302,6 +339,20 @@ export async function POST(request: NextRequest) {
         },
       },
       });
+
+      /* The brief, rules and phases in the same transaction as the campaign:
+         a campaign that came out without the setup it was started from is
+         worse than no campaign. */
+      if (setup) {
+        setupWritten = await writeSetupExtras(tx, {
+          campaignId: created.id,
+          orgId,
+          userId: result.userId,
+          setup,
+          rulesReady,
+        });
+      }
+      return created;
     });
 
     /* Take the audio's first reading now rather than at the next cron. Without
@@ -363,6 +414,7 @@ export async function POST(request: NextRequest) {
         title: campaign.title,
         status: campaign.status,
         campaignType: campaign.campaignType,
+        ...(setupFrom ? { setupFrom } : {}),
       },
     });
 
@@ -371,6 +423,9 @@ export async function POST(request: NextRequest) {
         ...campaign,
         ...(spotifyLinked === undefined ? {} : { spotifyLinked }),
         ...(instagramLinked === undefined ? {} : { instagramLinked }),
+        /* What came along from the starting point. rules is false with rules
+           in the source only when the rules table is not on this database. */
+        ...(setupFrom && setupWritten ? { setupFrom: { ...setupFrom, copied: setupWritten } } : {}),
       },
       { status: 201 }
     );

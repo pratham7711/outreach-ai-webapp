@@ -4,9 +4,10 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, Check, CircleHelp, Clock, Download, ExternalLink, X } from "lucide-react";
+import { Check, CircleHelp, Clock, Download, ExternalLink, X } from "lucide-react";
 import { Input } from "@pratham7711/ui";
-import { Button, Dropdown } from "@/components/ds";
+import { Button, Dropdown, Field } from "@/components/ds";
+import { useDirty } from "@/lib/useDirty";
 import { detectPlatform, MEDIA_TYPES } from "@/lib/platforms/postUrl";
 import { SHOW_MONEY } from "@/lib/moneyUi";
 import type { CampaignDate } from "@/lib/portal/campaignDates";
@@ -263,19 +264,6 @@ function RuleList({ checks }: { checks: RuleCheck[] }) {
   );
 }
 
-const fieldStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "10px 12px",
-  borderRadius: 10,
-  border: "1px solid var(--cc-border)",
-  fontSize: 16,
-  color: "var(--cc-text)",
-  background: "var(--cc-card)",
-  fontFamily: "inherit",
-  boxSizing: "border-box",
-};
-const fieldLabel: React.CSSProperties = { display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 };
-
 /** A boost code and its expiry, as two fields. Expiry is a calendar day. */
 function BoostFields({
   idPrefix,
@@ -294,9 +282,8 @@ function BoostFields({
 }) {
   return (
     <div className="portal-boost-fields">
-      <div>
-        <label htmlFor={`${idPrefix}-code`} style={fieldLabel}>Boost code (optional)</label>
-        <input
+      <Field label="Boost code">
+        <Input
           id={`${idPrefix}-code`}
           value={code}
           onChange={(e) => onCode(e.target.value)}
@@ -304,13 +291,11 @@ function BoostFields({
           maxLength={300}
           autoComplete="off"
           placeholder="Spark Ads or partnership code"
-          style={fieldStyle}
         />
-      </div>
-      <div>
-        <label htmlFor={`${idPrefix}-exp`} style={fieldLabel}>Code expires</label>
-        <input id={`${idPrefix}-exp`} type="date" value={expires} onChange={(e) => onExpires(e.target.value)} disabled={disabled || !code.trim()} style={fieldStyle} />
-      </div>
+      </Field>
+      <Field label="Code expires">
+        <Input id={`${idPrefix}-exp`} type="date" value={expires} onChange={(e) => onExpires(e.target.value)} disabled={disabled || !code.trim()} />
+      </Field>
     </div>
   );
 }
@@ -445,7 +430,7 @@ function SubmitPosts({
         style={{
           width: "100%",
           padding: "12px 14px",
-          borderRadius: 12,
+          borderRadius: "var(--cc-r-control)",
           border: "1px solid var(--cc-border)",
           fontSize: 16,
           lineHeight: 1.5,
@@ -533,6 +518,14 @@ function DraftCard({ slug, draft, onDone }: { slug: string; draft: Draft; onDone
   const [draftMediaType, setDraftMediaType] = useState(draft.draftMediaType ?? "");
   const [saving, setSaving] = useState(false);
   const state = DRAFT_STATE[draft.status] ?? { tone: "neutral" as Tone, label: draft.status.replace(/_/g, " ").toLowerCase() };
+  const dirty = useDirty(
+    { draftUrl: draft.draftUrl ?? "", draftCaption: draft.draftCaption ?? "", draftMediaType: draft.draftMediaType ?? "" },
+    { draftUrl, draftCaption, draftMediaType },
+  );
+  /* A draft still waiting for review is an edit: it resends only once
+     something changed. A declined one goes back as it is if the creator
+     changed the file behind the same link. */
+  const canSend = !!draftUrl.trim() && (draft.status !== "DRAFT_SUBMITTED" || dirty);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -576,12 +569,14 @@ function DraftCard({ slug, draft, onDone }: { slug: string; draft: Draft; onDone
       )}
       {CAN_SUBMIT_DRAFT.includes(draft.status) ? (
         <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <Input label="Draft link" value={draftUrl} onChange={(e) => setDraftUrl(e.target.value)} placeholder="A Google Drive, Dropbox or any shareable link" />
-          <Input label="Caption (optional)" value={draftCaption} onChange={(e) => setDraftCaption(e.target.value)} placeholder="The caption you plan to post with" />
-          <div>
-            <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Content type</span>
+          <Field label="Draft link" required>
+            <Input value={draftUrl} onChange={(e) => setDraftUrl(e.target.value)} placeholder="A Google Drive, Dropbox or any shareable link" />
+          </Field>
+          <Field label="Caption">
+            <Input value={draftCaption} onChange={(e) => setDraftCaption(e.target.value)} placeholder="The caption you plan to post with" />
+          </Field>
+          <Field label="Content type">
             <Dropdown
-              ariaLabel="Content type"
               align="left"
               fullWidth
               size="md"
@@ -589,9 +584,9 @@ function DraftCard({ slug, draft, onDone }: { slug: string; draft: Draft; onDone
               onChange={setDraftMediaType}
               options={[{ value: "", label: "Not specified" }, ...MEDIA_TYPES.map((m) => ({ value: m, label: m.charAt(0) + m.slice(1).toLowerCase() }))]}
             />
-          </div>
+          </Field>
           <div>
-            <Button variant="secondary" loading={saving}>
+            <Button type="submit" variant="secondary" loading={saving} disabled={!canSend}>
               {draft.status === "DECLINED" ? "Send the new draft" : draft.draftUrl ? "Update draft" : "Send draft"}
             </Button>
           </div>
@@ -614,6 +609,8 @@ function BoostCodeRow({ slug, submission, editable, onDone }: { slug: string; su
   const [code, setCode] = useState(submission.boostCode ?? "");
   const [expires, setExpires] = useState(submission.boostCodeExpiresAt?.slice(0, 10) ?? "");
   const [saving, setSaving] = useState(false);
+  const savedCode = { code: submission.boostCode ?? "", expires: submission.boostCodeExpiresAt?.slice(0, 10) ?? "" };
+  const dirty = useDirty(savedCode, { code, expires });
 
   const save = async () => {
     setSaving(true);
@@ -648,8 +645,19 @@ function BoostCodeRow({ slug, submission, editable, onDone }: { slug: string; su
       <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 10 }}>
         <BoostFields idPrefix={`boost-${submission.id}`} code={code} expires={expires} onCode={setCode} onExpires={setExpires} disabled={saving} />
         <div style={{ display: "flex", gap: 8 }}>
-          <Button variant="primary" size="sm" loading={saving} onClick={save}>Save</Button>
-          <Button variant="secondary" size="sm" disabled={saving} onClick={() => setEditing(false)}>Cancel</Button>
+          <Button variant="primary" size="sm" loading={saving} disabled={!dirty} onClick={save}>Save</Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={saving}
+            onClick={() => {
+              setCode(savedCode.code);
+              setExpires(savedCode.expires);
+              setEditing(false);
+            }}
+          >
+            Cancel
+          </Button>
         </div>
       </div>
     );
@@ -690,7 +698,7 @@ function SubmissionList({ slug, submissions, currency, boostCodes, onDone }: { s
                route decides, because only it sees which counters were read. */
             const views = s.views;
             return (
-              <div key={s.id} style={{ padding: 14, borderRadius: 12, border: "1px solid var(--cc-border)", background: "var(--cc-card)" }}>
+              <div key={s.id} style={{ padding: 14, borderRadius: "var(--cc-r-card)", border: "1px solid var(--cc-border)", background: "var(--cc-card)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
                   <a
                     href={s.postUrl}
@@ -793,7 +801,7 @@ function CampaignScreen() {
 
   if (error) {
     return (
-      <Screen title="Campaign">
+      <Screen title="Campaign" back={{ href: "/portal/campaigns", label: "Campaigns" }}>
         <EmptyState title={error} action={{ label: "Back to your campaigns", href: "/portal/campaigns" }} />
       </Screen>
     );
@@ -801,7 +809,7 @@ function CampaignScreen() {
 
   if (!detail) {
     return (
-      <Screen title="Campaign">
+      <Screen title="Campaign" back={{ href: "/portal/campaigns", label: "Campaigns" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <SkeletonBlock height={96} />
           <SkeletonBlock height={160} />
@@ -822,15 +830,9 @@ function CampaignScreen() {
   return (
     <Screen
       title={detail.title}
-      subtitle={
-        <>
-          <Link href="/portal/campaigns" style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--cc-text-muted)", textDecoration: "none" }}>
-            <ArrowLeft size={14} aria-hidden="true" /> Campaigns
-          </Link>{" "}
-          · {detail.orgName}
-        </>
-      }
-      action={<StatusPill tone={status.tone}>{status.label}</StatusPill>}
+      back={{ href: "/portal/campaigns", label: "Campaigns" }}
+      subtitle={detail.orgName}
+      badges={<StatusPill tone={status.tone}>{status.label}</StatusPill>}
     >
       {banner && bannerShown && (
         <Banner tone={banner.tone} onDismiss={() => setBannerShown(false)}>

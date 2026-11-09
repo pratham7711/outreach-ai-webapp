@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Modal } from "@pratham7711/ui";
+import { AlertCircle, AlertTriangle, ArrowDownToLine, Combine, Link2, Loader2, PencilLine } from "lucide-react";
+import { Modal, ModalNotice, ModalOption, ModalOptionList, ModalSection } from "@/components/ds/Modal";
 import { toast } from "sonner";
 import { Button, EntityPicker, type PickerOption } from "@/components/ds";
 import { platformLabel, stripAt } from "@/lib/format";
@@ -139,14 +140,41 @@ export default function MergeCreatorModal({
   const filled = preview?.filled.map((f) => FIELD_LABEL[f] ?? f) ?? [];
 
   return (
-    <Modal open={open} onClose={onClose} title="Merge a duplicate">
-      <div style={{ display: "flex", flexDirection: "column", gap: 16, paddingBottom: 4 }}>
-        <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text)", margin: 0 }}>
-          Pick another profile of the same person. Its posts, campaigns, accounts and lists move onto {name}, which keeps its own name,
-          handle and numbers.
-        </p>
-        <div>
-          <label htmlFor="merge-creator" style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>
+    <Modal
+      open={open}
+      onClose={onClose}
+      icon={Combine}
+      tone="warning"
+      title="Merge a duplicate"
+      description={
+        <>
+          The duplicate&rsquo;s posts, campaigns, accounts and lists move onto{" "}
+          <strong className="cc-dialog__subject">{name}</strong>, which keeps its own name, handle and numbers.
+        </>
+      }
+      size="md"
+      footer={
+        <div className="cc-modal-footer">
+          <Button type="button" variant="secondary" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            iconLeft={<Combine size={16} aria-hidden="true" />}
+            onClick={merge}
+            loading={merging}
+            disabled={!preview || !!error}
+          >
+            Merge into this profile
+          </Button>
+        </div>
+      }
+    >
+      <div className="cc-dialog-stack">
+        <div className="ui-input-root">
+          <label htmlFor="merge-creator" className="ui-input-label">
             Duplicate profile
           </label>
           <EntityPicker
@@ -162,33 +190,42 @@ export default function MergeCreatorModal({
             onChange={setPicked}
           />
         </div>
-        {loading && <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>Checking what would move…</p>}
-        {preview && picked && (
-          <div aria-live="polite" style={{ display: "flex", flexDirection: "column", gap: 6, border: "1px solid var(--cc-border)", borderRadius: 8, padding: 12, fontSize: "var(--cc-t-13)", color: "var(--cc-text)" }}>
-            {!(preview.account && movedText(preview) === NOTHING_MOVES) && <p style={{ margin: 0 }}>{movedText(preview)}</p>}
-            {preview.account && (
-              <p style={{ margin: 0 }}>
-                Adds its {platformLabel(preview.account.platform)} account @{preview.account.handle} to this profile.
-              </p>
-            )}
-            {filled.length > 0 && <p style={{ margin: 0 }}>Fills this profile&rsquo;s empty {filled.join(", ")} from it.</p>}
-            <p style={{ margin: 0, color: "var(--cc-text-muted)" }}>{picked.label} then leaves the roster. This can&rsquo;t be undone here.</p>
-          </div>
+        {loading && (
+          <ModalNotice tone="neutral" icon={Loader2}>
+            Checking what would move…
+          </ModalNotice>
         )}
         {error && (
-          <p role="alert" style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-danger-ink)", margin: 0 }}>
+          <ModalNotice tone="danger" icon={AlertCircle}>
             {error}
-          </p>
+          </ModalNotice>
         )}
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <Button type="button" variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="button" variant="primary" onClick={merge} loading={merging} disabled={!preview || !!error}>
-            Merge into this profile
-          </Button>
-        </div>
       </div>
+
+      {preview && picked && (
+        <ModalSection title="What happens">
+          <div aria-live="polite" className="cc-dialog-stack" data-gap="tight">
+            <ModalOptionList>
+              {!(preview.account && movedText(preview) === NOTHING_MOVES) && (
+                <ModalOption as="div" icon={ArrowDownToLine} title={movedText(preview)} />
+              )}
+              {preview.account && (
+                <ModalOption
+                  as="div"
+                  icon={Link2}
+                  title={`Adds its ${platformLabel(preview.account.platform)} account @${preview.account.handle} to this profile.`}
+                />
+              )}
+              {filled.length > 0 && (
+                <ModalOption as="div" icon={PencilLine} title={`Fills this profile’s empty ${filled.join(", ")} from it.`} />
+              )}
+            </ModalOptionList>
+            <ModalNotice tone="warning" icon={AlertTriangle}>
+              {picked.label}{" "}then leaves the roster. This can’t be undone here.
+            </ModalNotice>
+          </div>
+        </ModalSection>
+      )}
     </Modal>
   );
 }

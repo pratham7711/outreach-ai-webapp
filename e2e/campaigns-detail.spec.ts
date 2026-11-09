@@ -40,7 +40,7 @@ test.describe('Campaign Detail', () => {
       });
 
     // A paste into a field is that field's.
-    await paste('input[placeholder="Search creator..."]');
+    await paste('input[placeholder="Search creators"]');
     await expect(page.locator('#add-post-urls')).toHaveCount(0);
 
     await paste('main');

@@ -1,8 +1,11 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Modal, Input } from "@pratham7711/ui";
+import { Input } from "@pratham7711/ui";
+import { Modal, ModalNotice } from "@/components/ds/Modal";
+import { AlertCircle, AlertTriangle, Wallet } from "lucide-react";
 import { Dropdown, Button } from "@/components/ds";
+import { Field, FieldRow } from "@/components/ds/Field";
 import { creatorNameText } from "@/lib/creators/creatorName";
 
 type Creator = { id: string; name: string; handle: string };
@@ -11,6 +14,9 @@ type Campaign = { id: string; title: string };
 export default function AddPayoutModal({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  /* A rejected payout used to close nothing and say nothing (`if (res.ok)`
+     with no else). */
+  const [error, setError] = useState<string | null>(null);
 
   /* Fetched here rather than passed in: the payouts page was selecting every
      creator and campaign in the org to fill these two pickers, on every load,
@@ -44,10 +50,13 @@ export default function AddPayoutModal({ onClose }: { onClose: () => void }) {
     status: "PENDING",
   });
 
+  const canSubmit = optionsState === "ready" && form.creatorId !== "" && form.amount.trim() !== "";
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.creatorId || !form.amount) return;
+    if (loading || !canSubmit) return;
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch("/api/payouts", {
         method: "POST",
@@ -62,70 +71,70 @@ export default function AddPayoutModal({ onClose }: { onClose: () => void }) {
       if (res.ok) {
         router.refresh();
         onClose();
+        return;
       }
+      const body = await res.json().catch(() => null);
+      setError(
+        body?.error ??
+          (res.status === 401
+            ? "Your session has expired. Sign in again and retry."
+            : "Could not record that payout.")
+      );
+    } catch {
+      setError("Could not reach the server. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
-  };
-
-  const labelStyle = {
-    display: "block" as const,
-    fontSize: "var(--cc-t-13)",
-    fontWeight: 600 as const,
-    color: "var(--cc-text)",
-    marginBottom: 6,
   };
 
   return (
     <Modal
       open={true}
       onClose={onClose}
+      icon={Wallet}
+      tone="brand"
       title="New Payout"
+      description="Record a payout to a creator, optionally against one of your campaigns."
       size="md"
+      dismissible={false}
       footer={
         <div className="cc-modal-footer">
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
           <Button
+            type="submit"
+            form="add-payout-form"
             variant="primary"
+            size="sm"
             loading={loading}
-            disabled={optionsState !== "ready"}
-            onClick={() => {
-              document.getElementById("add-payout-form")?.dispatchEvent(
-                new Event("submit", { cancelable: true, bubbles: true })
-              );
-            }}
+            disabled={!canSubmit}
           >
             New Payout
           </Button>
         </div>
       }
     >
-      <form id="add-payout-form" onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        {optionsState === "failed" && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 12,
-              padding: "10px 12px",
-              borderRadius: 8,
-              border: "1px solid var(--cc-border)",
-              background: "var(--cc-bg)",
-              fontSize: "var(--cc-t-13)",
-              color: "var(--cc-text-muted)",
-            }}
-          >
-            <span>Couldn&apos;t load creators and campaigns.</span>
-            <Button variant="secondary" onClick={loadOptions}>
-              Retry
-            </Button>
-          </div>
+      <form id="add-payout-form" onSubmit={handleSubmit} className="cc-dialog-stack" noValidate>
+        {error && (
+          <ModalNotice tone="danger" icon={AlertCircle}>
+            {error}
+          </ModalNotice>
         )}
-        <div>
-          <label style={labelStyle}>Creator *</label>
+        {optionsState === "failed" && (
+          <ModalNotice
+            tone="warning"
+            icon={AlertTriangle}
+            action={
+              <Button variant="secondary" size="sm" onClick={loadOptions}>
+                Retry
+              </Button>
+            }
+          >
+            Couldn&apos;t load creators and campaigns.
+          </ModalNotice>
+        )}
+        <Field label="Creator" required>
           <Dropdown
-            ariaLabel="Creator"
+            id="payout-creator"
             align="left"
             fullWidth
             disabled={optionsState !== "ready"}
@@ -144,11 +153,10 @@ export default function AddPayoutModal({ onClose }: { onClose: () => void }) {
               ...creators.map((c) => ({ value: c.id, label: creatorNameText(c.name, c.handle) })),
             ]}
           />
-        </div>
-        <div>
-          <label style={labelStyle}>Campaign (optional)</label>
+        </Field>
+        <Field label="Campaign">
           <Dropdown
-            ariaLabel="Campaign"
+            id="payout-campaign"
             align="left"
             fullWidth
             disabled={optionsState !== "ready"}
@@ -159,30 +167,28 @@ export default function AddPayoutModal({ onClose }: { onClose: () => void }) {
               ...campaigns.map((c) => ({ value: c.id, label: c.title })),
             ]}
           />
-        </div>
-        <div style={{ display: "flex", gap: 12 }}>
-          <div style={{ flex: 1 }}>
+        </Field>
+        <FieldRow>
+          <Field label="Amount" required>
             <Input
-              label="Amount *"
               type="number"
-              required
+              inputMode="decimal"
               value={form.amount}
               onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
               placeholder="e.g. 5000"
             />
-          </div>
-          <div style={{ width: 110 }}>
-            <label style={labelStyle}>Currency</label>
+          </Field>
+          <Field label="Currency">
             <Dropdown
-              ariaLabel="Currency"
+              id="payout-currency"
               align="left"
               fullWidth
               value={form.currency}
               onChange={(v) => setForm((f) => ({ ...f, currency: v }))}
               options={["USD", "EUR", "GBP", "INR"].map((c) => ({ value: c, label: c }))}
             />
-          </div>
-        </div>
+          </Field>
+        </FieldRow>
       </form>
     </Modal>
   );

@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Input } from "@pratham7711/ui";
 import { Button } from "@/components/ds";
-import { Eye, EyeOff } from "lucide-react";
+import { AuthForm, AuthNotice, AuthShell, PasswordField } from "@/components/auth/AuthShell";
+import { Field } from "@/components/ds/Field";
 import { ConnectPrompt } from "@/components/portal/ConnectPrompt";
 import { LegalLinks } from "@/components/LegalLinks";
 import { errandQuery, landingAfterAuth, readAuthErrand } from "@/lib/portal/afterAuth";
@@ -17,7 +18,6 @@ function RegisterInner() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({ email: "", password: "", name: "", handle: "" });
   const [nextPath, setNextPath] = useState<string | null>(null);
   const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }));
@@ -63,103 +63,67 @@ function RegisterInner() {
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100dvh",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 16,
-        padding: "40px 16px",
-        background: "var(--cc-bg)",
-      }}
+    <AuthShell
+      title={nextPath ? "One last step" : "Create your creator account"}
+      subtitle={
+        nextPath
+          ? "Your account is ready"
+          : errand.invitation
+            ? "Sign up to accept your invitation"
+            : errand.join
+              ? "Sign up to join this campaign"
+              : errand.connect
+                ? "Sign up to see the accounts you connected"
+                : "Join campaigns and track how your posts do"
+      }
+      footer={
+        nextPath ? undefined : (
+          <>
+            Already have an account? <Link href={loginHref}>Sign in</Link>
+          </>
+        )
+      }
+      below={<LegalLinks />}
     >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 420,
-          background: "var(--cc-card)",
-          border: "1px solid var(--cc-border)",
-          borderRadius: 20,
-          padding: 32,
-          boxShadow: "var(--ui-shadow-lg)",
-        }}
-      >
-        <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4, textAlign: "center" }}>
-          {nextPath ? "One last step" : "Create your creator account"}
-        </h1>
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 24, textAlign: "center" }}>
-          {nextPath
-            ? "Your account is ready"
-            : errand.invitation
-              ? "Sign up to accept your invitation"
-              : errand.join
-                ? "Sign up to join this campaign"
-                : errand.connect
-                  ? "Sign up to see the accounts you connected"
-                  : "Join campaigns and track how your posts do"}
-        </p>
+      {/* Consent comes back to My accounts, not to nextPath: it is the screen
+          that reads the callback's ?connected / ?error&reason and says what
+          happened. The campaigns page ignores both, so a refused connect
+          (no roster row yet: reason=creator) used to land there silently. */}
+      {nextPath && (
+        <ConnectPrompt
+          variant="step"
+          returnTo="/portal/accounts"
+          onSkip={() => router.push(nextPath)}
+          skipLabel="Skip for now"
+        />
+      )}
 
-        {/* Consent comes back to My accounts, not to nextPath: it is the screen
-            that reads the callback's ?connected / ?error&reason and says what
-            happened. The campaigns page ignores both, so a refused connect
-            (no roster row yet: reason=creator) used to land there silently. */}
-        {nextPath && (
-          <ConnectPrompt
-            variant="step"
-            returnTo="/portal/accounts"
-            onSkip={() => router.push(nextPath)}
-            skipLabel="Skip for now"
+      {error && <AuthNotice tone="danger">{error}</AuthNotice>}
+
+      {!nextPath && (
+        <AuthForm onSubmit={handleSubmit}>
+          <Field label="Full name" required>
+            <Input value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="Your name" autoComplete="name" />
+          </Field>
+          <Field label="Handle" required helper="No spaces.">
+            <Input value={form.handle} onChange={(e) => set({ handle: e.target.value })} placeholder="yourhandle" autoComplete="off" />
+          </Field>
+          <Field label="Email" required>
+            <Input type="email" value={form.email} onChange={(e) => set({ email: e.target.value })} placeholder="creator@example.com" autoComplete="email" />
+          </Field>
+          <PasswordField
+            label="Password"
+            value={form.password}
+            onChange={(v) => set({ password: v })}
+            placeholder="At least 8 characters"
+            autoComplete="new-password"
           />
-        )}
-
-        {error && (
-          <div style={{ padding: "10px 14px", borderRadius: 8, background: "color-mix(in srgb, var(--cc-danger) 12%, transparent)", color: "var(--cc-danger)", fontSize: 13, marginBottom: 16 }}>
-            {error}
-          </div>
-        )}
-
-        <form
-          onSubmit={handleSubmit}
-          style={{ display: nextPath ? "none" : "flex", flexDirection: "column", gap: 16 }}
-        >
-          <Input label="Full Name" value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="Your name" required />
-          <Input label="Handle" value={form.handle} onChange={(e) => set({ handle: e.target.value })} placeholder="yourhandle (no spaces)" required />
-          <Input label="Email" type="email" value={form.email} onChange={(e) => set({ email: e.target.value })} placeholder="creator@example.com" required />
-          <div style={{ position: "relative" }}>
-            <Input
-              label="Password"
-              type={showPassword ? "text" : "password"}
-              value={form.password}
-              onChange={(e) => set({ password: e.target.value })}
-              placeholder="Min 8 characters"
-              required
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              style={{ position: "absolute", right: 12, top: 34, background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)" }}
-            >
-              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-            </button>
-          </div>
-          <Button variant="primary" loading={loading} style={{ width: "100%", marginTop: 8 }}>
-            Create Account
+          <Button type="submit" variant="primary" fullWidth loading={loading}>
+            Create account
           </Button>
-        </form>
-
-        {!nextPath && (
-          <div style={{ textAlign: "center", marginTop: 20, fontSize: 14, color: "var(--cc-text-muted)" }}>
-            Already have an account?{" "}
-            <Link href={loginHref} style={{ color: "var(--cc-primary)", fontWeight: 600, textDecoration: "none" }}>
-              Sign in
-            </Link>
-          </div>
-        )}
-      </div>
-      <LegalLinks />
-    </div>
+        </AuthForm>
+      )}
+    </AuthShell>
   );
 }
 

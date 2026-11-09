@@ -13,7 +13,7 @@
  * The payoff is a one-line rule that works only because the inline style is
  * gone from the call site:
  *
- *   :root.creatorcore [data-action="self-serve-campaign"] { display: none }
+ *   :root.<theme> [data-action="self-serve-campaign"] { display: none }
  */
 export const ACTIONS = [
   "add-activation",

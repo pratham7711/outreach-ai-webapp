@@ -1,9 +1,24 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Mail, Trash2, Users, Clock, User, Link as LinkIcon, Check, UserMinus } from "lucide-react";
-import { Card, Badge, Avatar, EmptyState, Modal, Input } from "@pratham7711/ui";
-import { PageHeader, Dropdown, Button, useConfirm } from "@/components/ds";
+import { Plus, Mail, Users, Clock, User, Link as LinkIcon, Check, UserMinus, UserPlus, AlertCircle, Trash2 } from "lucide-react";
+import { Avatar, Input } from "@pratham7711/ui";
+import { Modal, ModalNotice } from "@/components/ds/Modal";
+import {
+  PageHeader,
+  Dropdown,
+  Button,
+  useConfirm,
+  Field,
+  SectionCard,
+  DataTable,
+  MetricTile,
+  MoreMenu,
+  NoResults,
+  StatusBadge,
+  type DataTableColumn,
+} from "@/components/ds";
+import { enumLabel } from "@/lib/ui/enumLabel";
 import { action } from "@/lib/ui/actions";
 
 type User = {
@@ -29,19 +44,9 @@ type Invite = {
 
 const ROLE_OPTIONS = ["ADMIN", "MANAGER", "MEMBER", "VIEWER"] as const;
 
-const ROLE_COLORS: Record<string, { bg: string; color: string }> = {
-  OWNER:   { bg: "var(--cc-warning-bg)", color: "var(--cc-warning-fg)" },
-  ADMIN:   { bg: "var(--cc-accent-bg)", color: "var(--cc-accent-fg)" },
-  MANAGER: { bg: "var(--cc-success-bg)", color: "var(--cc-success-fg)" },
-  MEMBER:  { bg: "var(--cc-neutral-bg)", color: "var(--cc-neutral-fg)" },
-  VIEWER:  { bg: "var(--cc-danger-bg)", color: "var(--cc-danger-fg)" },
-};
-
-const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
-  pending:  { bg: "var(--cc-warning-bg)", color: "var(--cc-warning-fg)" },
-  accepted: { bg: "var(--cc-success-bg)", color: "var(--cc-success-fg)" },
-  expired:  { bg: "var(--cc-danger-bg)", color: "var(--cc-danger-fg)" },
-};
+/* Roles are not statuses, so they take the neutral badge; an invite's state
+   is one, so it takes its status tone (pending warns, expired is danger). */
+const roleLabel = (role: string) => enumLabel(role);
 
 type Seats = { used: number; pending: number; max: number | null };
 
@@ -86,9 +91,6 @@ export default function TeamClient({
      on. The list is otherwise every role an invite can be issued at. */
   const assignableRoles: readonly string[] =
     viewerRole === "OWNER" ? ["OWNER", ...ROLE_OPTIONS] : ROLE_OPTIONS;
-  /* Managers get two extra cells per row — the role becomes a control and a
-     Remove button appears — so the grid has to widen with them. */
-  const memberGridColumns = canManage ? "1fr 1fr 150px 140px 110px" : "1fr 1fr 120px 140px";
   const activeOwners = users.filter((u) => u.role === "OWNER" && u.isActive).length;
 
   /** Why this row's controls are locked, or null if they are not. */
@@ -125,11 +127,12 @@ export default function TeamClient({
 
   async function handleRemove(user: User) {
     const ok = await confirm({
-      title: `Remove ${user.name || user.email}?`,
+      verb: "remove",
+      subject: user.name || user.email,
+      icon: UserMinus,
       description:
         "They lose access within a minute, and cannot sign in again. Their campaigns, comments and history stay exactly where they are — nothing is deleted. An owner or admin can restore the account later.",
       confirmLabel: "Remove from workspace",
-      tone: "danger",
     });
     if (!ok) return;
     setNotice(null);
@@ -246,401 +249,324 @@ export default function TeamClient({
     });
   }
 
+  const seatTitle = seats
+    ? `${seats.used} member${seats.used === 1 ? "" : "s"}${seats.pending ? ` and ${seats.pending} pending invite${seats.pending === 1 ? "" : "s"}` : ""}${seatLimit != null ? ` of ${seatLimit} seats` : ""}`
+    : undefined;
+  /* No denominator when there is no cap. Dropping the counter entirely would
+     lose the useful half -- how many people are in the workspace is worth
+     showing whether or not it is limited. */
+  const seatText = seats
+    ? seatLimit != null
+      ? `${seatsUsed} of ${seatLimit} seats used`
+      : `${seatsUsed} seat${seatsUsed === 1 ? "" : "s"} in use`
+    : null;
+  const openInvites = pendingInvites.filter((i) => i.status === "pending").length;
+
+  const memberColumns: DataTableColumn<User>[] = [
+    {
+      key: "name",
+      header: "Name",
+      minWidth: 200,
+      render: (user) => (
+        <span className="cc-team-member">
+          <Avatar name={user.name} src={user.avatarUrl ?? undefined} size="sm" />
+          <span className="cc-dt-truncate cc-team-member__name">{user.name}</span>
+          {!user.isActive ? <StatusBadge tone="neutral">Removed</StatusBadge> : null}
+        </span>
+      ),
+    },
+    {
+      key: "email",
+      header: "Email",
+      minWidth: 200,
+      truncate: (user) => user.email,
+      render: (user) => <span className="cc-team-muted">{user.email}</span>,
+    },
+    {
+      key: "role",
+      header: "Role",
+      width: canManage ? 160 : 120,
+      render: (user) => {
+        const locked = canManage ? lockedReason(user) : "read-only";
+        /* A manager gets the role as a control; everyone else gets it as a
+           label, because /api/team refuses them anyway. */
+        return canManage && !locked && user.isActive ? (
+          <Dropdown
+            ariaLabel={`Role for ${user.name || user.email}`}
+            align="left"
+            fullWidth
+            disabled={busyUserId === user.id}
+            value={user.role}
+            onChange={(role) => handleRoleChange(user, role)}
+            options={assignableRoles.map((r) => ({ value: r, label: roleLabel(r) }))}
+          />
+        ) : (
+          <StatusBadge tone="neutral" title={canManage && locked !== "read-only" ? locked ?? undefined : undefined}>
+            {roleLabel(user.role)}
+          </StatusBadge>
+        );
+      },
+    },
+    {
+      key: "last",
+      header: "Last sign-in",
+      width: 140,
+      render: (user) => <span className="cc-team-muted">{formatDate(user.lastLoginAt)}</span>,
+    },
+    ...(canManage
+      ? [
+          {
+            key: "actions",
+            header: "Actions",
+            hideHeader: true,
+            width: 64,
+            align: "right" as const,
+            render: (user: User) => {
+              const locked = lockedReason(user);
+              const busy = busyUserId === user.id;
+              return user.isActive && !locked ? (
+                <MoreMenu
+                  label={`More actions for ${user.name || user.email}`}
+                  size="sm"
+                  items={[
+                    {
+                      label: "Remove from workspace",
+                      icon: <UserMinus size={16} aria-hidden="true" />,
+                      danger: true,
+                      disabled: busy,
+                      onClick: () => void handleRemove(user),
+                    },
+                  ]}
+                />
+              ) : (
+                <span className="cc-team-muted" title={locked ?? undefined}>
+                  {user.isActive ? "—" : "No access"}
+                </span>
+              );
+            },
+          },
+        ]
+      : []),
+  ];
+
+  const inviteColumns: DataTableColumn<Invite>[] = [
+    {
+      key: "email",
+      header: "Email",
+      minWidth: 220,
+      truncate: (invite) => invite.email,
+      render: (invite) => invite.email,
+    },
+    { key: "role", header: "Role", width: 120, render: (invite) => <StatusBadge tone="neutral">{roleLabel(invite.role)}</StatusBadge> },
+    { key: "sent", header: "Sent", width: 130, render: (invite) => <span className="cc-team-muted">{formatDate(invite.createdAt)}</span> },
+    { key: "expires", header: "Expires", width: 130, render: (invite) => <span className="cc-team-muted">{formatDate(invite.expiresAt)}</span> },
+    {
+      key: "status",
+      header: "Status",
+      width: 120,
+      render: (invite) => <StatusBadge tone={invite.status === "expired" ? "danger" : invite.status === "pending" ? "warning" : "success"}>{enumLabel(invite.status)}</StatusBadge>,
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      hideHeader: true,
+      width: 220,
+      align: "right",
+      render: (invite) => (
+        <span className="cc-team-actions">
+          {invite.status === "pending" ? (
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={resendingId === invite.id}
+                aria-label={`Resend invite email to ${invite.email}`}
+                title="Send the invite email again"
+                iconLeft={resentId === invite.id ? <Check size={16} aria-hidden="true" /> : <Mail size={16} aria-hidden="true" />}
+                onClick={() => handleResend(invite.id, invite.email)}
+              >
+                {resentId === invite.id ? "Sent" : resendingId === invite.id ? "Sending" : "Resend"}
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                aria-label={`Copy invite link for ${invite.email}`}
+                title="Copy invite link"
+                iconLeft={copiedToken === invite.token ? <Check size={16} aria-hidden="true" /> : <LinkIcon size={16} aria-hidden="true" />}
+                onClick={() => copyInviteLink(invite.token)}
+              >
+                {copiedToken === invite.token ? "Copied" : "Link"}
+              </Button>
+            </>
+          ) : null}
+          <MoreMenu
+            label={`More actions for the invite to ${invite.email}`}
+            size="sm"
+            items={[{ label: "Cancel invite", icon: <Trash2 size={16} aria-hidden="true" />, danger: true, onClick: () => void handleCancel(invite.id) }]}
+          />
+        </span>
+      ),
+    },
+  ];
+
   return (
     <div className="rsp-page page-enter">
       <PageHeader
-        title="Team Settings"
-        subtitle="Manage your team and invite new members"
-        actions={
+        title="Team"
+        subtitle={
           <>
-          {seats ? (
-            <span
-              style={{ fontSize: "var(--cc-t-13)", color: seatsFull ? "var(--cc-warning)" : "var(--cc-text-muted)" }}
-              title={`${seats.used} member${seats.used === 1 ? "" : "s"}${seats.pending ? ` and ${seats.pending} pending invite${seats.pending === 1 ? "" : "s"}` : ""}${seatLimit != null ? ` of ${seatLimit} seats` : ""}`}
-            >
-              {/* No denominator when there is no cap. Dropping the counter
-                  entirely would lose the useful half -- how many people are in
-                  the workspace is worth showing whether or not it is limited. */}
-              {seatLimit != null ? `${seatsUsed}/${seatLimit} seats` : `${seatsUsed} seat${seatsUsed === 1 ? "" : "s"} in use`}
-            </span>
-          ) : null}
-          {canManage ? (
+            Manage your team and invite new members
+            {seatText ? (
+              <>
+                {" · "}
+                <span className={seatsFull ? "cc-team-seats-full" : undefined} title={seatTitle}>
+                  {seatText}
+                </span>
+              </>
+            ) : null}
+          </>
+        }
+        actions={
+          canManage ? (
             <Button
               variant="primary"
-              iconLeft={<Plus size={15} />}
+              iconLeft={<Plus size={16} aria-hidden="true" />}
               size="sm"
               disabled={seatsFull}
               title={seatsFull ? "All seats are in use or invited" : undefined}
               onClick={() => setShowModal(true)}
-             {...action("invite-member")}>
-              Invite Member
+              {...action("invite-member")}
+            >
+              Invite member
             </Button>
-          ) : null}
-          </>
+          ) : null
         }
       />
 
-      {/* Stats */}
-      <div className="cc-stagger grid grid-cols-1 sm:grid-cols-2" style={{ gap: 20, marginBottom: 32, maxWidth: 480 }}>
-        <Card variant="solid" style={{ padding: "20px 24px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: "var(--cc-primary)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Users size={18} style={{ color: "var(--cc-on-primary)" }} />
-            </div>
-            <div>
-              <div style={{ fontSize: "var(--cc-t-22)", fontWeight: "var(--cc-fw-black)", color: "var(--cc-text)" }}>{users.length}</div>
-              <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>Team Members</div>
-            </div>
-          </div>
-        </Card>
-        <Card variant="solid" style={{ padding: "20px 24px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: "var(--cc-warning-solid)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Clock size={18} style={{ color: "var(--cc-on-primary)" }} />
-            </div>
-            <div>
-              <div style={{ fontSize: "var(--cc-t-22)", fontWeight: "var(--cc-fw-black)", color: "var(--cc-text)" }}>{pendingInvites.filter((i) => i.status === "pending").length}</div>
-              <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>Pending Invites</div>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* Members Table */}
-      <Card variant="solid" noPadding style={{ marginBottom: 32 }}>
-        <div style={{ padding: "14px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-hover-bg)" }}>
-          <span style={{ fontWeight: 700, fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>Members</span>
+      <div className="cc-team-stack">
+        <div className="cc-tiles-balanced">
+          <MetricTile label="Team members" value={users.length.toLocaleString("en-US")} icon={Users} />
+          <MetricTile label="Pending invites" value={openInvites.toLocaleString("en-US")} icon={Clock} />
         </div>
-        {users.length === 0 ? (
-          <div style={{ padding: "48px 24px" }}>
-            <EmptyState
-              icon={<User size={32} color="var(--cc-text-subtle)" />}
-              title="No team members"
-              description="Invite your first team member"
-            />
-          </div>
-        ) : (
-          <div tabIndex={0} role="region" aria-label="Team members" style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            <div style={{ minWidth: canManage ? 760 : 560 }}>
-            {/* Table header. The trailing blank is the remove-button cell. */}
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: memberGridColumns,
-              padding: "10px 24px",
-              borderBottom: "1px solid var(--cc-border)",
-              gap: 16,
-            }}>
-              {(canManage
-                ? ["Name", "Email", "Role", "Last sign-in", ""]
-                : ["Name", "Email", "Role", "Last sign-in"]
-              ).map((h, i) => (
-                <span key={i} className="cc-microlabel">
-                  {h}
-                </span>
-              ))}
-            </div>
-            {users.map((user) => {
-              const roleStyle = ROLE_COLORS[user.role] ?? ROLE_COLORS.MEMBER;
-              const locked = canManage ? lockedReason(user) : "read-only";
-              const busy = busyUserId === user.id;
-              return (
-                <div
-                  key={user.id}
-                  className="cc-table-row"
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: memberGridColumns,
-                    padding: "12px 24px",
-                    alignItems: "center",
-                    borderBottom: "1px solid var(--cc-border)",
-                    gap: 16,
-                    opacity: user.isActive ? 1 : 0.55,
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <Avatar name={user.name} src={user.avatarUrl ?? undefined} size="sm" />
-                    <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{user.name}</span>
-                    {!user.isActive && (
-                      <Badge style={{ background: "var(--cc-hover-bg)", color: "var(--cc-text-muted)", fontSize: "var(--cc-t-10)", fontWeight: "var(--cc-fw-strong)"}}>
-                        Removed
-                      </Badge>
-                    )}
-                  </div>
-                  <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{user.email}</span>
-                  {/* A manager gets the role as a control; everyone else gets
-                      it as a label, because /api/team refuses them anyway. */}
-                  {canManage && !locked && user.isActive ? (
-                    <Dropdown
-                      ariaLabel={`Role for ${user.name || user.email}`}
-                      align="left"
-                      fullWidth
-                      disabled={busy}
-                      value={user.role}
-                      onChange={(role) => handleRoleChange(user, role)}
-                      options={assignableRoles.map((r) => ({
-                        value: r,
-                        label: r.charAt(0) + r.slice(1).toLowerCase(),
-                      }))}
-                    />
-                  ) : (
-                    <Badge
-                      title={canManage && locked !== "read-only" ? locked ?? undefined : undefined}
-                      style={{ background: roleStyle.bg, color: roleStyle.color, fontSize: "var(--cc-t-11)", fontWeight: "var(--cc-fw-strong)"}}
-                    >
-                      {user.role}
-                    </Badge>
-                  )}
-                  <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
-                    {formatDate(user.lastLoginAt)}
-                  </span>
-                  {canManage && (
-                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                      {user.isActive && !locked ? (
-                        <button
-                          onClick={() => handleRemove(user)}
-                          disabled={busy}
-                          aria-label={`Remove ${user.name || user.email} from the workspace`}
-                          title="Remove from workspace"
-                          style={{
-                            background: "none", border: "none",
-                            cursor: busy ? "wait" : "pointer",
-                            color: "var(--cc-text-muted)", padding: 4, borderRadius: 6,
-                            display: "flex", alignItems: "center", gap: 4,
-                            fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", opacity: busy ? 0.6 : 1,
-                          }}
-                          onMouseEnter={(e) => { e.currentTarget.style.color = "var(--cc-danger)"; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.color = "var(--cc-text-muted)"; }}
-                        >
-                          <UserMinus size={15} />
-                          Remove
-                        </button>
-                      ) : (
-                        <span
-                          title={locked ?? undefined}
-                          style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-subtle)" }}
-                        >
-                          {user.isActive ? "—" : "No access"}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-            </div>
+
+        {/* Whether the mail actually left is the one thing the person clicking
+            Invite cannot see for themselves, so it is said here rather than
+            assumed. Dismissible: it is confirmation, not an error to be cleared
+            by reloading. */}
+        {notice && (
+          <div role="status" className="cc-team-notice">
+            <span>{notice}</span>
+            <Button variant="ghost" size="sm" onClick={() => setNotice(null)}>
+              Dismiss
+            </Button>
           </div>
         )}
-      </Card>
 
-      {/* Whether the mail actually left is the one thing the person clicking
-          Invite cannot see for themselves, so it is said here rather than
-          assumed. Dismissible: it is confirmation, not an error to be cleared
-          by reloading. */}
-      {notice && (
-        <div
-          role="status"
-          style={{
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            gap: 12, margin: "0 0 16px", padding: "10px 14px",
-            background: "var(--cc-card)", border: "1px solid var(--cc-border)",
-            borderRadius: 8, fontSize: "var(--cc-t-13)", color: "var(--cc-text)",
-          }}
-        >
-          <span>{notice}</span>
-          <button
-            onClick={() => setNotice(null)}
-            aria-label="Dismiss"
-            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)"}}
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
+        <SectionCard icon={Users} title="Members" padded={false}>
+          <DataTable
+            bare
+            caption="Team members"
+            columns={memberColumns}
+            rows={users}
+            rowKey={(user) => user.id}
+            empty={
+              <NoResults
+                icon={<User size={32} strokeWidth={1.75} />}
+                title="No team members"
+                description="Invite your first team member."
+              />
+            }
+          />
+        </SectionCard>
 
-      {/* Pending Invites Table. Manager-only: the rows carry `token`, which is
-          the whole credential — the accept endpoint checks the token and never
-          the address it was mailed to. The server does not even load them for
-          anyone else, so this is belt and braces. */}
-      {canManage && pendingInvites.length > 0 && (
-        <Card variant="solid" noPadding>
-          <div style={{ padding: "14px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-hover-bg)" }}>
-            <span style={{ fontWeight: 700, fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>Pending Invites</span>
-          </div>
-          <div className="rsp-invites-scroll">
-            <div className="rsp-invites-inner">
-            {/* Table header. Hidden below 768px, where each invite becomes a
-                stacked card and column headings have nothing to head. */}
-            <div
-              className="rsp-invites-head"
-              style={{ borderBottom: "1px solid var(--cc-border)" }}
-            >
-              {/* One entry per grid column; the three trailing blanks are the
-                  Link, Resend and Cancel action cells. Indexed keys because
-                  several labels are empty and would collide as keys. */}
-              {["Email", "Role", "Sent", "Expires", "Status", "", "", ""].map((h, i) => (
-                <span key={i} className="cc-microlabel">
-                  {h}
-                </span>
-              ))}
-            </div>
-            {pendingInvites.map((invite) => {
-              const roleStyle = ROLE_COLORS[invite.role] ?? ROLE_COLORS.MEMBER;
-              const statusStyle = STATUS_COLORS[invite.status] ?? STATUS_COLORS.pending;
-              return (
-                <div
-                  key={invite.id}
-                  className="cc-table-row rsp-invites-row"
-                  style={{ borderBottom: "1px solid var(--cc-border)" }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <Mail size={14} style={{ color: "var(--cc-text-muted)", flexShrink: 0 }} />
-                    <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text)" }}>{invite.email}</span>
-                  </div>
-                  <Badge style={{ background: roleStyle.bg, color: roleStyle.color, fontSize: "var(--cc-t-11)", fontWeight: "var(--cc-fw-strong)"}}>
-                    {invite.role}
-                  </Badge>
-                  {/* Stacked on a phone these are two bare dates in a column
-                      with nothing to tell them apart; the column headings that
-                      did that job are hidden at this width. */}
-                  <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
-                    <span className="rsp-only-mobile">Sent </span>{formatDate(invite.createdAt)}
-                  </span>
-                  <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
-                    <span className="rsp-only-mobile">Expires </span>{formatDate(invite.expiresAt)}
-                  </span>
-                  <Badge style={{ background: statusStyle.bg, color: statusStyle.color, fontSize: "var(--cc-t-10)", fontWeight: "var(--cc-fw-strong)", textTransform: "capitalize" }}>
-                    {invite.status}
-                  </Badge>
-                  {/* Wrapped so the three actions can become their own row on a
-                      phone; display:contents puts them back in the grid at
-                      768px. */}
-                  <div className="rsp-invites-actions">
-                  {invite.status === "pending" ? (
-                    <button
-                      onClick={() => copyInviteLink(invite.token)}
-                      aria-label={`Copy invite link for ${invite.email}`}
-                      title="Copy invite link"
-                      style={{
-                        background: "none", border: "none", cursor: "pointer",
-                        color: copiedToken === invite.token ? "var(--cc-success)" : "var(--cc-primary)",
-                        padding: 4, borderRadius: 6, display: "flex", alignItems: "center",
-                        fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", gap: 4,
-                      }}
-                    >
-                      {copiedToken === invite.token ? <Check size={14} /> : <LinkIcon size={14} />}
-                      {copiedToken === invite.token ? "Copied" : "Link"}
-                    </button>
-                  ) : <span className="rsp-invites-spacer" />}
-                  {invite.status === "pending" ? (
-                    <button
-                      onClick={() => handleResend(invite.id, invite.email)}
-                      disabled={resendingId === invite.id}
-                      aria-label={`Resend invite email to ${invite.email}`}
-                      title="Send the invite email again"
-                      style={{
-                        background: "none", border: "none",
-                        cursor: resendingId === invite.id ? "wait" : "pointer",
-                        color: resentId === invite.id ? "var(--cc-success)" : "var(--cc-primary)",
-                        padding: 4, borderRadius: 6, display: "flex", alignItems: "center",
-                        fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", gap: 4,
-                        opacity: resendingId === invite.id ? 0.6 : 1,
-                      }}
-                    >
-                      {resentId === invite.id ? <Check size={14} /> : <Mail size={14} />}
-                      {resentId === invite.id ? "Sent" : resendingId === invite.id ? "Sending" : "Resend"}
-                    </button>
-                  ) : <span className="rsp-invites-spacer" />}
-                  <button
-                    onClick={() => handleCancel(invite.id)}
-                    aria-label="Cancel invite"
-                    style={{
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      color: "var(--cc-text-muted)",
-                      padding: 4,
-                      borderRadius: 6,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      transition: "color 0.15s",
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.color = "var(--cc-danger-fg)"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.color = "var(--cc-text-muted)"; }}
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                  </div>
-                </div>
-              );
-            })}
-            </div>
-          </div>
-        </Card>
-      )}
+        {/* Manager-only: the rows carry `token`, which is the whole credential
+            -- the accept endpoint checks the token and never the address it
+            was mailed to. The server does not even load them for anyone else,
+            so this is belt and braces. */}
+        {canManage && pendingInvites.length > 0 && (
+          <SectionCard icon={Mail} title="Pending invites" padded={false}>
+            <DataTable
+              bare
+              caption="Pending invites"
+              columns={inviteColumns}
+              rows={pendingInvites}
+              rowKey={(invite) => invite.id}
+            />
+          </SectionCard>
+        )}
+      </div>
 
       {/* Invite Modal */}
-      <Modal open={canManage && showModal} onClose={() => { setShowModal(false); setError(null); }} title="Invite Team Member">
+      <Modal
+        open={canManage && showModal}
+        onClose={() => { setShowModal(false); setError(null); }}
+        icon={UserPlus}
+        title="Invite team member"
+        description="We email them a link to join, which you can also copy from Pending Invites."
+        size="sm"
+        dismissible={false}
+        footer={
+          <div className="cc-modal-footer">
+            <Button type="button" variant="secondary" size="sm" onClick={() => { setShowModal(false); setError(null); }}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              form="cc-invite-form"
+              variant="primary"
+              size="sm"
+              disabled={loading || !inviteEmail}
+              iconLeft={<Mail size={16} aria-hidden="true" />}
+            >
+              {loading ? "Sending…" : "Send invite"}
+            </Button>
+          </div>
+        }
+      >
         {/* A form, so Enter in the address field sends the invite, and a
             label tied to the input by id, so the field has a name. Both were
             missing: the label was free-standing text and Enter did nothing. */}
         <form
+          id="cc-invite-form"
+          className="cc-dialog-stack"
+          noValidate
           onSubmit={(e) => {
             e.preventDefault();
             if (!loading && inviteEmail) void handleInvite();
           }}
-          style={{ display: "flex", flexDirection: "column", gap: 16 }}
         >
-          <div>
-            <label htmlFor="cc-invite-email" style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6, display: "block" }}>
-              Email Address
-            </label>
+          <Field label="Email address" required>
             <Input
               id="cc-invite-email"
               type="email"
               placeholder="colleague@company.com"
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
-              iconLeft={<Mail size={15} />}
+              iconLeft={<Mail size={16} aria-hidden="true" />}
+              autoComplete="off"
+              autoFocus
             />
-          </div>
-          <div>
-            {/* Not a <label>: the Dropdown is a button named by its own
-                ariaLabel, and a label pointing at nothing names nothing. */}
-            <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6, display: "block" }}>
-              Role
-            </span>
+          </Field>
+          <Field label="Role">
             <Dropdown
-              ariaLabel="Role"
+              id="cc-invite-role"
               align="left"
               fullWidth
               value={inviteRole}
               onChange={setInviteRole}
-              options={ROLE_OPTIONS.map((r) => ({
-                value: r,
-                label: r.charAt(0) + r.slice(1).toLowerCase(),
-              }))}
+              options={ROLE_OPTIONS.map((r) => ({ value: r, label: roleLabel(r) }))}
             />
-          </div>
+          </Field>
+          {seatLimit != null ? (
+            <p className="cc-dialog-meta">
+              <span>{seatsUsed}/{seatLimit} seats in use, pending invites included</span>
+            </p>
+          ) : null}
           {error && (
-            <div style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-danger-ink)", background: "color-mix(in srgb, var(--cc-danger) 14%, transparent)", padding: "8px 12px", borderRadius: 8 }}>
+            <ModalNotice tone="danger" icon={AlertCircle}>
               {error}
-            </div>
+            </ModalNotice>
           )}
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
-            <Button type="button" variant="ghost" size="sm" onClick={() => { setShowModal(false); setError(null); }}>
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              size="sm"
-              disabled={loading || !inviteEmail}
-              iconLeft={<Mail size={14} />}
-            >
-              {loading ? "Sending..." : "Send Invite"}
-            </Button>
-          </div>
         </form>
       </Modal>
     </div>

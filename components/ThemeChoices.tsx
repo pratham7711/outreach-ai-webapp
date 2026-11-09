@@ -1,13 +1,12 @@
 "use client";
 import { useTheme } from "next-themes";
 import { useSyncExternalStore } from "react";
-import { Sun, Moon, Palette, Monitor, Check } from "lucide-react";
+import { Sun, Moon, Monitor, Check } from "lucide-react";
 
-/* The four choices, in the order the menus list them. The keys are next-themes'
-   own theme names, unchanged, so a choice saved under the old cycling button
-   ("light", "dark", "creatorcore") is still the one selected here. */
+/* The three choices, in the order the menus list them. The keys are
+   next-themes' own theme names, unchanged, so a choice saved under the old
+   cycling button ("light", "dark") is still the one selected here. */
 export const THEME_CHOICES = [
-  { key: "creatorcore", label: "CreatorCore", icon: Palette },
   { key: "light", label: "Light", icon: Sun },
   { key: "dark", label: "Dark", icon: Moon },
   { key: "system", label: "System", icon: Monitor },

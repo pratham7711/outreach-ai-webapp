@@ -1,14 +1,13 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { Card, Badge, Skeleton, EmptyState } from "@pratham7711/ui";
-import { PageHeader, Button, LoadError } from "@/components/ds";
+import { Card, EmptyState } from "@pratham7711/ui";
+import { PageHeader, Button, LoadError, Skeleton, StatusBadge } from "@/components/ds";
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
 import {
   startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval,
   format, isSameMonth, isSameDay, isToday, addMonths, subMonths,
 } from "date-fns";
-import { campaignStatusDot, campaignStatusLabel } from "@/lib/statusColors";
-import { ACTIVATION_STATUS_LABEL } from "@/lib/activationQueues";
+import { campaignStatusDot } from "@/lib/statusColors";
 import { enumLabel } from "@/lib/ui/enumLabel";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import CreatorName from "@/components/creators/CreatorName";
@@ -43,12 +42,6 @@ type CalendarActivation = {
   creator: { id: string; name: string; handle?: string | null };
   campaign: { id: string; title: string };
 };
-
-/* The activation board's own wording ("Awaiting Draft"), and sentence case for
-   a status that map has not caught up with -- never the raw enum. */
-function activationStatusLabel(status: string): string {
-  return ACTIVATION_STATUS_LABEL[status] ?? enumLabel(status);
-}
 
 type DayDetail = {
   campaigns: CalendarCampaign[];
@@ -166,12 +159,12 @@ export default function CalendarPage() {
         {STATUS_ORDER.map((status) => (
           <div key={status} style={{ display: "flex", alignItems: "center", gap: 4 }}>
             <div style={{ width: 8, height: 8, borderRadius: "50%", background: campaignStatusDot(status) }} />
-            {campaignStatusLabel(status)}
+            {enumLabel(status)}
           </div>
         ))}
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--cc-deliverable)" }} />
-          Deliverable Due
+          Deliverable due
         </div>
       </div>
 
@@ -179,7 +172,7 @@ export default function CalendarPage() {
         {/* Calendar grid */}
         <div style={{ flex: 1, minWidth: 0 }}>
           {loading ? (
-            <Skeleton width="100%" height="500px" borderRadius="12px" />
+            <Skeleton height={500} radius="var(--cc-r-card)" />
           ) : loadFailed ? (
             <LoadError
               title="We couldn't load this month"
@@ -300,14 +293,14 @@ export default function CalendarPage() {
                         {created.map((c) => (
                           <li key={c.id} className="cal-agenda-item" style={{ borderLeftColor: campaignStatusDot(c.status) }}>
                             <span className="cal-agenda-title">{c.title}</span>
-                            <span className="cal-agenda-meta">Campaign created · {campaignStatusLabel(c.status)}</span>
+                            <span className="cal-agenda-meta">Campaign created · {enumLabel(c.status)}</span>
                           </li>
                         ))}
                         {due.map((a) => (
                           <li key={a.id} className="cal-agenda-item" style={{ borderLeftColor: "var(--cc-deliverable)" }}>
                             <CreatorName name={a.creator.name} handle={a.creator.handle} layout="inline" size="sm" />
                             <span className="cal-agenda-meta">
-                              Deliverable due · {a.campaign.title} · {activationStatusLabel(a.status)}
+                              Deliverable due · {a.campaign.title} · {enumLabel(a.status)}
                             </span>
                           </li>
                         ))}
@@ -322,9 +315,9 @@ export default function CalendarPage() {
 
         {/* Side panel */}
         {selectedDay && (
-          <div style={{ width: "100%", maxWidth: 320, flexShrink: 0 }} className="cal-side-panel">
-            <style>{`@media (min-width: 1024px){ .cal-side-panel{ width:280px !important; } }`}</style>
-            <Card variant="outlined" style={{ padding: 20 }}>
+          <div style={{ maxWidth: 320, flexShrink: 0 }} className="cal-side-panel">
+            <style>{`.cal-side-panel{ width:100%; } @media (min-width: 1024px){ .cal-side-panel{ width:280px; } }`}</style>
+            <Card variant="outlined">
               <h3 style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
                 {format(selectedDay, "EEEE, MMM d")}
               </h3>
@@ -340,7 +333,7 @@ export default function CalendarPage() {
                       {selectedDetail!.campaigns.map(c => (
                         <div key={c.id} style={{ marginTop: 8, padding: 10, borderRadius: 8, background: "var(--cc-bg)" }}>
                           <p style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}>{c.title}</p>
-                          <Badge variant="neutral" style={{ marginTop: 4, fontSize: "var(--cc-t-10)"}}>{campaignStatusLabel(c.status)}</Badge>
+                          <div style={{ marginTop: 6 }}><StatusBadge status={c.status} /></div>
                         </div>
                       ))}
                     </div>
@@ -348,7 +341,7 @@ export default function CalendarPage() {
 
                   {selectedDetail!.activations.length > 0 && (
                     <div>
-                      <span className="cc-microlabel">Deliverables Due</span>
+                      <span className="cc-microlabel">Deliverables due</span>
                       {selectedDetail!.activations.map(a => (
                         <div key={a.id} style={{ marginTop: 8, padding: 10, borderRadius: 8, background: "color-mix(in srgb, var(--cc-deliverable) 6%, transparent)" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -356,7 +349,7 @@ export default function CalendarPage() {
                             <CreatorName name={a.creator.name} handle={a.creator.handle} layout="inline" size="sm" />
                           </div>
                           <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "2px 0 0" }}>{a.campaign.title}</p>
-                          <Badge variant="neutral" style={{ marginTop: 4, fontSize: "var(--cc-t-10)"}}>{activationStatusLabel(a.status)}</Badge>
+                          <div style={{ marginTop: 6 }}><StatusBadge status={a.status} /></div>
                         </div>
                       ))}
                     </div>

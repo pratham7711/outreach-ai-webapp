@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Card, Badge, EmptyState, Skeleton } from "@pratham7711/ui";
-import { MetricTile, Button } from "@/components/ds";
+import { Card, Badge, EmptyState } from "@pratham7711/ui";
+import { MetricTile, Button, Skeleton } from "@/components/ds";
 import { toast } from "sonner";
 import { Wallet, Clock, Info } from "lucide-react";
 import { formatCurrencyTotals } from "@/lib/money";
@@ -99,12 +99,12 @@ export default function PortalEarningsPage() {
     return (
       <div className="rsp-page" style={{ maxWidth: 960 }}>
         <Skeleton width="200px" height="32px" />
-        <div className="rsp-grid-2" style={{ marginTop: 24 }}>
+        <div className="cc-tiles-balanced" style={{ marginTop: 24, marginBottom: 24 }}>
           {[1, 2].map((i) => (
-            <Skeleton key={i} height="80px" borderRadius="10px" />
+            <Skeleton key={i} height="80px" radius="var(--cc-r-card)" />
           ))}
         </div>
-        <Skeleton width="100%" height="300px" borderRadius="12px" />
+        <Skeleton width="100%" height="300px" radius="var(--cc-r-card)" />
       </div>
     );
   }
@@ -131,13 +131,13 @@ export default function PortalEarningsPage() {
       )}
 
       {/* Totals */}
-      <div className="rsp-grid-2" style={{ marginBottom: 32 }}>
+      <div className="cc-tiles-balanced" style={{ marginBottom: 32 }}>
         <MetricTile metric="portalAvailableBalance" label="Available balance (approved)" value={fmtTotals(approvedByCurrency)} />
         <MetricTile metric="portalPendingReview" value={fmtTotals(pendingByCurrency)} />
       </div>
 
       {campaigns.length === 0 && !error ? (
-        <Card variant="outlined" style={{ padding: 24 }}>
+        <Card variant="outlined">
           <EmptyState
             icon={<Wallet size={32} color="var(--cc-text-subtle)" />}
             title="No earnings yet"
@@ -155,7 +155,7 @@ export default function PortalEarningsPage() {
             const threshold = c.minPayoutMinor;
             const pct = threshold && threshold > 0 ? Math.min(100, (c.approvedMinor / threshold) * 100) : 100;
             return (
-              <Card key={c.campaignId} variant="solid" style={{ padding: 20 }}>
+              <Card key={c.campaignId} variant="solid">
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
                   <div style={{ flex: "1 1 180px", minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>

@@ -5,11 +5,17 @@ import { authenticateRequest } from "@/lib/authenticate";
 import { campaignScopeWhereFor } from "@/lib/campaignScope";
 import {
   DEFAULT_SHARE_VISIBILITY,
+  SHARE_PLATFORMS,
   parseShareVisibility,
   sanitizeShareVisibility,
+  type ShareFacts,
   type ShareVisibility,
 } from "@/lib/reports/shareVisibility";
 import { requirePermission } from "@/lib/authz";
+import { NOT_REMOVED } from "@/lib/posts/removed";
+import { HIDDEN_FETCH_REASON, REMOVED_FETCH_REASON, REMOVED_FETCH_STATE } from "@/lib/postRemoval";
+import { LAST_FETCH_KEY } from "@/lib/metricDisplay";
+import { loadCampaignRules } from "@/lib/campaigns/rules";
 
 const SHARE_KIND = "campaign-performance";
 
@@ -72,8 +78,39 @@ async function findCampaignForShare(
       ...(opts.allowDeleted ? null : { deletedAt: null }),
       ...campaignScopeWhereFor(auth),
     },
-    select: { id: true, title: true },
+    select: { id: true, title: true, budget: true },
   });
+}
+
+/**
+ * ShareFacts for the dialog. Each test is the one the shared report itself
+ * applies -- the same post set (this campaign, not removed from it), the same
+ * isPostRemoved signals, the same "the brief has something to show".
+ */
+async function readShareFacts(orgId: string, campaignId: string, budget: number | null): Promise<ShareFacts> {
+  const posts = { campaignId, campaign: { orgId }, ...NOT_REMOVED };
+  const reason = [LAST_FETCH_KEY, "reason"];
+  const [platformRows, removedPosts, rules] = await Promise.all([
+    db.post.findMany({ where: posts, distinct: ["platform"], select: { platform: true } }),
+    db.post.count({
+      where: {
+        ...posts,
+        OR: [
+          { fetchState: REMOVED_FETCH_STATE },
+          { platformMetrics: { path: reason, equals: REMOVED_FETCH_REASON } },
+          { platformMetrics: { path: reason, equals: HIDDEN_FETCH_REASON } },
+        ],
+      },
+    }),
+    loadCampaignRules(campaignId, orgId),
+  ]);
+  const present = new Set<string>(platformRows.map((r) => r.platform));
+  return {
+    platforms: SHARE_PLATFORMS.filter((p) => present.has(p)),
+    hasBudget: budget != null && budget > 0,
+    hasBrief: !!rules && (rules.dos.length + rules.donts.length + rules.examplePostUrls.length > 0 || !!rules.viewGoal),
+    removedPosts,
+  };
 }
 
 export async function GET(
@@ -92,8 +129,17 @@ export async function GET(
   const campaign = await findCampaignForShare(result, id, { allowDeleted: true });
   if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
 
-  const link = await findShareLink(orgId, id);
-  return NextResponse.json({ link: link && link.isPublic ? serialize(link) : null });
+  /* The facts only decide which switches the dialog draws. If reading them
+     fails, the link is still answered and `facts` is null, which the dialog
+     reads as "show every switch" -- what it did before they existed. */
+  const [link, facts] = await Promise.all([
+    findShareLink(orgId, id),
+    readShareFacts(orgId, id, campaign.budget).catch((e) => {
+      console.error("[share] could not read share facts", e);
+      return null;
+    }),
+  ]);
+  return NextResponse.json({ link: link && link.isPublic ? serialize(link) : null, facts });
 }
 
 export async function POST(

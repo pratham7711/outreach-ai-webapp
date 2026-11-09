@@ -1,7 +1,8 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Avatar, Badge, Tag, EmptyState, Skeleton } from "@pratham7711/ui";
+import { Avatar, Badge, Tag, EmptyState } from "@pratham7711/ui";
+import { Skeleton } from "@/components/ds";
 import { Send, MessageSquare, Mail, AlertTriangle } from "lucide-react";
 
 type SenderType = "ORG" | "CREATOR" | "AI_AGENT";
@@ -177,7 +178,7 @@ export default function PortalMessagesClient() {
           {conversations === null ? (
             <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
               {[1, 2, 3].map((i) => (
-                <Skeleton key={i} height="56px" borderRadius="10px" />
+                <Skeleton key={i} height="56px" radius="var(--cc-r-card)" />
               ))}
             </div>
           ) : conversations.length === 0 ? (
@@ -250,7 +251,7 @@ export default function PortalMessagesClient() {
           ) : threadLoading ? (
             <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 12 }}>
               {[1, 2, 3].map((i) => (
-                <Skeleton key={i} height="48px" borderRadius="10px" />
+                <Skeleton key={i} height="48px" radius="var(--cc-r-card)" />
               ))}
             </div>
           ) : threadError ? (

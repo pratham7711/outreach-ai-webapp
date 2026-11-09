@@ -337,6 +337,29 @@ model Organization {
   deliverableTypeDefs  DeliverableTypeDef[]
   campaignStatusDefs   CampaignStatusDef[]
   activationStatusDefs ActivationStatusDef[]
+  campaignTemplates    CampaignTemplate[]
+}
+
+/// A campaign's setup, saved to start new campaigns from: client, budget,
+/// approval mode, notes, the creative brief, the rules and the phases -- never
+/// creators, posts, sound links, a title or dates. `payload` is versioned and
+/// zod-checked on every read (lib/campaigns/templates/payload.ts). Same
+/// missing-table contract as CampaignRules: until the DDL lands
+/// (lib/campaigns/templates/ddl.ts) the templates list reads as empty.
+model CampaignTemplate {
+  id          String    @id @default(cuid())
+  orgId       String
+  name        String
+  description String?
+  payload     Json
+  createdById String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, deletedAt])
 }
 
 /// A release that campaigns promote. One song runs across many campaigns, but a

@@ -17,9 +17,9 @@ import path from 'path';
  * so the label, its underline and its icon were all invisible.
  */
 
-const THEMES = ['light', 'dark', 'creatorcore'] as const;
+const THEMES = ['light', 'dark'] as const;
 
-/* One worker per theme. The three tests share nothing at runtime -- each has
+/* One worker per theme. The two tests share nothing at runtime -- each has
    its own browser context, so its own localStorage, and writes its own
    .contrast-report.<theme>.json -- but the config runs a file's tests on one
    worker, so this file alone took 365s of a 377s test span (MEASURED,
@@ -78,54 +78,9 @@ const INVISIBLE = 3.0;
 const AA = 4.5;
 
 /**
- * The themes we author. These answer to WCAG, and the floor below is absolute
- * for them: a colour here is our choice, so a colour here that cannot be read
- * is our bug.
- */
-const OUR_THEMES = ['light', 'dark'];
-
-/**
- * `creatorcore` is not a theme we designed -- it is a reproduction of another
- * product's screens, and the standing goal for it is parity, not taste. Several
- * of the colours CreatorCore actually uses fall under 3:1, so holding this
- * theme to the WCAG floor asks for two mutually exclusive things at once and
- * the parity work loses by default.
- *
- * So this theme is judged on FIDELITY instead: every ink below is one that was
- * measured off the reference app and written into `:root.creatorcore` on
- * purpose, and each entry names the token and the line that records the
- * measurement. Anything else that falls under the floor in this theme still
- * fails, exactly as it would in light or dark.
- *
- * This is an exemption, not a suppression, and the difference is enforced:
- * - it is a closed list, not a theme-wide skip;
- * - an entry that stops matching anything is a failure, so the list cannot rot
- *   into a blanket as the pages change;
- * - it covers only the INVISIBLE assertion. Every finding is still measured,
- *   still printed, and still written to .contrast-report.json.
- *
- * It is EMPTY as of 2026-10-13. The seven inks it used to hold (their muted
- * grey #98A2B3, the primary at 0.36 for captions, #ACB9F6 for the campaign
- * header status, #8E8E8E for the All tab, the raw palette Pending and Complete
- * tab inks, and white at 0.5 on the campaign rail) were raised to AA in
- * `:root.creatorcore` itself: the decision was that this theme's text has to
- * read at 4.5:1 too, and that is a token change, not a list entry. Measured on
- * the demo data with this file's own probe: 347 findings under 3:1 before,
- * none after. The list stays so a deliberate exception has somewhere to go,
- * with its measurement beside it.
- *
- * What is deliberately NOT here: #FEF3C7, the pale amber that the Pending
- * filter tab drew as its own ink at 1.20:1. That is not a colour CreatorCore
- * uses -- it is a status GROUND that `statusInk` picked because the paired
- * foreground was `var(--cc-warning-ink)`, which it cannot score. It was fixed
- * in lib/statusColors.ts rather than listed here, which is the test working.
- */
-const CREATORCORE_INKS: { ink: string; token: string; measured: string }[] = [];
-
-/**
  * Chrome does not serialise a colour the way it was written: a color-mix() comes
  * back as `color(srgb 0.905882 0.678431 0)` and a hex as `rgb(231, 173, 0)`, so
- * the list above can only be matched on the composited value. Rounded to whole
+ * a recorded pair can only be matched on the composited value. Rounded to whole
  * channels because those floats carry 1/255 rounding of their own.
  */
 function inkKey(value: string): string {
@@ -349,12 +304,9 @@ function probe() {
  * every key flaky). A pair that is not in the file fails the run: no new debt.
  * A recorded pair that no longer occurs also fails, so the file only shrinks --
  * delete the line, or rewrite it with CONTRAST_BASELINE=write after a fix.
- *
- * CreatorCore is held to "no worse than today": no pair under 3:1 that is not
- * recorded, on top of the fidelity list (only their own inks may sit there).
  */
 const BASELINE_FILE = path.join(__dirname, 'fixtures', 'contrast-baseline.json');
-type Baseline = { light: string[]; dark: string[]; creatorcore: string[] };
+type Baseline = { light: string[]; dark: string[] };
 
 function readBaseline(): Baseline | null {
   try {
@@ -407,7 +359,7 @@ async function sweep(page: import('@playwright/test').Page, theme: (typeof THEME
   /* The theme is in localStorage before any of the page's own scripts run, so
      next-themes' boot script paints every page in it from the first frame.
      This used to load each page, set the theme, then reload it -- two full
-     page loads per route, 23 routes, three themes -- and the first load was
+     page loads per route, 23 routes, every theme -- and the first load was
      thrown away every time. The reload was there so nothing already painted
      kept the old theme's colours; a first paint in the right theme gives the
      same guarantee without the throwaway load, and the class check below
@@ -540,12 +492,12 @@ const fmt = (f: Finding) =>
 /** Writes this theme's part of the baseline when asked to, and only then. */
 function writeBaseline(part: Partial<Baseline>) {
   if (process.env.CONTRAST_BASELINE !== 'write') return false;
-  const current = readBaseline() ?? { light: [], dark: [], creatorcore: [] };
+  const current = readBaseline() ?? { light: [], dark: [] };
   fs.writeFileSync(BASELINE_FILE, JSON.stringify({ ...current, ...part }, null, 2) + '\n');
   return true;
 }
 
-for (const theme of OUR_THEMES as ('light' | 'dark')[]) {
+for (const theme of THEMES) {
   test(`contrast: ${theme} -- nothing under 3:1, and no new pair under 4.5:1`, async ({ page }) => {
     test.setTimeout(600000);
     const { invisible, aaFails } = await sweep(page, theme);
@@ -554,7 +506,8 @@ for (const theme of OUR_THEMES as ('light' | 'dark')[]) {
     invisible.slice(0, 40).forEach((f) => console.log(fmt(f)));
     console.log(`[${theme}] AA fails (${INVISIBLE}-${AA}:1): ${aaFails.length}`);
 
-    /* The floor, on the themes whose colours are ours to choose. */
+    /* The floor. Every colour in a theme is ours to choose, so one that cannot
+       be read is our bug. */
     expect(invisible.map(fmt).join('\n') || 'none', 'text below 3:1 is unreadable at any size').toBe('none');
 
     const keys = [...new Set(aaFails.map(debtKey))].sort();
@@ -575,56 +528,3 @@ for (const theme of OUR_THEMES as ('light' | 'dark')[]) {
     ).toBe('none');
   });
 }
-
-test('contrast: creatorcore -- no worse than recorded, and only their own inks under 3:1', async ({ page }) => {
-  test.setTimeout(600000);
-  const { invisible } = await sweep(page, 'creatorcore');
-
-  /* Fidelity, on the theme whose colours are CreatorCore's. Same findings, same
-     floor -- the only question that changes is whether the ink underneath is one
-     of theirs. */
-  const exempt = new Map(CREATORCORE_INKS.map((e) => [inkKey(e.ink), e]));
-  const matched = new Set<string>();
-  const unrecognised: Finding[] = [];
-  for (const f of invisible) {
-    const key = inkKey(f.color);
-    if (exempt.has(key)) matched.add(key);
-    else unrecognised.push(f);
-  }
-
-  console.log(`\ncreatorcore: ${invisible.length - unrecognised.length} of ${invisible.length} finding(s) held to fidelity, ${unrecognised.length} not`);
-  for (const [key, e] of exempt) {
-    if (matched.has(key)) console.log(`  ${e.ink}  ${e.token}\n      ${e.measured}`);
-  }
-
-  expect(
-    unrecognised.map(fmt).join('\n') || 'none',
-    'in the creatorcore theme an ink under 3:1 has to be one CreatorCore itself uses -- these are not in CREATORCORE_INKS, so they are ours and they are unreadable'
-  ).toBe('none');
-
-  /* An exemption nobody is using is an exemption nobody is checking. Deleting
-     the entry is the fix; leaving it is how a closed list turns into a blanket. */
-  expect(
-    CREATORCORE_INKS.filter((e) => !matched.has(inkKey(e.ink)))
-      .map((e) => `  ${e.ink}  ${e.token}`)
-      .join('\n') || 'none',
-    'every CREATORCORE_INKS entry must still match a real finding, or it is stale and should be removed'
-  ).toBe('none');
-
-  /* No worse than recorded: the same key as the other two themes, so a new
-     page or element showing one of their pale inks still has to be accepted
-     on purpose, by rewriting the baseline. */
-  const keys = [...new Set(invisible.map(debtKey))].sort();
-  if (writeBaseline({ creatorcore: keys })) return;
-  const recorded = new Set(readBaseline()?.creatorcore ?? []);
-  const fresh = invisible.filter((f) => !recorded.has(debtKey(f)));
-  expect(
-    [...new Set(fresh.map(fmt))].join('\n') || 'none',
-    'creatorcore may not get worse: these pairs under 3:1 are new'
-  ).toBe('none');
-  const seen = new Set(keys);
-  expect(
-    [...recorded].filter((k) => !seen.has(k)).join('\n') || 'none',
-    'these creatorcore pairs no longer occur -- remove them from e2e/fixtures/contrast-baseline.json so the ratchet holds'
-  ).toBe('none');
-});

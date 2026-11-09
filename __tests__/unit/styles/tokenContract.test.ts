@@ -29,7 +29,7 @@ for (const r of rules.filter(isBaseRoot)) {
   });
 }
 
-const THEME_SELECTOR = /(^|[\s,])(:root)?\.(light|dark|creatorcore)\b/;
+const THEME_SELECTOR = /(^|[\s,])(:root)?\.(light|dark)\b/;
 
 describe("globals.css layout-token contract", () => {
   it("uses no !important anywhere", () => {
@@ -62,8 +62,8 @@ describe("globals.css layout-token contract", () => {
   });
 
   it("lets a theme re-point tokens but never invent them", () => {
-    // Law 1. --cc-r-card used to break this: it existed only inside
-    // .creatorcore, so no other theme could reach it and the base had no value.
+    // Law 1. --cc-r-card used to break this: it existed only inside one
+    // theme's block, so no other theme could reach it and the base had no value.
     const invented: string[] = [];
     for (const r of rules) {
       if (!THEME_SELECTOR.test(r.selector)) continue;
@@ -94,13 +94,13 @@ describe("globals.css layout-token contract", () => {
   });
 
   it("declares theme token blocks as :root.<theme>, not a bare class", () => {
-    // Law 2. A bare `.creatorcore { --x }` is (0,1,0) -- the same as :root --
-    // so it wins or loses on source order alone. `:root.creatorcore` is
-    // (0,2,0) and wins on specificity, which is stable.
+    // Law 2. A bare `.dark { --x }` is (0,1,0) -- the same as :root -- so it
+    // wins or loses on source order alone. `:root.dark` is (0,2,0) and wins on
+    // specificity, which is stable.
     const bareTokenBlocks: string[] = [];
     for (const r of rules) {
       const sel = r.selector.trim();
-      if (!/^\.(light|dark|creatorcore)$/.test(sel)) continue;
+      if (!/^\.(light|dark)$/.test(sel)) continue;
       let declaresToken = false;
       r.walkDecls((d) => {
         if (d.prop.startsWith("--")) declaresToken = true;

@@ -1,33 +1,23 @@
 "use client";
 import React from "react";
-import { formatCompact, formatCompactCurrency, platformLabel } from "@/lib/format";
+import { formatCompact, formatCompactCurrency } from "@/lib/format";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, BarChart, Bar, LabelList, ReferenceLine,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, LabelList, ReferenceLine,
 } from "recharts";
+import { chartAxisTick, chartTooltipProps } from "@/components/charts/chartTheme";
 import { MetricHint } from "@/components/ds";
 import { ChartFrame } from "@/components/ds/ChartFrame";
 import { cpm } from "@/lib/metrics";
 import { nextPeriodBy, periodNoun, toChanges, type SeriesMode } from "@/lib/charts/seriesMode";
 
 type ViewsPoint = { date: string; views: number };
-type PlatformSlice = { platform: string; views: number; postsCount: number };
 type CampaignViews = { campaignId: string; title: string; views: number; creatorsCount: number };
 /** Only CpmTrendLine reads this, and nothing produces it yet — see its comment. */
 type SpendPoint = { date: string; spend: number; views: number };
 
 type Fmt = (n: number) => string;
 
-const chartTooltipStyle: React.CSSProperties = {
-  background: "var(--popover)",
-  border: "1px solid var(--border)",
-  borderRadius: 10,
-  color: "var(--popover-foreground)",
-  boxShadow: "var(--ui-shadow-md)",
-  fontSize: "var(--cc-t-13)",
-  padding: "10px 14px",
-};
-
-const axisTick = { fill: "var(--muted-foreground)", fontSize: 12, fontWeight: 500 } as const;
+const axisTick = chartAxisTick;
 
 /* Recharts draws a category tick as a plain <text> and does not ellipsize it,
    so a campaign title longer than the axis was clipped mid-word with no way to
@@ -55,9 +45,7 @@ function CategoryTick({ x, y, payload }: { x?: number; y?: number; payload?: { v
 function PanelHeading({ title, metric }: { title: string; metric: "views" }) {
   return (
     <div className="mb-1 flex items-center gap-1.5">
-      <span className="text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
-        {title}
-      </span>
+      <span className="text-xs font-medium text-[var(--cc-text-muted)]">{title}</span>
       <MetricHint metric={metric} />
     </div>
   );
@@ -92,7 +80,7 @@ export function ViewsOverTimeArea({
               />
               <ReferenceLine y={0} stroke="var(--chart-grid)" />
               <Tooltip
-                contentStyle={chartTooltipStyle}
+                {...chartTooltipProps}
                 formatter={(value) => [
                   value === null || value === undefined
                     ? `No reading the ${period} before`
@@ -130,7 +118,7 @@ export function ViewsOverTimeArea({
               tickFormatter={(v) => formatCompact(Number(v))}
             />
             <Tooltip
-              contentStyle={chartTooltipStyle}
+              {...chartTooltipProps}
               formatter={(value) => [formatNumber(Number(value)), "Views"]}
             />
             <Area
@@ -155,44 +143,6 @@ export function ViewsOverTimeArea({
         </ChartFrame>
       </div>
     </div>
-  );
-}
-
-export function PlatformBreakdownPie({
-  data,
-  colors,
-  formatNumber,
-}: {
-  data: PlatformSlice[];
-  colors: string[];
-  formatNumber: Fmt;
-}) {
-  return (
-    <ChartFrame height={200}>
-      <PieChart>
-        <Pie
-          isAnimationActive={false}
-          data={data}
-          cx="50%"
-          cy="50%"
-          innerRadius={52}
-          outerRadius={80}
-          paddingAngle={2}
-          dataKey="views"
-          nameKey="platform"
-          stroke="var(--card)"
-          strokeWidth={2}
-        >
-          {data.map((entry, i) => (
-            <Cell key={entry.platform} fill={colors[i]} />
-          ))}
-        </Pie>
-        <Tooltip
-          contentStyle={chartTooltipStyle}
-          formatter={(v, name) => [`${formatNumber(Number(v))} views`, platformLabel(String(name))]}
-        />
-      </PieChart>
-    </ChartFrame>
   );
 }
 
@@ -240,7 +190,7 @@ export function CpmTrendLine({
         <XAxis dataKey="date" tick={axisTick} axisLine={false} tickLine={false} />
         <YAxis tick={axisTick} axisLine={false} tickLine={false} tickFormatter={(v) => formatCompactCurrency(Number(v))} width={72} />
         <Tooltip
-          contentStyle={chartTooltipStyle}
+          {...chartTooltipProps}
           formatter={(v) => [formatCurrency(Number(v)), "CPM"]}
         />
         <ReferenceLine
@@ -275,7 +225,7 @@ export function ViewsByCampaignBar({
         <XAxis type="number" tick={axisTick} axisLine={false} tickLine={false} tickFormatter={(v) => formatCompact(Number(v))} />
         <YAxis dataKey="title" type="category" tick={<CategoryTick />} axisLine={false} tickLine={false} width={CATEGORY_AXIS_WIDTH} />
         <Tooltip
-          contentStyle={chartTooltipStyle}
+          {...chartTooltipProps}
           formatter={(v) => [formatNumber(Number(v)), "Views"]}
         />
         <Bar isAnimationActive={false} dataKey="views" fill="var(--chart-3)" radius={[0, 4, 4, 0]} barSize={18}>

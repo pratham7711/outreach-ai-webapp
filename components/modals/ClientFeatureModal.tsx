@@ -1,8 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Modal, Badge } from "@pratham7711/ui";
+import { Badge } from "@pratham7711/ui";
+import { AlertCircle, SlidersHorizontal } from "lucide-react";
+import { Modal, ModalNotice, ModalOption, ModalOptionList, ModalSection } from "@/components/ds/Modal";
 import { FEATURES, type FeatureKey } from "@/lib/features";
 import { Dropdown, Button } from "@/components/ds";
+import { useDirty } from "@/lib/useDirty";
 
 const featureKeys = Object.keys(FEATURES) as FeatureKey[];
 
@@ -30,6 +33,9 @@ export default function ClientFeatureModal({ open, onClose, client, plans, onSav
   const [overrides, setOverrides] = useState<Record<string, OverrideValue>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /* What the dialog opened with; Save waits until something differs from it. */
+  const [saved, setSaved] = useState<{ planId: string; overrides: Record<string, OverrideValue> } | null>(null);
+  const dirty = useDirty(saved, { planId: selectedPlanId, overrides });
 
   useEffect(() => {
     if (open) {
@@ -42,6 +48,7 @@ export default function ClientFeatureModal({ open, onClose, client, plans, onSav
         else init[key] = "plan";
       }
       setOverrides(init);
+      setSaved({ planId: client.planId ?? "", overrides: init });
       setError(null);
     }
   }, [open, client]);
@@ -105,154 +112,140 @@ export default function ClientFeatureModal({ open, onClose, client, plans, onSav
     transition: "all 0.15s",
   });
 
+  const planFeatureCount = selectedPlan ? featureKeys.filter((k) => selectedPlan.features[k]).length : null;
+
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title={`Feature Access — ${client.name}`}
+      icon={SlidersHorizontal}
+      title="Feature access"
+      description={
+        <>
+          Pick the plan for <strong className="cc-dialog__subject">{client.name}</strong>, then force single features on or
+          off.
+        </>
+      }
       size="lg"
+      dismissible={false}
       footer={
         <div className="cc-modal-footer" data-layout="split" data-align="center" data-gap="0">
-          <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
+          <span className="cc-dialog-meta">
             {overrideCount > 0 ? `${overrideCount} override${overrideCount > 1 ? "s" : ""}` : "No overrides"}
           </span>
-          <div style={{ display: "flex", gap: 8 }}>
-            <Button variant="secondary" onClick={onClose}>Cancel</Button>
-            <Button variant="primary" loading={saving} onClick={handleSave}>
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+            <Button variant="primary" size="sm" loading={saving} disabled={!dirty} onClick={handleSave}>
               Save Changes
             </Button>
           </div>
         </div>
       }
     >
-      <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-        {error && (
-          <div style={{ padding: "10px 16px", borderRadius: 10, fontSize: "var(--cc-t-14)", background: "color-mix(in srgb, var(--cc-danger) 8%, transparent)", color: "var(--cc-danger)", border: "1px solid color-mix(in srgb, var(--cc-danger) 20%, transparent)" }}>
-            {error}
-          </div>
-        )}
+      {error && (
+        <ModalNotice tone="danger" icon={AlertCircle}>
+          {error}
+        </ModalNotice>
+      )}
 
-        {/* Section 1: Plan Assignment */}
-        <div>
-          <label style={{ display: "block", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 8 }}>
-            Plan Assignment
-          </label>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <Dropdown
-              ariaLabel="Plan Assignment"
-              align="left"
-              fullWidth
-              value={selectedPlanId}
-              onChange={setSelectedPlanId}
-              options={[
-                { value: "", label: "— No plan —" },
-                ...plans.map((p) => ({ value: p.id, label: p.name })),
-              ]}
-            />
-            {selectedPlan && (
-              <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", whiteSpace: "nowrap" }}>
-                {featureKeys.filter((k) => selectedPlan.features[k]).length}/{featureKeys.length} features
-              </span>
-            )}
-          </div>
-        </div>
+      <ModalSection
+        title="Plan"
+        description="Features follow this plan unless overridden below."
+        aside={
+          planFeatureCount !== null ? (
+            <span className="cc-dialog-meta">
+              {planFeatureCount}/{featureKeys.length} features
+            </span>
+          ) : undefined
+        }
+      >
+        <Dropdown
+          ariaLabel="Plan Assignment"
+          align="left"
+          fullWidth
+          value={selectedPlanId}
+          onChange={setSelectedPlanId}
+          options={[
+            { value: "", label: "— No plan —" },
+            ...plans.map((p) => ({ value: p.id, label: p.name })),
+          ]}
+        />
+      </ModalSection>
 
-        {/* Section 2: Feature Overrides */}
-        <div>
-          <div style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 4 }}>
-            Feature Overrides
-          </div>
-          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "0 0 12px" }}>
-            Override individual features regardless of plan
-          </p>
-
-          <div style={{ borderRadius: 10, overflow: "hidden", border: "1px solid var(--cc-border)" }}>
-            {featureKeys.map((key, i) => {
-              const planVal = selectedPlan?.features?.[key] ?? false;
-              const ov = overrides[key] ?? "plan";
-              const effective = getEffective(key);
-              return (
-                <div
-                  key={key}
-                  className="cc-table-row"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    padding: "10px 16px",
-                    borderBottom: i < featureKeys.length - 1 ? "1px solid var(--cc-border)" : "none",
-                    background: ov !== "plan" ? "var(--cc-row-hover)" : "transparent",
-                  }}
-                >
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: "var(--cc-t-13)", fontWeight: 500, color: "var(--cc-text)" }}>{FEATURES[key].label}</div>
-                    <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}>
-                      Plan: {planVal ? "ON" : "OFF"}
-                    </div>
-                  </div>
-
-                  <div style={{ display: "flex", gap: 2, background: "var(--cc-hover-bg)", borderRadius: 8, padding: 2 }}>
-                    <button
-                      type="button"
-                      onClick={() => setOverrides((prev) => ({ ...prev, [key]: "plan" }))}
-                      style={segmentStyle(ov === "plan", "var(--cc-text-muted)")}
+      <ModalSection title="Feature overrides" description="Override individual features regardless of plan.">
+        <ModalOptionList>
+          {featureKeys.map((key) => {
+            const planVal = selectedPlan?.features?.[key] ?? false;
+            const ov = overrides[key] ?? "plan";
+            const effective = getEffective(key);
+            return (
+              <ModalOption
+                key={key}
+                as="div"
+                title={FEATURES[key].label}
+                description={`Plan: ${planVal ? "ON" : "OFF"}`}
+                control={
+                  <span className="flex items-center gap-3">
+                    <span
+                      role="group"
+                      aria-label={`${FEATURES[key].label} override`}
+                      style={{ display: "flex", gap: 2, background: "var(--cc-hover-bg)", borderRadius: 8, padding: 2 }}
                     >
-                      Default
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setOverrides((prev) => ({ ...prev, [key]: "on" }))}
-                      style={segmentStyle(ov === "on", "var(--cc-success)")}
-                    >
-                      Force ON
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setOverrides((prev) => ({ ...prev, [key]: "off" }))}
-                      style={segmentStyle(ov === "off", "var(--cc-danger)")}
-                    >
-                      Force OFF
-                    </button>
-                  </div>
+                      <button
+                        type="button"
+                        aria-pressed={ov === "plan"}
+                        onClick={() => setOverrides((prev) => ({ ...prev, [key]: "plan" }))}
+                        style={segmentStyle(ov === "plan", "var(--cc-text-muted)")}
+                      >
+                        Default
+                      </button>
+                      <button
+                        type="button"
+                        aria-pressed={ov === "on"}
+                        onClick={() => setOverrides((prev) => ({ ...prev, [key]: "on" }))}
+                        style={segmentStyle(ov === "on", "var(--cc-success)")}
+                      >
+                        Force ON
+                      </button>
+                      <button
+                        type="button"
+                        aria-pressed={ov === "off"}
+                        onClick={() => setOverrides((prev) => ({ ...prev, [key]: "off" }))}
+                        style={segmentStyle(ov === "off", "var(--cc-danger)")}
+                      >
+                        Force OFF
+                      </button>
+                    </span>
+                    <span
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        background: effective ? "var(--cc-success)" : "var(--cc-text-subtle)",
+                        flexShrink: 0,
+                      }}
+                      title={`Effective: ${effective ? "ON" : "OFF"}`}
+                    />
+                  </span>
+                }
+              />
+            );
+          })}
+        </ModalOptionList>
+      </ModalSection>
 
-                  <div
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: "50%",
-                      background: effective ? "var(--cc-success)" : "var(--cc-text-subtle)",
-                      flexShrink: 0,
-                    }}
-                    title={`Effective: ${effective ? "ON" : "OFF"}`}
-                  />
-                </div>
-              );
-            })}
-          </div>
+      <ModalSection title={`Effective access: ${enabledCount}/${featureKeys.length} features`}>
+        <div className="flex flex-wrap gap-1.5">
+          {featureKeys.map((key) => {
+            const on = getEffective(key);
+            return (
+              <Badge key={key} variant={on ? "success" : "neutral"} size="sm" outlined>
+                {FEATURES[key].label}
+              </Badge>
+            );
+          })}
         </div>
-
-        {/* Section 3: Summary */}
-        <div>
-          <div style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 8 }}>
-            Effective access: {enabledCount}/{featureKeys.length} features
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {featureKeys.map((key) => {
-              const on = getEffective(key);
-              return (
-                <Badge
-                  key={key}
-                  variant={on ? "success" : "neutral"}
-                  size="sm"
-                  outlined
-                >
-                  {FEATURES[key].label}
-                </Badge>
-              );
-            })}
-          </div>
-        </div>
-      </div>
+      </ModalSection>
     </Modal>
   );
 }

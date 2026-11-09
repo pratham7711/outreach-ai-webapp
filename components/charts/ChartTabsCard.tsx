@@ -51,14 +51,19 @@ export function ChartTabsCard({ tabs, title = "Campaign charts" }: { tabs: Chart
   };
 
   return (
-    <Card variant="outlined" style={{ padding: 0 }}>
+    /* noPadding, not an inline padding of 0: the inline style lost to the
+       card body's own inset, so the tab bar's rule stopped 24px short of both
+       edges. The tabs are the app's underline tabs -- 14px, a 2px ink rule
+       under the chosen one, 24px apart -- with the headline figure after the
+       label where a tab strip elsewhere puts its count. */
+    <Card variant="outlined" noPadding>
       <div
         style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap",
-          padding: "12px 16px", borderBottom: "1px solid var(--cc-border)",
+          display: "flex", alignItems: "center", justifyContent: "space-between", columnGap: 16, rowGap: 8, flexWrap: "wrap",
+          padding: "0 var(--cc-card-inset)", borderBottom: "1px solid var(--cc-border)",
         }}
       >
-        <div role="tablist" aria-label={title} onKeyDown={onKeyDown} style={{ display: "flex", gap: 4, flexWrap: "wrap", minWidth: 0 }}>
+        <div role="tablist" aria-label={title} onKeyDown={onKeyDown} style={{ display: "flex", columnGap: 24, flexWrap: "wrap", minWidth: 0 }}>
           {tabs.map((t) => {
             const on = t.key === current.key;
             return (
@@ -72,17 +77,15 @@ export function ChartTabsCard({ tabs, title = "Campaign charts" }: { tabs: Chart
                 tabIndex={on ? 0 : -1}
                 aria-controls={`${id}-panel`}
                 onClick={() => setActive(t.key)}
-                className="rsp-touch focus-visible:outline-2 focus-visible:outline-offset-2"
+                className="rsp-touch"
                 style={{
-                  font: "inherit", border: "none", cursor: "pointer", borderRadius: 8, padding: "6px 10px",
+                  font: "inherit", border: "none", cursor: "pointer", padding: "12px 0", background: "transparent",
                   display: "inline-flex", alignItems: "baseline", gap: 6, whiteSpace: "nowrap",
-                  background: on ? "var(--cc-hover-bg)" : "transparent",
                   color: on ? "var(--cc-text)" : "var(--cc-text-muted)",
-                  boxShadow: on ? "inset 0 -2px 0 var(--cc-primary)" : "none",
-                  outlineColor: "var(--cc-primary)",
+                  boxShadow: on ? "inset 0 -2px 0 var(--cc-text)" : "none",
                 }}
               >
-                <span style={{ fontSize: "var(--cc-t-14)", fontWeight: on ? 700 : 500 }}>{t.label}</span>
+                <span style={{ fontSize: "var(--cc-t-14)", fontWeight: on ? 600 : 500 }}>{t.label}</span>
                 {t.figure ? (
                   <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", fontVariantNumeric: "tabular-nums" }}>{t.figure}</span>
                 ) : null}
@@ -92,7 +95,7 @@ export function ChartTabsCard({ tabs, title = "Campaign charts" }: { tabs: Chart
         </div>
         <RangeToggle value={range} onChange={setRange} label={`${title} range`} />
       </div>
-      <div id={`${id}-panel`} role="tabpanel" aria-labelledby={`${id}-tab-${current.key}`} style={{ padding: 20 }}>
+      <div id={`${id}-panel`} role="tabpanel" aria-labelledby={`${id}-tab-${current.key}`} style={{ padding: "var(--cc-card-inset)" }}>
         {current.render(range, { mode, setMode })}
       </div>
     </Card>

@@ -1,23 +1,27 @@
 "use client";
 
-import { memo, useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Search, Target, Sun, Zap, CheckCircle2, XCircle, Wallet, Users, FileText, LayoutList, Folder, Share2, ArrowUpDown, Trash2, Loader2, Eye } from "lucide-react";
-import { NavLink } from "@/components/layout/NavLink";
-import { Card, Badge, Input, EmptyState, Avatar } from "@pratham7711/ui";
-import { PageHeader, StatusTabs, Pagination, FilterDrawer, FilterButton, Dropdown, useConfirm, Button } from "@/components/ds";
-import type { FilterDef, FilterValues } from "@/components/ds";
+import { Plus, Target, Sun, Zap, CheckCircle2, XCircle, LayoutList, Folder, Share2, ArrowUpDown, Trash2, Check, ChevronDown, X } from "lucide-react";
+import { Avatar } from "@pratham7711/ui";
+import {
+  PageHeader, StatusTabs, Pagination, FilterDrawer, FilterButton, Dropdown, MoreMenu, MenuButton, useConfirm, Button,
+  DataTable, ListToolbar, NoResults, StatusBadge, statusTone,
+} from "@/components/ds";
+import type { DataTableColumn, FilterDef, FilterValues } from "@/components/ds";
 import CampaignWizard from "@/components/modals/CampaignWizard";
 import { timeAgo, formatFullCurrency, formatFull, formatDateAbs } from "@/lib/format";
-import { pendingListProps, useListQuery } from "@/lib/useListQuery";
+import { useListQuery } from "@/lib/useListQuery";
 import { CAMPAIGNS_PAGE_SIZE } from "@/lib/listPageSize";
 import { imgSrc } from "@/lib/postMedia";
 import FoldersPanel, { type FolderOption } from "./FoldersPanel";
 import { ShareModal } from "./ShareModal";
 import { CAMPAIGN_STATUS_ALL, UNFILED, isDefaultCampaignSort, type CampaignSort, type CampaignSortKey } from "@/lib/listParams";
-import { CAMPAIGN_STATUS_STYLE, campaignStatusLabel } from "@/lib/statusColors";
+import { CAMPAIGN_STATUS_STYLE } from "@/lib/statusColors";
+import { CAMPAIGN_STATUS_OPTIONS, campaignStatusText } from "@/components/campaigns/campaignStatus";
 import { rememberCampaignList } from "@/lib/campaigns/listReturn";
 import { action } from "@/lib/ui/actions";
+import { prefetchStartFromSources } from "@/components/campaigns/templates/useStartFromSources";
 
 type Campaign = {
   id: string;
@@ -77,31 +81,10 @@ const EMPTY_TAB_HINT: Record<string, string> = {
 /** One of the org's named statuses from Settings → General. */
 type StatusDef = { id: string; name: string; bucket: string };
 
-const STATUS_OPTIONS = [
-  { value: "PENDING", label: "Pending" },
-  { value: "IN_PROGRESS", label: "In-Progress" },
-  { value: "COMPLETE", label: "Complete" },
-  { value: "CANCELLED", label: "Canceled" },
-];
-
-const STATUS_BADGE_VARIANT: Record<string, "warning" | "accent" | "success" | "danger" | "neutral"> = {
-  PENDING: "warning",
-  IN_PROGRESS: "accent",
-  COMPLETE: "success",
-  CANCELLED: "danger",
-  DRAFT: "neutral",
-};
-
 /**
- * 506 of 532 campaigns carry artwork that this list was throwing away in favour
- * of two initials. Falls back to the initials avatar only when there is genuinely
- * no image, so a missing thumbnail still reads as a campaign rather than a hole.
- */
-/**
- * Files a campaign from the row it is on. Deliberately quieter than the status
- * dropdown next to it: filing is bookkeeping, and it should not compete with
- * the campaign's state for attention. Hidden entirely when the org has no
- * folders — a picker whose only option is "Unfiled" is not a choice.
+ * Files a campaign from the row it is on. The column is left out entirely when
+ * the org has no folders -- a picker whose only option is "Unfiled" is not a
+ * choice.
  */
 function FolderSelect({
   id,
@@ -118,8 +101,6 @@ function FolderSelect({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => setValue(folderId ?? ""), [folderId]);
-
-  if (folders.length === 0) return null;
 
   async function change(next: string) {
     const previous = value;
@@ -139,18 +120,19 @@ function FolderSelect({
   }
 
   return (
-    <span style={{ display: "inline-flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+    <span className="cc-campaign-cellstack">
       <Dropdown
         ariaLabel="Campaign folder"
         value={value}
         disabled={saving}
         onChange={change}
+        align="left"
         minWidth={120}
         maxWidth={150}
         options={[{ value: "", label: "Unfiled" }, ...folders.map((f) => ({ value: f.id, label: f.name }))]}
       />
       {error && (
-        <span style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-danger-fg)", maxWidth: 160, textAlign: "right" }} role="alert">
+        <span className="cc-campaign-cell-error" role="alert">
           {error}
         </span>
       )}
@@ -230,13 +212,23 @@ async function patchCampaign(id: string, body: Record<string, unknown>) {
   }
 }
 
+/*
+ * The row's status: the badge itself opens the menu of statuses.
+ *
+ * It was a solid primary select on every row, so a page of campaigns carried
+ * four or more black slabs beside the one real primary, New campaign (white
+ * slabs under Dark). Status reads as a badge in a table; the chevron and the
+ * hover say it can be changed.
+ */
 function StatusSelect({
   id,
+  title,
   status,
   statusDefId,
   statusDefs,
 }: {
   id: string;
+  title: string;
   status: string;
   statusDefId: string | null;
   statusDefs: StatusDef[];
@@ -281,37 +273,40 @@ function StatusSelect({
   }
 
   const options = useDefs
-    ? statusDefs.map((d) => ({ value: d.id, label: d.name }))
-    : STATUS_OPTIONS.map((o) => ({ value: o.value, label: o.label }));
+    ? statusDefs.map((d) => ({ value: d.id, label: d.name, bucket: d.bucket }))
+    : CAMPAIGN_STATUS_OPTIONS.map((o) => ({ ...o, bucket: o.value }));
 
   /* A campaign created before the org named its statuses (or whose named status
      was since deleted) has a bucket and no matching def, and read "Set status"
      -- on a campaign the status tabs count as Active. Until a named status is
      picked it shows the bucket's own name, coloured as a status. */
-  const named = options.some((o) => o.value === value);
-  const hasStatus = named || Boolean(status);
-  const placeholder = !named && status ? campaignStatusLabel(status) : "Set status";
+  const current = options.find((o) => o.value === value);
+  const text = current?.label ?? (status ? campaignStatusText(status) : "Set status");
+  const tone = current ? statusTone(current.bucket) : status ? statusTone(status) : "neutral";
 
   return (
-    <span style={{ display: "inline-flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
-      <Dropdown
-        ariaLabel="Campaign status"
-        value={value}
-        disabled={saving}
-        onChange={change}
-        /* Outlined until a status is chosen, so colour means "has a status".
-           Primary on an empty row was a solid slab in every theme -- under Dark,
-           white blocks down the list beside the dark selects. */
-        variant={hasStatus ? "primary" : "outlined"}
-        /* "Set status" is the action, not a hint: in the muted ink it measured
-           2.58:1 on white under CreatorCore. */
-        triggerStyle={hasStatus ? undefined : { color: "var(--cc-text)" }}
-        minWidth={150}
-        placeholder={placeholder}
-        options={options}
+    <span className="cc-campaign-cellstack">
+      <MenuButton
+        label={`Status of ${title}: ${text}. Change status`}
+        triggerClassName="cc-menu-button cc-row-status"
+        portal
+        trigger={
+          <>
+            <StatusBadge tone={tone}>{text}</StatusBadge>
+            <ChevronDown size={14} aria-hidden="true" className="cc-row-status-chevron" />
+          </>
+        }
+        items={options.map((o) => ({
+          label: o.label,
+          icon: <Check size={16} style={{ opacity: o.value === value ? 1 : 0 }} />,
+          disabled: saving,
+          onClick: () => {
+            if (o.value !== value) void change(o.value);
+          },
+        }))}
       />
       {error && (
-        <span role="alert" style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-danger)", maxWidth: 180, textAlign: "right" }}>
+        <span role="alert" className="cc-campaign-cell-error">
           {error}
         </span>
       )}
@@ -319,74 +314,38 @@ function StatusSelect({
   );
 }
 
-/** One bordered stat on a campaign card. */
 /*
- * Share, on the row. The reference puts it here rather than only inside a
- * campaign, which is the difference between sending a client a report and
- * remembering which tab the button was on.
+ * The row's ⋯: Share and Delete.
  *
- * It opens the same dialog as the Performance tab -- create, copy, per-field
- * visibility, revoke -- because a second, thinner share control on the busier
- * surface is the one that would forget that an empty platform list means "no
- * restriction" rather than "nothing".
+ * Share stays one click from the list -- the reference puts it on the row, which
+ * is the difference between sending a client a report and remembering which
+ * tab the button was on -- but inside the menu rather than as a button, so a
+ * page of cards carries one status select and one ⋯ each instead of a status
+ * select, a Share button and a red bin on every row. It opens the same dialog
+ * as the Performance tab, because a second, thinner share control is the one
+ * that would forget that an empty platform list means "no restriction".
+ *
+ * Delete sits last, under a rule. The route soft-deletes and writes an audit
+ * entry, so the confirm is about intent rather than loss; it is offered only
+ * when the role carries campaigns:delete -- MEMBER and VIEWER do not, and an
+ * item that always 403s is worse than none.
  */
-function ShareButton({ id, title }: { id: string; title: string }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        title={`Share ${title}`}
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
-          background: "var(--cc-card)",
-          color: "var(--cc-primary)",
-          border: "1.5px solid var(--cc-primary)",
-          borderRadius: 8,
-          padding: "7px 12px",
-          fontSize: "var(--cc-t-13)",
-          fontWeight: "var(--cc-fw-strong)",
-          cursor: "pointer",
-          whiteSpace: "nowrap",
-        }}
-      >
-        <Share2 size={14} aria-hidden="true" />
-        Share
-      </button>
-      {open && <ShareModal campaignId={id} campaignTitle={title} onClose={() => setOpen(false)} />}
-    </>
-  );
-}
-
-/*
- * Delete, the second half of the reference's row menu.
- *
- * The reference hides Add to Folder and Delete behind a kebab. Folder and
- * status are already inline controls on this row, so only Delete was missing,
- * and it goes inline beside them rather than reinstating a menu to hold one
- * item.
- *
- * The route soft-deletes and writes an audit entry, so this is recoverable and
- * the confirm is about intent rather than about loss. It is only rendered when
- * the role actually carries campaigns:delete -- MEMBER and VIEWER do not, and a
- * button that always 403s is worse than no button.
- */
-function DeleteButton({ id, title }: { id: string; title: string }) {
+function CampaignRowMenu({ id, title, canDelete }: { id: string; title: string; canDelete: boolean }) {
   const router = useRouter();
   const confirm = useConfirm();
+  const [sharing, setSharing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function remove() {
+    /* The shared delete wording, except the body: the route soft-deletes, so
+       the default "This can't be undone." would be untrue here. */
     const ok = await confirm({
-      title: `Delete ${title}?`,
+      verb: "delete",
+      subject: title,
       description:
-        "The campaign stops appearing in lists and reports. Its posts, creators and share links are kept, so this can be undone by an admin.",
+        "The campaign stops appearing in lists and reports. Its posts, creators and share links are kept, so an admin can restore it.",
       confirmLabel: "Delete campaign",
-      tone: "danger",
     });
     if (!ok) return;
 
@@ -407,40 +366,30 @@ function DeleteButton({ id, title }: { id: string; title: string }) {
   }
 
   return (
-    <span style={{ display: "inline-flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
-      <button
-        type="button"
-        onClick={remove}
-        disabled={busy}
-        title={`Delete ${title}`}
-        aria-label={`Delete ${title}`}
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "var(--cc-card)",
-          color: "var(--cc-danger)",
-          border: "1.5px solid var(--cc-danger)",
-          borderRadius: 8,
-          padding: 8,
-          cursor: busy ? "default" : "pointer",
-          opacity: busy ? 0.6 : 1,
-        }}
-      >
-        <Trash2 size={14} aria-hidden="true" />
-      </button>
+    <span className="cc-campaign-cellstack" data-align="end">
+      <MoreMenu
+        size="inline"
+        label={`More actions for ${title}`}
+        items={[
+          { label: "Share campaign", icon: <Share2 size={16} />, onClick: () => setSharing(true) },
+          ...(canDelete
+            ? [{ label: busy ? "Deleting…" : "Delete campaign", icon: <Trash2 size={16} />, onClick: () => void remove(), disabled: busy, danger: true }]
+            : []),
+        ]}
+      />
       {error && (
-        <span role="alert" style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-danger)", maxWidth: 180, textAlign: "right" }}>
+        <span role="alert" className="cc-campaign-cell-error">
           {error}
         </span>
       )}
+      {sharing && <ShareModal campaignId={id} campaignTitle={title} onClose={() => setSharing(false)} />}
     </span>
   );
 }
 
 /*
- * Sort, as the reference offers it: a field and a direction, not a column
- * header -- this list is cards, so there is no header row to click.
+ * Sort, as the reference offers it: a field and a direction. Not the column
+ * headers, because the server sorts by two dates that are not columns.
  *
  * The reference labels the control "Creation Date" and then opens Title and
  * Last Updated inside it; the label is followed rather than the options, since
@@ -450,7 +399,7 @@ const SORT_FIELDS: { key: CampaignSortKey; label: string }[] = [
   // The default leads, so the option the list actually opens on is the first
   // thing read in the menu.
   { key: "created", label: "Created" },
-  { key: "updated", label: "Last Updated" },
+  { key: "updated", label: "Last updated" },
 ];
 
 function SortControl({
@@ -461,8 +410,8 @@ function SortControl({
   onChange: (next: CampaignSort) => void;
 }) {
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-      <ArrowUpDown size={15} aria-hidden="true" style={{ color: "var(--cc-text-muted)" }} />
+    <span className="cc-campaign-sort">
+      <ArrowUpDown size={16} aria-hidden="true" />
       <Dropdown
         ariaLabel="Sort campaigns by"
         value={sort.key}
@@ -487,145 +436,130 @@ function SortControl({
   );
 }
 
-function StatChip({ icon, label, children, className }: { icon: React.ReactNode; label: string; children: React.ReactNode; className?: string }) {
-  return (
-    <span className={className ? `cc-stat-chip ${className}` : "cc-stat-chip"}>
-      <span aria-hidden="true" style={{ display: "flex", color: "var(--cc-text-muted)" }}>{icon}</span>
-      <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.25, minWidth: 0 }}>
-        <span className="cc-microlabel">
-          {label}
-        </span>
-        <span style={{ fontSize: "var(--cc-t-13)", fontWeight: 700, color: "var(--cc-text)", fontVariantNumeric: "tabular-nums" }}>
-          {children}
-        </span>
-      </span>
-    </span>
-  );
-}
-
-/* One campaign row. Memoised because its props are the server's own objects,
-   which a keystroke in the search box does not change: typing re-rendered all
-   25 rows -- 50 dropdowns among them -- on every character. */
-const CampaignRow = memo(function CampaignRow({
-  campaign,
+/*
+ * The list's columns. It was a stack of bordered cards, each holding four
+ * bordered stat chips whose x and width followed their content, so Budget
+ * started at x=748 on one row and x=753 on the next. As a table the figures
+ * sit in fixed, right-aligned columns that line up down the page.
+ *
+ * Budget and Team are columns only when a campaign on the page has one: budget
+ * is optional and unset on most campaigns, and nothing assigns team members
+ * yet, so either would otherwise be a column of dashes.
+ */
+function campaignColumns({
   folders,
   statusDefs,
   canDelete,
+  showBudget,
+  showTeam,
 }: {
-  campaign: Campaign;
   folders: FolderOption[];
   statusDefs: StatusDef[];
   canDelete: boolean;
-}) {
-  return (
-    <div className="cc-table-row cc-campaign-row">
-      {/* Only the identity block navigates. The chips and the status
-          dropdown sit outside the link, because a select nested in an
-          anchor navigates instead of opening. */}
-      <NavLink
-        prefetch={false}
-        href={`/campaigns/${campaign.id}`}
-        className="cc-campaign-id"
-      >
-        <CampaignThumb title={campaign.title} src={campaign.thumbnailUrl} size={56} />
-        <span style={{ minWidth: 0 }}>
-          <span
-            title={campaign.title}
-            style={{
-              display: "block",
-              fontSize: "var(--cc-t-15)",
-              fontWeight: 700,
-              color: "var(--cc-primary)",
-              marginBottom: 3,
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-            }}
-          >
-            {campaign.title}
-          </span>
-          <span style={{ display: "block", fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)" }}>
-            {campaign.lastPostAt ? `Last post ${timeAgo(campaign.lastPostAt)}` : `Last updated ${timeAgo(campaign.updatedAt)}`}
-            {campaign.client ? ` \u00b7 ${campaign.client.name}` : ""}
-          </span>
-          {(campaign.opensAt || campaign.tags.length > 0) && (
-            <span style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 5 }}>
-              {/* Scheduled: off Explore and refusing posts until this day
-                  (lib/campaigns/rules), the same state the rules card names. */}
-              {campaign.opensAt && (
-                <Badge variant="warning" size="sm">Opens {formatDateAbs(campaign.opensAt)}</Badge>
-              )}
-              {campaign.tags.map((tag) => (
-                <Badge key={tag} variant="neutral" size="sm">{tag}</Badge>
-              ))}
+  showBudget: boolean;
+  showTeam: boolean;
+}): DataTableColumn<Campaign>[] {
+  return [
+    {
+      key: "campaign",
+      header: "Campaign",
+      primary: true,
+      minWidth: 220,
+      render: (c) => (
+        <span className="cc-campaign-cell">
+          <CampaignThumb title={c.title} src={c.thumbnailUrl} size={40} />
+          <span className="cc-campaign-cell-text">
+            <span className="cc-campaign-title" title={c.title}>{c.title}</span>
+            <span className="cc-dt-sub cc-dt-truncate">
+              {c.lastPostAt ? `Last post ${timeAgo(c.lastPostAt)}` : `Last updated ${timeAgo(c.updatedAt)}`}
+              {c.client ? ` · ${c.client.name}` : ""}
             </span>
-          )}
+            {(c.opensAt || c.tags.length > 0) && (
+              <span className="cc-campaign-tags">
+                {/* Scheduled: off Explore and refusing posts until this day
+                    (lib/campaigns/rules), the same state the rules card names. */}
+                {c.opensAt && <StatusBadge tone="warning">Opens {formatDateAbs(c.opensAt)}</StatusBadge>}
+                {c.tags.map((tag) => (
+                  <StatusBadge key={tag} tone="neutral">{tag}</StatusBadge>
+                ))}
+              </span>
+            )}
+          </span>
         </span>
-      </NavLink>
-
-      {/* Budget and Team are dropped when absent rather than shown as a
-          zero or an empty avatar row: budget is nullable and unset on
-          most campaigns, and nothing assigns team members yet. */}
-      <div className="cc-campaign-stats">
-        {campaign.budget !== null && (
-          <StatChip icon={<Wallet size={15} />} label="Budget">
-            {formatFullCurrency(campaign.budget, campaign.currency)}
-          </StatChip>
-        )}
-        <StatChip icon={<Users size={15} />} label="Creators">
-          {campaign.creatorCount}
-        </StatChip>
-        <StatChip icon={<FileText size={15} />} label="Posts">
-          {campaign._count.posts}
-        </StatChip>
-        {campaign.views != null && (
-          <StatChip
-            icon={<Eye size={15} />}
-            label={campaign.viewsUnread ? `Views · ${campaign.viewsUnread} not read` : "Views"}
-            className="cc-stat-chip--views"
-          >
-            {formatFull(campaign.views)}
-          </StatChip>
-        )}
-        {campaign.team.length > 0 && (
-          <StatChip icon={<Users size={15} />} label="Team">
-            <span style={{ display: "inline-flex", alignItems: "center" }}>
-              {campaign.team.slice(0, 3).map((member, idx) => (
-                <span key={member.id} title={member.name} style={{ marginLeft: idx === 0 ? 0 : -6 }}>
-                  <Avatar name={member.name} src={member.avatarUrl ?? undefined} size="sm" />
-                </span>
-              ))}
-              {campaign.team.length > 3 && (
-                <span style={{ marginLeft: 5, fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
-                  +{campaign.team.length - 3}
-                </span>
-              )}
-            </span>
-          </StatChip>
-        )}
-      </div>
-
-      {/* One box, not four siblings. As four, the row's wrap could break
-          anywhere along them, and on a campaign carrying a Budget chip
-          it broke after Share -- leaving the delete button alone on a
-          second line, measured at 891px of content against 845px of
-          row. Grouped, the controls are one unit that stays whole and
-          keeps its right edge; it also never shrinks, because a select
-          squeezed narrower than its own label reads as broken. */}
-      <div className="cc-campaign-controls">
-        <FolderSelect id={campaign.id} folderId={campaign.folderId} folders={folders} />
-        <StatusSelect
-          id={campaign.id}
-          status={campaign.status}
-          statusDefId={campaign.statusDefId}
-          statusDefs={statusDefs}
-        />
-        <ShareButton id={campaign.id} title={campaign.title} />
-        {canDelete && <DeleteButton id={campaign.id} title={campaign.title} />}
-      </div>
-    </div>
-  );
-});
+      ),
+    },
+    ...(showBudget
+      ? [{
+          key: "budget",
+          header: "Budget",
+          align: "right" as const,
+          width: 120,
+          render: (c: Campaign) => (c.budget === null ? "—" : formatFullCurrency(c.budget, c.currency)),
+        }]
+      : []),
+    { key: "creators", header: "Creators", align: "right", width: 96, render: (c) => formatFull(c.creatorCount) },
+    { key: "posts", header: "Posts", align: "right", width: 80, render: (c) => formatFull(c._count.posts) },
+    {
+      key: "views",
+      header: "Views",
+      align: "right",
+      width: 128,
+      render: (c) =>
+        c.views == null ? (
+          <span title="No view count read yet">{"—"}</span>
+        ) : (
+          <>
+            {formatFull(c.views)}
+            {c.viewsUnread ? <span className="cc-dt-sub">{formatFull(c.viewsUnread)} not read</span> : null}
+          </>
+        ),
+    },
+    ...(showTeam
+      ? [{
+          key: "team",
+          header: "Team",
+          width: 112,
+          render: (c: Campaign) =>
+            c.team.length === 0 ? (
+              "—"
+            ) : (
+              <span className="cc-campaign-team">
+                {c.team.slice(0, 3).map((member) => (
+                  <span key={member.id} title={member.name}>
+                    <Avatar name={member.name} src={member.avatarUrl ?? undefined} size="sm" />
+                  </span>
+                ))}
+                {c.team.length > 3 && <span className="cc-campaign-team-more">+{c.team.length - 3}</span>}
+              </span>
+            ),
+        }]
+      : []),
+    ...(folders.length > 0
+      ? [{
+          key: "folder",
+          header: "Folder",
+          width: 168,
+          render: (c: Campaign) => <FolderSelect id={c.id} folderId={c.folderId} folders={folders} />,
+        }]
+      : []),
+    {
+      key: "status",
+      header: "Status",
+      width: 160,
+      render: (c) => (
+        <StatusSelect id={c.id} title={c.title} status={c.status} statusDefId={c.statusDefId} statusDefs={statusDefs} />
+      ),
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      hideHeader: true,
+      align: "right",
+      width: 64,
+      render: (c) => <CampaignRowMenu id={c.id} title={c.title} canDelete={canDelete} />,
+    },
+  ];
+}
 
 export default function CampaignsClient({
   campaigns,
@@ -715,7 +649,6 @@ export default function CampaignsClient({
       ? { key: shown.sort as CampaignSortKey, dir: shown.dir === "asc" ? "asc" : "desc" }
       : sort;
   const shownPage = shown.page === null ? 1 : Number(shown.page ?? page);
-  const searching = pending && (shown.q ?? "") !== q;
 
   const selectedFolder = folderId && folderId !== UNFILED ? folders.find((f) => f.id === folderId) : undefined;
   const folderLabel = folderId === UNFILED ? "Unfiled" : selectedFolder?.name;
@@ -789,176 +722,139 @@ export default function CampaignsClient({
     return () => clearTimeout(t);
   }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Mirrors CreatorCore: the count under the title reflects the selected status
-  // tab ("4 Active Campaigns", "497 Complete Campaigns"), not the overall total.
-  // With a search active it reports the match count instead, so the number
-  // always describes what is on screen.
-  const activeTab = STATUS_TABS.find((t) => t.key === status);
-  const tabCount = q ? filteredTotal : statusCounts[status] ?? 0;
-  const countLabel =
-    status === "ALL"
-      ? `${tabCount} Campaign${tabCount !== 1 ? "s" : ""}`
-      : `${tabCount} ${activeTab?.label ?? ""} Campaign${tabCount !== 1 ? "s" : ""}`;
-
-  const filtered = campaigns;
   const totalPages = Math.max(1, Math.ceil(filteredTotal / CAMPAIGNS_PAGE_SIZE));
+  const hasAny = statusCounts.ALL > 0;
+
+  const columns = useMemo(
+    () =>
+      campaignColumns({
+        folders,
+        statusDefs,
+        canDelete,
+        showBudget: campaigns.some((c) => c.budget !== null),
+        showTeam: campaigns.some((c) => c.team.length > 0),
+      }),
+    [folders, statusDefs, canDelete, campaigns],
+  );
+
+  const tabLabel = (STATUS_TABS.find((t) => t.key === status)?.label ?? "").toLowerCase();
+  const empty = !hasAny ? (
+    <NoResults
+      icon={<Target size={32} strokeWidth={1.75} />}
+      title="No campaigns yet"
+      description="Create your first campaign to get started."
+    />
+  ) : onlyTabNarrows ? (
+    <NoResults
+      icon={<Target size={32} strokeWidth={1.75} />}
+      title={`No ${tabLabel} campaigns`}
+      description={EMPTY_TAB_HINT[status] ?? "Campaigns with this status will show up here."}
+      onClear={() => push({ status: CAMPAIGN_STATUS_ALL, page: null })}
+      clearLabel="View all campaigns"
+    />
+  ) : (
+    <NoResults
+      title={anyFilter ? "No campaigns match" : "No campaigns"}
+      description="Nothing matches this search, status and these filters."
+      onClear={clearEverything}
+    />
+  );
 
   return (
-    <div className={`cc-page-content rsp-page cc-campaigns-page${statusCounts.ALL > 0 ? " cc-bleed-page" : ""}`}>
-      <div className="cc-campaigns-head">
+    <div className="cc-page-content rsp-page cc-campaigns-page">
       <PageHeader
         title="Campaigns"
-        caption={countLabel}
+        /* The status tabs close the header band, so the page reads header,
+           tabs, toolbar, list. Hidden while the org has no campaigns at all:
+           five tabs reading All 0 / Pending 0 / Active 0 / Complete 0 /
+           Canceled 0 above "No campaigns yet" is a status breakdown of
+           nothing, and this is the page sign-in lands on. statusCounts is the
+           unfiltered tab base, so this asks "any campaigns", not "any
+           matches". Each tab's count is the number the caption used to say. */
+        tabs={
+          hasAny ? (
+            <StatusTabs
+              ariaLabel="Filter by campaign status"
+              tabs={STATUS_TABS.map(({ Icon, ...tab }) => ({
+                ...tab,
+                count: statusCounts[tab.key] ?? 0,
+                icon: <Icon size={14} aria-hidden="true" />,
+              }))}
+              active={shownStatus}
+              onChange={(key) => push({ status: key, page: null })}
+            />
+          ) : undefined
+        }
         actions={
           <>
           <Button
             variant="secondary"
-            iconLeft={<Folder size={15} />}
+            iconLeft={<Folder size={16} />}
             size="sm"
             onClick={() => setShowFolders(true)}
           >
             Folders{folders.length > 0 ? ` (${folders.length})` : ""}
           </Button>
-          <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setShowModal(true)} {...action("new-campaign")}>
-            New Campaign
+          <Button variant="primary" iconLeft={<Plus size={16} />} size="sm" onPointerEnter={prefetchStartFromSources} onFocus={prefetchStartFromSources} onClick={() => setShowModal(true)} {...action("new-campaign")}>
+            New campaign
           </Button>
           </>
         }
       />
 
-      {/* Search on its own row, sort and filters on the next. MEASURED at
-          desktop-1600: their campaigns header runs search at y=97.8, a sort row
-          at 145.8 and the status strip at 202.8. Ours had sort and filters
-          riding on the search row, which left nothing between 134.8 and the
-          strip and put every status pill 48px above theirs. */}
-      <div className="cc-list-searchrow">
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search Campaigns"
-            iconLeft={searching ? <Loader2 size={16} className="motion-safe:animate-spin" aria-hidden="true" /> : <Search size={16} />}
-          />
-        </div>
-      </div>
-      <div className="cc-list-sortrow">
-        <SortControl sort={shownSort} onChange={changeSort} />
-        <FilterButton count={filterCount} onClick={() => setShowFilters(true)} />
-      </div>
-      </div>
-
-      {folderLabel && (
-        <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
-          <span
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 8,
-              background: "color-mix(in srgb, var(--cc-primary) 8%, transparent)",
-              border: "1px solid var(--cc-primary)", color: "var(--cc-primary)",
-              borderRadius: 999, padding: "5px 12px", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)",
-            }}
-          >
-            <Folder size={13} aria-hidden="true" />
-            {folderLabel}
-            <button
-              type="button"
-              aria-label="Clear folder filter"
-              onClick={() => push({ folderId: null, page: null })}
-              style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "inherit", lineHeight: 1, fontSize: "var(--cc-t-15)"}}
-            >
-              ×
-            </button>
-          </span>
-        </div>
-      )}
-
-      {/* Status Tabs — hidden while the org has no campaigns at all. Five pills
-          reading All 0 / Pending 0 / Active 0 / Complete 0 / Canceled 0 above
-          "No campaigns yet" is a status breakdown of nothing, and this is the
-          page sign-in lands on. statusCounts is the unfiltered tab base, so
-          this asks "any campaigns", not "any matches". */}
-      {statusCounts.ALL > 0 && (
-      <div className="cc-bleed">
-      <StatusTabs
-        ariaLabel="Filter by campaign status"
-        style={{ marginBottom: 24 }}
-        tabs={STATUS_TABS.map(({ Icon, ...tab }) => ({
-          ...tab,
-          count: statusCounts[tab.key] ?? 0,
-          badgeVariant: STATUS_BADGE_VARIANT[tab.key] ?? "neutral",
-          icon: <Icon size={14} aria-hidden="true" />,
-        }))}
-        active={shownStatus}
-        onChange={(key) => push({ status: key, page: null })}
-      />
-      </div>
-      )}
-
-      {/* Campaign List */}
-      <div {...pendingListProps(pending)}>
-      {filtered.length === 0 ? (
-        <Card variant="solid" noPadding>
-          <div style={{ padding: "48px 24px" }}>
-            {onlyTabNarrows ? (
-              <EmptyState
-                icon={<Target size={32} color="var(--cc-text-subtle)" />}
-                title={`No ${(STATUS_TABS.find((t) => t.key === status)?.label ?? "").toLowerCase()} campaigns`}
-                description={EMPTY_TAB_HINT[status] ?? "Campaigns with this status will show up here."}
-                action={
-                  <Button variant="secondary" onClick={() => push({ status: CAMPAIGN_STATUS_ALL, page: null })}>
-                    View all campaigns
-                  </Button>
-                }
-              />
-            ) : (
-            <EmptyState
-              icon={<Target size={32} color="var(--cc-text-subtle)" />}
-              title={anyFilter ? "No campaigns match those filters" : "No campaigns yet"}
-              description={
-                anyFilter
-                  ? "Try a different search term, status or filter."
-                  : "Create your first campaign to get started"
-              }
-              action={
-                anyFilter ? (
-                  <Button variant="secondary" onClick={clearEverything}>
-                    Clear filters
-                  </Button>
-                ) : (
-                  <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowModal(true)}>
-                    New Campaign
-                  </Button>
-                )
-              }
-            />
-            )}
-          </div>
-        </Card>
-      ) : (
-        <div className="cc-stagger" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {filtered.map((campaign) => (
-            <CampaignRow
-              key={campaign.id}
-              campaign={campaign}
-              folders={folders}
-              statusDefs={statusDefs}
-              canDelete={canDelete}
-            />
-          ))}
-        </div>
-      )}
-      </div>
-
-      {filteredTotal > CAMPAIGNS_PAGE_SIZE && (
-        <Pagination
-          style={{ marginTop: 24 }}
-          page={shownPage}
-          totalPages={totalPages}
-          total={filteredTotal}
-          pageSize={CAMPAIGNS_PAGE_SIZE}
-          loading={pending}
-          onPageChange={(p) => push({ page: p === 1 ? null : p })}
+      {/* One row: search on the left; the folder being shown, sort and
+          Filters on the right. It was two rows -- search alone, then sort and
+          filters under it -- copied from the reference's layout, which put
+          48px between the header and the list for no control. Left out while
+          the org has no campaigns: there is nothing to search. */}
+      {hasAny && (
+        <ListToolbar
+          search={{ value: search, onChange: setSearch, placeholder: "Search campaigns" }}
+          end={
+            <>
+              {folderLabel && (
+                <span className="cc-campaign-folder-chip">
+                  <Folder size={14} aria-hidden="true" />
+                  {folderLabel}
+                  <button
+                    type="button"
+                    aria-label="Clear folder filter"
+                    onClick={() => push({ folderId: null, page: null })}
+                  >
+                    <X size={14} aria-hidden="true" />
+                  </button>
+                </span>
+              )}
+              <SortControl sort={shownSort} onChange={changeSort} />
+              <FilterButton count={filterCount} onClick={() => setShowFilters(true)} />
+            </>
+          }
         />
       )}
+
+      <DataTable
+        className="cc-campaigns-table"
+        caption="Campaigns"
+        columns={columns}
+        rows={campaigns}
+        rowKey={(c) => c.id}
+        rowHref={(c) => `/campaigns/${c.id}`}
+        loading={pending}
+        skeletonRows={Math.min(CAMPAIGNS_PAGE_SIZE, 8)}
+        empty={empty}
+        footer={
+          campaigns.length > 0 ? (
+            <Pagination
+              page={shownPage}
+              totalPages={totalPages}
+              total={filteredTotal}
+              pageSize={CAMPAIGNS_PAGE_SIZE}
+              loading={pending}
+              onPageChange={(p) => push({ page: p === 1 ? null : p })}
+            />
+          ) : undefined
+        }
+      />
 
       <FilterDrawer
         open={showFilters}

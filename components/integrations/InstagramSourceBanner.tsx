@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { AlertTriangle } from "lucide-react";
+import { Banner } from "@/components/ds/Banner";
 import { apiFetch } from "@/lib/api/client";
 import { formatDateAbs } from "@/lib/format";
 import type { InstagramFallbackHealth, InstagramSourceHealth } from "@/lib/integrations/health";
@@ -68,7 +68,7 @@ export function InstagramSourceBanner({ style }: { style?: React.CSSProperties }
     const left = health.expiresInDays;
     if (left === null || left > EARLY_WARNING_DAYS) return null;
     return (
-      <Banner
+      <Notice
         headline={
           left <= 0
             ? "Instagram views stop refreshing today"
@@ -127,12 +127,12 @@ export function InstagramSourceBanner({ style }: { style?: React.CSSProperties }
     ? `Instagram ${subject} may be out of date`
     : `Instagram ${subject} are not refreshing`;
 
-  return <Banner headline={headline} detail={`${cause}. ${still}${remedy}`} style={style} />;
+  return <Notice headline={headline} detail={`${cause}. ${still}${remedy}`} style={style} />;
 }
 
-/** The warning treatment itself. Every branch above differs only in its two
- *  sentences, so the box is written once. */
-function Banner({
+/** The warning itself. Every branch above differs only in its two
+ *  sentences, so the box is written once, on the shared Banner. */
+function Notice({
   headline,
   detail,
   style,
@@ -142,29 +142,9 @@ function Banner({
   style?: React.CSSProperties;
 }) {
   return (
-    <div
-      role="status"
-      style={{
-        display: "flex",
-        alignItems: "flex-start",
-        gap: 10,
-        padding: "12px 14px",
-        borderRadius: 10,
-        fontSize: "var(--cc-t-13)",
-        lineHeight: 1.5,
-        // The house warning treatment, same mix as RemovedPostOverlay so all
-        // three themes re-colour this with the rest of the palette.
-        color: "var(--cc-warning)",
-        background: "color-mix(in srgb, var(--cc-warning) 16%, var(--cc-card))",
-        border: "1px solid color-mix(in srgb, var(--cc-warning) 45%, transparent)",
-        ...style,
-      }}
-    >
-      <AlertTriangle size={16} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} />
-      <span>
-        <strong style={{ fontWeight: 700 }}>{headline}</strong> — {detail}
-      </span>
-    </div>
+    <Banner tone="warning" title={headline} style={style}>
+      — {detail}
+    </Banner>
   );
 }
 

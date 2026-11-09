@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Card, Badge, Input, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
+import { Card, Badge, Input, EmptyState } from "@pratham7711/ui";
+import { Modal, ModalNotice } from "@/components/ds/Modal";
 import { Search, DollarSign, Users, FileText, Send, ArrowLeft, ArrowRight } from "lucide-react";
-import { Dropdown, Button } from "@/components/ds";
+import { Dropdown, Button, ListToolbar, Skeleton } from "@/components/ds";
 
 type Campaign = {
   id: string;
@@ -94,7 +95,7 @@ export default function PortalDiscoverPage() {
     <div className="rsp-page" style={{ maxWidth: 960 }}>
       <Skeleton width="300px" height="40px" />
       <div className="rsp-grid-2" style={{ marginTop: 24 }}>
-        {[1, 2, 3, 4].map(i => <Skeleton key={i} height="200px" borderRadius="12px" />)}
+        {[1, 2, 3, 4].map(i => <Skeleton key={i} height="200px" radius="var(--cc-r-card)" />)}
       </div>
     </div>
   );
@@ -110,15 +111,23 @@ export default function PortalDiscoverPage() {
         Browse open campaigns{total > 0 ? ` · ${total} opportunities` : ""}
       </p>
 
-      {/* Search */}
-      <div style={{ marginBottom: 24 }}>
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search campaigns..."
-          iconLeft={<Search size={16} />}
-        />
-      </div>
+      <ListToolbar
+        search={{ value: search, onChange: setSearch, placeholder: "Search campaigns" }}
+        end={
+          <Dropdown
+            ariaLabel="Sort"
+            minWidth={150}
+            value={sort}
+            onChange={setSort}
+            options={[
+              { value: "newest", label: "Newest first" },
+              { value: "budget_desc", label: "Highest budget" },
+              { value: "budget_asc", label: "Lowest budget" },
+              { value: "proposals_desc", label: "Most proposals" },
+            ]}
+          />
+        }
+      />
 
       {/* Type pills + sort row */}
       {(() => {
@@ -133,6 +142,8 @@ export default function PortalDiscoverPage() {
               {TYPES.map(t => (
                 <button
                   key={t}
+                  type="button"
+                  aria-pressed={campaignType === t}
                   onClick={() => setCampaignType(t)}
                   style={{
                     padding: "5px 12px",
@@ -148,21 +159,6 @@ export default function PortalDiscoverPage() {
                   {TYPE_LABELS[t]}
                 </button>
               ))}
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>Sort:</span>
-              <Dropdown
-                ariaLabel="Sort"
-                minWidth={150}
-                value={sort}
-                onChange={setSort}
-                options={[
-                  { value: "newest", label: "Newest First" },
-                  { value: "budget_desc", label: "Highest Budget" },
-                  { value: "budget_asc", label: "Lowest Budget" },
-                  { value: "proposals_desc", label: "Most Proposals" },
-                ]}
-              />
             </div>
           </div>
         );
@@ -194,11 +190,11 @@ export default function PortalDiscoverPage() {
       ) : (
         <div className="rsp-grid-3">
           {campaigns.map(c => (
-            <Card key={c.id} variant="outlined" style={{ padding: 0, overflow: "hidden" }}>
+            <Card key={c.id} variant="outlined" noPadding style={{ overflow: "hidden" }}>
               {c.thumbnailUrl && (
                 <div style={{ width: "100%", height: 120, background: `url(${c.thumbnailUrl}) center/cover`, borderBottom: "1px solid var(--cc-border)" }} />
               )}
-              <div style={{ padding: 20 }}>
+              <div style={{ padding: "var(--cc-card-inset)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 8 }}>
                   <div>
                     <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>{c.title}</h3>
@@ -251,22 +247,29 @@ export default function PortalDiscoverPage() {
 
       {/* Propose Modal */}
       {showPropose && (
-        <Modal open={true} onClose={() => { setShowPropose(null); setProposedRate(""); }} title={`Propose for "${showPropose.title}"`} size="sm" footer={
-          <div className="cc-modal-footer">
-            <Button variant="secondary" onClick={() => { setShowPropose(null); setProposedRate(""); }}>Cancel</Button>
-            <Button variant="primary" loading={submitting} onClick={handlePropose} disabled={!proposedRate}>Submit Proposal</Button>
-          </div>
-        }>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {showPropose.budget && (
-              <p style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+        <Modal
+          open={true}
+          onClose={() => { setShowPropose(null); setProposedRate(""); }}
+          icon={Send}
+          tone="brand"
+          title={`Propose for "${showPropose.title}"`}
+          description="Enter the rate you'd like to charge for this campaign."
+          size="sm"
+          dismissible={false}
+          footer={
+            <div className="cc-modal-footer">
+              <Button variant="secondary" size="sm" onClick={() => { setShowPropose(null); setProposedRate(""); }}>Cancel</Button>
+              <Button variant="primary" size="sm" loading={submitting} onClick={handlePropose} disabled={!proposedRate}>Submit Proposal</Button>
+            </div>
+          }
+        >
+          <div className="cc-dialog-stack">
+            {showPropose.budget ? (
+              <ModalNotice tone="neutral" icon={DollarSign}>
                 Campaign budget: <strong>{formatCurrency(showPropose.budget, showPropose.currency)}</strong>
-              </p>
-            )}
+              </ModalNotice>
+            ) : null}
             <Input label="Your Rate" type="number" value={proposedRate} onChange={(e) => setProposedRate(e.target.value)} placeholder="e.g. 500" required />
-            <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
-              Enter the rate you&apos;d like to charge for this campaign.
-            </p>
           </div>
         </Modal>
       )}

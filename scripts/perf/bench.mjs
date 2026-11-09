@@ -17,7 +17,7 @@
  * Needs a production build (`next build` + `next start`) on the throwaway
  * database scripts/perf/seed.mjs fills, and the e2e login state in
  * e2e/fixtures/.auth.json (any Playwright run writes it). ONLY=<regex> limits
- * the pages; THEME= is light, dark or creatorcore.
+ * the pages; THEME= is light or dark.
  */
 import fs from "node:fs";
 import path from "node:path";

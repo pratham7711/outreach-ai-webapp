@@ -4,10 +4,10 @@ import { ComingSoon, PageHeader } from "@/components/ds";
 export default function FanPagesPage() {
   return (
     <div className="rsp-page">
-      <PageHeader title="Fan Pages" subtitle="Build custom fan pages for creators" />
+      <PageHeader title="Fan pages" subtitle="Build custom fan pages for creators" />
       <ComingSoon
-        feature="Fan Pages"
-        note="Migrating from CreatorCore? Fan Pages will land here before your migration completes."
+        feature="Fan pages"
+        note="Fan pages are coming. They will appear here once they are ready."
       />
     </div>
   );

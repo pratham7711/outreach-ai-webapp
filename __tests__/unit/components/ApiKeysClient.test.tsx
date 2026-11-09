@@ -7,6 +7,8 @@ jest.mock("@/components/ds", () => ({
   PageHeader: ({ title }: any) => <h1>{title}</h1>,
 }));
 
+jest.mock("next/navigation", () => ({ useRouter: () => ({ push: jest.fn() }) }));
+
 jest.mock("sonner", () => ({ toast: { error: jest.fn(), success: jest.fn() } }));
 let mockPayoutsOn = false;
 jest.mock("@/lib/payouts/switch", () => ({
@@ -21,8 +23,12 @@ jest.mock("@/lib/payouts/switch", () => ({
    enough of each to keep the contract under test: a labelled input, and a
    dialog that exists only while open. */
 jest.mock("@pratham7711/ui", () => ({
-  Button: ({ children, loading: _loading, variant: _variant, size: _size, ...rest }: any) => (
-    <button {...rest}>{children}</button>
+  Button: ({ children, loading: _loading, variant: _variant, size: _size, iconLeft, iconRight, ...rest }: any) => (
+    <button {...rest}>
+      {iconLeft}
+      {children}
+      {iconRight}
+    </button>
   ),
   Input: ({ label, id, ...rest }: any) => (
     <>
@@ -133,7 +139,7 @@ describe("ApiKeysClient create dialog", () => {
     render(<ApiKeysClient />);
     fireEvent.click(await screen.findByRole("button", { name: "Create your first key" }));
 
-    expect(screen.getByRole("dialog", { name: "Create API Key" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Create API key" })).toBeInTheDocument();
     const field = screen.getByLabelText("Key name");
 
     mockFetchOnce({ ok: true, body: { key: "sk_test_once" } });
@@ -157,6 +163,6 @@ describe("ApiKeysClient create dialog", () => {
     fireEvent.submit(screen.getByLabelText("Key name").closest("form") as HTMLFormElement);
 
     expect((global.fetch as jest.Mock).mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(0);
-    expect(screen.getByRole("button", { name: "Create Key" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Create key" })).toBeDisabled();
   });
 });

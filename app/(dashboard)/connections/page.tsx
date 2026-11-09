@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Card, Badge, Modal, Input, Skeleton, EmptyState } from "@pratham7711/ui";
-import { PageHeader, Button } from "@/components/ds";
-import { AlertTriangle } from "lucide-react";
+import { Card, Badge, Input, EmptyState } from "@pratham7711/ui";
+import { Modal, ModalNotice } from "@/components/ds/Modal";
+import { PageHeader, Button, Skeleton } from "@/components/ds";
+import { AlertTriangle, Link2, Unlink } from "lucide-react";
 
 type PlatformConnection = {
   platform: string;
@@ -103,17 +104,9 @@ export default function ConnectionsPage() {
   };
 
   const modalErrorBanner = modalError ? (
-    <div
-      role="alert"
-      style={{
-        marginBottom: 16, padding: "10px 14px", borderRadius: 8, fontSize: "var(--cc-t-13)",
-        background: "color-mix(in srgb, var(--cc-danger) 12%, transparent)",
-        border: "1px solid color-mix(in srgb, var(--cc-danger) 30%, transparent)",
-        color: "var(--cc-danger)",
-      }}
-    >
+    <ModalNotice tone="danger" icon={AlertTriangle}>
       {modalError}
-    </div>
+    </ModalNotice>
   ) : null;
 
   const socialPlatforms = platforms.filter(p => p.category === "social");
@@ -136,7 +129,7 @@ export default function ConnectionsPage() {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))", gap: 16 }}>
           {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} height={180} borderRadius={12} />
+            <Skeleton key={i} height={180} radius="var(--cc-r-card)" />
           ))}
         </div>
       </div>
@@ -147,7 +140,7 @@ export default function ConnectionsPage() {
     return (
       <div className="rsp-page">
         <PageHeader title="Connections" subtitle="Connect your platforms and payment providers" />
-        <Card variant="outlined" style={{ padding: 32 }}>
+        <Card variant="outlined">
           <EmptyState
             icon={<AlertTriangle size={32} color="var(--cc-text-subtle)" />}
             title="Couldn't load your connections"
@@ -164,7 +157,7 @@ export default function ConnectionsPage() {
   }
 
   const renderPlatformCard = (p: PlatformConnection) => (
-    <Card key={p.platform} variant="outlined" style={{ padding: 24 }}>
+    <Card key={p.platform} variant="outlined">
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
         <div style={{
           width: 48, height: 48, borderRadius: 12,
@@ -264,25 +257,29 @@ export default function ConnectionsPage() {
         <Modal
           open={true}
           onClose={() => { setConnectModal(null); setModalError(null); }}
+          icon={Link2}
+          tone="brand"
           title={`Connect ${connectModal.name}`}
+          description={`Enter your account name or identifier for ${connectModal.name}.`}
+          size="sm"
+          dismissible={false}
+          footer={
+            <div className="cc-modal-footer">
+              <Button variant="secondary" size="sm" onClick={() => { setConnectModal(null); setModalError(null); }}>Cancel</Button>
+              <Button variant="primary" size="sm" onClick={handleConnect} disabled={submitting}>
+                {submitting ? "Connecting..." : "Connect"}
+              </Button>
+            </div>
+          }
         >
-          <div style={{ padding: 24 }}>
+          <div className="cc-dialog-stack">
             {modalErrorBanner}
-            <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", marginBottom: 16 }}>
-              Enter your account name or identifier for {connectModal.name}.
-            </p>
             <Input
               placeholder="Account name (e.g. @brandaccount)"
               value={accountName}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAccountName(e.target.value)}
-              style={{ marginBottom: 16, width: "100%" }}
+              style={{ width: "100%" }}
             />
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <Button variant="ghost" onClick={() => { setConnectModal(null); setModalError(null); }}>Cancel</Button>
-              <Button variant="primary" onClick={handleConnect} disabled={submitting}>
-                {submitting ? "Connecting..." : "Connect"}
-              </Button>
-            </div>
           </div>
         </Modal>
       )}
@@ -292,25 +289,23 @@ export default function ConnectionsPage() {
         <Modal
           open={true}
           onClose={() => { setDisconnectModal(null); setModalError(null); }}
+          icon={Unlink}
+          tone="danger"
           title={`Disconnect ${disconnectModal.name}?`}
-        >
-          <div style={{ padding: 24 }}>
-            {modalErrorBanner}
-            <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", marginBottom: 16 }}>
-              Are you sure you want to disconnect {disconnectModal.name}? You can reconnect it later.
-            </p>
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <Button variant="ghost" onClick={() => { setDisconnectModal(null); setModalError(null); }}>Cancel</Button>
-              <Button
-                variant="primary"
-                onClick={handleDisconnect}
-                disabled={submitting}
-                style={{ background: "var(--cc-danger-solid)", borderColor: "var(--cc-danger-solid)" }}
-              >
+          description={`${disconnectModal.name} will be disconnected. You can reconnect it later.`}
+          size="sm"
+          align="center"
+          hideClose
+          footer={
+            <div className="cc-modal-footer">
+              <Button variant="secondary" size="sm" onClick={() => { setDisconnectModal(null); setModalError(null); }}>Cancel</Button>
+              <Button variant="danger" size="sm" onClick={handleDisconnect} disabled={submitting}>
                 {submitting ? "Disconnecting..." : "Disconnect"}
               </Button>
             </div>
-          </div>
+          }
+        >
+          {modalErrorBanner}
         </Modal>
       )}
     </div>

@@ -20,8 +20,39 @@ jest.mock(
 );
 
 jest.mock("@/components/ds", () => ({
-  PageHeader: ({ title }: any) => <h1>{title}</h1>,
-  Button: ({ children, onClick }: any) => <button onClick={onClick}>{children}</button>,
+  PageHeader: ({ title, tabs }: { title: React.ReactNode; tabs?: React.ReactNode }) => (
+    <header>
+      <h1>{title}</h1>
+      {tabs}
+    </header>
+  ),
+  Button: ({ children, onClick }: { children?: React.ReactNode; onClick?: () => void }) => <button onClick={onClick}>{children}</button>,
+  StatusTabs: ({ tabs }: { tabs: { key: string; label: string }[] }) => (
+    <div role="tablist">
+      {tabs.map((t) => (
+        <button key={t.key} role="tab">
+          {t.label}
+        </button>
+      ))}
+    </div>
+  ),
+  MetricTile: ({ label, value }: { label: React.ReactNode; value: React.ReactNode }) => (
+    <div>
+      <span>{label}</span>
+      <span>{value}</span>
+    </div>
+  ),
+  Skeleton: () => <div data-testid="skeleton" />,
+  StatusBadge: ({ status, children }: { status?: string; children?: React.ReactNode }) => <span>{children ?? status}</span>,
+  LoadError: ({ title }: { title?: string }) => <div role="alert">{title}</div>,
+  NoResults: ({ title, description }: { title: string; description?: React.ReactNode }) => (
+    <div data-testid="no-results">
+      <p>{title}</p>
+      <p>{description}</p>
+    </div>
+  ),
+  DataTable: ({ rows, empty, loading }: { rows: unknown[]; empty?: React.ReactNode; loading?: boolean }) =>
+    loading && rows.length === 0 ? <div data-testid="table-loading" /> : rows.length === 0 ? <div>{empty}</div> : <table />,
 }));
 
 import DeadlinesPage from "@/app/(dashboard)/deadlines/page";
@@ -44,7 +75,7 @@ describe("deadlines — a workspace with nothing in it", () => {
 
     await screen.findByTestId("empty-state");
     // Only the two tile labels that are not also filter tabs; the tabs stay put.
-    for (const label of ["With Deadlines", "Completed"]) {
+    for (const label of ["With deadlines", "Completed"]) {
       expect(screen.queryByText(label)).toBeNull();
     }
   });
@@ -62,7 +93,7 @@ describe("deadlines — a workspace with nothing in it", () => {
     respond({ activations: [], stats: { ...EMPTY_STATS, total: 3, noDate: 1 } });
     render(<DeadlinesPage />);
 
-    await waitFor(() => expect(screen.getByText("With Deadlines")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("With deadlines")).toBeInTheDocument());
     expect(screen.getByText("Completed")).toBeInTheDocument();
   });
 });

@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Modal, Input } from "@pratham7711/ui";
-import { CheckCircle2, FileSpreadsheet, Upload } from "lucide-react";
-import { Button } from "@/components/ds";
+import { Input } from "@pratham7711/ui";
+import { Modal, ModalNotice } from "@/components/ds/Modal";
+import { AlertCircle, AlertTriangle, CheckCircle2, FileSpreadsheet, FileUp, Info, RefreshCw, Upload } from "lucide-react";
+import { Button, Dropdown } from "@/components/ds";
 import PlatformChips, { type PlatformChipLink } from "@/components/creators/PlatformChips";
 import {
   FIELD_LABELS,
@@ -93,6 +94,11 @@ function listing(parts: string[]) {
   return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : (parts[0] ?? "");
 }
 
+
+const IMPORT_FIELD_OPTIONS = [
+  { value: "", label: "Don’t import" },
+  ...MAPPABLE_FIELDS.map((f) => ({ value: f, label: FIELD_LABELS[f] })),
+];
 export default function ImportCreatorsModal({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -270,16 +276,17 @@ export default function ImportCreatorsModal({ onClose }: { onClose: () => void }
   const footer =
     step === "review" ? (
       <div className="cc-modal-footer">
-        <Button variant="secondary" onClick={close}>Cancel</Button>
-        <Button variant="primary" disabled={!dry || checking || toWrite === 0} onClick={() => commit(0)}>
+        <Button variant="secondary" size="sm" onClick={close}>Cancel</Button>
+        <Button variant="primary" size="sm" disabled={!dry || checking || toWrite === 0} onClick={() => commit(0)}>
           {confirmLabel}
         </Button>
       </div>
     ) : step === "map" ? (
       <div className="cc-modal-footer">
-        <Button variant="secondary" onClick={() => setStep(sheets.filter((s) => s.dataRows).length > 1 ? "tab" : "upload")}>Back</Button>
+        <Button variant="secondary" size="sm" onClick={() => setStep(sheets.filter((s) => s.dataRows).length > 1 ? "tab" : "upload")}>Back</Button>
         <Button
           variant="primary"
+          size="sm"
           disabled={!mapping.some((f) => f && LINK_FIELDS.includes(f))}
           onClick={() => setStep("review")}
         >
@@ -288,14 +295,15 @@ export default function ImportCreatorsModal({ onClose }: { onClose: () => void }
       </div>
     ) : step === "saving" && resumeAt !== null ? (
       <div className="cc-modal-footer">
-        <Button variant="secondary" onClick={close}>Close</Button>
-        <Button variant="primary" onClick={() => commit(resumeAt)}>Retry remaining</Button>
+        <Button variant="secondary" size="sm" onClick={close}>Close</Button>
+        <Button variant="primary" size="sm" onClick={() => commit(resumeAt)}>Retry remaining</Button>
       </div>
     ) : step === "done" ? (
       <div className="cc-modal-footer">
-        <Button variant="secondary" onClick={close}>Close</Button>
+        <Button variant="secondary" size="sm" onClick={close}>Close</Button>
         <Button
           variant="primary"
+          size="sm"
           onClick={() => {
             onClose();
             router.push(extraTags.length ? `/creators?tags=${encodeURIComponent(extraTags[0])}` : "/creators");
@@ -304,15 +312,44 @@ export default function ImportCreatorsModal({ onClose }: { onClose: () => void }
           View them
         </Button>
       </div>
+    ) : step === "upload" || step === "tab" ? (
+      <div className="cc-modal-footer">
+        <Button variant="secondary" size="sm" onClick={close}>Cancel</Button>
+      </div>
     ) : undefined;
 
+  const description =
+    step === "upload"
+      ? "Turn a Google Form export, or any sheet with profile links, into creators on your roster."
+      : step === "tab"
+        ? "Which tab holds the creators?"
+        : step === "map"
+          ? "Match each column to what it holds; “Don’t import” columns are ignored. At least one profile link is needed."
+          : step === "review"
+            ? "Check what changes in your roster. Nothing is saved until you confirm."
+            : step === "saving"
+              ? resumeAt === null
+                ? "Saving to your roster. Keep this window open until it finishes."
+                : "The save stopped before it finished."
+              : "The import has finished.";
+
   return (
-    <Modal open onClose={close} title="Import creators" size="lg" footer={footer}>
+    <Modal
+      open
+      onClose={close}
+      icon={step === "done" ? CheckCircle2 : FileUp}
+      tone={step === "done" ? "success" : "brand"}
+      title="Import creators"
+      description={description}
+      size="lg"
+      dismissible={step === "upload" || step === "done"}
+      footer={footer}
+    >
       <div className="cc-import">
         {error && (
-          <div role="alert" className="cc-import-alert">
+          <ModalNotice tone="danger" icon={AlertCircle}>
             {error}
-          </div>
+          </ModalNotice>
         )}
 
         {step === "upload" && (
@@ -337,7 +374,9 @@ export default function ImportCreatorsModal({ onClose }: { onClose: () => void }
               <span className="cc-import-drop-title">Drop the Google Sheet export here (.xlsx or .csv)</span>
               <span className="cc-import-hint">or click to choose a file</span>
             </button>
-            <p className="cc-import-hint">In Google Sheets: File → Download → Microsoft Excel (.xlsx).</p>
+            <ModalNotice tone="neutral" icon={FileSpreadsheet} title="From Google Sheets">
+              File → Download → Microsoft Excel (.xlsx).
+            </ModalNotice>
             <input
               ref={fileInput}
               type="file"
@@ -353,7 +392,6 @@ export default function ImportCreatorsModal({ onClose }: { onClose: () => void }
 
         {step === "tab" && (
           <>
-            <p className="cc-import-lead">Which tab holds the creators?</p>
             <ul className="cc-import-tabs">
               {sheets.map((s) => (
                 <li key={s.name}>
@@ -370,10 +408,9 @@ export default function ImportCreatorsModal({ onClose }: { onClose: () => void }
 
         {step === "map" && sheet && (
           <>
-            <p className="cc-import-lead">
-              Match each column to what it holds. Columns set to “Don’t import” are ignored; at least one profile link is needed.
+            <ModalNotice tone="neutral" icon={Info}>
               Follower and view columns are never imported: those figures come from the platforms.
-            </p>
+            </ModalNotice>
             <ul className="cc-import-map">
               {(sheet.rows[0] ?? []).map((header, i) => {
                 const raw = sheet.rows.slice(1).find((r) => hasValue(r[i]))?.[i];
@@ -396,16 +433,15 @@ export default function ImportCreatorsModal({ onClose }: { onClose: () => void }
                 }
                 return (
                   <li key={i} className="cc-import-map-row">
-                    <label htmlFor={`import-col-${i}`} className="cc-import-map-label">
+                    <span className="cc-import-map-label">
                       <span className="cc-import-tab-name">{title}</span>
                       {hasValue(sample) && <span className="cc-import-hint">e.g. {String(sample).slice(0, 48)}</span>}
-                    </label>
-                    <select
-                      id={`import-col-${i}`}
-                      className="cc-import-select"
+                    </span>
+                    <Dropdown
+                      ariaLabel={`Import “${title}” as`}
                       value={mapping[i] ?? ""}
-                      onChange={(e) => {
-                        const field = (e.target.value || null) as ImportField | null;
+                      onChange={(v) => {
+                        const field = (v || null) as ImportField | null;
                         setMapping((m) => {
                           const next = [...m];
                           // One column per field: taking a field frees it elsewhere.
@@ -414,14 +450,10 @@ export default function ImportCreatorsModal({ onClose }: { onClose: () => void }
                           return next;
                         });
                       }}
-                    >
-                      <option value="">Don’t import</option>
-                      {MAPPABLE_FIELDS.map((f) => (
-                        <option key={f} value={f}>
-                          {FIELD_LABELS[f]}
-                        </option>
-                      ))}
-                    </select>
+                      options={IMPORT_FIELD_OPTIONS}
+                      align="left"
+                      fullWidth
+                    />
                   </li>
                 );
               })}
@@ -499,14 +531,16 @@ export default function ImportCreatorsModal({ onClose }: { onClose: () => void }
                 )}
 
                 {reviewTab === "correct" && (
-                  <p className="cc-import-hint">
+                  <ModalNotice tone="neutral" icon={Info}>
                     An earlier import misread these numbers, names or countries from the sheet. Only values nobody has changed
                     since are corrected; anything edited by hand or refreshed from the platform stays as it is.
-                  </p>
+                  </ModalNotice>
                 )}
                 {reviewTab === "rejected" ? (
                   <>
-                    <p className="cc-import-hint">These rows are skipped. Fix them in the sheet and import again.</p>
+                    <ModalNotice tone="warning" icon={AlertTriangle}>
+                      These rows are skipped. Fix them in the sheet and import again.
+                    </ModalNotice>
                     <ul className="cc-import-list">
                       {dry.rejected.slice(0, shown).map((r) => (
                         <li key={r.row} className="cc-import-row">
@@ -575,13 +609,11 @@ export default function ImportCreatorsModal({ onClose }: { onClose: () => void }
             >
               <span style={{ width: `${dry.counts.people ? (progress / dry.counts.people) * 100 : 0}%` }} />
             </div>
-            {resumeAt === null && <p className="cc-import-hint">Keep this window open until it finishes.</p>}
           </div>
         )}
 
         {step === "done" && (
-          <div className="cc-import-done">
-            <CheckCircle2 size={28} aria-hidden className="cc-import-done-icon" />
+          <div className="cc-dialog-stack">
             <p className="cc-import-lead">
               {listing(
                 (
@@ -601,10 +633,10 @@ export default function ImportCreatorsModal({ onClose }: { onClose: () => void }
                 {formatFull(dry.counts.rejected)} row{dry.counts.rejected === 1 ? "" : "s"} skipped (needs attention).
               </p>
             )}
-            <p className="cc-import-hint">
+            <ModalNotice tone="neutral" icon={RefreshCw}>
               Follower and view figures are read from the platforms, not the sheet; they and profile pictures fill in
               in the background within a day.
-            </p>
+            </ModalNotice>
           </div>
         )}
       </div>

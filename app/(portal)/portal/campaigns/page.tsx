@@ -118,7 +118,7 @@ function OpenCampaign({ c }: { c: MarketplaceCardDTO }) {
     <div
       style={{
         padding: 14,
-        borderRadius: 12,
+        borderRadius: "var(--cc-r-card)",
         border: "1px solid var(--cc-border)",
         background: "var(--cc-card)",
       }}
@@ -247,7 +247,7 @@ function CampaignsScreen() {
                   style={{
                     display: "block",
                     padding: 14,
-                    borderRadius: 12,
+                    borderRadius: "var(--cc-r-card)",
                     border: "1px solid var(--cc-border)",
                     background: "var(--cc-card)",
                     textDecoration: "none",

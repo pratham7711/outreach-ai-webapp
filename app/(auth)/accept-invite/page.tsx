@@ -5,7 +5,8 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Input } from "@pratham7711/ui";
 import { Button } from "@/components/ds";
-import { Eye, EyeOff } from "lucide-react";
+import { AuthForm, AuthFrame, AuthNotice, PasswordField } from "@/components/auth/AuthShell";
+import { Field } from "@/components/ds/Field";
 import { BRAND } from "@/lib/brand";
 
 /**
@@ -29,7 +30,6 @@ function AcceptInviteForm() {
 
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -101,7 +101,7 @@ function AcceptInviteForm() {
   if (!token) {
     return (
       <Shell>
-        <h1 style={H1}>This invite link is incomplete</h1>
+        <h1 className="cc-auth__title">This invite link is incomplete</h1>
         <p style={P}>
           The link is missing its invite code. Ask whoever invited you to send it again — the
           full link ends in <code>?token=…</code>
@@ -116,7 +116,7 @@ function AcceptInviteForm() {
   if (checking) {
     return (
       <Shell>
-        <h1 style={H1}>Checking your invitation…</h1>
+        <h1 className="cc-auth__title">Checking your invitation…</h1>
         <p style={{ ...P, marginBottom: 0 }}>One moment.</p>
       </Shell>
     );
@@ -125,7 +125,7 @@ function AcceptInviteForm() {
   if (deadLink) {
     return (
       <Shell>
-        <h1 style={H1}>This invitation can&apos;t be used</h1>
+        <h1 className="cc-auth__title">This invitation can&apos;t be used</h1>
         <p style={P}>{deadLink}</p>
         <Link href="/login" style={{ color: "var(--cc-primary)", fontSize: 14 }}>
           Go to sign in
@@ -136,7 +136,7 @@ function AcceptInviteForm() {
 
   return (
     <Shell>
-      <h1 style={H1}>Accept your invitation</h1>
+      <h1 className="cc-auth__title">Accept your invitation</h1>
       <p style={P}>
         {preview
           ? `You've been invited to join ${preview.orgName} as ${
@@ -150,49 +150,32 @@ function AcceptInviteForm() {
         </p>
       ) : null}
 
-      <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <div>
-          <label htmlFor="name" style={LABEL}>Your name</label>
+      <AuthForm onSubmit={submit} noValidate>
+        <Field label="Your name" required>
           <Input
             id="name"
             value={name}
             autoFocus
             onChange={(e) => setName(e.target.value)}
             placeholder="Jane Doe"
+            autoComplete="name"
           />
-        </div>
-        <div>
-          <label htmlFor="password" style={LABEL}>Choose a password</label>
-          <div style={{ position: "relative" }}>
-            <Input
-              id="password"
-              type={showPassword ? "text" : "password"}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="At least 8 characters"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword((s) => !s)}
-              aria-label={showPassword ? "Hide password" : "Show password"}
-              style={{
-                position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
-                background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)",
-              }}
-            >
-              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-            </button>
-          </div>
-        </div>
+        </Field>
+        <PasswordField
+          id="password"
+          label="Choose a password"
+          value={password}
+          onChange={setPassword}
+          placeholder="At least 8 characters"
+          autoComplete="new-password"
+        />
 
-        {error ? (
-          <div role="alert" style={{ fontSize: 13, color: "var(--cc-danger)" }}>{error}</div>
-        ) : null}
+        {error ? <AuthNotice tone="danger">{error}</AuthNotice> : null}
 
-        <Button type="submit" variant="primary" disabled={loading}>
+        <Button type="submit" variant="primary" fullWidth disabled={loading}>
           {loading ? "Setting up…" : "Accept and continue"}
         </Button>
-      </form>
+      </AuthForm>
 
       <p style={{ ...P, marginTop: 18, marginBottom: 0 }}>
         Already have an account? <Link href="/login" style={{ color: "var(--cc-primary)" }}>Sign in</Link>
@@ -201,26 +184,10 @@ function AcceptInviteForm() {
   );
 }
 
-const H1 = { fontSize: 22, fontWeight: 700, color: "var(--cc-text)", marginBottom: 6 } as const;
 const P = { fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 20 } as const;
-const LABEL = {
-  display: "block", fontSize: 13, fontWeight: 600,
-  color: "var(--cc-text)", marginBottom: 6,
-} as const;
 
 function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
-      <div
-        style={{
-          width: "100%", maxWidth: 420, background: "var(--cc-card)",
-          border: "1px solid var(--cc-border)", borderRadius: 14, padding: 32,
-        }}
-      >
-        {children}
-      </div>
-    </div>
-  );
+  return <AuthFrame>{children}</AuthFrame>;
 }
 
 export default function AcceptInvitePage() {

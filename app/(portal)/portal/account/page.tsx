@@ -1,75 +1,44 @@
 "use client";
 
-import { useCallback, useEffect, useState, type CSSProperties, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Button } from "@/components/ds";
+import { Input, Textarea } from "@pratham7711/ui";
+import { KeyRound, LogOut, Trash2, UserRound } from "lucide-react";
+import { Button, Field, SectionCard, SettingsForm } from "@/components/ds";
+import { useDirty } from "@/lib/useDirty";
 import { BRAND } from "@/lib/brand";
-import { Card, LoadFailed, Screen, SectionTitle, SkeletonBlock } from "@/components/portal/app/ui";
+import { LoadFailed, Screen, SkeletonBlock } from "@/components/portal/app/ui";
 import { portalSignInHere } from "@/lib/callbackPath";
 
-/* 16px text so a phone does not zoom into the field on focus, and 44px tall so
-   it is an honest touch target. */
-const fieldStyle: CSSProperties = {
-  width: "100%",
-  minHeight: 44,
-  padding: "10px 12px",
-  borderRadius: 10,
-  border: "1px solid var(--cc-border)",
-  background: "var(--cc-card)",
-  color: "var(--cc-text)",
-  fontSize: 16,
-  boxSizing: "border-box",
-};
-const labelStyle: CSSProperties = { display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 };
-const formStyle: CSSProperties = { display: "flex", flexDirection: "column", gap: 14 };
-
-function Field({
-  id,
-  label,
-  hint,
-  children,
-}: {
-  id: string;
-  label: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label htmlFor={id} style={labelStyle}>
-        {label}
-      </label>
-      {children}
-      {hint && <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "6px 0 0" }}>{hint}</p>}
-    </div>
-  );
-}
+type ProfileFields = { name: string; bio: string };
 
 function ProfileForm({ initial }: { initial: { name: string; bio: string; email: string } }) {
-  const [name, setName] = useState(initial.name);
-  const [bio, setBio] = useState(initial.bio);
+  const [saved, setSaved] = useState<ProfileFields>({ name: initial.name, bio: initial.bio });
+  const [form, setForm] = useState<ProfileFields>({ name: initial.name, bio: initial.bio });
   const [saving, setSaving] = useState(false);
+  const dirty = useDirty(saved, form);
+  const nameMissing = !form.name.trim();
 
   /* Only name and bio. The handle is how agencies find the creator's roster
      row and the platform/niches/bank fields belong to screens that are parked,
      so this form never sends them. */
-  const save = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) {
-      toast.error("Your name can't be empty");
-      return;
-    }
+  const save = async () => {
+    if (nameMissing) return;
     setSaving(true);
+    const next = { name: form.name.trim(), bio: form.bio };
     try {
       const res = await fetch("/api/portal/me", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), bio }),
+        body: JSON.stringify({ name: next.name, bio: next.bio }),
       });
       const data = await res.json().catch(() => ({}));
-      if (res.ok) toast.success("Saved");
-      else toast.error(data.error ?? "Couldn't save");
+      if (res.ok) {
+        setSaved(next);
+        setForm(next);
+        toast.success("Saved");
+      } else toast.error(data.error ?? "Couldn't save");
     } catch {
       toast.error("Network error. Try again.");
     } finally {
@@ -78,22 +47,25 @@ function ProfileForm({ initial }: { initial: { name: string; bio: string; email:
   };
 
   return (
-    <form onSubmit={save} style={formStyle}>
-      <Field id="acct-email" label="Email" hint="The address you log in with.">
-        <input id="acct-email" value={initial.email} readOnly style={{ ...fieldStyle, color: "var(--cc-text-muted)" }} />
+    <SettingsForm
+      icon={UserRound}
+      title="Profile"
+      dirty={dirty}
+      saving={saving}
+      invalid={nameMissing}
+      onSubmit={save}
+      onCancel={() => setForm(saved)}
+    >
+      <Field label="Email" helper="The address you log in with.">
+        <Input id="acct-email" value={initial.email} readOnly />
       </Field>
-      <Field id="acct-name" label="Name">
-        <input id="acct-name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" style={fieldStyle} />
+      <Field label="Name" required error={dirty && nameMissing ? "Your name can't be empty" : undefined}>
+        <Input id="acct-name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} autoComplete="name" />
       </Field>
-      <Field id="acct-bio" label="Bio" hint="Agencies see this beside your campaign posts.">
-        <textarea id="acct-bio" value={bio} onChange={(e) => setBio(e.target.value)} rows={3} style={{ ...fieldStyle, resize: "vertical" }} />
+      <Field label="Bio" helper="Agencies see this beside your campaign posts.">
+        <Textarea id="acct-bio" value={form.bio} onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))} rows={3} />
       </Field>
-      <div>
-        <Button type="submit" variant="primary" loading={saving}>
-          Save
-        </Button>
-      </div>
-    </form>
+    </SettingsForm>
   );
 }
 
@@ -102,8 +74,7 @@ function PasswordForm() {
   const [next, setNext] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const change = async (e: FormEvent) => {
-    e.preventDefault();
+  const change = async () => {
     if (next.length < 8) {
       toast.error("Your new password needs at least 8 characters.");
       return;
@@ -131,26 +102,33 @@ function PasswordForm() {
   };
 
   return (
-    <form onSubmit={change} style={formStyle}>
-      <Field id="pw-current" label="Current password">
-        <input id="pw-current" type="password" value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" style={fieldStyle} />
+    <SettingsForm
+      icon={KeyRound}
+      title="Password"
+      dirty={!!current || !!next}
+      saving={saving}
+      invalid={!current || !next}
+      onSubmit={change}
+      onCancel={() => {
+        setCurrent("");
+        setNext("");
+      }}
+      saveLabel="Change password"
+    >
+      <Field label="Current password" required>
+        <Input id="pw-current" type="password" value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" />
       </Field>
-      <Field id="pw-new" label="New password" hint="At least 8 characters.">
-        <input id="pw-new" type="password" value={next} onChange={(e) => setNext(e.target.value)} autoComplete="new-password" style={fieldStyle} />
+      <Field label="New password" required helper="At least 8 characters.">
+        <Input id="pw-new" type="password" value={next} onChange={(e) => setNext(e.target.value)} autoComplete="new-password" />
       </Field>
-      <div>
-        <Button type="submit" variant="secondary" loading={saving} disabled={!current || !next}>
-          Change password
-        </Button>
-      </div>
-      <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}>
+      <p className="cc-form-help" style={{ margin: 0 }}>
         Forgot it? There is no reset email. Write to{" "}
         <a href={`mailto:${BRAND.contactEmail}`} style={{ color: "var(--cc-primary)", textDecoration: "underline" }}>
           {BRAND.contactEmail}
         </a>{" "}
         from the address you sign in with.
       </p>
-    </form>
+    </SettingsForm>
   );
 }
 
@@ -162,6 +140,7 @@ function DeleteAccount() {
 
   const remove = async (e: FormEvent) => {
     e.preventDefault();
+    if (!password || typed !== "DELETE") return;
     setDeleting(true);
     try {
       const res = await fetch("/api/portal/account/delete", {
@@ -184,34 +163,35 @@ function DeleteAccount() {
   };
 
   return (
-    <form onSubmit={remove} style={formStyle}>
-      <div style={{ fontSize: 14, color: "var(--cc-text)", lineHeight: 1.55 }}>
-        <p style={{ margin: "0 0 6px" }}>This deletes, straight away:</p>
-        <ul style={{ margin: 0, paddingLeft: 18 }}>
-          <li>your login,</li>
-          <li>every account you connected, and our access to it,</li>
-          <li>the numbers we read from those accounts.</li>
-        </ul>
-        <p style={{ margin: "8px 0 0" }}>
-          Posts you submitted to a campaign stay with that campaign&apos;s agency, which holds its own records. See{" "}
-          <a href="/data-deletion" style={{ color: "var(--cc-primary)", textDecoration: "underline" }}>
-            how deletion works
-          </a>
-          .
-        </p>
-      </div>
-      <Field id="del-password" label="Your password">
-        <input id="del-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" style={fieldStyle} />
-      </Field>
-      <Field id="del-confirm" label='Type DELETE to confirm'>
-        <input id="del-confirm" value={typed} onChange={(e) => setTyped(e.target.value)} autoCapitalize="characters" autoComplete="off" style={fieldStyle} />
-      </Field>
-      <div>
-        <Button type="submit" variant="danger" loading={deleting} disabled={!password || typed !== "DELETE"}>
-          Delete my account and data
-        </Button>
-      </div>
-    </form>
+    <SectionCard icon={Trash2} title="Delete my account and data" padded={false} className="cc-settings-card">
+      <form onSubmit={remove} className="cc-settings-form">
+        <div className="cc-settings-form__fields">
+          <div className="cc-prose">
+            <p>This deletes, straight away:</p>
+            <ul>
+              <li>your login,</li>
+              <li>every account you connected, and our access to it,</li>
+              <li>the numbers we read from those accounts.</li>
+            </ul>
+            <p>
+              Posts you submitted to a campaign stay with that campaign&apos;s agency, which holds its own records. See{" "}
+              <a href="/data-deletion">how deletion works</a>.
+            </p>
+          </div>
+          <Field label="Your password" required>
+            <Input id="del-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+          </Field>
+          <Field label="Type DELETE to confirm" required>
+            <Input id="del-confirm" value={typed} onChange={(e) => setTyped(e.target.value)} autoCapitalize="characters" autoComplete="off" />
+          </Field>
+        </div>
+        <div className="cc-settings-form__foot">
+          <Button type="submit" variant="danger" loading={deleting} disabled={!password || typed !== "DELETE"}>
+            Delete my account and data
+          </Button>
+        </div>
+      </form>
+    </SectionCard>
   );
 }
 
@@ -256,25 +236,17 @@ export default function AccountPage() {
       {!me && !failed && <SkeletonBlock height={220} />}
       {me && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <Card>
-            <SectionTitle>Profile</SectionTitle>
-            <ProfileForm initial={me} />
-          </Card>
-          <Card>
-            <SectionTitle>Password</SectionTitle>
-            <PasswordForm />
-          </Card>
-          <Card>
-            <SectionTitle>Log out</SectionTitle>
-            <p style={{ fontSize: 14, color: "var(--cc-text-muted)", margin: "0 0 12px" }}>Logs you out on this device.</p>
-            <Button variant="secondary" onClick={logout}>
-              Log out
-            </Button>
-          </Card>
-          <Card>
-            <SectionTitle>Delete my account and data</SectionTitle>
-            <DeleteAccount />
-          </Card>
+          <ProfileForm initial={me} />
+          <PasswordForm />
+          <SectionCard icon={LogOut} title="Log out">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <p style={{ fontSize: 14, color: "var(--cc-text-muted)", margin: 0 }}>Logs you out on this device.</p>
+              <Button variant="secondary" onClick={logout}>
+                Log out
+              </Button>
+            </div>
+          </SectionCard>
+          <DeleteAccount />
         </div>
       )}
     </Screen>

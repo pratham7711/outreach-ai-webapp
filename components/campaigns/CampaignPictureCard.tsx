@@ -82,7 +82,8 @@ export function CampaignPictureCard({
   }
 
   return (
-    <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 24 }}>
+    <div className="ui-card ui-card-outlined">
+      <div className="ui-card-body">
       <ThumbnailDrop
         asCard
         hint={
@@ -97,6 +98,7 @@ export function CampaignPictureCard({
         onFile={pick}
         onRemove={uploaded || (thumbnailUrl && !hasSound) ? remove : undefined}
       />
+      </div>
     </div>
   );
 }

@@ -1,20 +1,30 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import { PageHeader } from "@/components/ds/PageHeader";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Search, ArrowRight, Check, Banknote, Download } from "lucide-react";
-import { Card, Badge, EmptyState, Input } from "@pratham7711/ui";
-import { MetricTile, useConfirm, Button } from "@/components/ds";
-import { StatusTabs } from "@/components/ds";
+import { Plus, Banknote, Download } from "lucide-react";
+import {
+  Button,
+  DataTable,
+  ListToolbar,
+  MetricTile,
+  MoreMenu,
+  NoResults,
+  PageHeader,
+  StatusBadge,
+  StatusTabs,
+  useConfirm,
+  type DataTableColumn,
+} from "@/components/ds";
 import { toast } from "sonner";
 import AddPayoutModal from "@/components/modals/AddPayoutModal";
 import PayoutDetailModal from "@/components/modals/PayoutDetailModal";
-import { stripAt, formatDateAbs } from "@/lib/format";
+import { stripAt, formatDateAbs, formatFull } from "@/lib/format";
 import { downloadCsv, exportStamp } from "@/lib/csv";
 import type { PayoutCurrencyTotals } from "@/lib/payouts/totals";
 import { action } from "@/lib/ui/actions";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
+import { PAYOUT_WIDTHS } from "./columns";
 
 type Payout = {
   id: string;
@@ -32,24 +42,16 @@ type Payout = {
   campaign: { id: string; title: string } | null;
 };
 
-type Creator = { id: string; name: string; handle: string };
-type Campaign = { id: string; title: string };
-
-const STATUS_BADGE_VARIANT: Record<string, "warning" | "success" | "danger" | "neutral"> = {
-  PENDING: "warning",
-  PROCESSING: "neutral",
-  SUCCESS: "success",
-  FAILED: "danger",
-};
-
 const STATUS_TABS = ["All", "Pending", "Processing", "Success", "Failed"];
 
-const QUICK_ACTIONS: Record<string, { label: ReactNode; status: string }[]> = {
+/* The status changes a row offers. The first is the row's one labelled button;
+   the rest sit in its ⋯ menu beside "View payout details". */
+const NEXT_STATUS: Record<string, { label: string; status: string }[]> = {
   PENDING: [
-    { label: "Mark Paid", status: "SUCCESS" },
-    { label: <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><ArrowRight size={14} /> Processing</span>, status: "PROCESSING" },
+    { label: "Mark paid", status: "SUCCESS" },
+    { label: "Mark processing", status: "PROCESSING" },
   ],
-  PROCESSING: [{ label: <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><ArrowRight size={14} /> Success</span>, status: "SUCCESS" }],
+  PROCESSING: [{ label: "Mark paid", status: "SUCCESS" }],
 };
 
 /* The payout's own currency, never a blanket "USD". Every row carries one, the
@@ -86,7 +88,7 @@ function TileValue({
   // (rows is sorted by total) shows its zero.
   const shown = contributing.length > 0 ? contributing : rows.slice(0, 1);
   return (
-    <span className="payout-tile-stack">
+    <span className="flex flex-col">
       {shown.map((row) => (
         <span key={row.currency}>{formatCurrency(pick(row), row.currency)}</span>
       ))}
@@ -116,6 +118,12 @@ export default function PayoutsClient({ payouts, stats }: {
       statusFilter === "All" || p.status.toUpperCase() === statusFilter.toUpperCase();
     return matchSearch && matchStatus;
   });
+  const isFiltered = search.trim() !== "" || statusFilter !== "All";
+  const stackFit = stats.length > 1 ? 13 : undefined;
+  const clearFilters = () => {
+    setSearch("");
+    setStatusFilter("All");
+  };
 
   // Exports what is on screen, not the whole table: someone who has narrowed
   // to the failed payouts for one creator wants those rows, and a file that
@@ -150,6 +158,7 @@ export default function PayoutsClient({ payouts, stats }: {
     });
   };
 
+  const allSelected = filtered.length > 0 && selected.size === filtered.length;
   const toggleAll = () => {
     if (selected.size === filtered.length) {
       setSelected(new Set());
@@ -217,274 +226,213 @@ export default function PayoutsClient({ payouts, stats }: {
     }
   };
 
+  /* The checkbox shares the creator's cell rather than taking a column of its
+     own: on a phone the table pins its first column while the rest scroll, and
+     a pinned checkbox with the name scrolled away identifies nothing. The name
+     is a button because a payout opens in a dialog, not on a page of its own. */
+  const columns: DataTableColumn<Payout>[] = [
+    {
+      key: "creator",
+      header: "Creator",
+      width: PAYOUT_WIDTHS.creator,
+      minWidth: 240,
+      render: (p) => (
+        <div className="flex min-w-0 items-center gap-3">
+          <label className="flex min-h-8 shrink-0 cursor-pointer items-center">
+            <input
+              type="checkbox"
+              className="size-4 cursor-pointer accent-[var(--cc-primary)]"
+              aria-label={`Select payout for ${p.creator.name}`}
+              checked={selected.has(p.id)}
+              onChange={() => toggleSelect(p.id)}
+            />
+          </label>
+          <CreatorAvatar id={p.creator.id} name={p.creator.name} size="sm" />
+          <span className="min-w-0">
+            <button
+              type="button"
+              className="cc-dt-primary block max-w-full cursor-pointer truncate text-left"
+              title={p.creator.name}
+              onClick={() => setDetailPayout(p)}
+            >
+              <span className="sr-only">View payout details for </span>
+              {p.creator.name}
+            </button>
+            <span className="cc-dt-sub">@{stripAt(p.creator.handle)}</span>
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: "campaign",
+      header: "Campaign",
+      width: PAYOUT_WIDTHS.campaign,
+      minWidth: 180,
+      truncate: (p) => p.campaign?.title,
+      render: (p) => p.campaign?.title ?? "—",
+    },
+    {
+      key: "amount",
+      header: "Amount",
+      align: "right",
+      width: PAYOUT_WIDTHS.amount,
+      render: (p) => formatCurrency(p.amount, p.currency),
+    },
+    {
+      key: "status",
+      header: "Status",
+      width: PAYOUT_WIDTHS.status,
+      render: (p) => <StatusBadge status={p.status} />,
+    },
+    {
+      key: "date",
+      header: "Date",
+      width: PAYOUT_WIDTHS.date,
+      render: (p) => formatDateAbs(p.createdAt),
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      hideHeader: true,
+      align: "right",
+      width: PAYOUT_WIDTHS.actions,
+      render: (p) => {
+        const [main, ...rest] = NEXT_STATUS[p.status] ?? [];
+        const busy = transitioning.has(p.id);
+        return (
+          <div className="flex items-center justify-end gap-2">
+            {main ? (
+              <Button size="sm" variant="secondary" loading={busy} onClick={() => handleStatusChange(p.id, main.status)}>
+                {main.label}
+              </Button>
+            ) : null}
+            <MoreMenu
+              size="sm"
+              label={`More actions for the payout to ${p.creator.name}`}
+              items={[
+                { label: "View payout details", onClick: () => setDetailPayout(p) },
+                ...rest.map((a) => ({
+                  label: a.label,
+                  disabled: busy,
+                  onClick: () => handleStatusChange(p.id, a.status),
+                })),
+              ]}
+            />
+          </div>
+        );
+      },
+    },
+  ];
+
   return (
-    <div className="rsp-page cc-end-41 page-enter cc-payoutpage">
-      {/* PageHeader, not a hand-rolled row. MEASURED 2026-09-14 at desktop-1600:
-          this page's h1 read 26px/800 at y=25 while every other page -- and
-          theirs -- reads 24px/700 at y=31, and its two buttons sat outside
-          `.cc-page-actions`, so the theme's action rules (the 180x40 box, the
-          18px/400 label, the outline secondary skin) reached neither. Their
-          `Export Data` is at 1379,26 in a 180x40 box; ours was at 1301.7,41.5
-          with a 12px label. */}
+    <div className="rsp-page page-enter">
       <PageHeader
         title="Payouts"
         subtitle="Track and manage creator payments"
         actions={
-          /* Export Data is the FILLED one here, New Payout the outline --
-             the opposite of every other list page. MEASURED from their census:
-             their Export Data label is white on the fill and their
-             New Payout label is brand indigo on white. Ours had the two
-             skins the other way round. The slot rule gives both the same
-             180x40 box. Export Data is also the page header's ONLY action
-             on their side -- their New Payout is a 400x50 outline button in
-             the balance banner below, at 1160,104.5 -- so it moves out of the
-             header rather than keeping the second slot, which is what put our
-             filled button on the left where theirs has nothing. */
-          <Button
-            variant="primary"
-            iconLeft={<Download size={15} />}
-            size="sm"
-            disabled={filtered.length === 0}
-            onClick={exportData}
-            {...action("export-data")}
-          >
-            Export Data
-          </Button>
+          <>
+            <Button
+              variant="secondary"
+              iconLeft={<Download size={16} aria-hidden="true" />}
+              disabled={filtered.length === 0}
+              onClick={exportData}
+              {...action("export-data")}
+            >
+              Export CSV
+            </Button>
+            <Button variant="primary" iconLeft={<Plus size={16} aria-hidden="true" />} onClick={() => setShowModal(true)}>
+              New payout
+            </Button>
+          </>
+        }
+        tabs={
+          <StatusTabs
+            ariaLabel="Filter payouts by status"
+            tabs={STATUS_TABS.map((s) => ({
+              key: s,
+              label: s,
+              count: s === "All" ? payouts.length : payouts.filter((p) => p.status.toUpperCase() === s.toUpperCase()).length,
+            }))}
+            active={statusFilter}
+            onChange={setStatusFilter}
+          />
         }
       />
 
-      {/* Their New Payout does not sit in the header strip -- it sits in an
-          indigo Balance banner between the strip and the transactions card,
-          as a 400x50 white button at 1160,104.5 (MEASURED, payouts census
-          2026-09-14). The banner wrapper is `display: contents` at base, so
-          off-theme this is still exactly the right-aligned action row it was;
-          the balance block itself is hidden at base for the same reason. */}
-      <div className="cc-payout-banner">
-        <div className="cc-payout-balance">
-          <span className="cc-payout-balance-label">Balance</span>
-          <span className="cc-payout-balance-value">
-            <TileValue rows={stats} pick={(r) => r.sent} />
-          </span>
-        </div>
-        <div className="cc-payout-actions">
-          <Button variant="secondary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setShowModal(true)}>
-            New Payout
-          </Button>
-        </div>
+      {/* A tile holding one line per currency takes the smaller figure size,
+          so a four-currency stack fits the box one figure uses. */}
+      <div className="cc-tiles-balanced mb-6">
+        <MetricTile metric="totalPaid" fitTo={stackFit} value={<TileValue rows={stats} pick={(r) => r.sent} />} />
+        <MetricTile metric="pendingPayouts" fitTo={stackFit} value={<TileValue rows={stats} pick={(r) => r.pending} />} />
+        <MetricTile metric="processingPayouts" fitTo={stackFit} value={<TileValue rows={stats} pick={(r) => r.processing} />} />
+        <MetricTile metric="failedPayouts" fitTo={stackFit} value={<TileValue rows={stats} pick={(r) => r.failed} />} />
       </div>
 
-      {/* Stats */}
-      <style>{`
-        .payout-tiles { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        @media (min-width: 640px) { .payout-tiles { gap: 16px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); } }
-        .payout-tiles .ui-statcard { min-width: 0; }
-        .payout-tiles .ui-statcard-value { overflow-wrap: anywhere; font-size: clamp(17px, 5vw, 30px); }
-        /* A tile holding several currencies gives each its own line, at a size
-           that fits four of them in the same box one figure used to occupy. */
-        .payout-tile-stack { display: flex; flex-direction: column; gap: 2px; font-size: clamp(15px, 3.2vw, 20px); line-height: 1.3; }
-        .payout-inner { min-width: 780px; }
-        .payout-head, .payout-row { display: grid; grid-template-columns: 40px 1fr 140px 100px 100px 120px 160px; gap: 12px; align-items: center; }
-        .payout-head { padding: 12px 24px; border-bottom: 1px solid var(--cc-border); background: var(--cc-bg); }
-        .payout-row { padding: 14px 24px; }
-        @media (max-width: 767px) {
-          .payout-inner { min-width: 0; }
-          .payout-head { display: none; }
-          .payout-row { display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; row-gap: 8px; padding: 14px 16px; }
-          .payout-row > [data-col="creator"] { order: 1; flex: 1 1 auto; min-width: 0; }
-          .payout-row > [data-col="amount"] { order: 2; margin-left: auto; }
-          .payout-row > [data-col="campaign"] { order: 3; flex-basis: 100%; }
-          .payout-row > [data-col="status"] { order: 4; }
-          .payout-row > [data-col="date"] { order: 5; margin-left: auto; }
-          .payout-row > [data-col="action"] { order: 6; flex-basis: 100%; }
-        }
-      `}</style>
-      <div className="cc-stagger payout-tiles" style={{ marginBottom: 32 }}>
-        <MetricTile metric="totalPaid" value={<TileValue rows={stats} pick={(r) => r.sent} />} />
-        <MetricTile metric="pendingPayouts" value={<TileValue rows={stats} pick={(r) => r.pending} />} />
-        <MetricTile metric="processingPayouts" value={<TileValue rows={stats} pick={(r) => r.processing} />} />
-        <MetricTile metric="failedPayouts" value={<TileValue rows={stats} pick={(r) => r.failed} />} />
-      </div>
-
-      {/* Their transactions card opens with a heading and a count before the
-          toolbar -- h2 at 290,247 and the caption at 290,281, with the search
-          at 290,305.8. Both are hidden at base, where this page has never had
-          them. The count is one text node on purpose: split into {n} + " ..."
-          the census keys it on the fragment and measures 10px of it. */}
-      <h2 className="cc-paypage-title">Transactions</h2>
-      <p className="cc-paypage-caption">{`${filtered.length} Transactions`}</p>
-
-      {/* Search + Status Filter */}
-      <div className="cc-paypage-bar" style={{ marginBottom: 24, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-        <div className="cc-paypage-search" style={{ flex: 1, minWidth: 180 }}>
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search Transactions"
-            iconLeft={<Search size={16} />}
-          />
-        </div>
-        <StatusTabs
-          ariaLabel="Filter payouts by status"
-          tabs={STATUS_TABS.map((s) => ({
-            key: s,
-            label: s,
-            count: s === "All" ? payouts.length : payouts.filter((p) => p.status.toUpperCase() === s.toUpperCase()).length,
-          }))}
-          active={statusFilter}
-          onChange={setStatusFilter}
-        />
-      </div>
-
-      {/* Bulk action bar */}
-      {selected.size > 0 && (
-        <div style={{
-          marginBottom: 16, padding: "10px 16px", background: "var(--cc-primary)", borderRadius: 10,
-          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap",
-        }}>
-          <span style={{ color: "var(--cc-on-primary)", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)"}}>
-            {selected.size} selected
-          </span>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <Button size="sm" variant="secondary" onClick={() => handleBulkAction("PROCESSING")}>
-              Mark Processing
-            </Button>
-            <Button size="sm" variant="secondary" onClick={() => handleBulkAction("SUCCESS")}>
-              Mark Success
-            </Button>
-            <Button size="sm" variant="secondary" onClick={() => handleBulkAction("FAILED")}>
-              Mark Failed
-            </Button>
-            <Button size="sm" variant="secondary" onClick={() => setSelected(new Set())}>
-              Clear
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Table */}
-      <Card variant="solid" noPadding>
-        {filtered.length === 0 ? (
-          <div style={{ padding: "48px 24px" }}>
-            <EmptyState
-              icon={<Banknote size={32} color="var(--cc-text-subtle)" />}
-              title="No payouts yet"
-              description="Process your first creator payment to get started"
-              action={
-                <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowModal(true)}>
-                  New Payout
-                </Button>
-              }
-            />
-          </div>
-        ) : (
-          <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            <div className="payout-inner">
-            {/* Table header */}
-            <div className="payout-head">
-              {/* Same reasoning as the per-row box below: the label takes the
-                  cell so the target is finger-sized without resizing the box. */}
-              <label style={{ display: "flex", alignItems: "center", width: "100%", height: "100%", minHeight: 32, cursor: "pointer" }}>
+      {/* With rows picked, the bulk changes take the toolbar's right side: the
+          common one labelled, the rest in ⋯. Select all stays beside them. */}
+      <ListToolbar
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: "Search payouts",
+          ariaLabel: "Search payouts by creator or campaign",
+        }}
+        end={
+          filtered.length > 0 ? (
+            <>
+              {selected.size > 0 ? (
+                <>
+                  <span className="text-sm font-medium text-[var(--cc-text)]" aria-live="polite">
+                    {formatFull(selected.size)} selected
+                  </span>
+                  <Button variant="secondary" onClick={() => handleBulkAction("SUCCESS")}>
+                    Mark paid
+                  </Button>
+                  <MoreMenu
+                    label="More actions for the selected payouts"
+                    items={[
+                      { label: "Mark processing", onClick: () => handleBulkAction("PROCESSING") },
+                      { label: "Mark failed", onClick: () => handleBulkAction("FAILED") },
+                      { label: "Clear selection", startsGroup: true, onClick: () => setSelected(new Set()) },
+                    ]}
+                  />
+                </>
+              ) : null}
+              <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-[var(--cc-text)]">
                 <input
                   type="checkbox"
-                  aria-label="Select all payouts"
-                  checked={selected.size === filtered.length && filtered.length > 0}
+                  className="size-4 cursor-pointer accent-[var(--cc-primary)]"
+                  checked={allSelected}
                   onChange={toggleAll}
-                  style={{ accentColor: "var(--cc-primary)", width: 16, height: 16 }}
                 />
+                Select all
               </label>
-              {["Creator", "Campaign", "Amount", "Status", "Date", "Action"].map((h) => (
-                <span key={h} className="cc-microlabel">{h}</span>
-              ))}
-            </div>
-            <div className="cc-stagger">
-              {filtered.map((p, i) => (
-                <div
-                  key={p.id}
-                  className="cc-table-row payout-row"
-                  style={{
-                    borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
-                    cursor: "pointer",
-                    background: selected.has(p.id) ? "var(--cc-bg)" : undefined,
-                  }}
-                  onClick={() => setDetailPayout(p)}
-                >
-                  {/* Checkbox. A bare input is 13x13, which is a quarter of the
-                      44px a finger needs and was the smallest thing on the page
-                      by area. The box keeps its size -- the label around it
-                      takes the whole cell, which is already row-height, so the
-                      tap area grows and the layout does not move. */}
-                  <label
-                    data-col="check"
-                    style={{
-                      display: "flex", alignItems: "center",
-                      width: "100%", height: "100%", minHeight: 32,
-                      cursor: "pointer",
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <input
-                      type="checkbox"
-                      aria-label={`Select payout for ${p.creator.name}`}
-                      checked={selected.has(p.id)}
-                      onChange={() => toggleSelect(p.id)}
-                      style={{ accentColor: "var(--cc-primary)", width: 16, height: 16 }}
-                    />
-                  </label>
-                  {/* Creator — keyboard-accessible entry point to the detail view */}
-                  <button
-                    type="button"
-                    data-col="creator"
-                    onClick={(e) => { e.stopPropagation(); setDetailPayout(p); }}
-                    aria-label={`View payout details for ${p.creator.name}`}
-                    style={{ display: "flex", alignItems: "center", gap: 12, background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", font: "inherit", minWidth: 0 }}
-                  >
-                    <CreatorAvatar id={p.creator.id} name={p.creator.name} size="sm" />
-                    <div style={{ minWidth: 0 }}>
-                      <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{p.creator.name}</p>
-                      <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>@{stripAt(p.creator.handle)}</p>
-                    </div>
-                  </button>
-                  {/* Campaign */}
-                  <span data-col="campaign" style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{p.campaign?.title ?? "—"}</span>
-                  {/* Amount */}
-                  <span data-col="amount" style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: "var(--cc-text)" }}>{formatCurrency(p.amount, p.currency)}</span>
-                  {/* Status */}
-                  <div data-col="status">
-                    <Badge variant={STATUS_BADGE_VARIANT[p.status] ?? "neutral"} dot>
-                      {p.status}
-                    </Badge>
-                  </div>
-                  {/* Date */}
-                  <span data-col="date" style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{formatDateAbs(p.createdAt)}</span>
-                  {/* Quick action */}
-                  <div data-col="action" onClick={(e) => e.stopPropagation()}>
-                    {(QUICK_ACTIONS[p.status] ?? []).length > 0 ? (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                        {(QUICK_ACTIONS[p.status] ?? []).map((action) => (
-                          <Button
-                            key={action.status}
-                            size="sm"
-                            variant={action.label === "Mark Paid" ? "primary" : "secondary"}
-                            disabled={transitioning.has(p.id)}
-                            onClick={() => handleStatusChange(p.id, action.status)}
-                          >
-                            {transitioning.has(p.id) ? "..." : action.label}
-                          </Button>
-                        ))}
-                      </div>
-                    ) : p.status === "SUCCESS" ? (
-                      <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-success)", fontWeight: "var(--cc-fw-strong)"}}>
-                        <Check size={14} style={{ display: "inline", verticalAlign: "middle" }} /> Done
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-              ))}
-            </div>
-            </div>
-          </div>
-        )}
-      </Card>
+            </>
+          ) : null
+        }
+      />
+
+      <DataTable
+        caption="Payouts"
+        columns={columns}
+        rows={filtered}
+        rowKey={(p) => p.id}
+        empty={
+          isFiltered ? (
+            <NoResults
+              title="No payouts match"
+              description="Nothing matches this search and status."
+              onClear={clearFilters}
+            />
+          ) : (
+            <NoResults
+              icon={<Banknote size={32} strokeWidth={1.75} />}
+              title="No payouts yet"
+              description="Process your first creator payment with New payout."
+            />
+          )
+        }
+      />
 
       {showModal && <AddPayoutModal onClose={() => setShowModal(false)} />}
       {detailPayout && (

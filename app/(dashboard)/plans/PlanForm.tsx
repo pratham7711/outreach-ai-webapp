@@ -1,9 +1,10 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Input, Textarea, Card } from "@pratham7711/ui";
-import { PageHeader, Button } from "@/components/ds";
-import { FEATURES, type FeatureKey } from "@/lib/features";
+import { ClipboardList, Pencil } from "lucide-react";
+import { PageHeader, Field, SettingsForm } from "@/components/ds";
+import { useDirty } from "@/lib/useDirty";
+import { PlanDetailsFields, PlanFeatureList, enabledCount, featureKeys, planDraft, type PlanDraft } from "./planFields";
 
 type PlanFormProps = {
   initial?: {
@@ -15,31 +16,25 @@ type PlanFormProps = {
   };
 };
 
+/**
+ * The page form for a plan, at /plans/new and /plans/<id>. /plans itself edits
+ * plans in a dialog; this is the same set of fields (planFields) for a direct
+ * link, framed like every settings form: a card with Cancel and Save at its
+ * foot. Save waits for the required name on a new plan and for a change on an
+ * existing one; Cancel puts the form back to how it was loaded.
+ */
 export default function PlanForm({ initial }: PlanFormProps) {
   const router = useRouter();
   const isEdit = !!initial;
 
-  const [name, setName] = useState(initial?.name ?? "");
-  const [description, setDescription] = useState(initial?.description ?? "");
-  const [features, setFeatures] = useState<Record<string, boolean>>(() => {
-    const base: Record<string, boolean> = {};
-    for (const key of Object.keys(FEATURES)) {
-      base[key] = initial?.features?.[key] ?? false;
-    }
-    return base;
-  });
+  const [saved, setSaved] = useState<PlanDraft>(() => planDraft(initial));
+  const [draft, setDraft] = useState<PlanDraft>(saved);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dirty = useDirty(saved, draft);
 
-  const featureKeys = Object.keys(FEATURES) as FeatureKey[];
-
-  function toggleFeature(key: FeatureKey) {
-    setFeatures((prev) => ({ ...prev, [key]: !prev[key] }));
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!name.trim()) { setError("Plan name is required"); return; }
+  async function save() {
+    if (!draft.name.trim()) return;
     setSaving(true);
     setError(null);
     try {
@@ -48,126 +43,59 @@ export default function PlanForm({ initial }: PlanFormProps) {
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), description: description.trim() || null, features, isCustom: true }),
+        body: JSON.stringify({
+          name: draft.name.trim(),
+          description: draft.description.trim() || null,
+          features: draft.features,
+          isCustom: draft.isCustom,
+        }),
       });
       if (!res.ok) {
-        const data = await res.json();
-        setError(data?.error?.formErrors?.[0] ?? "Failed to save plan");
+        const data = await res.json().catch(() => null);
+        setError(data?.error?.formErrors?.[0] ?? "Couldn't save the plan. Nothing was changed.");
         return;
       }
+      setSaved(draft);
       router.push("/plans");
       router.refresh();
     } catch {
-      setError("Network error");
+      setError("The request didn't go through. Nothing was changed.");
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <div className="rsp-page page-enter" style={{ maxWidth: 640 }}>
+    <div className="rsp-page page-enter">
       <PageHeader
-        title={isEdit ? "Edit Plan" : "New Plan"}
-        subtitle={isEdit ? "Update plan name, description, and features." : "Create a custom plan with feature toggles."}
+        title={isEdit ? "Edit plan" : "New plan"}
+        back={{ href: "/plans", label: "Plans" }}
+        subtitle={isEdit ? "Update the plan's name, description and features." : "Create a plan and choose its features."}
       />
 
-      {error && (
-        <div style={{ marginBottom: 24, padding: "12px 16px", borderRadius: 10, fontSize: "var(--cc-t-14)", background: "color-mix(in srgb, var(--cc-danger) 12%, transparent)", color: "var(--cc-danger)", border: "1px solid color-mix(in srgb, var(--cc-danger) 28%, transparent)" }}>
-          {error}
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-        <Input
-          label="Plan Name *"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Enterprise Plus"
-          required
-        />
-
-        <Textarea
-          label="Description"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Optional description of this plan"
-          rows={2}
-        />
-
-        {/* Features */}
-        <Card variant="outlined" noPadding>
-          <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--cc-border)" }}>
-            <span style={{ fontWeight: 700, fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>Feature Toggles</span>
-          </div>
-          {featureKeys.map((key, i) => {
-            const feat = FEATURES[key];
-            const enabled = features[key] ?? false;
-            return (
-              <div
-                key={key}
-                className="cc-table-row"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 16,
-                  padding: "14px 20px",
-                  borderBottom: i < featureKeys.length - 1 ? "1px solid var(--cc-border)" : "none",
-                }}
-              >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div id={`plan-feat-${key}`} style={{ fontWeight: "var(--cc-fw-strong)", fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>{feat.label}</div>
-                  <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginTop: 1 }}>{feat.description}</div>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={enabled}
-                  /* labelledby, not aria-label: the phone touch rule keys on
-                     [aria-label] and would stretch this 24px track to 44px. */
-                  aria-labelledby={`plan-feat-${key}`}
-                  onClick={() => toggleFeature(key)}
-                  style={{
-                    width: 44,
-                    height: 24,
-                    borderRadius: 12,
-                    border: "none",
-                    cursor: "pointer",
-                    position: "relative",
-                    background: enabled ? "var(--cc-primary)" : "var(--cc-text-subtle)",
-                    transition: "background 0.2s",
-                    flexShrink: 0,
-                  }}
-                >
-                  <span
-                    style={{
-                      display: "inline-block",
-                      width: 20,
-                      height: 20,
-                      borderRadius: "50%",
-                      background: "var(--cc-on-primary)",
-                      boxShadow: "0 1px 3px color-mix(in srgb, var(--cc-shadow-ink) 20%, transparent)",
-                      position: "absolute",
-                      top: 2,
-                      left: enabled ? 22 : 2,
-                      transition: "left 0.2s",
-                    }}
-                  />
-                </button>
-              </div>
-            );
-          })}
-        </Card>
-
-        {/* Actions */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <Button type="submit" variant="primary" loading={saving}>
-            {isEdit ? "Save Changes" : "Create Plan"}
-          </Button>
-          <Button type="button" variant="secondary" onClick={() => router.push("/plans")}>
-            Cancel
-          </Button>
-        </div>
-      </form>
+      {/* A reading measure wide, starting on the gutter with the title. */}
+      <div style={{ maxWidth: "36rem" }}>
+        <SettingsForm
+          icon={isEdit ? Pencil : ClipboardList}
+          title="Plan"
+          description="Name the plan and choose which features clients on it can use."
+          dirty={dirty}
+          saving={saving}
+          invalid={!draft.name.trim()}
+          onSubmit={save}
+          onCancel={() => {
+            setDraft(saved);
+            setError(null);
+          }}
+          saveLabel={isEdit ? "Save changes" : "Create plan"}
+          status={error ? <span className="cc-form-error" role="alert">{error}</span> : null}
+        >
+          <PlanDetailsFields draft={draft} onChange={setDraft} />
+          <Field label="Feature access" group helper={`${enabledCount(draft)} of ${featureKeys.length} on`}>
+            <PlanFeatureList draft={draft} onChange={setDraft} />
+          </Field>
+        </SettingsForm>
+      </div>
     </div>
   );
 }

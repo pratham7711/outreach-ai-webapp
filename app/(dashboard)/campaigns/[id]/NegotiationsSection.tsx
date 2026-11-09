@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
-import { Card, Badge, Input, Modal, EmptyState, Skeleton, Tag } from "@pratham7711/ui";
+import React, { useState, useEffect, useCallback, useId } from "react";
+import { Card, Badge, Input, EmptyState, Tag, Textarea } from "@pratham7711/ui";
+import { Modal, ModalSection } from "@/components/ds/Modal";
 import { Handshake, Check, X, ArrowRightLeft, Sparkles, AlertTriangle } from "lucide-react";
 import { CreatorSelect, type PickableCreator } from "@/components/CreatorSelect";
 import { stripAt } from "@/lib/format";
-import { Dropdown, Button } from "@/components/ds";
+import { Dropdown, Button, Skeleton } from "@/components/ds";
 import { formatCurrencyTotals, type CurrencyAmount } from "@/lib/money";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import { creatorNameText } from "@/lib/creators/creatorName";
@@ -74,6 +75,7 @@ export default function NegotiationsSection({
     offeredRate: "",
     currency: "USD",
   });
+  const uid = useId();
 
   const fetchOffers = useCallback(async () => {
     setError(null);
@@ -195,17 +197,6 @@ export default function NegotiationsSection({
     );
   };
 
-  const selectStyle = {
-    width: "100%",
-    padding: "10px 14px",
-    borderRadius: 10,
-    border: "1px solid var(--cc-border)",
-    fontSize: "var(--cc-t-14)",
-    color: "var(--cc-text)",
-    background: "var(--cc-card)",
-    boxSizing: "border-box" as const,
-  };
-
   const creatorName = (offer: Offer) =>
     offer.creator ? creatorNameText(offer.creator.name, offer.creator.handle) : "Deleted creator";
 
@@ -273,7 +264,7 @@ export default function NegotiationsSection({
       )}
 
       {error ? (
-        <Card variant="outlined" style={{ padding: 24 }}>
+        <Card variant="outlined">
           <EmptyState icon={<AlertTriangle size={32} color="var(--cc-text-subtle)" />} title="Couldn't load negotiations" description={error} />
           <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
             <Button variant="secondary" onClick={fetchOffers}>
@@ -282,7 +273,7 @@ export default function NegotiationsSection({
           </div>
         </Card>
       ) : offers.length === 0 ? (
-        <Card variant="outlined" style={{ padding: 24 }}>
+        <Card variant="outlined">
           <EmptyState icon={<Handshake size={32} color="var(--cc-text-subtle)" />} title="No negotiations" description="Start by making an offer to a creator." />
         </Card>
       ) : (
@@ -402,15 +393,20 @@ export default function NegotiationsSection({
         <Modal
           open={true}
           onClose={() => setShowCreate(false)}
+          icon={Handshake}
+          tone="brand"
           title="Make Offer"
+          description="Offer one creator a rate for this campaign."
           size="md"
+          dismissible={false}
           footer={
             <div className="cc-modal-footer">
-              <Button variant="secondary" onClick={() => setShowCreate(false)}>
+              <Button variant="secondary" size="sm" onClick={() => setShowCreate(false)}>
                 Cancel
               </Button>
               <Button
                 variant="primary"
+                size="sm"
                 loading={submitting}
                 onClick={handleCreate}
                 disabled={!form.creatorId || !form.offeredRate}
@@ -420,18 +416,15 @@ export default function NegotiationsSection({
             </div>
           }
         >
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div>
-              <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>
-                Creator
-              </label>
-              <CreatorSelect
-                value={form.creatorId}
-                onChange={(id) => setForm((f) => ({ ...f, creatorId: id }))}
-              />
-            </div>
-            <div style={{ display: "flex", gap: 12 }}>
-              <div style={{ flex: 1 }}>
+          <ModalSection title="Creator">
+            <CreatorSelect
+              value={form.creatorId}
+              onChange={(id) => setForm((f) => ({ ...f, creatorId: id }))}
+            />
+          </ModalSection>
+          <ModalSection title="Offer">
+            <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <Input
                   label="Offered Rate"
                   type="number"
@@ -441,14 +434,10 @@ export default function NegotiationsSection({
                   required
                 />
               </div>
-              <div style={{ width: 110 }}>
-                <label
-                  style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}
-                >
-                  Currency
-                </label>
+              <div className="ui-input-root" style={{ width: 120 }}>
+                <label htmlFor={`${uid}-currency`} className="ui-input-label">Currency</label>
                 <Dropdown
-                  ariaLabel="Currency"
+                  id={`${uid}-currency`}
                   align="left"
                   fullWidth
                   value={form.currency}
@@ -457,19 +446,14 @@ export default function NegotiationsSection({
                 />
               </div>
             </div>
-            <div>
-              <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>
-                Notes (optional)
-              </label>
-              <textarea
-                value={form.notes}
-                onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-                placeholder="Any additional context..."
-                rows={2}
-                style={{ ...selectStyle, resize: "vertical" as const }}
-              />
-            </div>
-          </div>
+            <Textarea
+              label="Notes"
+              value={form.notes}
+              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+              placeholder="Any additional context..."
+              rows={2}
+            />
+          </ModalSection>
         </Modal>
       )}
 
@@ -478,15 +462,20 @@ export default function NegotiationsSection({
         <Modal
           open={true}
           onClose={() => setShowBatch(false)}
+          icon={Sparkles}
+          tone="brand"
           title="Start AI negotiation"
+          description="Send the same offer to several creators at once."
           size="md"
+          dismissible={false}
           footer={
             <div className="cc-modal-footer">
-              <Button variant="secondary" onClick={() => setShowBatch(false)}>
+              <Button variant="secondary" size="sm" onClick={() => setShowBatch(false)}>
                 Cancel
               </Button>
               <Button
                 variant="primary"
+                size="sm"
                 loading={submitting}
                 onClick={handleStartBatch}
                 disabled={batch.creatorIds.length === 0 || !batch.offeredRate}
@@ -496,9 +485,9 @@ export default function NegotiationsSection({
             </div>
           }
         >
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div style={{ display: "flex", gap: 12 }}>
-              <div style={{ flex: 1 }}>
+          <ModalSection title="Offer">
+            <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <Input
                   label="Offered Rate (per creator)"
                   type="number"
@@ -508,14 +497,10 @@ export default function NegotiationsSection({
                   required
                 />
               </div>
-              <div style={{ width: 110 }}>
-                <label
-                  style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}
-                >
-                  Currency
-                </label>
+              <div className="ui-input-root" style={{ width: 120 }}>
+                <label htmlFor={`${uid}-batch-currency`} className="ui-input-label">Currency</label>
                 <Dropdown
-                  ariaLabel="Currency"
+                  id={`${uid}-batch-currency`}
                   align="left"
                   fullWidth
                   value={batch.currency}
@@ -524,48 +509,30 @@ export default function NegotiationsSection({
                 />
               </div>
             </div>
-            <div>
-              <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>
-                Creators
-              </label>
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 8,
-                  maxHeight: 220,
-                  overflowY: "auto",
-                  padding: 4,
-                }}
-              >
-                {batchPicked.length === 0 ? (
-                  <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
-                    Search below and pick creators to offer.
-                  </span>
-                ) : (
-                  batchPicked.map((c) => (
-                    <Tag
-                      key={c.id}
-                      variant="accent"
-                      clickable
-                      onClick={() => toggleBatchCreator(c)}
-                      style={{ cursor: "pointer", fontWeight: "var(--cc-fw-strong)"}}
-                    >
-                      {c.name} ×
-                    </Tag>
-                  ))
-                )}
+          </ModalSection>
+          <ModalSection title="Creators" description={batchPicked.length === 0 ? "Search below and pick creators to offer." : undefined}>
+            {batchPicked.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, maxHeight: 220, overflowY: "auto", padding: 4 }}>
+                {batchPicked.map((c) => (
+                  <Tag
+                    key={c.id}
+                    variant="accent"
+                    clickable
+                    onClick={() => toggleBatchCreator(c)}
+                    style={{ cursor: "pointer", fontWeight: "var(--cc-fw-strong)"}}
+                  >
+                    {c.name} ×
+                  </Tag>
+                ))}
               </div>
-              <div style={{ marginTop: 8 }}>
-                <CreatorSelect
-                  value=""
-                  onChange={(_id, creator) => creator && toggleBatchCreator(creator)}
-                  excludeIds={batch.creatorIds}
-                  placeholder="Search creators to add to this batch"
-                />
-              </div>
-            </div>
-          </div>
+            )}
+            <CreatorSelect
+              value=""
+              onChange={(_id, creator) => creator && toggleBatchCreator(creator)}
+              excludeIds={batch.creatorIds}
+              placeholder="Search creators to add to this batch"
+            />
+          </ModalSection>
         </Modal>
       )}
     </div>

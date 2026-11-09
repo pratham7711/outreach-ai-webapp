@@ -2,25 +2,9 @@
 
 import React from "react";
 import Link from "next/link";
-import { NavLink } from "@/components/layout/NavLink";
-import { ArrowUpRight, ChevronRight, Clock, Megaphone } from "lucide-react";
-import { Badge } from "@pratham7711/ui";
-import { SectionCard } from "@/components/ds";
-import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  statusLabel,
-  STATUS_BADGE_VARIANT,
-  type ActivityEvent,
-  type Campaign,
-} from "../types";
+import { ArrowRight, ChevronRight, Clock, Megaphone } from "lucide-react";
+import { DataTable, SectionCard, StatusBadge, type DataTableColumn } from "@/components/ds";
+import { type ActivityEvent, type Campaign } from "../types";
 import { formatDateTimeAbs, timeAgo } from "@/lib/format";
 import { NOTIFICATION_LOOKBACK_DAYS, describeNotification } from "@/lib/notificationFeed";
 
@@ -29,8 +13,32 @@ type ActivitySectionProps = {
   recentEvents: ActivityEvent[];
 };
 
-const HEAD =
-  "h-9 px-3 text-[11px] font-semibold tracking-[0.06em] text-muted-foreground uppercase first:pl-6";
+/* The recent campaigns are a short listing, so they use the listing table:
+   the title links to the campaign, the status badge has no dot, and the
+   time column is right-aligned. */
+const CAMPAIGN_COLUMNS: DataTableColumn<Campaign>[] = [
+  {
+    key: "campaign",
+    header: "Campaign",
+    minWidth: 220,
+    render: (c) => (
+      <>
+        <span className="cc-dt-truncate" title={c.title}>{c.title}</span>
+        <span className="cc-dt-sub">{c.client?.name ?? "No client assigned"}</span>
+      </>
+    ),
+  },
+  { key: "status", header: "Status", width: 140, render: (c) => <StatusBadge status={c.status} /> },
+  {
+    key: "updated",
+    header: "Last updated",
+    width: 136,
+    align: "right",
+    render: (c) => (
+      <span title={c.updatedAt ? formatDateTimeAbs(c.updatedAt) : undefined}>{timeAgo(c.updatedAt)}</span>
+    ),
+  },
+];
 
 export function ActivitySection({ recentCampaigns, recentEvents }: ActivitySectionProps) {
 
@@ -42,68 +50,22 @@ export function ActivitySection({ recentCampaigns, recentEvents }: ActivitySecti
         description="The five campaigns your team touched most recently."
         padded={false}
         action={
-          <Button
-            variant="outline"
-            size="sm"
-            nativeButton={false}
-            render={<Link href="/campaigns" />}
-          >
+          <Link href="/campaigns" className="cc-dt-primary inline-flex items-center gap-1">
             View all
-            <ArrowUpRight aria-hidden="true" className="size-3.5" />
-          </Button>
+            <ArrowRight aria-hidden="true" size={14} />
+          </Link>
         }
       >
-        {recentCampaigns.length > 0 ? (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-border hover:bg-transparent">
-                  <TableHead className={`${HEAD} w-full`}>Campaign</TableHead>
-                  <TableHead className={`${HEAD} w-[132px]`}>Status</TableHead>
-                  <TableHead className={`${HEAD} w-[116px] text-right`}>Last updated</TableHead>
-                  <TableHead className="w-10 min-w-10" aria-label="Open campaign" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {recentCampaigns.map((c) => (
-                  <TableRow key={c.id} className="group relative border-border">
-                    <TableCell className="py-3 pr-3 pl-6">
-                      <NavLink prefetch={false}
-                        href={`/campaigns/${c.id}`}
-                        title={c.title}
-                        className="inline-block max-w-[34ch] truncate rounded-sm font-semibold text-foreground after:absolute after:inset-0 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                      >
-                        {c.title}
-                      </NavLink>
-                      <span className="mt-0.5 block text-xs text-muted-foreground">
-                        {c.client?.name ?? "No client assigned"}
-                      </span>
-                    </TableCell>
-                    <TableCell className="px-3 py-3">
-                      <Badge variant={STATUS_BADGE_VARIANT[c.status] ?? "neutral"} dot>
-                        {statusLabel(c.status)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell
-                      className="px-3 py-3 text-right text-xs whitespace-nowrap text-muted-foreground tabular-nums"
-                      title={c.updatedAt ? formatDateTimeAbs(c.updatedAt) : undefined}
-                    >
-                      {timeAgo(c.updatedAt)}
-                    </TableCell>
-                    <TableCell className="w-10 min-w-10 py-3 pr-4 pl-0 text-right">
-                      <ChevronRight
-                        aria-hidden="true"
-                        className="ml-auto size-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        ) : (
-          <p className="py-12 text-center text-sm text-muted-foreground">No campaigns yet</p>
-        )}
+        <DataTable
+          bare
+          caption="Recent campaigns"
+          columns={CAMPAIGN_COLUMNS}
+          rows={recentCampaigns}
+          rowKey={(c) => c.id}
+          rowHref={(c) => `/campaigns/${c.id}`}
+          stickyFirstColumn={false}
+          empty={<p className="py-12 text-center text-sm text-[var(--cc-text-muted)]">No campaigns yet</p>}
+        />
       </SectionCard>
 
       <SectionCard

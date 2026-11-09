@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Card, Badge, Modal, Skeleton } from "@pratham7711/ui";
-import { Send, Copy, RotateCcw, X } from "lucide-react";
+import { Card, Badge } from "@pratham7711/ui";
+import { Modal, ModalOption, ModalOptionList, ModalSection } from "@/components/ds/Modal";
+import { Send, Copy, RotateCcw, X, Link2, MessageCircle } from "lucide-react";
 import { CreatorSelect } from "@/components/CreatorSelect";
-import { Dropdown, Button } from "@/components/ds";
+import { Button, Skeleton } from "@/components/ds";
 import { formatDateAbs } from "@/lib/format";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import { creatorNameText } from "@/lib/creators/creatorName";
@@ -29,6 +30,11 @@ const STATUS_BADGE: Record<string, "warning" | "success" | "danger" | "neutral">
   DECLINED: "danger",
   EXPIRED: "neutral",
 };
+
+const INVITE_CHANNELS = [
+  { value: "LINK", label: "Shareable Link", icon: Link2, description: "Send the link however you like." },
+  { value: "INSTAGRAM_DM", label: "Instagram DM", icon: MessageCircle, description: "Marks the invite as sent in an Instagram DM." },
+] as const;
 
 /* The Creator column is the whole point of this table and it was printing a
    truncated cuid. The route resolves the name now; this only formats it. */
@@ -94,22 +100,24 @@ export default function InvitesSection({ campaignId }: { campaignId: string }) {
     setTimeout(() => setCopied(null), 2000);
   };
 
-  if (loading) return <Skeleton width="100%" height="100px" borderRadius="12px" />;
+  if (loading) return <Skeleton width="100%" height={100} radius="var(--cc-r-card)" />;
 
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <span className="cc-panel-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <Send size={16} /> Campaign Invites
+          <Send size={16} /> Campaign invites
         </span>
         <Button variant="primary" onClick={openCreate}>
-          <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Send size={14} /> Invite Creator</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Send size={14} /> Invite creator</span>
         </Button>
       </div>
 
-      {/* No empty card: the Invite Creator button above already says what to do,
+      {/* No empty card: the Invite creator button above already says what to do,
           and a bordered "No invites sent" box was most of this tab for every
-          campaign that never used invites. */}
+          campaign that never used invites. One muted line instead, so the
+          heading is not left with nothing under it. */}
+      {invites.length === 0 && <p className="cc-invites-empty">No invites sent yet.</p>}
       {invites.length > 0 && (
         <Card variant="solid" noPadding>
           <div style={{
@@ -154,43 +162,66 @@ export default function InvitesSection({ campaignId }: { campaignId: string }) {
         </Card>
       )}
 
-      {/* Invite Creator Modal */}
+      {/* Invite creator modal */}
       {showCreate && (
         /* "Draft with AI" sat on the left of this footer until October 2026.
            The route and OutreachDraftPanel are still in the repo; the button
            is not, along with the rest of the AI outreach surface. */
-        <Modal open={true} onClose={() => setShowCreate(false)} title="Invite Creator" size="md" footer={
-          <div className="cc-modal-footer" data-layout="split">
-            <div />
-            <div style={{ display: "flex", gap: 8 }}>
-              <Button variant="secondary" onClick={() => setShowCreate(false)}>Cancel</Button>
-              <Button variant="primary" loading={submitting} onClick={handleCreate} disabled={!form.creatorId}>Send Invite</Button>
+        <Modal
+          open={true}
+          onClose={() => setShowCreate(false)}
+          icon={Send}
+          tone="brand"
+          title="Invite creator"
+          description="Creates an invite for this campaign. Copy its link from the invites list to send it."
+          size="md"
+          footer={
+            <div className="cc-modal-footer">
+              <Button variant="secondary" size="sm" onClick={() => setShowCreate(false)}>Cancel</Button>
+              <Button
+                variant="primary"
+                size="sm"
+                loading={submitting}
+                onClick={handleCreate}
+                disabled={!form.creatorId}
+                iconLeft={<Send size={16} aria-hidden="true" />}
+              >
+                Send invite
+              </Button>
             </div>
-          </div>
-        }>
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div>
-              <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Creator</label>
-              <CreatorSelect
-                value={form.creatorId}
-                onChange={(id) => setForm(f => ({ ...f, creatorId: id }))}
-              />
-            </div>
-            <div>
-              <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Channel</label>
-              <Dropdown
-                ariaLabel="Channel"
-                align="left"
-                fullWidth
-                value={form.channel}
-                onChange={(v) => setForm(f => ({ ...f, channel: v }))}
-                options={[
-                  { value: "LINK", label: "Shareable Link" },
-                  { value: "INSTAGRAM_DM", label: "Instagram DM" },
-                ]}
-              />
-            </div>
-          </div>
+          }
+        >
+          <ModalSection title="Creator">
+            <CreatorSelect
+              value={form.creatorId}
+              onChange={(id) => setForm(f => ({ ...f, creatorId: id }))}
+            />
+          </ModalSection>
+          {/* How it goes out is a question about a creator, so it waits for one. */}
+          {form.creatorId && (
+            <ModalSection title="Channel">
+              <ModalOptionList>
+                {INVITE_CHANNELS.map((c) => (
+                  <ModalOption
+                    key={c.value}
+                    icon={c.icon}
+                    title={c.label}
+                    description={c.description}
+                    control={
+                      <input
+                        type="radio"
+                        name="invite-channel"
+                        value={c.value}
+                        checked={form.channel === c.value}
+                        onChange={() => setForm(f => ({ ...f, channel: c.value }))}
+                        style={{ width: 18, height: 18, accentColor: "var(--cc-primary)", cursor: "pointer" }}
+                      />
+                    }
+                  />
+                ))}
+              </ModalOptionList>
+            </ModalSection>
+          )}
         </Modal>
       )}
     </div>

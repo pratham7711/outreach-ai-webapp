@@ -2,9 +2,8 @@
 
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Card } from "@pratham7711/ui";
 import { Check, Plus, X } from "lucide-react";
-import { Button } from "@/components/ds";
+import { Button, SectionCard } from "@/components/ds";
 import { RULE_LIMITS, type CampaignRules } from "@/lib/campaigns/rulesShape";
 import { detectPlatform } from "@/lib/platforms/postUrl";
 import { platformLabel } from "@/lib/format";
@@ -263,19 +262,21 @@ export default function CampaignRulesCard({
     !rules.minFollowers && !rules.maxPostsPerAccount && !rules.launchAt && !rules.viewGoal;
 
   return (
-    <Card variant="outlined" className="cc-overview-card" data-testid="campaign-rules-card">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 12 }}>
-        <span className="cc-panel-title">Creator checklist &amp; rules</span>
-        {!draft && (
-          <Button variant="secondary" onClick={() => setDraft(toDraft(rules))}>
+    <SectionCard
+      id="campaign-rules-card"
+      title="Creator checklist & rules"
+      action={
+        !draft ? (
+          <Button variant="secondary" size="sm" onClick={() => setDraft(toDraft(rules))}>
             {empty ? "Set up" : "Edit"}
           </Button>
-        )}
-      </div>
+        ) : undefined
+      }
+    >
 
       {!draft ? (
         empty ? (
-          <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", margin: 0 }}>
+          <p className="cc-campaign-card-note">
             Nothing set. Add what creators should and shouldn&apos;t do, example posts, the rules a submission must meet, a launch date or a view goal.
           </p>
         ) : (
@@ -340,7 +341,7 @@ export default function CampaignRulesCard({
           </div>
 
           {error && (
-            <p role="alert" style={{ margin: 0, fontSize: "var(--cc-t-13)", color: "var(--cc-danger)" }}>
+            <p role="alert" className="cc-form-error">
               {error}
             </p>
           )}
@@ -354,6 +355,6 @@ export default function CampaignRulesCard({
           </div>
         </form>
       )}
-    </Card>
+    </SectionCard>
   );
 }

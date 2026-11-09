@@ -2,8 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Modal, Input } from "@pratham7711/ui";
+import { Input } from "@pratham7711/ui";
+import { AlertCircle, Building2, Plus } from "lucide-react";
+import { Modal, ModalNotice, ModalSection } from "@/components/ds/Modal";
 import { Button } from "@/components/ds";
+import { Field, FieldRow } from "@/components/ds/Field";
 
 export default function AddClientModal({ onClose }: { onClose: () => void }) {
   const router = useRouter();
@@ -18,9 +21,11 @@ export default function AddClientModal({ onClose }: { onClose: () => void }) {
     logoUrl: "",
   });
 
+  const canSubmit = form.name.trim() !== "";
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (loading) return;
+    if (loading || !canSubmit) return;
     setLoading(true);
     setError(null);
     try {
@@ -65,60 +70,73 @@ export default function AddClientModal({ onClose }: { onClose: () => void }) {
     <Modal
       open={true}
       onClose={onClose}
-      title="Add Client"
+      icon={Building2}
+      title="Add client"
+      description="Add a company you run campaigns for. Only the name is required."
       size="md"
+      dismissible={false}
       footer={
         <div className="cc-modal-footer">
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" loading={loading} onClick={() => { document.getElementById("add-client-form")?.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true })); }}>
-            Add Client
+          <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+          <Button
+            type="submit"
+            form="add-client-form"
+            variant="primary"
+            size="sm"
+            loading={loading}
+            disabled={!canSubmit}
+            iconLeft={<Plus size={16} aria-hidden="true" />}
+          >
+            Add client
           </Button>
         </div>
       }
     >
-      <form id="add-client-form" onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        {error && (
-          <div
-            role="alert"
-            style={{
-              padding: "10px 12px",
-              borderRadius: 10,
-              background: "color-mix(in srgb, var(--cc-danger) 10%, transparent)",
-              border: "1px solid color-mix(in srgb, var(--cc-danger) 30%, transparent)",
-              color: "var(--cc-danger)",
-              fontSize: "var(--cc-t-13)",
-            }}
-          >
-            {error}
+      <form id="add-client-form" onSubmit={handleSubmit} noValidate>
+        <ModalSection>
+          <div className="cc-dialog-stack">
+            {error && (
+              <ModalNotice tone="danger" icon={AlertCircle}>
+                {error}
+              </ModalNotice>
+            )}
+            <Field label="Company Name" required>
+              <Input
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                placeholder="e.g. Sony Music"
+              />
+            </Field>
+            <Field label="Logo URL">
+              <Input
+                inputMode="url"
+                value={form.logoUrl}
+                onChange={(e) => setForm((f) => ({ ...f, logoUrl: e.target.value }))}
+                placeholder="https://..."
+              />
+            </Field>
           </div>
-        )}
-        <Input
-          label="Company Name"
-          value={form.name}
-          onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-          placeholder="e.g. Sony Music"
-          required
-        />
-        <Input
-          label="Contact Email"
-          type="email"
-          value={form.email}
-          onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-          placeholder="contact@company.com"
-        />
-        <Input
-          label="Contact Phone"
-          type="tel"
-          value={form.phone}
-          onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-          placeholder="+1 (555) 000-0000"
-        />
-        <Input
-          label="Logo URL (optional)"
-          value={form.logoUrl}
-          onChange={(e) => setForm((f) => ({ ...f, logoUrl: e.target.value }))}
-          placeholder="https://..."
-        />
+        </ModalSection>
+        <ModalSection title="Contact" description="Optional.">
+          <FieldRow>
+            <Field label="Contact Email">
+              <Input
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                placeholder="contact@company.com"
+              />
+            </Field>
+            <Field label="Contact Phone">
+              <Input
+                type="tel"
+                value={form.phone}
+                onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                placeholder="+1 (555) 000-0000"
+              />
+            </Field>
+          </FieldRow>
+        </ModalSection>
       </form>
     </Modal>
   );

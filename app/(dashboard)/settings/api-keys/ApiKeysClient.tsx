@@ -1,10 +1,18 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Key, Plus, Trash2, Copy, Check, AlertTriangle } from "lucide-react";
+import { BookOpen, Key, KeyRound, Plus, Trash2, Copy, Check } from "lucide-react";
 import { PageHeader } from "@/components/ds";
+import { Banner } from "@/components/ds/Banner";
 import { Button } from "@/components/ds/Button";
-import { Input, Modal } from "@pratham7711/ui";
+import { DataTable, type DataTableColumn } from "@/components/ds/DataTable";
+import { Field } from "@/components/ds/Field";
+import { LoadError } from "@/components/ds/LoadError";
+import { MoreMenu } from "@/components/ds/MoreMenu";
+import { NoResults } from "@/components/ds/NoResults";
+import { SectionCard } from "@/components/ds/SectionCard";
+import { Input } from "@pratham7711/ui";
+import { Modal } from "@/components/ds/Modal";
 import { toast } from "sonner";
 import { action } from "@/lib/ui/actions";
 import { BRAND } from "@/lib/brand";
@@ -16,10 +24,6 @@ interface ApiKeyItem {
   createdAt: string;
   lastUsedAt: string | null;
 }
-
-/* Snippet text on the --cc-overlay-ink code ground: the accent lifted toward
-   white, so it stays a pale tint of whichever primary the theme carries. */
-const CODE_INK = "color-mix(in srgb, var(--cc-primary) 40%, var(--cc-overlay-ink-text))";
 
 export default function ApiKeysClient() {
   const [keys, setKeys] = useState<ApiKeyItem[]>([]);
@@ -128,129 +132,112 @@ export default function ApiKeysClient() {
       timeZone: "UTC",
     });
 
+  const openCreate = () => {
+    setShowCreate(true);
+    setCreatedKey(null);
+    setCopied(false);
+  };
+
+  const revokeTarget = keys.find((k) => k.id === confirmRevoke) ?? null;
+
+  const columns: DataTableColumn<ApiKeyItem>[] = [
+    {
+      key: "name",
+      header: "Name",
+      minWidth: 220,
+      primary: true,
+      render: (k) => (
+        <span className="cc-api-key-name">
+          <Key size={16} aria-hidden="true" />
+          <span className="cc-dt-truncate">{k.name}</span>
+        </span>
+      ),
+    },
+    { key: "created", header: "Created", width: 140, render: (k) => formatDate(k.createdAt) },
+    { key: "used", header: "Last used", width: 140, render: (k) => (k.lastUsedAt ? formatDate(k.lastUsedAt) : "Never") },
+    {
+      key: "actions",
+      header: "Actions",
+      hideHeader: true,
+      width: 64,
+      align: "right",
+      render: (k) => (
+        <MoreMenu
+          size="sm"
+          label={`Actions for ${k.name}`}
+          items={[{ label: "Revoke key", icon: <Trash2 size={16} />, danger: true, onClick: () => setConfirmRevoke(k.id) }]}
+        />
+      ),
+    },
+  ];
+
+  const snippets: { label: string; aria: string; code: string }[] = [
+    {
+      label: "REST / cURL",
+      aria: "REST and cURL example",
+      code: `curl -H "Authorization: Bearer oai_YOUR_KEY_HERE" \\
+  ${origin}/api/campaigns`,
+    },
+    {
+      label: "MCP server: Claude Code",
+      aria: "Claude Code MCP example",
+      code: `claude mcp add --transport http campaigns \\
+  ${origin}/api/mcp \\
+  --header "Authorization: Bearer oai_YOUR_KEY_HERE"`,
+    },
+    {
+      label: "MCP server: any other client",
+      aria: "MCP client example",
+      code: `{
+  "mcpServers": {
+    "campaigns": {
+      "type": "http",
+      "url": "${origin}/api/mcp",
+      "headers": {
+        "Authorization": "Bearer oai_YOUR_KEY_HERE"
+      }
+    }
+  }
+}`,
+    },
+  ];
+
   return (
-    <div className="rsp-page page-enter" style={{ paddingBottom: 64 }}>
+    <div className="rsp-page page-enter cc-api-keys">
       <PageHeader
-        title="API Keys"
-        subtitle="Manage API access to your organization"
+        title="API keys"
+        subtitle="Keys let scripts and AI clients reach this organization's data."
         actions={
-          <button
-          onClick={() => {
-            setShowCreate(true);
-            setCreatedKey(null);
-            setCopied(false);
-          }}
-          style={{
-            background: "var(--cc-primary)",
-            color: "var(--cc-on-primary)",
-            border: "none",
-            borderRadius: 8,
-            padding: "9px 16px",
-            fontSize: "var(--cc-t-14)",
-            fontWeight: "var(--cc-fw-strong)",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-          }}
-         {...action("create-api-key")}>
-          <Plus size={16} />
-          Create API Key
-          </button>
+          <Button variant="primary" size="sm" iconLeft={<Plus size={16} />} onClick={openCreate} {...action("create-api-key")}>
+            Create API key
+          </Button>
         }
       />
 
-      {/* Created Key Banner */}
       {createdKey && (
-        <div
-          style={{
-            marginBottom: 24,
-            background: "color-mix(in srgb, var(--cc-warning) 14%, transparent)",
-            border: "1px solid color-mix(in srgb, var(--cc-warning) 35%, transparent)",
-            borderRadius: 12,
-            padding: "16px 20px",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              marginBottom: 8,
-            }}
-          >
-            <AlertTriangle size={16} style={{ color: "var(--cc-warning)" }} />
-            <span
-              style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-warning)" }}
-            >
-              Save this key — it won&apos;t be shown again
-            </span>
-          </div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              background: "var(--cc-card)",
-              border: "1px solid var(--cc-border)",
-              borderRadius: 8,
-              padding: "10px 12px",
-            }}
-          >
-            <code
-              style={{
-                flex: 1,
-                fontSize: "var(--cc-t-13)",
-                fontFamily: "monospace",
-                color: "var(--cc-text)",
-                wordBreak: "break-all",
-              }}
-            >
-              {createdKey}
-            </code>
-            <button
+        <Banner tone="warning" title="Save this key now. It won't be shown again." className="cc-api-key-created">
+          <span className="cc-api-key-reveal">
+            <code className="cc-api-key-reveal__code">{createdKey}</code>
+            <Button
+              variant="secondary"
+              size="sm"
+              iconLeft={copied ? <Check size={14} /> : <Copy size={14} />}
               onClick={() => handleCopy(createdKey)}
-              style={{
-                background: "none",
-                border: "1px solid var(--cc-border)",
-                borderRadius: 6,
-                padding: "6px 10px",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: 4,
-                fontSize: "var(--cc-t-12)",
-                color: "var(--cc-text-muted)",
-              }}
             >
-              {copied ? (
-                <>
-                  <Check size={14} style={{ color: "var(--cc-success)" }} />
-                  Copied
-                </>
-              ) : (
-                <>
-                  <Copy size={14} />
-                  Copy
-                </>
-              )}
-            </button>
-          </div>
-        </div>
+              {copied ? "Copied" : "Copy"}
+            </Button>
+          </span>
+        </Banner>
       )}
 
-      {/* The library Modal rather than a hand-rolled overlay: the old one was a
-          pair of divs, so it had no dialog role, never took focus (Tab walked
-          the page behind it), Esc did nothing and "Key Name" was a <label>
-          tied to nothing. hideClose makes the name field the first focusable,
-          which is where the Modal puts focus; Cancel and Esc still close it.
-          The form makes Enter submit without a key handler of its own. */}
       <Modal
         open={showCreate && !createdKey}
         onClose={() => setShowCreate(false)}
-        title="Create API Key"
+        icon={KeyRound}
+        title="Create API key"
+        description="Name it after the system that will use it. The key is shown once, right after you create it."
         size="sm"
-        hideClose
+        dismissible={false}
         footer={
           <div className="cc-modal-footer">
             <Button variant="secondary" size="sm" onClick={() => setShowCreate(false)}>
@@ -263,40 +250,45 @@ export default function ApiKeysClient() {
               form="cc-create-api-key"
               disabled={!newName.trim() || creating}
             >
-              {creating ? "Creating..." : "Create Key"}
+              {creating ? "Creating…" : "Create key"}
             </Button>
           </div>
         }
       >
         <form
           id="cc-create-api-key"
+          noValidate
           onSubmit={(e) => {
             e.preventDefault();
             void handleCreate();
           }}
         >
-          <Input
-            id="cc-api-key-name"
-            label="Key name"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="e.g. Production Backend"
-            autoComplete="off"
-          />
+          <Field label="Key name" required>
+            <Input
+              id="cc-api-key-name"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="e.g. Production backend"
+              autoComplete="off"
+              autoFocus
+            />
+          </Field>
         </form>
       </Modal>
 
-      {/* Same dialog, for the destructive step. hideClose leaves Cancel as the
-          first focusable, so Enter on an opened confirm does not revoke. */}
       <Modal
         open={confirmRevoke !== null}
         onClose={() => setConfirmRevoke(null)}
-        title="Revoke API Key?"
+        icon={Trash2}
+        tone="danger"
+        title={revokeTarget ? `Revoke "${revokeTarget.name}"?` : "Revoke this key?"}
+        description="Any system using this key loses access immediately. This can't be undone."
         size="sm"
+        align="center"
         hideClose
         footer={
           <div className="cc-modal-footer">
-            <Button variant="secondary" size="sm" onClick={() => setConfirmRevoke(null)}>
+            <Button variant="secondary" size="sm" onClick={() => setConfirmRevoke(null)} autoFocus>
               Cancel
             </Button>
             <Button
@@ -305,281 +297,65 @@ export default function ApiKeysClient() {
               onClick={() => confirmRevoke && handleRevoke(confirmRevoke)}
               disabled={revoking !== null && revoking === confirmRevoke}
             >
-              {revoking !== null && revoking === confirmRevoke ? "Revoking..." : "Revoke Key"}
+              {revoking !== null && revoking === confirmRevoke ? "Revoking…" : "Revoke key"}
             </Button>
           </div>
         }
-      >
-        <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", margin: 0 }}>
-          This action cannot be undone. Any systems using this key will lose access immediately.
-        </p>
-      </Modal>
+      />
 
-      {/* Usage Instructions */}
-      <div
-        style={{
-          background: "var(--cc-card)",
-          border: "1px solid var(--cc-border)",
-          borderRadius: 12,
-          padding: 24,
-          marginBottom: 24,
-        }}
-      >
-        <h2 style={{ fontSize: "var(--cc-t-16)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
-          How to use your API key
-        </h2>
-        <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginBottom: 16 }}>
-          Pass the key in the <code style={{ fontFamily: "monospace", background: "var(--cc-bg)", padding: "1px 5px", borderRadius: 4 }}>Authorization</code> header of any API request.
-        </p>
-        <div style={{ marginBottom: 16 }}>
-          <p className="cc-microlabel" style={{ marginBottom: 6 }}>
-            REST / cURL
-          </p>
-          <div tabIndex={0} role="region" aria-label="REST and cURL example" style={{ background: "var(--cc-overlay-ink)", borderRadius: 8, padding: "12px 16px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            <code style={{ fontFamily: "monospace", fontSize: "var(--cc-t-12)", color: CODE_INK, whiteSpace: "pre" }}>
-              {`curl -H "Authorization: Bearer oai_YOUR_KEY_HERE" \\
-  ${origin}/api/campaigns`}
-            </code>
-          </div>
-        </div>
-        <div style={{ marginBottom: 16 }}>
-          <p className="cc-microlabel" style={{ marginBottom: 6 }}>
-            MCP server &mdash; Claude Code
-          </p>
-          <div tabIndex={0} role="region" aria-label="Claude Code MCP example" style={{ background: "var(--cc-overlay-ink)", borderRadius: 8, padding: "12px 16px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            <code style={{ fontFamily: "monospace", fontSize: "var(--cc-t-12)", color: CODE_INK, whiteSpace: "pre" }}>
-              {`claude mcp add --transport http campaigns \\
-  ${origin}/api/mcp \\
-  --header "Authorization: Bearer oai_YOUR_KEY_HERE"`}
-            </code>
-          </div>
-        </div>
-        <div style={{ marginBottom: 16 }}>
-          <p className="cc-microlabel" style={{ marginBottom: 6 }}>
-            MCP server &mdash; any other client
-          </p>
-          <div tabIndex={0} role="region" aria-label="MCP client example" style={{ background: "var(--cc-overlay-ink)", borderRadius: 8, padding: "12px 16px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            <code style={{ fontFamily: "monospace", fontSize: "var(--cc-t-12)", color: CODE_INK, whiteSpace: "pre" }}>
-              {`{
-  "mcpServers": {
-    "campaigns": {
-      "type": "http",
-      "url": "${origin}/api/mcp",
-      "headers": {
-        "Authorization": "Bearer oai_YOUR_KEY_HERE"
-      }
-    }
-  }
-}`}
-            </code>
-          </div>
-        </div>
-        <div
-          style={{
-            background: "var(--cc-primary-light)",
-            border: "1px solid var(--cc-primary-medium)",
-            borderRadius: 8,
-            padding: "10px 14px",
-            fontSize: "var(--cc-t-13)",
-            color: "var(--cc-primary)",
-          }}
-        >
-          {/* list_payouts is only offered while payouts are on (lib/mcp/tools.ts). */}
-          The MCP server gives an AI client read access to campaigns, posts, creators{PAYOUTS_ENABLED ? ", activations and payouts" : " and activations"}, and lets it refresh a campaign&apos;s metrics under the same 30-minute limit as the Refresh Data button. A key carries the whole organisation, so revoke it here the moment a client no longer needs it.
-        </div>
-      </div>
-
-      {/* Keys Table */}
-      <div
-        style={{
-          background: "var(--cc-card)",
-          border: "1px solid var(--cc-border)",
-          borderRadius: 12,
-          overflow: "hidden",
-        }}
-      >
-        {loading ? (
-          <div style={{ padding: 40, textAlign: "center" }}>
-            <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)" }}>
-              Loading...
-            </p>
-          </div>
-        ) : loadError ? (
-          <div style={{ padding: "60px 40px", textAlign: "center" }}>
-            <AlertTriangle
-              size={40}
-              style={{ color: "var(--cc-danger)", marginBottom: 12 }}
-              aria-hidden="true"
-            />
-            <h3 style={{ fontSize: "var(--cc-t-16)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 4 }}>
-              Could not load your API keys
-            </h3>
-            <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", marginBottom: 16 }}>
-              {loadError} This is not the same as having none — nothing has been
-              revoked or lost.
-            </p>
-            <button
-              onClick={() => void fetchKeys()}
-              style={{
-                background: "var(--cc-card)",
-                color: "var(--cc-primary)",
-                border: "1.5px solid var(--cc-primary)",
-                borderRadius: 8,
-                padding: "9px 16px",
-                fontSize: "var(--cc-t-14)",
-                fontWeight: "var(--cc-fw-strong)",
-                cursor: "pointer",
-              }}
-            >
-              Try again
-            </button>
-          </div>
-        ) : keys.length === 0 ? (
-          <div
-            style={{
-              padding: "60px 40px",
-              textAlign: "center",
-            }}
-          >
-            <Key
-              size={40}
-              style={{
-                color: "var(--cc-text-subtle)",
-                marginBottom: 12,
-              }}
-            />
-            <h3
-              style={{
-                fontSize: "var(--cc-t-16)",
-                fontWeight: "var(--cc-fw-strong)",
-                color: "var(--cc-text)",
-                marginBottom: 4,
-              }}
-            >
-              No API keys yet
-            </h3>
-            <p
-              style={{
-                fontSize: "var(--cc-t-14)",
-                color: "var(--cc-text-muted)",
-                marginBottom: 16,
-              }}
-            >
-              Create an API key to access your organization programmatically.
-            </p>
-            <button
-              onClick={() => {
-                setShowCreate(true);
-                setCreatedKey(null);
-              }}
-              style={{
-                background: "var(--cc-primary)",
-                color: "var(--cc-on-primary)",
-                border: "none",
-                borderRadius: 8,
-                padding: "9px 16px",
-                fontSize: "var(--cc-t-14)",
-                fontWeight: "var(--cc-fw-strong)",
-                cursor: "pointer",
-              }}
-            >
-              Create your first key
-            </button>
-          </div>
+      <div className="cc-api-keys-stack">
+        {loadError ? (
+          <LoadError
+            title="Could not load your API keys"
+            description={`${loadError} This is not the same as having none: nothing has been revoked or lost.`}
+            onRetry={() => void fetchKeys()}
+            retrying={loading}
+          />
         ) : (
-          <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 480 }}>
-            <thead>
-              <tr
-                style={{
-                  borderBottom: "1px solid var(--cc-border)",
-                }}
-              >
-                {["Name", "Created", "Last Used", "Actions"].map((h) => (
-                  <th
-                    key={h}
-                    className="cc-microlabel" style={{ textAlign: "left", padding: "12px 16px" }}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {keys.map((k) => (
-                <tr
-                  key={k.id}
-                  style={{
-                    borderBottom: "1px solid var(--cc-border)",
-                  }}
-                >
-                  <td
-                    style={{
-                      padding: "14px 16px",
-                      fontSize: "var(--cc-t-14)",
-                      fontWeight: 500,
-                      color: "var(--cc-text)",
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                      }}
-                    >
-                      <Key
-                        size={15}
-                        style={{ color: "var(--cc-text-muted)" }}
-                      />
-                      {k.name}
-                    </div>
-                  </td>
-                  <td
-                    style={{
-                      padding: "14px 16px",
-                      fontSize: "var(--cc-t-13)",
-                      color: "var(--cc-text-muted)",
-                    }}
-                  >
-                    {formatDate(k.createdAt)}
-                  </td>
-                  <td
-                    style={{
-                      padding: "14px 16px",
-                      fontSize: "var(--cc-t-13)",
-                      color: "var(--cc-text-muted)",
-                    }}
-                  >
-                    {k.lastUsedAt ? formatDate(k.lastUsedAt) : "Never"}
-                  </td>
-                  <td style={{ padding: "14px 16px" }}>
-                    <button
-                      onClick={() => setConfirmRevoke(k.id)}
-                      style={{
-                        background: "none",
-                        border: "1px solid color-mix(in srgb, var(--cc-danger) 30%, transparent)",
-                        borderRadius: 6,
-                        padding: "5px 10px",
-                        fontSize: "var(--cc-t-12)",
-                        fontWeight: "var(--cc-fw-strong)",
-                        color: "var(--cc-danger)",
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 4,
-                      }}
-                    >
-                      <Trash2 size={13} />
-                      Revoke
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          </div>
+          <SectionCard icon={Key} title="Keys" padded={false}>
+            <DataTable
+              bare
+              caption="API keys"
+              columns={columns}
+              rows={keys}
+              rowKey={(k) => k.id}
+              loading={loading}
+              skeletonRows={2}
+              empty={
+                <div className="cc-api-keys-empty">
+                  <NoResults
+                    icon={<Key size={32} strokeWidth={1.75} />}
+                    title="No API keys yet"
+                    description="Create a key to reach this organization from a script or an AI client."
+                  />
+                  <Button variant="secondary" size="sm" iconLeft={<Plus size={14} />} onClick={openCreate}>
+                    Create your first key
+                  </Button>
+                </div>
+              }
+            />
+          </SectionCard>
         )}
+
+        <SectionCard
+          icon={BookOpen}
+          title="How to use your API key"
+          description="Pass the key in the Authorization header of any API request."
+        >
+          <div className="cc-api-docs">
+            {snippets.map((sn) => (
+              <div key={sn.label} className="cc-api-docs__snippet">
+                <p className="cc-microlabel">{sn.label}</p>
+                <div tabIndex={0} role="region" aria-label={sn.aria} className="cc-code-block">
+                  <code>{sn.code}</code>
+                </div>
+              </div>
+            ))}
+            <Banner tone="info" placement="inline" icon={false}>
+              The MCP server gives an AI client read access to campaigns, posts, creators{PAYOUTS_ENABLED ? ", activations and payouts" : " and activations"}, and lets it refresh a campaign&apos;s metrics under the same 30-minute limit as the Refresh Data button. A key carries the whole organisation, so revoke it here the moment a client no longer needs it.
+            </Banner>
+          </div>
+        </SectionCard>
       </div>
     </div>
   );

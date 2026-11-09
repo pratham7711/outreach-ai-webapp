@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Badge, Card, Skeleton } from "@pratham7711/ui";
-import { Button } from "@/components/ds";
+import { Badge, Card } from "@pratham7711/ui";
+import { Button, Skeleton } from "@/components/ds";
 import { formatDateAbs, platformLabel } from "@/lib/format";
 import { PlatformTile } from "@/components/ui/PlatformTile";
 import type { AccessEntry, AccessStatus } from "@/lib/creators/grantAccess";
@@ -80,7 +80,7 @@ export default function CreatorAccess({ creatorId }: { creatorId: string }) {
           Access could not be loaded. Reload to try again.
         </p>
       ) : entries === null ? (
-        <Skeleton height="64px" borderRadius="12px" />
+        <Skeleton height={64} radius="var(--cc-r-card)" />
       ) : !tracked ? (
         <p role="status" style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
           Consent records are not switched on for this workspace yet.
@@ -90,7 +90,7 @@ export default function CreatorAccess({ creatorId }: { creatorId: string }) {
           No access granted. Send the creator a connect link to ask for it.
         </p>
       ) : (
-        <Card variant="outlined" style={{ padding: 0, overflow: "hidden" }}>
+        <Card variant="outlined" noPadding style={{ overflow: "hidden" }}>
           <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
             {entries.map((e, i) => (
               <AccessRow key={e.id} entry={e} first={i === 0} />

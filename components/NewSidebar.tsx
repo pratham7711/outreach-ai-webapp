@@ -4,21 +4,20 @@ import { NavLink } from "@/components/layout/NavLink";
 import { BRAND } from "@/lib/brand";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from "react";
+import { createPortal } from "react-dom";
 import CampaignRailNav from "@/components/CampaignRailNav";
 import { campaignIdFromPathname, shellForPathname } from "@/lib/campaignSections";
 import {
   LayoutDashboard, Megaphone, Calendar, Users, Users2, LineChart,
   List, CreditCard, Shield, UserSearch,
-  ChevronDown, Settings, LogOut, Menu, X, Key, BarChart2, Activity, Music, Tags,
+  ChevronDown, ChevronLeft, Settings, LogOut, Menu, X, Key, BarChart2, Activity, Music, Tags,
   Globe, MessageSquareWarning, Building2, Bell, Plug, Wallet, Inbox, UserCheck,
 } from "lucide-react";
 import { PAYOUTS_ENABLED } from "@/lib/payouts/switch";
 import { mediaUrl } from "@/lib/postMedia";
 import { useSidebar } from "@/components/providers/SidebarProvider";
 import { ThemeRadioGroup } from "@/components/ThemeChoices";
-import { NotificationBell } from "@/components/layout/NotificationBell";
-import { FeedbackButton } from "@/components/feedback/FeedbackButton";
 
 /*
   The money side of the product is parked, not deleted: we are not offering
@@ -74,7 +73,9 @@ export const NAV_SECTIONS = [
   },
   ...(PAYOUTS_ENABLED ? [PAYOUTS_SECTION] : []),
   {
-    label: "Settings",
+    /* Not "Settings": the group's first row is already called that, and the
+       heading read "SETTINGS > Settings". */
+    label: "Workspace",
     items: [
       { href: "/settings", icon: Settings, label: "Settings" },
       { href: "/settings/general", icon: Tags, label: "General" },
@@ -84,7 +85,7 @@ export const NAV_SECTIONS = [
       { href: "/settings/profile", icon: Building2, label: "Profile" },
       { href: "/settings/team", icon: Users2, label: "Team" },
       { href: "/settings/trackers", icon: LineChart, label: "Tracker settings" },
-      { href: "/settings/api-keys", icon: Key, label: "API Keys" },
+      { href: "/settings/api-keys", icon: Key, label: "API keys" },
       { href: "/settings/notifications", icon: Bell, label: "Notifications" },
       { href: "/settings/integrations", icon: Plug, label: "Integrations" },
       { href: "/settings/ingestion", icon: Activity, label: "Ingestion" },
@@ -93,7 +94,7 @@ export const NAV_SECTIONS = [
   {
     label: "Admin",
     items: [
-      { href: "/admin", icon: Shield, label: "Feature Access" },
+      { href: "/admin", icon: Shield, label: "Feature access" },
       { href: "/plans", icon: CreditCard, label: "Plans" },
     ],
   },
@@ -116,9 +117,8 @@ const PLATFORM_SECTION = {
   label: "Platform",
   items: [
     { href: "/platform", icon: Globe, label: "All Organizations" },
-    /* "inbox", not "Feedback": in creatorcore the rail also carries the
-       Feedback button itself, and two rail controls with one name read as a
-       duplicate. This is where reports are read, not sent. */
+    /* "inbox", not "Feedback": the top bar's Feedback button already has that
+       name, and this is where reports are read, not sent. */
     { href: "/platform/feedback", icon: MessageSquareWarning, label: "Feedback inbox" },
   ],
 };
@@ -143,6 +143,33 @@ type SidebarProps = {
   user?: { name: string | null; email: string | null } | null;
 };
 
+/**
+ * The collapsed rail's name for each icon. Labels stay in the DOM while the rail
+ * is narrow (they are the links' accessible names), so the tooltip reads the
+ * label it is standing in for rather than carrying a second copy of the text.
+ * Painted in a portal: the rail clips its overflow, and a tooltip is the one
+ * thing that has to sit outside it.
+ */
+function RailTooltip({ tip }: { tip: { text: string; x: number; y: number } | null }) {
+  if (!tip || typeof document === "undefined") return null;
+  return createPortal(
+    <div className="cc-rail-tooltip" style={{ left: tip.x, top: tip.y }} aria-hidden="true">
+      {tip.text}
+    </div>,
+    document.body,
+  );
+}
+
+const TIP_TARGET = "[data-tip], .cc-sidebar-nav .cc-nav-item, .cc-rail-user";
+
+function tipText(el: HTMLElement): string | null {
+  return (
+    el.dataset.tip ??
+    el.querySelector(".cc-nav-label, .cc-sidebar-username")?.textContent ??
+    el.getAttribute("aria-label")
+  );
+}
+
 function sidebarInitials(name?: string | null, email?: string | null): string {
   const src = (name || email || "").trim();
   if (!src) return "?";
@@ -157,8 +184,41 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
   const userName = user?.name || user?.email || "Account";
   const userInitial = sidebarInitials(user?.name, user?.email);
   const pathname = usePathname();
-  const { mobileOpen, ready, setMobileOpen } = useSidebar();
+  const { mobileOpen, ready, setMobileOpen, collapsed, toggleCollapsed } = useSidebar();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  /* Collapsed, the rail is too narrow to hold the account menu, so it opens
+     beside the rail instead -- in a portal, since the rail clips. */
+  const [menuFloating, setMenuFloating] = useState(false);
+  /* A tip belongs to the rail state and page it was shown on; a collapse or a
+     navigation retires it without an effect, because it no longer matches. */
+  const tipCtx = `${collapsed}|${pathname}`;
+  const [tip, setTip] = useState<{ text: string; x: number; y: number; ctx: string } | null>(null);
+  const tipFor = useRef<{ el: HTMLElement; ctx: string } | null>(null);
+  const isDesktop = () => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches;
+
+  const showTip = useCallback(
+    (target: EventTarget | null) => {
+      const el = target instanceof Element ? (target.closest(TIP_TARGET) as HTMLElement | null) : null;
+      if (!el || (tipFor.current?.el === el && tipFor.current.ctx === tipCtx)) return;
+      tipFor.current = { el, ctx: tipCtx };
+      const always = el.dataset.tip !== undefined;
+      const text = tipText(el);
+      if (!text || (!always && !collapsed) || !isDesktop()) {
+        setTip(null);
+        return;
+      }
+      const r = el.getBoundingClientRect();
+      /* Read at hover time, not render time, so server and client agree. */
+      const kbd = el.dataset.tipKbd !== undefined ? (/Mac|iPhone|iPad/.test(navigator.platform) ? "  \u2318\\" : "  Ctrl+\\") : "";
+      setTip({ text: text.trim() + kbd, x: r.right + 10, y: r.top + r.height / 2, ctx: tipCtx });
+    },
+    [collapsed, tipCtx],
+  );
+  const hideTip = useCallback(() => {
+    tipFor.current = null;
+    setTip(null);
+  }, []);
+
   const allowedHrefSet = useMemo(
     () => new Set(allowedNavHrefs ?? []),
     [allowedNavHrefs]
@@ -197,6 +257,12 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
   const campaignId = campaignIdFromPathname(pathname);
 
   const showLogo = Boolean(brandLogoUrl) && !logoBroken;
+  const tipHandlers = {
+    onPointerOver: (e: React.PointerEvent) => showTip(e.target),
+    onPointerLeave: hideTip,
+    onFocus: (e: React.FocusEvent) => showTip(e.target),
+    onBlur: hideTip,
+  };
 
   return (
     <>
@@ -221,8 +287,29 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
         />
       )}
 
+      {/* Collapse / expand. On the rail's edge, outside the aside because the
+          aside clips its overflow and this straddles the border. Desktop only:
+          below 1024 the rail is a drawer with its own close button. */}
+      <button
+        type="button"
+        className="cc-rail-toggle"
+        data-ready={ready}
+        onClick={toggleCollapsed}
+        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        aria-expanded={!collapsed}
+        aria-controls="cc-rail"
+        data-tip={`${collapsed ? "Expand" : "Collapse"} sidebar`}
+        data-tip-kbd=""
+        aria-keyshortcuts="Meta+Backslash Control+Backslash"
+        {...tipHandlers}
+      >
+        <ChevronLeft size={14} strokeWidth={2.25} aria-hidden="true" />
+      </button>
+
       {/* Sidebar */}
       <aside
+        id="cc-rail"
+        {...tipHandlers}
         className={`cc-sidebar-rail fixed top-0 bottom-0 left-0 z-40 flex flex-col overflow-hidden ${
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
@@ -329,7 +416,7 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
                       className={`cc-nav-item sidebar-link ${active ? "active btn-press" : ""}`}
                       aria-current={active ? "page" : undefined}
                     >
-                      <Icon size={17} className="cc-nav-icon" aria-hidden="true" />
+                      <Icon size={16} className="cc-nav-icon" aria-hidden="true" />
                       <span className="cc-nav-label">{label}</span>
                       {badge && !active && (
                         <span className="cc-nav-badge">
@@ -350,23 +437,10 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
 
         {/* Footer - User Profile */}
         <div className="cc-sidebar-footer px-2 py-2">
-          {/* The bell lives in two places and is painted in one: creatorcore
-              hides the top bar above 1024px to put the page header where the
-              reference puts it, and a theme that silently took away the bell
-              would be a trap. CSS cannot move a node to a different parent, so
-              the node exists twice and `--cc-rail-utility-display` decides which
-              copy is seen. The theme choice is not here: it is in the account
-              menu below, which every theme shows. */}
-          <div className="cc-rail-utility" aria-hidden={false}>
-            {/* Feedback follows the bell for the same reason: a second copy of
-                the top bar's, painted only where the top bar is not, so each
-                theme shows exactly one. */}
-            <FeedbackButton surface="dashboard" iconOnly />
-            <NotificationBell />
-          </div>
           {/* User menu dropdown */}
-          {showUserMenu && (
-            <div className="cc-rail-usermenu cc-scale-in">
+          {showUserMenu && (() => {
+            const menu = (
+            <div className="cc-rail-usermenu cc-scale-in" data-floating={menuFloating || undefined}>
               <Link
                 href="/settings"
                 className="cc-nav-item"
@@ -387,10 +461,15 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
                 <span>Sign out</span>
               </button>
             </div>
-          )}
+            );
+            return menuFloating ? createPortal(menu, document.body) : menu;
+          })()}
 
           <button
-            onClick={() => setShowUserMenu(!showUserMenu)}
+            onClick={() => {
+              setMenuFloating(collapsed && isDesktop());
+              setShowUserMenu(!showUserMenu);
+            }}
             className="cc-rail-user"
             data-open={showUserMenu}
             aria-expanded={showUserMenu}
@@ -415,6 +494,7 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
           </button>
         </div>
       </aside>
+      <RailTooltip tip={tip?.ctx === tipCtx ? tip : null} />
     </>
   );
 }

@@ -1,9 +1,9 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Avatar, Badge, Tag, EmptyState, Skeleton } from "@pratham7711/ui";
-import { Send, ArrowLeft, MessageSquare, Mail, AlertTriangle } from "lucide-react";
-import { PageHeader } from "@/components/ds";
+import { Avatar, Badge, Tag, EmptyState } from "@pratham7711/ui";
+import { Send, ArrowLeft, MessageSquare, Mail } from "lucide-react";
+import { LoadError, PageHeader, Skeleton } from "@/components/ds";
 import { toast } from "sonner";
 
 const inboxStyles = `
@@ -14,7 +14,7 @@ const inboxStyles = `
     min-height: 0;
     background: var(--cc-card);
     border: 1px solid var(--cc-border);
-    border-radius: 12px;
+    border-radius: var(--cc-r-card);
     overflow: hidden;
   }
   .inbox-list {
@@ -217,8 +217,14 @@ export default function InboxClient() {
             {conversations === null ? (
               <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
                 {[1, 2, 3, 4].map((i) => (
-                  <Skeleton key={i} height="56px" borderRadius="10px" />
+                  <Skeleton key={i} height={56} />
                 ))}
+              </div>
+            ) : listError && conversations.length === 0 ? (
+              /* A failed first load used to fall through to "No conversations
+                 yet", telling an org with messages that it had none. */
+              <div style={{ padding: 16 }}>
+                <LoadError title="We couldn't load your conversations" onRetry={loadConversations} />
               </div>
             ) : conversations.length === 0 ? (
               <div style={{ padding: 24 }}>
@@ -305,12 +311,12 @@ export default function InboxClient() {
           ) : threadLoading ? (
             <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 12 }}>
               {[1, 2, 3].map((i) => (
-                <Skeleton key={i} height="48px" borderRadius="10px" />
+                <Skeleton key={i} height={48} />
               ))}
             </div>
           ) : threadError ? (
-            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-              <EmptyState icon={<AlertTriangle size={32} color="var(--cc-text-subtle)" />} title="Couldn't load conversation" description="Try selecting it again" />
+            <div style={{ padding: 24 }}>
+              <LoadError title="We couldn't load this conversation" onRetry={() => loadThread(activeId)} />
             </div>
           ) : thread ? (
             <>
@@ -406,14 +412,14 @@ export default function InboxClient() {
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Type a message…"
+                  placeholder="Type a message"
                   aria-label="Message"
                   rows={1}
                   style={{
                     flex: 1,
                     resize: "none",
-                    border: "1px solid var(--cc-border)",
-                    borderRadius: 10,
+                    border: "var(--cc-field-border)",
+                    borderRadius: "var(--cc-r-control)",
                     padding: "10px 12px",
                     fontSize: "var(--cc-t-14)",
                     color: "var(--cc-text)",
@@ -432,7 +438,7 @@ export default function InboxClient() {
                     justifyContent: "center",
                     width: 40,
                     height: 40,
-                    borderRadius: 10,
+                    borderRadius: "var(--cc-r-control)",
                     border: "none",
                     background: "var(--cc-primary)",
                     color: "var(--cc-on-primary)",

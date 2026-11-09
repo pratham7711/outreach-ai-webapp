@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Card, Badge, Skeleton, EmptyState, Input, Modal } from "@pratham7711/ui";
-import { Dropdown, MetricTile, Button } from "@/components/ds";
+import { Card, EmptyState, Input } from "@pratham7711/ui";
+import { Modal } from "@/components/ds/Modal";
+import { Dropdown, MetricTile, Button, Skeleton, StatusBadge, type StatusTone } from "@/components/ds";
 import { toast } from "sonner";
 import { DollarSign, Clock, CheckCircle, XCircle, Plus, Banknote } from "lucide-react";
 import { formatDateAbs } from "@/lib/format";
@@ -28,7 +29,7 @@ type AcceptedProposal = {
   campaign: { id: string; title: string };
 };
 
-const STATUS_BADGE: Record<string, "warning" | "success" | "danger" | "neutral"> = {
+const STATUS_TONE: Record<string, StatusTone> = {
   PENDING: "warning",
   APPROVED: "success",
   REJECTED: "danger",
@@ -140,12 +141,12 @@ export default function PortalPayoutRequestsPage() {
     return (
       <div className="rsp-page" style={{ maxWidth: 960 }}>
         <Skeleton width="200px" height="32px" />
-        <div className="rsp-grid-tiles-4" style={{ marginTop: 24 }}>
+        <div className="cc-tiles-balanced" style={{ marginTop: 24, marginBottom: 24 }}>
           {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} height="80px" borderRadius="10px" />
+            <Skeleton key={i} height="80px" radius="var(--cc-r-card)" />
           ))}
         </div>
-        <Skeleton width="100%" height="300px" borderRadius="12px" />
+        <Skeleton width="100%" height="300px" radius="var(--cc-r-card)" />
       </div>
     );
   }
@@ -170,7 +171,7 @@ export default function PortalPayoutRequestsPage() {
       </div>
 
       {/* Stats */}
-      <div className="rsp-grid-tiles-4" style={{ marginBottom: 32 }}>
+      <div className="cc-tiles-balanced" style={{ marginBottom: 32 }}>
         <MetricTile metric="portalTotalRequested" value={totalRequestedLabel} />
         <MetricTile metric="requestsPending" label="Pending" value={String(pendingCount)} />
         <MetricTile metric="portalApproved" value={String(approvedCount)} />
@@ -179,7 +180,7 @@ export default function PortalPayoutRequestsPage() {
 
       {/* Requests List */}
       {requests.length === 0 ? (
-        <Card variant="outlined" style={{ padding: 24 }}>
+        <Card variant="outlined">
           <EmptyState
             icon={<Banknote size={32} color="var(--cc-text-subtle)" />}
             title="No payout requests"
@@ -238,9 +239,7 @@ export default function PortalPayoutRequestsPage() {
               <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)" }}>
                 {formatCurrency(req.requestedAmount, req.currency)}
               </span>
-              <Badge variant={STATUS_BADGE[req.status] ?? "neutral"}>
-                {req.status}
-              </Badge>
+              <StatusBadge status={req.status} tone={STATUS_TONE[req.status] ?? "neutral"} />
               <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
                 {formatDateAbs(req.createdAt)}
               </span>
@@ -255,14 +254,29 @@ export default function PortalPayoutRequestsPage() {
       {showModal && (
         <Modal
           open={showModal}
+          icon={Banknote}
+          tone="brand"
           title="Request Payout"
+          description="Submit a payout request for one of your accepted campaigns."
+          size="sm"
+          dismissible={false}
           onClose={() => setShowModal(false)}
+          footer={
+            <div className="cc-modal-footer">
+              <Button variant="secondary" size="sm" onClick={() => setShowModal(false)}>
+                Cancel
+              </Button>
+              <Button variant="primary" size="sm" loading={submitting} onClick={handleSubmit}>
+                Submit Request
+              </Button>
+            </div>
+          }
         >
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div className="cc-dialog-stack">
             <div>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>
+              <span style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>
                 Campaign
-              </label>
+              </span>
               <Dropdown
                 ariaLabel="Campaign"
                 align="left"
@@ -286,14 +300,6 @@ export default function PortalPayoutRequestsPage() {
               onChange={(e) => setAmount(e.target.value)}
               placeholder="Enter amount"
             />
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
-              <Button variant="secondary" onClick={() => setShowModal(false)}>
-                Cancel
-              </Button>
-              <Button variant="primary" loading={submitting} onClick={handleSubmit}>
-                Submit Request
-              </Button>
-            </div>
           </div>
         </Modal>
       )}

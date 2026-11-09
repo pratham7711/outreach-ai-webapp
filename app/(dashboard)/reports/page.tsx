@@ -2,11 +2,25 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Lock, AlertTriangle, BarChart3 } from "lucide-react";
-import { Modal, Input, Badge, EmptyState, Card, LoadingSpinner } from "@pratham7711/ui";
+import { Plus, BarChart3, FilePlus2 } from "lucide-react";
+import { Input } from "@pratham7711/ui";
+import { Modal } from "@/components/ds/Modal";
 import { formatDateAbs } from "@/lib/format";
-import { PageHeader, useConfirm, Button } from "@/components/ds";
+import {
+  Button,
+  DataTable,
+  FeatureState,
+  Field,
+  LoadError,
+  MoreMenu,
+  NoResults,
+  PageHeader,
+  StatusBadge,
+  useConfirm,
+  type DataTableColumn,
+} from "@/components/ds";
 import { action } from "@/lib/ui/actions";
+import { REPORT_WIDTHS } from "./columns";
 
 interface Report {
   id: string;
@@ -55,6 +69,7 @@ export default function ReportsPage() {
 
   async function createReport(e: React.FormEvent) {
     e.preventDefault();
+    if (!title.trim()) return;
     setCreating(true);
     try {
       const res = await fetch("/api/reports", {
@@ -104,16 +119,16 @@ export default function ReportsPage() {
     }
   }
 
-  async function deleteReport(id: string) {
+  async function deleteReport(report: Report) {
     const ok = await confirm({
-      title: "Delete this report?",
+      verb: "delete",
+      subject: report.title,
       description:
-        "Any share link to this report stops working immediately. The underlying campaign data is not affected. This cannot be undone.",
-      confirmLabel: "Delete report",
+        "Any share link to this report stops working immediately. The underlying campaign data is not affected. This can't be undone.",
     });
     if (!ok) return;
     try {
-      const res = await fetch(`/api/reports/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/reports/${report.id}`, { method: "DELETE" });
       if (res.status === 403) {
         setFeatureDisabled(true);
         setError(null);
@@ -129,152 +144,143 @@ export default function ReportsPage() {
     }
   }
 
+  /* Visibility used to change on a click on its badge, which was a span: no
+     keyboard, no hint that it was a control. The badge now only states it,
+     and the change sits in the row's ⋯ beside Delete. */
+  const columns: DataTableColumn<Report>[] = [
+    {
+      key: "title",
+      header: "Title",
+      width: REPORT_WIDTHS.title,
+      minWidth: 220,
+      truncate: (r) => r.title,
+      render: (r) => <span className="font-medium">{r.title}</span>,
+    },
+    {
+      key: "campaign",
+      header: "Campaign",
+      width: REPORT_WIDTHS.campaign,
+      truncate: (r) => r.campaign?.title,
+      render: (r) => r.campaign?.title ?? "—",
+    },
+    {
+      key: "created",
+      header: "Created",
+      width: REPORT_WIDTHS.created,
+      render: (r) => formatDateAbs(r.createdAt),
+    },
+    {
+      key: "visibility",
+      header: "Visibility",
+      width: REPORT_WIDTHS.visibility,
+      render: (r) => <StatusBadge tone={r.isPublic ? "success" : "neutral"}>{r.isPublic ? "Public" : "Private"}</StatusBadge>,
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      hideHeader: true,
+      align: "right",
+      width: REPORT_WIDTHS.actions,
+      render: (r) => (
+        <MoreMenu
+          size="sm"
+          label={`More actions for ${r.title}`}
+          items={[
+            { label: r.isPublic ? "Make report private" : "Make report public", onClick: () => togglePublic(r) },
+            { label: "Delete report", danger: true, onClick: () => deleteReport(r) },
+          ]}
+        />
+      ),
+    },
+  ];
+
   return (
     <div className="rsp-page page-enter">
       <PageHeader
         title="Reports"
         subtitle="Create and share campaign reports"
         actions={
-          <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setOpen(true)} {...action("new-report")}>
-            New Report
+          <Button variant="primary" iconLeft={<Plus size={16} aria-hidden="true" />} onClick={() => setOpen(true)} {...action("new-report")}>
+            New report
           </Button>
         }
       />
 
-      {loading ? (
-        <div style={{ display: "flex", justifyContent: "center", padding: 48 }}>
-          <LoadingSpinner size={24} />
-        </div>
-      ) : featureDisabled ? (
-        <Card variant="outlined" noPadding>
-          <div style={{ padding: 24 }}>
-            <EmptyState
-              icon={<Lock size={32} color="var(--cc-text-subtle)" />}
-              title="Reports are disabled"
-              description="Enable the reports feature in Billing to create and manage reports for this organization."
-              action={
-                <Link
-                  href="/settings/billing"
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: "10px 16px",
-                    borderRadius: 10,
-                    background: "var(--cc-primary)",
-                    color: "var(--cc-on-primary)",
-                    fontSize: "var(--cc-t-14)",
-                    fontWeight: "var(--cc-fw-strong)",
-                    textDecoration: "none",
-                  }}
-                >
-                  Open Billing
-                </Link>
-              }
-            />
-          </div>
-        </Card>
-      ) : error ? (
-        <Card variant="outlined" noPadding>
-          <div style={{ padding: 24 }}>
-            <EmptyState
-              icon={<AlertTriangle size={32} color="var(--cc-text-subtle)" />}
-              title="Reports couldn't load"
-              description={error}
-              action={
-                <Button
-                  variant="primary"
-                  onClick={() => {
-                    setError(null);
-                    setLoading(true);
-                    fetchReports();
-                  }}
-                >
-                  Try Again
-                </Button>
-              }
-            />
-          </div>
-        </Card>
-      ) : reports.length === 0 ? (
-        <EmptyState
-          icon={<BarChart3 size={32} color="var(--cc-text-subtle)" />}
-          title="No reports yet"
-          description="Create a report to get started"
+      {featureDisabled ? (
+        <FeatureState
+          kind="locked"
+          title="Reports are turned off"
+          body="Enable the reports feature in Billing to create and manage reports for this organization."
           action={
-            <Button variant="primary" iconLeft={<Plus size={16} />} onClick={() => setOpen(true)}>
-              New Report
-            </Button>
+            <Link href="/settings/billing" className="ui-btn ui-btn-secondary ui-btn-sm" data-cc-slot="secondary">
+              Open Billing
+            </Link>
           }
         />
+      ) : error ? (
+        <LoadError
+          title="Reports couldn't load"
+          description={error}
+          onRetry={() => {
+            setError(null);
+            setLoading(true);
+            fetchReports();
+          }}
+        />
       ) : (
-        <Card variant="outlined" noPadding>
-          <div className="rsp-table-wrap">
-          <table style={{ width: "100%", fontSize: "var(--cc-t-14)", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ background: "var(--cc-hover-bg)" }}>
-                {["Title", "Campaign", "Created", "Visibility", ""].map((h, i) => (
-                  <th key={i} className="cc-microlabel" style={{ padding: "12px 20px", textAlign: "left" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {reports.map((r) => (
-                <tr key={r.id} className="cc-table-row" style={{ borderTop: "1px solid var(--cc-border)" }}>
-                  <td style={{ padding: "12px 20px", fontWeight: 500, color: "var(--cc-text)" }}>{r.title}</td>
-                  <td style={{ padding: "12px 20px", color: "var(--cc-text-muted)" }}>{r.campaign?.title ?? "—"}</td>
-                  <td style={{ padding: "12px 20px", color: "var(--cc-text-muted)" }}>{formatDateAbs(r.createdAt)}</td>
-                  <td style={{ padding: "12px 20px" }}>
-                    <Badge
-                      variant={r.isPublic ? "success" : "neutral"}
-                      size="sm"
-                      onClick={() => togglePublic(r)}
-                      style={{ cursor: "pointer" }}
-                    >
-                      {r.isPublic ? "Public" : "Private"}
-                    </Badge>
-                  </td>
-                  <td style={{ padding: "12px 20px", textAlign: "right" }}>
-                    <Button variant="danger" size="sm" onClick={() => deleteReport(r.id)}>Delete</Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          </div>
-        </Card>
+        <DataTable
+          caption="Reports"
+          columns={columns}
+          rows={reports}
+          rowKey={(r) => r.id}
+          loading={loading}
+          skeletonRows={6}
+          empty={
+            <NoResults
+              icon={<BarChart3 size={32} strokeWidth={1.75} />}
+              title="No reports yet"
+              description="Create a report with New report to share a campaign's results."
+            />
+          }
+        />
       )}
 
       <Modal
         open={open}
         onClose={() => setOpen(false)}
-        title="Create Report"
-        size="md"
+        icon={FilePlus2}
+        tone="brand"
+        title="New report"
+        description="Name the report. It starts private; you can make it public from the list."
+        size="sm"
+        dismissible={false}
         footer={
           <div className="cc-modal-footer">
-            <Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button variant="secondary" size="sm" onClick={() => setOpen(false)}>Cancel</Button>
             <Button
               variant="primary"
+              size="sm"
               loading={creating}
+              disabled={!title.trim()}
               onClick={() => {
                 document.getElementById("report-form")?.dispatchEvent(
                   new Event("submit", { cancelable: true, bubbles: true })
                 );
               }}
             >
-              Create
+              Create report
             </Button>
           </div>
         }
       >
-        <form onSubmit={createReport} id="report-form">
-          <Input
-            label="Title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Q1 Campaign Report"
-            required
-          />
+        <form onSubmit={createReport} id="report-form" noValidate>
+          <Field label="Title" required>
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Q1 campaign report"
+            />
+          </Field>
         </form>
       </Modal>
     </div>

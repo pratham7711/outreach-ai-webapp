@@ -2,31 +2,24 @@
 
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
+import { X } from "lucide-react";
+import { Banner as DsBanner } from "@/components/ds/Banner";
+import { PageHeader, type PageHeaderBack } from "@/components/ds/PageHeader";
+import { Skeleton } from "@/components/ds/Skeleton";
+import { StatusBadge } from "@/components/ds/StatusBadge";
 
 /**
  * The creator app's building blocks.
  *
  * Phone first: every screen is one column at 390px and simply gets more room on
  * a desktop, rather than a desktop table squeezed onto a phone. Colours come
- * from the --cc-* tokens only, so the three themes (creatorcore, light, dark)
- * restyle these without a branch. Tap targets reach 44px on phones through the
- * existing `rsp-touch` rule in globals.css, which applies below 768px only, so
- * the same controls stay compact on a desktop.
+ * from the --cc-* tokens only, so light and dark restyle these without a
+ * branch. Tap targets reach 44px on phones through the existing `rsp-touch`
+ * rule in globals.css, which applies below 768px only, so the same controls
+ * stay compact on a desktop.
  */
 
-export const PLATFORM_LABEL: Record<string, string> = {
-  TIKTOK: "TikTok",
-  INSTAGRAM: "Instagram",
-  YOUTUBE: "YouTube",
-  FACEBOOK: "Facebook",
-  THREADS: "Threads",
-  TWITTER: "X",
-  TWITCH: "Twitch",
-};
-
-export function platformLabel(platform: string): string {
-  return PLATFORM_LABEL[platform.toUpperCase()] ?? platform;
-}
+export { platformLabel } from "@/lib/format";
 
 export function formatCount(n: number | null | undefined): string {
   if (n === null || n === undefined) return "—";
@@ -65,53 +58,40 @@ export function Screen({
   title,
   subtitle,
   action,
+  badges,
+  back,
   children,
   maxWidth = 760,
 }: {
   title: string;
   subtitle?: ReactNode;
+  /** Buttons only; a status goes in `badges`. */
   action?: ReactNode;
+  /** Status badges on the title's line. */
+  badges?: ReactNode;
+  /** A detail screen's way back to its parent. */
+  back?: PageHeaderBack;
   children: ReactNode;
   /** A screen of dashboards (My stats) takes the desktop's width; the rest read as one column. */
   maxWidth?: number;
 }) {
   return (
     <main style={{ maxWidth, margin: "0 auto", padding: "20px 16px 24px" }}>
-      <header
-        style={{
-          display: "flex",
-          alignItems: "flex-start",
-          justifyContent: "space-between",
-          gap: 12,
-          flexWrap: "wrap",
-          marginBottom: 20,
-        }}
-      >
-        <div style={{ minWidth: 0, flex: "1 1 220px" }}>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)", margin: 0, lineHeight: 1.25 }}>
-            {title}
-          </h1>
-          {subtitle && (
-            <p style={{ fontSize: 14, color: "var(--cc-text-muted)", margin: "4px 0 0", lineHeight: 1.5 }}>
-              {subtitle}
-            </p>
-          )}
-        </div>
-        {action}
-      </header>
+      <PageHeader title={title} subtitle={subtitle} actions={action} badges={badges} back={back} />
       {children}
     </main>
   );
 }
 
-export function Card({ children, style }: { children: ReactNode; style?: CSSProperties }) {
+/** `flush` drops the inset for a card whose rows run edge to edge and pad themselves. */
+export function Card({ children, style, flush = false }: { children: ReactNode; style?: CSSProperties; flush?: boolean }) {
   return (
     <section
       style={{
         background: "var(--cc-card)",
         border: "1px solid var(--cc-border)",
-        borderRadius: 14,
-        padding: 16,
+        borderRadius: "var(--cc-r-card)",
+        padding: flush ? 0 : "var(--cc-card-inset)",
         ...style,
       }}
     >
@@ -141,9 +121,9 @@ const linkButtonBase: CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   gap: 6,
-  minHeight: 36,
-  padding: "8px 14px",
-  borderRadius: 10,
+  minHeight: "var(--cc-control-h)",
+  padding: "0 14px",
+  borderRadius: "var(--cc-r-control)",
   fontSize: 14,
   fontWeight: 600,
   textDecoration: "none",
@@ -211,7 +191,7 @@ export function EmptyState({
     <div
       style={{
         border: "1px dashed var(--cc-border)",
-        borderRadius: 14,
+        borderRadius: "var(--cc-r-card)",
         padding: "24px 16px",
         textAlign: "center",
         background: "var(--cc-card)",
@@ -236,87 +216,42 @@ export function EmptyState({
 
 export type Tone = "success" | "warning" | "danger" | "info" | "neutral";
 
-const TONE_DOT: Record<Tone, string> = {
-  success: "var(--cc-success)",
-  warning: "var(--cc-warning)",
-  danger: "var(--cc-danger)",
-  info: "var(--cc-info)",
-  neutral: "var(--cc-text-muted)",
-};
-
-/**
- * A status chip. The text stays in --cc-text so it passes contrast in every
- * theme; the tone is carried by the dot and the border, never by low-contrast
- * coloured text.
- */
+/** A status chip: the app's StatusBadge, with the dot the creator app's screens all show. */
 export function StatusPill({ tone, children }: { tone: Tone; children: ReactNode }) {
   return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-        fontSize: 12,
-        fontWeight: 600,
-        color: "var(--cc-text)",
-        border: `1px solid ${TONE_DOT[tone]}`,
-        borderRadius: 999,
-        padding: "3px 10px",
-        whiteSpace: "nowrap",
-      }}
-    >
-      <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", background: TONE_DOT[tone] }} />
+    <StatusBadge tone={tone} dot>
       {children}
-    </span>
+    </StatusBadge>
   );
 }
 
 export function Banner({ tone, children, onDismiss }: { tone: "success" | "danger" | "info"; children: ReactNode; onDismiss?: () => void }) {
   return (
-    <div
+    <DsBanner
+      tone={tone}
       role={tone === "danger" ? "alert" : "status"}
-      style={{
-        display: "flex",
-        alignItems: "flex-start",
-        gap: 12,
-        padding: "12px 14px",
-        marginBottom: 16,
-        borderRadius: 12,
-        border: `1px solid ${TONE_DOT[tone]}`,
-        background: "var(--cc-card)",
-        fontSize: 14,
-        color: "var(--cc-text)",
-        lineHeight: 1.5,
-      }}
+      style={{ marginBottom: 16 }}
+      action={
+        onDismiss ? (
+          <button
+            type="button"
+            onClick={onDismiss}
+            aria-label="Dismiss"
+            className="rsp-touch"
+            style={{ display: "inline-flex", background: "none", border: "none", cursor: "pointer", color: "inherit", padding: 2 }}
+          >
+            <X size={16} aria-hidden="true" />
+          </button>
+        ) : undefined
+      }
     >
-      <span style={{ flex: 1 }}>{children}</span>
-      {onDismiss && (
-        <button
-          type="button"
-          onClick={onDismiss}
-          aria-label="Dismiss"
-          className="rsp-touch"
-          style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)", fontSize: 18, lineHeight: 1, padding: "0 4px" }}
-        >
-          ×
-        </button>
-      )}
-    </div>
+      {children}
+    </DsBanner>
   );
 }
 
 export function SkeletonBlock({ height = 72 }: { height?: number }) {
-  return (
-    <div
-      aria-hidden="true"
-      style={{
-        height,
-        borderRadius: 14,
-        background: "var(--cc-hover-bg)",
-        border: "1px solid var(--cc-border)",
-      }}
-    />
-  );
+  return <Skeleton height={height} radius="var(--cc-r-card)" />;
 }
 
 export function LoadFailed({ onRetry, what }: { onRetry: () => void; what: string }) {

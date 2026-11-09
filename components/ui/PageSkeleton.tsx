@@ -1,6 +1,7 @@
 "use client";
 
-import { Skeleton } from "@pratham7711/ui";
+import type React from "react";
+import { Skeleton } from "@/components/ds/Skeleton";
 
 /** Reusable skeleton for page headers (title + subtitle + action button) */
 export function PageHeaderSkeleton({ hasAction = true }: { hasAction?: boolean }) {
@@ -14,39 +15,100 @@ export function PageHeaderSkeleton({ hasAction = true }: { hasAction?: boolean }
       </div>
       {hasAction && (
         <div style={{ borderRadius: 8 }}>
-          <Skeleton width={140} height={36} borderRadius={8} />
+          <Skeleton width={140} height="var(--cc-control-h)" radius="var(--cc-r-control)" />
         </div>
       )}
     </div>
   );
 }
 
-/** Skeleton for stat card grids */
-export function StatGridSkeleton({ count = 4 }: { count?: number }) {
+/**
+ * KPI tiles while they load: the same grid (.cc-tiles-balanced) and tile shell
+ * (.cc-metric-tile) as the loaded row, so the count, the 12px radius and the
+ * height match and nothing shifts when the figures arrive. Pass the count the
+ * page will render -- the dashboard drew 2 placeholders and then 4 tiles.
+ */
+export function TileGridSkeleton({ count = 4, style }: { count?: number; style?: React.CSSProperties }) {
   return (
-    <div
-      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
-      style={{ gap: 20, marginBottom: 32 }}
-    >
+    <div className="cc-tiles-balanced" style={style} aria-hidden="true">
       {Array.from({ length: count }).map((_, i) => (
-        <div
-          key={i}
-          style={{
-            background: "var(--cc-card)",
-            border: "1px solid var(--cc-border)",
-            borderRadius: 12,
-            padding: 24,
-          }}
-        >
-          <div style={{ marginBottom: 12 }}>
-            <Skeleton width={100} height={12} />
-          </div>
-          <div style={{ marginBottom: 8 }}>
-            <Skeleton width={80} height={28} />
-          </div>
-          <Skeleton width={120} height={14} />
+        <div key={i} className="cc-metric-tile">
+          <Skeleton width={96} height={14} style={{ margin: "3px 0" }} />
+          <Skeleton width={120} height={26} style={{ margin: "3px 0" }} />
         </div>
       ))}
+    </div>
+  );
+}
+
+/** Kept for existing callers; the tile row above is what it now draws. */
+export function StatGridSkeleton({ count = 4 }: { count?: number }) {
+  return <TileGridSkeleton count={count} style={{ marginBottom: 32 }} />;
+}
+
+/** The ListToolbar row: a search box and `filters` controls at the right. */
+export function ListToolbarSkeleton({ filters = 2 }: { filters?: number }) {
+  return (
+    <div className="cc-toolbar" aria-hidden="true">
+      <div className="cc-toolbar-search">
+        <Skeleton width="100%" height="var(--cc-control-h)" radius="var(--cc-r-control)" />
+      </div>
+      {filters > 0 ? (
+        <div className="cc-toolbar-end">
+          {Array.from({ length: filters }).map((_, i) => (
+            <Skeleton key={i} width={120} height="var(--cc-control-h)" radius="var(--cc-r-control)" />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export type SkeletonColumn = { width?: number | string; align?: "left" | "right" };
+
+/**
+ * A DataTable while its first page loads: the same card, 40px head and cell
+ * padding, in the columns the table will have. (A mounted DataTable with
+ * `loading` and no rows draws these rows itself, under its real headers.)
+ */
+export function DataTableSkeleton({ columns = 5, rows = 8 }: { columns?: number | SkeletonColumn[]; rows?: number }) {
+  const cols: SkeletonColumn[] = typeof columns === "number" ? Array.from({ length: columns }, () => ({})) : columns;
+  const widths = ["72%", "56%", "64%", "48%"];
+  return (
+    <div className="cc-dt-card" aria-hidden="true">
+      <div className="cc-dt-scroll">
+        <table className="cc-dt">
+          <colgroup>
+            {cols.map((c, i) => (
+              <col key={i} style={c.width === undefined ? undefined : { width: c.width }} />
+            ))}
+          </colgroup>
+          <thead>
+            <tr>
+              {cols.map((c, i) => (
+                <th key={i} className="cc-th" data-align={c.align}>
+                  <Skeleton width={56} height={10} style={c.align === "right" ? { marginLeft: "auto" } : undefined} />
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: rows }).map((_, r) => (
+              <tr key={r} className="cc-dt-skeleton-row">
+                {cols.map((c, i) => (
+                  <td key={i} data-align={c.align}>
+                    <Skeleton
+                      width={c.align === "right" ? 56 : widths[(r + i) % widths.length]}
+                      height={12}
+                      style={c.align === "right" ? { marginLeft: "auto" } : undefined}
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -58,7 +120,7 @@ export function TableSkeleton({ rows = 5, columns = 4 }: { rows?: number; column
       style={{
         background: "var(--cc-card)",
         border: "1px solid var(--cc-border)",
-        borderRadius: 12,
+        borderRadius: "var(--cc-r-card)",
         overflow: "hidden",
       }}
     >
@@ -123,8 +185,8 @@ export function CardGridSkeleton({ count = 6 }: { count?: number }) {
           style={{
             background: "var(--cc-card)",
             border: "1px solid var(--cc-border)",
-            borderRadius: 12,
-            padding: 24,
+            borderRadius: "var(--cc-r-card)",
+            padding: "var(--cc-card-inset)",
           }}
         >
           <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 20 }}>
@@ -166,8 +228,8 @@ export function ChartSkeleton() {
       style={{
         background: "var(--cc-card)",
         border: "1px solid var(--cc-border)",
-        borderRadius: 12,
-        padding: 28,
+        borderRadius: "var(--cc-r-card)",
+        padding: "var(--cc-card-inset)",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 24 }}>
@@ -194,8 +256,8 @@ export function DashboardSkeleton() {
             style={{
               background: "var(--cc-card)",
               border: "1px solid var(--cc-border)",
-              borderRadius: 12,
-              padding: 20,
+              borderRadius: "var(--cc-r-card)",
+              padding: "var(--cc-card-inset)",
             }}
           >
             {Array.from({ length: 5 }).map((_, i) => (
@@ -279,6 +341,54 @@ export function ClientsListSkeleton() {
         <Skeleton width="100%" height={40} borderRadius={10} />
       </div>
       <TableSkeleton rows={5} columns={3} />
+    </div>
+  );
+}
+
+/**
+ * A listing page: header, optional KPI tiles, the toolbar, then the table.
+ * The audit log uses it with its five columns.
+ */
+export function ListPageSkeleton({
+  tiles = 0,
+  filters = 2,
+  columns = 5,
+  rows = 8,
+  hasAction = true,
+}: {
+  tiles?: number;
+  filters?: number;
+  columns?: number | SkeletonColumn[];
+  rows?: number;
+  hasAction?: boolean;
+}) {
+  return (
+    <div className="rsp-page">
+      <PageHeaderSkeleton hasAction={hasAction} />
+      {tiles > 0 ? <TileGridSkeleton count={tiles} style={{ marginBottom: 24 }} /> : null}
+      <ListToolbarSkeleton filters={filters} />
+      <DataTableSkeleton columns={columns} rows={rows} />
+    </div>
+  );
+}
+
+/** A page of cards (lists, songs, plans): header, toolbar, card grid. */
+export function CardGridPageSkeleton({
+  count = 6,
+  toolbar = true,
+  filters = 0,
+  hasAction = true,
+}: {
+  count?: number;
+  toolbar?: boolean;
+  filters?: number;
+  hasAction?: boolean;
+}) {
+  return (
+    <div className="rsp-page">
+      <PageHeaderSkeleton hasAction={hasAction} />
+      {toolbar ? <ListToolbarSkeleton filters={filters} /> : null}
+      <CardGridSkeleton count={count} />
     </div>
   );
 }

@@ -9,6 +9,10 @@ jest.mock("@pratham7711/ui", () => ({
   Badge: ({ children }: any) => <span>{children}</span>,
   StatCard: ({ label, value }: any) => <div><span>{label}</span><span>{value}</span></div>,
   Skeleton: () => <div data-testid="skeleton" />,
+  // The header's Export is the ds Button, which renders this one.
+  Button: ({ children, iconLeft, onClick, disabled }: { children?: React.ReactNode; iconLeft?: React.ReactNode; onClick?: () => void; disabled?: boolean }) => (
+    <button onClick={onClick} disabled={disabled}>{iconLeft}{children}</button>
+  ),
 }), { virtual: true });
 
 jest.mock("recharts", () => ({
@@ -93,9 +97,9 @@ describe("DashboardClient — widget gating via dashboardWidgets", () => {
     // Performance widgets live behind the Performance tab.
     fireEvent.click(screen.getByRole("tab", { name: /Performance/i }));
     expect(await screen.findByText("Views by platform")).toBeInTheDocument();
-    expect(screen.getByText("Top posts")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Top posts" })).toBeInTheDocument();
     expect(screen.getByText("Views by campaign")).toBeInTheDocument();
-    expect(screen.getByText("Creator performance")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Creator performance" })).toBeInTheDocument();
   });
 
   it("omits the views and posts tiles when no platform reported anything", async () => {
@@ -127,8 +131,8 @@ describe("DashboardClient — widget gating via dashboardWidgets", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: /Performance/i }));
     expect(await screen.findByText("Views by platform")).toBeInTheDocument();
-    expect(screen.getByText("Top posts")).toBeInTheDocument();
-    expect(screen.getByText("Creator performance")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Top posts" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Creator performance" })).toBeInTheDocument();
   });
 
   it("renders only the header chrome when dashboardWidgets is an empty array", async () => {

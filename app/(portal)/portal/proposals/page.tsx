@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Card, Badge, EmptyState, Skeleton } from "@pratham7711/ui";
-import { Button } from "@/components/ds";
+import { Card, EmptyState } from "@pratham7711/ui";
+import { Button, Skeleton, StatusBadge, type StatusTone } from "@/components/ds";
 import { ArrowLeft, Inbox } from "lucide-react";
 import { formatDateAbs } from "@/lib/format";
 import Link from "next/link";
@@ -31,7 +31,7 @@ const STATUS_TABS = [
   { key: "REJECTED", label: "Rejected", bg: "var(--cc-danger-bg)", color: "var(--cc-danger-fg)" },
 ];
 
-const STATUS_BADGE: Record<string, "warning" | "success" | "danger" | "neutral"> = {
+const STATUS_TONE: Record<string, StatusTone> = {
   PENDING: "warning",
   ACCEPTED: "success",
   REJECTED: "danger",
@@ -65,7 +65,7 @@ export default function PortalProposalsPage() {
   if (loading) return (
     <div className="rsp-page" style={{ maxWidth: 960 }}>
       <Skeleton width="200px" height="32px" />
-      <Skeleton width="100%" height="300px" borderRadius="12px" />
+      <Skeleton width="100%" height="300px" radius="var(--cc-r-card)" />
     </div>
   );
 
@@ -122,7 +122,7 @@ export default function PortalProposalsPage() {
               <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{p.campaign.org.name}</span>
               <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{p.campaign.budget ? formatCurrency(p.campaign.budget, p.campaign.currency) : "—"}</span>
               <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)" }}>{formatCurrency(p.proposedRate, p.currency)}</span>
-              <Badge variant={STATUS_BADGE[p.status] ?? "neutral"}>{p.status}</Badge>
+              <StatusBadge status={p.status} tone={STATUS_TONE[p.status] ?? "neutral"} dot />
               <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{formatDateAbs(p.createdAt)}</span>
             </div>
           ))}

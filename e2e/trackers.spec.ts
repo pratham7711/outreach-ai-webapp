@@ -147,7 +147,7 @@ test.describe('Trackers page', () => {
     await expect(page.getByText('Beat Drop Remix').first()).toBeVisible({ timeout: 20000 });
     await expect(page.getByText('Could not load trackers')).toHaveCount(0);
 
-    await page.getByRole('button', { name: 'Creators', exact: true }).first().click();
+    await page.getByRole('tab', { name: 'Creators', exact: true }).first().click();
     await expect(page).toHaveURL(/sub=creator/);
     await expect(page.getByText('Could not load trackers')).toHaveCount(0);
   });

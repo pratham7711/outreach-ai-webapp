@@ -109,14 +109,19 @@ export function Panel({ children, labelledBy, style }: { children: ReactNode; la
   return (
     <section
       aria-labelledby={labelledBy}
-      style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 16, padding: "clamp(16px, 2.2vw, 22px)", minWidth: 0, ...style }}
+      style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: "var(--cc-r-card)", padding: "var(--cc-card-inset)", minWidth: 0, ...style }}
     >
       {children}
     </section>
   );
 }
 
-/** A small set of mutually exclusive views, as pressed buttons. */
+/**
+ * A small set of mutually exclusive views, as pressed buttons: the app's
+ * segmented control at the compact height, so a switch in a card header is the
+ * same control as the date range in a page header -- one framed row, the
+ * chosen option in the ink tint, one weight for both states.
+ */
 export function Toggle<T extends string>({
   options,
   value,
@@ -129,36 +134,18 @@ export function Toggle<T extends string>({
   label: string;
 }) {
   return (
-    <div role="group" aria-label={label} style={{ display: "inline-flex", gap: 2, padding: 3, borderRadius: 10, background: "var(--cc-hover-bg)", flexWrap: "wrap" }}>
-      {options.map((o) => {
-        const on = o.value === value;
-        return (
-          <button
-            key={o.value}
-            type="button"
-            aria-pressed={on}
-            onClick={() => onChange(o.value)}
-            className="rsp-touch focus-visible:outline-2 focus-visible:outline-offset-2"
-            style={{
-              font: "inherit",
-              border: "none",
-              borderRadius: 8,
-              padding: "5px 11px",
-              fontSize: 13,
-              fontWeight: on ? 700 : 500,
-              color: on ? "var(--cc-text)" : "var(--cc-text-muted)",
-              background: on ? "var(--cc-card)" : "transparent",
-              boxShadow: on ? "0 1px 2px color-mix(in srgb, var(--cc-shadow-ink) 8%, transparent), 0 0 0 1px var(--cc-border)" : "none",
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-              outlineColor: "var(--cc-primary)",
-              transition: "background-color 150ms ease-out, color 150ms ease-out",
-            }}
-          >
-            {o.label}
-          </button>
-        );
-      })}
+    <div role="group" aria-label={label} className="cc-segmented cc-segmented-sm">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          aria-pressed={o.value === value}
+          onClick={() => onChange(o.value)}
+          className="cc-segmented-btn"
+        >
+          {o.label}
+        </button>
+      ))}
     </div>
   );
 }

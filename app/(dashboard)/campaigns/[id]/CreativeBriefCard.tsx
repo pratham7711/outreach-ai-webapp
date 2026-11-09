@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import dynamic from "next/dynamic";
 import { toast } from "sonner";
-import { Card } from "@pratham7711/ui";
+import { Button, SectionCard } from "@/components/ds";
 
 /* Tiptap and prosemirror are ~152 KB gzipped, and a static import put them in
    the first load of every campaign section, though only Overview shows a brief.
@@ -80,66 +80,37 @@ export default function CreativeBriefCard({
   };
 
   return (
-    <Card variant="outlined" className="cc-overview-card">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <span className="cc-panel-title">Creative Brief</span>
-        {canEdit && !editing && (
-          <button
-            type="button"
-            onClick={() => setEditing(true)}
-            style={{
-              padding: "6px 14px", borderRadius: 8, fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)",
-              background: "var(--cc-card)", border: "1.5px solid var(--cc-primary)",
-              color: "var(--cc-primary)", cursor: "pointer",
-            }}
-          >
-            {saved ? "Edit Brief" : "Write Brief"}
-          </button>
-        )}
-        {editing && (
-          <div style={{ display: "flex", gap: 8 }}>
-            <button
-              type="button"
-              onClick={cancel}
-              disabled={saving}
-              style={{
-                padding: "6px 14px", borderRadius: 8, fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)",
-                background: "transparent", border: "1px solid var(--cc-border)",
-                color: "var(--cc-text-muted)", cursor: saving ? "not-allowed" : "pointer",
-              }}
-            >
+    <SectionCard
+      title="Creative brief"
+      action={
+        canEdit && !editing ? (
+          <Button variant="secondary" size="sm" onClick={() => setEditing(true)}>
+            {saved ? "Edit brief" : "Write brief"}
+          </Button>
+        ) : editing ? (
+          <span className="cc-campaign-card-actions">
+            <Button variant="secondary" size="sm" onClick={cancel} disabled={saving}>
               Cancel
-            </button>
-            <button
-              type="button"
-              onClick={save}
-              disabled={saving}
-              style={{
-                padding: "6px 14px", borderRadius: 8, fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)",
-                border: "none", color: saving ? "white" : "var(--cc-on-primary)", cursor: saving ? "not-allowed" : "pointer",
-                background: saving ? "var(--cc-border)" : "var(--cc-primary)",
-              }}
-            >
-              {saving ? "Saving..." : "Save Brief"}
-            </button>
-          </div>
-        )}
-      </div>
-
+            </Button>
+            <Button variant="primary" size="sm" onClick={save} disabled={saving}>
+              {saving ? "Saving…" : "Save brief"}
+            </Button>
+          </span>
+        ) : undefined
+      }
+    >
       {editing ? (
         <RichTextEditor
           value={draft}
           onChange={setDraft}
-          ariaLabel="Creative Brief"
+          ariaLabel="Creative brief"
           placeholder="What are creators making, and what does good look like?"
         />
       ) : saved ? (
         <RichTextViewer value={saved} editable={false} minHeight={0} />
       ) : (
-        <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)" }}>
-          No brief yet.
-        </p>
+        <p className="cc-campaign-card-note">No brief yet.</p>
       )}
-    </Card>
+    </SectionCard>
   );
 }

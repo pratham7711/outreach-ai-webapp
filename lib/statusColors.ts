@@ -17,8 +17,8 @@ export type StatusStyle = { bg: string; color: string };
 
 /**
  * The lightest surface the app ever draws a status on (--cc-card is #FFFFFF in
- * the default and creatorcore themes). Judging readability against it is the
- * strict case: a colour that survives white survives the darker grounds too.
+ * light). Judging readability against it is the strict case: a colour that
+ * survives white survives the darker grounds too.
  */
 const SURFACE = "#FFFFFF";
 
@@ -126,7 +126,7 @@ export function statusInk(style: StatusStyle): string {
      which is simply unmeasurable from here. Scoring the pair symmetrically then
      let a hex `bg` beat an unmeasurable `color` on 1.11 > 1, and the status's
      GROUND became its ink: MEASURED 2026-09-15, the Pending tab on a campaign's
-     creators tab drew #FEF3C7 on the creatorcore strip at 1.20:1.
+     creators tab drew #FEF3C7 on the former CreatorCore theme's strip at 1.20:1.
      `color` is the status's own foreground by definition, so it is what a tie
      or an unmeasurable comparison falls back to. PostsTab worked around this at
      one call site by spelling Pending's colour as a hex; five other tab configs
@@ -151,9 +151,7 @@ export function statusInk(style: StatusStyle): string {
  *
  * Judged on the RAW literal. Every theme mixes the ink toward --cc-text
  * (--cc-status-ink-strength), which in a light theme only darkens it -- so a
- * literal that carries white keeps carrying it. creatorcore no longer reads
- * this at all: its inks are mixed half-way, every filled pill is dark, and its
- * own selected-tab rule gives them all a white label (globals.css).
+ * literal that carries white keeps carrying it.
  */
 export function whiteReadsOnInk(ink: string): boolean {
   return contrastRatio(ink, SURFACE) >= 3.5;

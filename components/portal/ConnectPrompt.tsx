@@ -2,9 +2,10 @@
 
 import React from "react";
 import { useCallback, useEffect, useState } from "react";
-import { Card, Skeleton } from "@pratham7711/ui";
+import { Card } from "@pratham7711/ui";
 import { ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ds";
+import { Skeleton } from "@/components/ds/Skeleton";
 import { PlatformGlyph } from "@/components/ui/PlatformGlyph";
 import { ButtonLink } from "@/components/portal/app/ui";
 
@@ -78,7 +79,7 @@ export function ConnectPrompt({
   };
 
   if (accounts === null) {
-    return <Skeleton width="100%" height="120px" borderRadius="12px" />;
+    return <Skeleton width="100%" height="120px" radius="var(--cc-r-card)" />;
   }
 
   /* No roster row yet: the start route would bounce every Connect with
@@ -185,7 +186,7 @@ export function ConnectPrompt({
   }
 
   return (
-    <Card variant="outlined" style={{ padding: 20 }}>
+    <Card variant="outlined">
       <div style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 6 }}>
         {copy.title}
       </div>

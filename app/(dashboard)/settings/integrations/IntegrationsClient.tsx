@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Card, Skeleton, Toggle } from "@pratham7711/ui";
-import { BellRing, Plug } from "lucide-react";
-import { Button, SectionCard, useConfirm } from "@/components/ds";
+import { Input } from "@pratham7711/ui";
+import { BellRing, ChevronDown, ChevronRight, Plug, Slack } from "lucide-react";
+import { Button, Field, SectionCard, Skeleton, useConfirm } from "@/components/ds";
+import { Switch } from "@/components/ds/Switch";
 import { apiFetch } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessage";
 
@@ -117,29 +118,18 @@ export function IntegrationsClient() {
 
   if (loading) {
     return (
-      <Card variant="outlined">
-        <Skeleton width={200} height={18} />
-        <div style={{ marginTop: 12 }}><Skeleton width="100%" height={100} /></div>
-      </Card>
+      <SectionCard icon={Plug} title="Connectors">
+        <Skeleton width="100%" height={44} />
+      </SectionCard>
     );
   }
   if (!view) return null;
-
-  const inputStyle: React.CSSProperties = {
-    width: "100%",
-    padding: "9px 12px",
-    fontSize: "var(--cc-t-14)",
-    border: "1px solid var(--cc-border)",
-    borderRadius: 8,
-    background: "var(--cc-card)",
-    color: "var(--cc-text)",
-  };
 
   return (
     <div className="cc-settings-groups">
       <SectionCard
         icon={Plug}
-        title="Integrations"
+        title="Connectors"
         description="Connect with Slack to receive updates and notifications directly in your selected channel."
       >
         {/* One row per connector, the reference's shape for this page. MEASURED
@@ -152,7 +142,9 @@ export function IntegrationsClient() {
             at rest is the row they draw. */}
         <div className="cc-provider-row">
           <div className="cc-provider-id">
-            <span className="cc-provider-logo" aria-hidden>💬</span>
+            <span className="cc-provider-logo" aria-hidden>
+              <Slack size={20} strokeWidth={1.75} />
+            </span>
             <div className="cc-pref-row-text">
               <span className="cc-provider-name">Slack</span>
               {view.connected ? (
@@ -164,7 +156,10 @@ export function IntegrationsClient() {
           </div>
           <Button
             className="cc-provider-cta"
+            variant={view.connected ? "secondary" : "primary"}
+            size="sm"
             aria-expanded={open}
+            aria-controls="cc-slack-form"
             onClick={() => setOpen((o) => !o)}
           >
             {view.connected ? "Manage" : "Connect"}
@@ -172,53 +167,67 @@ export function IntegrationsClient() {
         </div>
 
         {open ? (
-          <div style={{ display: "grid", gap: 10, paddingTop: 4 }}>
-            {!view.connected && (
-              <p className="cc-pref-row-desc">
-                In Slack: your workspace → Tools &amp; settings → Manage apps → Incoming Webhooks → Add to
-                Slack, pick a channel, and paste the URL it gives you here.
-              </p>
-            )}
-            <input
-              style={inputStyle}
-              type="url"
-              placeholder={view.connected ? "Paste a new webhook URL to replace the current one" : "https://hooks.slack.com/services/…"}
-              value={webhookUrl}
-              onChange={(e) => setWebhookUrl(e.target.value)}
-              disabled={busy}
-            />
-            <input
-              style={inputStyle}
-              type="text"
-              placeholder="Channel label, e.g. #campaigns (display only)"
-              value={channel}
-              onChange={(e) => setChannel(e.target.value)}
-              disabled={busy}
-            />
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <form
+            id="cc-slack-form"
+            className="cc-integration-form"
+            noValidate
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (busy || (!view.connected && !webhookUrl.trim())) return;
+              save(
+                webhookUrl.trim() ? { webhookUrl: webhookUrl.trim(), channel } : { channel },
+                view.connected ? "Saved" : "Slack connected"
+              );
+            }}
+          >
+            <Field
+              label="Webhook URL"
+              required={!view.connected}
+              helper={
+                view.connected
+                  ? "Paste a new webhook URL to replace the current one."
+                  : "In Slack: your workspace → Tools & settings → Manage apps → Incoming Webhooks → Add to Slack. Pick a channel and paste the URL it gives you."
+              }
+            >
+              <Input
+                inputMode="url"
+                placeholder="https://hooks.slack.com/services/…"
+                value={webhookUrl}
+                onChange={(e) => setWebhookUrl(e.target.value)}
+                disabled={busy}
+                autoComplete="off"
+              />
+            </Field>
+            <Field label="Channel label" helper="Display only. The webhook already decides which channel it posts to.">
+              <Input
+                placeholder="#campaigns"
+                value={channel}
+                onChange={(e) => setChannel(e.target.value)}
+                disabled={busy}
+                autoComplete="off"
+              />
+            </Field>
+            <div className="cc-integration-form__actions">
               <Button
-                onClick={() =>
-                  save(
-                    webhookUrl.trim() ? { webhookUrl: webhookUrl.trim(), channel } : { channel },
-                    view.connected ? "Saved" : "Slack connected"
-                  )
-                }
+                type="submit"
+                variant="primary"
+                size="md"
                 disabled={busy || (!view.connected && !webhookUrl.trim())}
               >
                 {view.connected ? "Save" : "Connect Slack"}
               </Button>
               {view.connected && (
                 <>
-                  <Button variant="secondary" onClick={test} disabled={busy}>
+                  <Button type="button" variant="secondary" size="md" onClick={test} disabled={busy}>
                     Send test message
                   </Button>
-                  <Button variant="danger" onClick={disconnect} disabled={busy}>
+                  <Button type="button" variant="danger" size="md" onClick={disconnect} disabled={busy}>
                     Disconnect
                   </Button>
                 </>
               )}
             </div>
-          </div>
+          </form>
         ) : null}
       </SectionCard>
 
@@ -226,38 +235,38 @@ export function IntegrationsClient() {
         <SectionCard
           icon={BellRing}
           title="Events"
-          description="Org-wide — these post to the channel, not to anyone's email."
+          description="Org-wide: these post to the channel, not to anyone's email. Each switch saves as you flip it."
         >
           <button
+            type="button"
             onClick={() => setShowEvents((s) => !s)}
-            className="cc-provider-name"
-            style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}
+            className="cc-disclosure"
+            aria-expanded={showEvents}
+            aria-controls="cc-slack-events"
           >
-            Events posted to Slack {showEvents ? "▾" : "▸"}
+            {showEvents ? <ChevronDown size={16} aria-hidden="true" /> : <ChevronRight size={16} aria-hidden="true" />}
+            Events posted to Slack
           </button>
           {showEvents && (
-            <div style={{ marginTop: 12, display: "grid", gap: 14 }}>
+            <div id="cc-slack-events" className="cc-disclosure-body">
               {groups.map(([group, defs]) => (
                 <div key={group}>
-                  <div className="cc-microlabel" style={{ marginBottom: 6 }}>
-                    {group}
-                  </div>
+                  <div className="cc-microlabel cc-disclosure-group">{group}</div>
                   <div className="cc-pref-rows">
                     {defs.map((def) => (
                       <div key={def.key} className="cc-pref-row">
                         <div className="cc-pref-row-text">
-                          <div className="cc-pref-row-title">{def.label}</div>
+                          <div className="cc-pref-row-title" id={`slack-${def.key}`}>{def.label}</div>
                         </div>
-                        <Toggle
+                        <Switch
                           checked={view.events[def.key] ?? def.defaultOn}
-                          onChange={(next: boolean) => {
+                          onChange={(next) => {
                             setView((v) => (v ? { ...v, events: { ...v.events, [def.key]: next } } : v));
                             save({ events: { [def.key]: next } }, "Saved");
                           }}
                           size="sm"
                           disabled={busy}
-                          label={def.label}
-                          className="cc-toggle-named"
+                          aria-labelledby={`slack-${def.key}`}
                         />
                       </div>
                     ))}

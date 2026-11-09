@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Search, X } from "lucide-react";
+import { useAnchoredMenu } from "./useAnchoredMenu";
 
 /**
  * Pick one record out of a large table by searching for it.
@@ -11,6 +13,14 @@ import { Search, X } from "lucide-react";
  * to render a board of 12 — and a 1,834-item dropdown was unusable anyway. This
  * asks the listing API instead, which already paginates and searches, so the
  * page carries nothing until someone types.
+ *
+ * The results open on a click, a keystroke or ArrowDown -- not on focus, so a
+ * dialog that focuses this field on open does not throw a list over its own
+ * footer. They are portalled and anchored to the field (useAnchoredMenu): in
+ * the Merge dialog an in-flow list was cut off by the dialog body at its footer.
+ * Being outside the dialog, the options are reached with the arrow keys
+ * (aria-activedescendant) rather than Tab, and Escape closes the list
+ * without closing the dialog.
  */
 
 export type PickerOption = { id: string; label: string; hint?: string };
@@ -22,7 +32,11 @@ export function EntityPicker({
   placeholder = "Search…",
   value,
   onChange,
+  "aria-describedby": describedBy,
+  "aria-invalid": invalid,
+  "aria-required": ariaRequired,
 }: {
+  /** On the search input; a Field passes its own. */
   id: string;
   /** A listing route taking ?search= and ?limit=. */
   endpoint: string;
@@ -31,13 +45,20 @@ export function EntityPicker({
   placeholder?: string;
   value: PickerOption | null;
   onChange: (option: PickerOption | null) => void;
+  "aria-describedby"?: string;
+  "aria-invalid"?: boolean;
+  "aria-required"?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [options, setOptions] = useState<PickerOption[]>([]);
   const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
-  const boxRef = useRef<HTMLDivElement>(null);
+  const fieldRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  const listId = useId();
+  const { pos } = useAnchoredMenu(open, fieldRef, listRef);
 
   useEffect(() => {
     if (!open) return;
@@ -50,6 +71,7 @@ export function EntityPicker({
         const res = await fetch(url, { signal: controller.signal });
         if (!res.ok) throw new Error(String(res.status));
         setOptions(extract(await res.json()));
+        setActive(-1);
       } catch (err) {
         // An aborted request is the next keystroke, not a failure.
         if ((err as Error).name !== "AbortError") setError(true);
@@ -66,151 +88,134 @@ export function EntityPicker({
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
-      if (!boxRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      const target = e.target as Node;
+      if (fieldRef.current?.contains(target) || listRef.current?.contains(target)) return;
+      setOpen(false);
     };
     document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
+    return () => document.removeEventListener("mousedown", onDown);
   }, [open]);
+
+  useEffect(() => {
+    if (active < 0) return;
+    document.getElementById(`${listId}-${active}`)?.scrollIntoView?.({ block: "nearest" });
+  }, [active, listId]);
+
+  const pick = (opt: PickerOption) => {
+    onChange(opt);
+    setOpen(false);
+    setActive(-1);
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Escape") {
+      if (!open) return;
+      e.preventDefault();
+      setOpen(false);
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (!open) return setOpen(true);
+      if (options.length) setActive((i) => (i + 1) % options.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (open && options.length) setActive((i) => (i <= 0 ? options.length - 1 : i - 1));
+    } else if (e.key === "Enter") {
+      if (open && active >= 0 && options[active]) {
+        e.preventDefault();
+        pick(options[active]);
+      }
+    } else if (e.key === "Tab") {
+      setOpen(false);
+    }
+  };
 
   if (value) {
     return (
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          height: 38,
-          padding: "0 8px 0 12px",
-          border: "1px solid var(--cc-border)",
-          borderRadius: 8,
-          background: "var(--cc-card)",
-        }}
-      >
-        <span style={{ flex: 1, minWidth: 0, fontSize: "var(--cc-t-14)", color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {value.label}
-        </span>
+      <div className="cc-entity-picker__field" data-picked="">
+        <span className="cc-entity-picker__value">{value.label}</span>
         <button
           type="button"
+          className="cc-entity-picker__clear"
           onClick={() => {
             onChange(null);
             setQuery("");
           }}
           aria-label="Clear selection"
-          style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)", display: "flex", padding: 2 }}
         >
-          <X size={15} />
+          <X size={15} aria-hidden="true" />
         </button>
       </div>
     );
   }
 
+  const showList = open && pos;
+  const activeId = showList && active >= 0 && options[active] ? `${listId}-${active}` : undefined;
+
+  const list = showList ? (
+    <ul
+      ref={listRef}
+      id={listId}
+      role="listbox"
+      aria-label={placeholder}
+      className="cc-entity-picker__list"
+      style={{ top: pos.top, left: pos.left, width: pos.width }}
+    >
+      {error ? (
+        <li className="cc-entity-picker__note" data-tone="danger">
+          Could not load results. Try again.
+        </li>
+      ) : loading && options.length === 0 ? (
+        <li className="cc-entity-picker__note">Searching…</li>
+      ) : options.length === 0 ? (
+        <li className="cc-entity-picker__note">No matches</li>
+      ) : (
+        options.map((opt, i) => (
+          <li
+            key={opt.id}
+            id={`${listId}-${i}`}
+            role="option"
+            aria-selected={i === active}
+            className="cc-entity-picker__option"
+            data-active={i === active || undefined}
+            onMouseDown={(e) => e.preventDefault()}
+            onMouseEnter={() => setActive(i)}
+            onClick={() => pick(opt)}
+          >
+            {opt.label}
+            {opt.hint && <span className="cc-entity-picker__hint">{opt.hint}</span>}
+          </li>
+        ))
+      )}
+    </ul>
+  ) : null;
+
   return (
-    <div ref={boxRef} style={{ position: "relative" }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          height: 38,
-          padding: "0 12px",
-          border: "1px solid var(--cc-border)",
-          borderRadius: 8,
-          background: "var(--cc-card)",
-        }}
-      >
-        <Search size={15} color="var(--cc-text-muted)" />
+    <>
+      <div ref={fieldRef} className="cc-entity-picker__field">
+        <Search size={15} className="cc-entity-picker__icon" aria-hidden="true" />
         <input
           id={id}
+          className="cc-entity-picker__input"
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
             setOpen(true);
           }}
-          onFocus={() => setOpen(true)}
+          onClick={() => setOpen(true)}
+          onKeyDown={onKeyDown}
           placeholder={placeholder}
           role="combobox"
-          aria-expanded={open}
+          aria-expanded={Boolean(showList)}
+          aria-controls={showList ? listId : undefined}
+          aria-activedescendant={activeId}
           aria-autocomplete="list"
-          style={{
-            flex: 1,
-            minWidth: 0,
-            border: "none",
-            background: "transparent",
-            fontSize: "var(--cc-t-14)",
-            color: "var(--cc-text)",
-          }}
+          aria-describedby={describedBy}
+          aria-invalid={invalid || undefined}
+          aria-required={ariaRequired || undefined}
+          autoComplete="off"
         />
       </div>
-
-      {open && (
-        <ul
-          role="listbox"
-          style={{
-            position: "absolute",
-            top: 42,
-            left: 0,
-            right: 0,
-            zIndex: 10,
-            maxHeight: 220,
-            overflowY: "auto",
-            margin: 0,
-            padding: 4,
-            listStyle: "none",
-            background: "var(--cc-card)",
-            border: "1px solid var(--cc-border)",
-            borderRadius: 8,
-            boxShadow: "var(--cc-popover-shadow)",
-          }}
-        >
-          {error ? (
-            <li style={{ padding: "10px 12px", fontSize: "var(--cc-t-13)", color: "var(--cc-danger)" }}>
-              Could not load results. Try again.
-            </li>
-          ) : loading && options.length === 0 ? (
-            <li style={{ padding: "10px 12px", fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>Searching…</li>
-          ) : options.length === 0 ? (
-            <li style={{ padding: "10px 12px", fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>No matches</li>
-          ) : (
-            options.map((opt) => (
-              <li key={opt.id}>
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={false}
-                  onClick={() => {
-                    onChange(opt);
-                    setOpen(false);
-                  }}
-                  style={{
-                    display: "block",
-                    width: "100%",
-                    textAlign: "left",
-                    padding: "8px 10px",
-                    border: "none",
-                    borderRadius: 6,
-                    background: "transparent",
-                    cursor: "pointer",
-                    fontSize: "var(--cc-t-13)",
-                    color: "var(--cc-text)",
-                  }}
-                >
-                  {opt.label}
-                  {opt.hint && (
-                    <span style={{ color: "var(--cc-text-muted)", marginLeft: 6 }}>{opt.hint}</span>
-                  )}
-                </button>
-              </li>
-            ))
-          )}
-        </ul>
-      )}
-    </div>
+      {typeof document !== "undefined" && list ? createPortal(list, document.body) : null}
+    </>
   );
 }

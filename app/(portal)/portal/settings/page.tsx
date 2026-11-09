@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Card, Input, Skeleton, Textarea, Badge, Tag } from "@pratham7711/ui";
+import { Input, Textarea } from "@pratham7711/ui";
 import { toast } from "sonner";
-import { Save } from "lucide-react";
+import { Link2, UserRound, X } from "lucide-react";
 import type { PlatformCapability } from "@/lib/capabilities";
 import { isInstagramLoginRow } from "@/lib/platforms/accountOrigin";
 import { connectFailureText } from "@/lib/portal/connectFailureText";
@@ -13,14 +13,26 @@ import {
   toPlatformEnum,
   type OAuthPlatform,
 } from "@/lib/oauth/providers";
-import { Dropdown, Button } from "@/components/ds";
+import {
+  Banner,
+  Button,
+  Dropdown,
+  Field,
+  FieldRow,
+  PageHeader,
+  SectionCard,
+  SettingsForm,
+  Skeleton,
+  StatusBadge,
+} from "@/components/ds";
+import { useDirty } from "@/lib/useDirty";
 import { instagramCardLabel } from "@/lib/oauth/instagramUnified";
 
 const PLATFORMS = [
   { value: "TIKTOK", label: "TikTok" },
   { value: "INSTAGRAM", label: "Instagram" },
   { value: "YOUTUBE", label: "YouTube" },
-  { value: "TWITTER", label: "Twitter" },
+  { value: "TWITTER", label: "X" },
 ];
 
 const NICHES = [
@@ -83,6 +95,7 @@ export default function PortalSettingsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState<Profile | null>(null);
   const [form, setForm] = useState<Profile>({
     name: "",
     handle: "",
@@ -209,7 +222,7 @@ export default function PortalSettingsPage() {
       })
       .then((data) => {
         if (data) {
-          setForm({
+          const loaded: Profile = {
             name: data.name ?? "",
             handle: data.handle ?? "",
             bio: data.bio ?? null,
@@ -220,13 +233,16 @@ export default function PortalSettingsPage() {
             bankIFSC: data.bankIFSC ?? null,
             bankSwift: data.bankSwift ?? null,
             bankRoutingNumber: data.bankRoutingNumber ?? null,
-          });
+          };
+          setForm(loaded);
+          setSaved(loaded);
         }
       })
       .finally(() => setLoading(false));
   }, [router]);
 
   const set = (patch: Partial<Profile>) => setForm((f) => ({ ...f, ...patch }));
+  const dirty = useDirty(saved, form);
 
   const toggleNiche = (niche: string) => {
     setForm((f) => ({
@@ -251,6 +267,7 @@ export default function PortalSettingsPage() {
         body: JSON.stringify(form),
       });
       if (res.ok) {
+        setSaved(form);
         toast.success("Profile updated");
       } else {
         const data = await res.json();
@@ -266,10 +283,10 @@ export default function PortalSettingsPage() {
   if (loading) {
     return (
       <div className="rsp-page" style={{ maxWidth: 720 }}>
-        <Skeleton width="200px" height="32px" />
+        <Skeleton width={200} height={32} />
         <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 16 }}>
           {[1, 2, 3].map((i) => (
-            <Skeleton key={i} width="100%" height="160px" borderRadius="12px" />
+            <Skeleton key={i} width="100%" height={160} radius="var(--cc-r-card)" />
           ))}
         </div>
       </div>
@@ -278,85 +295,56 @@ export default function PortalSettingsPage() {
 
   return (
     <div className="rsp-page" style={{ maxWidth: 720 }}>
-      <div style={{ marginBottom: 32 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
-          Settings
-        </h1>
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
-          Manage your profile and payment details
-        </p>
-      </div>
+      <PageHeader title="Settings" subtitle="Manage your profile and payment details" />
 
       {connectResult && connectResultShown && (
-        <div
+        <Banner
+          tone={connectResult.tone === "success" ? "success" : "danger"}
           role="alert"
-          style={{
-            display: "flex",
-            alignItems: "flex-start",
-            gap: 12,
-            padding: "12px 14px",
-            marginBottom: 24,
-            borderRadius: 10,
-            border: `1px solid ${connectResult.tone === "success" ? "var(--cc-success)" : "var(--cc-danger)"}`,
-            background: "var(--cc-card)",
-          }}
+          style={{ marginBottom: 24 }}
+          action={
+            <button
+              type="button"
+              onClick={() => setConnectResultShown(false)}
+              aria-label="Dismiss"
+              style={{ display: "inline-flex", background: "none", border: "none", cursor: "pointer", color: "inherit", padding: 2 }}
+            >
+              <X size={16} aria-hidden="true" />
+            </button>
+          }
         >
-          <span style={{ fontSize: 13, color: "var(--cc-text)", flex: 1 }}>
-            {connectResult.message}
-          </span>
-          <button
-            type="button"
-            onClick={() => setConnectResultShown(false)}
-            aria-label="Dismiss"
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              color: "var(--cc-text-muted)",
-              fontSize: 13,
-              lineHeight: 1,
-              padding: 2,
-            }}
-          >
-            ×
-          </button>
-        </div>
+          {connectResult.message}
+        </Banner>
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-        <Card variant="outlined" style={{ padding: 24 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", marginBottom: 20 }}>
-            Profile
-          </h2>
-          <div className="rsp-grid-2">
-            <Input
-              label="Name"
-              value={form.name}
-              onChange={(e) => set({ name: e.target.value })}
-              placeholder="Your name"
-            />
-            <Input
-              label="Handle"
-              value={form.handle}
-              onChange={(e) => set({ handle: e.target.value })}
-              placeholder="yourhandle"
-            />
-          </div>
-          <div style={{ marginTop: 16 }}>
+        <SettingsForm
+          icon={UserRound}
+          title="Profile"
+          description="Your profile, niches and bank details"
+          dirty={dirty}
+          saving={saving}
+          onSubmit={handleSave}
+          onCancel={() => saved && setForm(saved)}
+        >
+          <FieldRow>
+            <Field label="Name">
+              <Input value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="Your name" />
+            </Field>
+            <Field label="Handle">
+              <Input value={form.handle} onChange={(e) => set({ handle: e.target.value })} placeholder="yourhandle" />
+            </Field>
+          </FieldRow>
+          <Field label="Bio">
             <Textarea
-              label="Bio"
               value={form.bio ?? ""}
               onChange={(e) => set({ bio: e.target.value || null })}
-              placeholder="Tell brands about yourself..."
+              placeholder="Tell brands about yourself"
               rows={3}
             />
-          </div>
-          <div style={{ marginTop: 16 }}>
-            <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>
-              Primary Platform
-            </label>
+          </Field>
+          <Field label="Primary platform">
             <Dropdown
-              ariaLabel="Primary Platform"
               align="left"
               fullWidth
               value={form.platform ?? ""}
@@ -366,21 +354,76 @@ export default function PortalSettingsPage() {
                 ...PLATFORMS.map((p) => ({ value: p.value, label: p.label })),
               ]}
             />
-          </div>
-        </Card>
+          </Field>
+          <Field label="Niches" group helper="Select the categories that best describe your content">
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {NICHES.map((niche) => {
+                const selected = form.niches.includes(niche);
+                return (
+                  <button
+                    key={niche}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => toggleNiche(niche)}
+                    style={{
+                      padding: "6px 14px",
+                      borderRadius: 999,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      border: selected ? "1px solid var(--cc-primary)" : "1px solid var(--cc-border)",
+                      background: selected ? "var(--cc-primary-light)" : "var(--cc-card)",
+                      color: selected ? "var(--cc-primary)" : "var(--cc-text-muted)",
+                    }}
+                  >
+                    {niche.charAt(0) + niche.slice(1).toLowerCase()}
+                  </button>
+                );
+              })}
+            </div>
+          </Field>
+          <FieldRow>
+            <Field label="Account name">
+              <Input
+                value={form.bankAccountName ?? ""}
+                onChange={(e) => set({ bankAccountName: e.target.value || null })}
+                placeholder="Name on account"
+              />
+            </Field>
+            <Field label="Account number">
+              <Input
+                value={form.bankAccountNumber ?? ""}
+                onChange={(e) => set({ bankAccountNumber: e.target.value || null })}
+                placeholder={form.bankAccountNumber ? maskAccount(form.bankAccountNumber) : "Account number"}
+              />
+            </Field>
+          </FieldRow>
+          <FieldRow>
+            <Field label="IFSC code">
+              <Input value={form.bankIFSC ?? ""} onChange={(e) => set({ bankIFSC: e.target.value || null })} placeholder="IFSC code" />
+            </Field>
+            <Field label="SWIFT code">
+              <Input value={form.bankSwift ?? ""} onChange={(e) => set({ bankSwift: e.target.value || null })} placeholder="SWIFT/BIC code" />
+            </Field>
+          </FieldRow>
+          <Field label="Routing number">
+            <Input
+              value={form.bankRoutingNumber ?? ""}
+              onChange={(e) => set({ bankRoutingNumber: e.target.value || null })}
+              placeholder="Routing number"
+            />
+          </Field>
+        </SettingsForm>
 
-        <Card variant="outlined" style={{ padding: 24 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", marginBottom: 8 }}>
-            Connected Accounts
-          </h2>
-          <p style={{ fontSize: 13, color: "var(--cc-text-muted)", marginBottom: 12 }}>
-            Link your accounts and your posts report themselves — no screenshots, no pasting
-            links, and brands can verify your reach.
-          </p>
+        <SectionCard
+          icon={Link2}
+          title="Connected accounts"
+          description="Link your accounts and your posts report themselves: no screenshots, no pasting links, and brands can verify your reach."
+        >
           <div
             style={{
               padding: "12px 14px",
-              borderRadius: 10,
+              borderRadius: "var(--cc-r-control)",
               background: "var(--cc-bg)",
               fontSize: 12,
               lineHeight: 1.7,
@@ -401,7 +444,7 @@ export default function PortalSettingsPage() {
           {connectionsLoading ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {[1, 2, 3].map((i) => (
-                <Skeleton key={i} width="100%" height="56px" borderRadius="10px" />
+                <Skeleton key={i} width="100%" height={56} radius="var(--cc-r-control)" />
               ))}
             </div>
           ) : connectionsError ? (
@@ -444,7 +487,7 @@ export default function PortalSettingsPage() {
                       gap: 10,
                       padding: "12px 16px",
                       border: "1px solid var(--cc-border)",
-                      borderRadius: 10,
+                      borderRadius: "var(--cc-r-control)",
                     }}
                   >
                     <div
@@ -461,23 +504,23 @@ export default function PortalSettingsPage() {
                         </span>
                         {accounts.length > 0 ? (
                           <>
-                            <Badge variant="success" size="sm">
+                            <StatusBadge tone="success">
                               {accounts.length === 1
                                 ? "Connected"
                                 : `${accounts.length} accounts`}
-                            </Badge>
-                            {!configured && <Tag variant="warning" outlined>Dev mode</Tag>}
+                            </StatusBadge>
+                            {!configured && <StatusBadge tone="warning">Dev mode</StatusBadge>}
                           </>
                         ) : comingSoon ? (
                           <>
-                            <Badge variant="neutral" size="sm">Coming soon</Badge>
+                            <StatusBadge tone="neutral">Coming soon</StatusBadge>
                             <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
                               {capability?.connectNote}
                             </span>
                           </>
                         ) : (
                           <>
-                            <Badge variant="neutral" size="sm">Not connected</Badge>
+                            <StatusBadge tone="neutral">Not connected</StatusBadge>
                             {/* A gated platform still shows a Connect button —
                                 in dev it runs the synthetic connect path, which
                                 is the only way to exercise the flow locally.
@@ -544,7 +587,7 @@ export default function PortalSettingsPage() {
                               account.handle
                             )}
                           </span>
-                          {account.isVerified && <Tag variant="accent" outlined>Verified</Tag>}
+                          {account.isVerified && <StatusBadge tone="info">Verified</StatusBadge>}
                           <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
                             {new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(
                               account.followersCount,
@@ -567,92 +610,7 @@ export default function PortalSettingsPage() {
               })}
             </div>
           )}
-        </Card>
-
-        <Card variant="outlined" style={{ padding: 24 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", marginBottom: 8 }}>
-            Niches
-          </h2>
-          <p style={{ fontSize: 13, color: "var(--cc-text-muted)", marginBottom: 16 }}>
-            Select the categories that best describe your content
-          </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {NICHES.map((niche) => {
-              const selected = form.niches.includes(niche);
-              return (
-                <button
-                  key={niche}
-                  onClick={() => toggleNiche(niche)}
-                  style={{
-                    padding: "6px 14px",
-                    borderRadius: 20,
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    border: selected
-                      ? "1.5px solid var(--cc-primary)"
-                      : "1.5px solid var(--cc-border)",
-                    background: selected ? "var(--cc-primary-light)" : "var(--cc-card)",
-                    color: selected ? "var(--cc-primary)" : "var(--cc-text-muted)",
-                    transition: "all 0.15s",
-                  }}
-                >
-                  {niche.charAt(0) + niche.slice(1).toLowerCase()}
-                </button>
-              );
-            })}
-          </div>
-        </Card>
-
-        <Card variant="outlined" style={{ padding: 24 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", marginBottom: 20 }}>
-            Bank Details
-          </h2>
-          <div className="rsp-grid-2">
-            <Input
-              label="Account Name"
-              value={form.bankAccountName ?? ""}
-              onChange={(e) => set({ bankAccountName: e.target.value || null })}
-              placeholder="Name on account"
-            />
-            <Input
-              label="Account Number"
-              value={form.bankAccountNumber ?? ""}
-              onChange={(e) => set({ bankAccountNumber: e.target.value || null })}
-              placeholder={
-                form.bankAccountNumber
-                  ? maskAccount(form.bankAccountNumber)
-                  : "Account number"
-              }
-            />
-            <Input
-              label="IFSC Code"
-              value={form.bankIFSC ?? ""}
-              onChange={(e) => set({ bankIFSC: e.target.value || null })}
-              placeholder="IFSC code"
-            />
-            <Input
-              label="SWIFT Code"
-              value={form.bankSwift ?? ""}
-              onChange={(e) => set({ bankSwift: e.target.value || null })}
-              placeholder="SWIFT/BIC code"
-            />
-            <Input
-              label="Routing Number"
-              value={form.bankRoutingNumber ?? ""}
-              onChange={(e) => set({ bankRoutingNumber: e.target.value || null })}
-              placeholder="Routing number"
-            />
-          </div>
-        </Card>
-
-        <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          <Button variant="primary" loading={saving} onClick={handleSave}>
-            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <Save size={14} /> Save Changes
-            </span>
-          </Button>
-        </div>
+        </SectionCard>
       </div>
     </div>
   );

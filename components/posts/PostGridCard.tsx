@@ -1,10 +1,9 @@
 "use client";
 
 import { memo, type ReactNode } from "react";
-import { Badge } from "@pratham7711/ui";
+import { StatusBadge } from "@/components/ds/StatusBadge";
 import { Eye, Heart, MessageCircle, TrendingUp, Share2, Bookmark, Check, AlertTriangle } from "lucide-react";
 import { formatDateAbs, formatFull, platformLabel } from "@/lib/format";
-import { enumLabel } from "@/lib/ui/enumLabel";
 import { fieldMetricValue, unwrittenMetricValue, sharesUnknownReason } from "@/lib/metricDisplay";
 import { postAgeContext, postMeasuredAt, postStatus } from "@/lib/posts/postStatus";
 import { viewsAsOf } from "@/lib/posts/fieldFreshness";
@@ -12,7 +11,7 @@ import PostStatusChip from "@/components/posts/PostStatusChip";
 import { AgeLabel } from "@/components/ds/AgeLabel";
 import PostCover from "@/components/posts/PostCover";
 import { PlatformGlyph } from "@/components/ui/PlatformGlyph";
-import { STATUS_BADGE, engRatePct, trackingLabel } from "@/lib/posts/postDisplay";
+import { engRatePct, trackingLabel } from "@/lib/posts/postDisplay";
 import type { ComplianceFlag } from "@/lib/compliance/postCompliance";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import CreatorName from "@/components/creators/CreatorName";
@@ -185,9 +184,9 @@ function PostGridCardImpl({
           <PlatformGlyph platform={post.platform} size="1.2em" />
           <span className="cc-posttile-platform-name" aria-hidden="true">{platformLabel(post.platform)}</span>
         </span>
-        <Badge variant={STATUS_BADGE[post.status] ?? "neutral"} style={{ fontSize: "var(--cc-t-9)"}}>
-          {enumLabel(post.status)}
-        </Badge>
+        {/* On an opaque card ground: a tinted chip over artwork was 9px
+            green on translucent green, unreadable on a busy thumbnail. */}
+        <StatusBadge status={post.status} className="cc-posttile-status" />
       </span>
       {/* Across the frame, under the platform and status chips —
           the thumbnail and every count below it are left alone,

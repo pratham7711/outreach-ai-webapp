@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { Check, Pencil, Plus, Tags, Trash2, X } from "lucide-react";
 import { Input } from "@pratham7711/ui";
-import { PageHeader, SectionCard, Dropdown, useConfirm, Button } from "@/components/ds";
+import { PageHeader, SectionCard, Dropdown, useConfirm, Button, Field, Skeleton } from "@/components/ds";
 import { PlatformGlyph } from "@/components/ui/PlatformGlyph";
+import { platformLabel } from "@/lib/format";
 
 /**
  * Settings → General, mirroring the reference's Tags & Statuses page.
@@ -71,15 +72,15 @@ function TaxonomyList({
   kind,
   title,
   description,
-  addLabel,
-  emptyLabel,
+  singular,
   canManage,
 }: {
   kind: Kind;
+  /** Sentence case, plural: "Creator tags". */
   title: string;
   description: string;
-  addLabel: string;
-  emptyLabel: string;
+  /** Sentence case, one of them: "Creator tag". Names the add button and the empty line. */
+  singular: string;
   /** Editing these lists needs `settings:*`; reading them does not, because
       every picker in the product is fed from here. Without this the add,
       rename and remove controls were offered to everyone and answered 403. */
@@ -158,15 +159,29 @@ function TaxonomyList({
 
   async function remove(item: Item) {
     const ok = await confirm({
-      title: `Remove "${item.name}"?`,
+      verb: "remove",
+      subject: item.name,
       description: buckets
         ? "Campaigns using this status keep the group it belongs to, so nothing is left pointing at a status that no longer exists."
         : "It is removed from every creator and campaign it was applied to.",
-      confirmLabel: "Remove",
-      tone: "danger",
     });
     if (!ok) return;
     await send(`/api/settings/taxonomy/${kind}/${item.id}`, "DELETE");
+  }
+
+  async function rename(item: Item) {
+    const next = renameValue.trim();
+    if (next && next !== item.name) {
+      if (!(await send(`/api/settings/taxonomy/${kind}/${item.id}`, "PATCH", { name: next }))) return;
+    }
+    setRenaming(null);
+  }
+
+  function cancelAdd() {
+    setAdding(false);
+    setDraftName("");
+    setDraftEmoji("");
+    setDraftPlatform("");
   }
 
   /* Their deliverable chip leads with the platform's own mark and carries no
@@ -200,36 +215,33 @@ function TaxonomyList({
       {renaming === item.id ? (
         <>
           <input
+            className="cc-chip-input"
             value={renameValue}
             onChange={(e) => setRenameValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void rename(item);
+              if (e.key === "Escape") setRenaming(null);
+            }}
             aria-label={`Rename ${item.name}`}
             autoFocus
-            style={{
-              border: "1px solid var(--cc-border)", borderRadius: 6,
-              padding: "2px 6px", fontSize: "var(--cc-t-13)", width: 160,
-              color: "var(--cc-text)", background: "var(--cc-card)",
-            }}
           />
-          <button
-            type="button" aria-label={`Save ${item.name}`} disabled={busy}
-            onClick={async () => {
-              const next = renameValue.trim();
-              if (next && next !== item.name) {
-                if (!(await send(`/api/settings/taxonomy/${kind}/${item.id}`, "PATCH", { name: next }))) return;
-              }
-              setRenaming(null);
-            }}
-            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-primary)", display: "inline-flex" }}
-          >
-            <Check size={14} aria-hidden="true" />
-          </button>
-          <button
-            type="button" aria-label={`Cancel renaming ${item.name}`}
-            onClick={() => setRenaming(null)}
-            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)", display: "inline-flex" }}
-          >
-            <X size={14} aria-hidden="true" />
-          </button>
+          <span className="cc-chip-actions">
+            <button
+              type="button" aria-label={`Save ${item.name}`} disabled={busy}
+              onClick={() => void rename(item)}
+              className="cc-chip-action"
+              data-tone="confirm"
+            >
+              <Check aria-hidden="true" />
+            </button>
+            <button
+              type="button" aria-label={`Cancel renaming ${item.name}`}
+              onClick={() => setRenaming(null)}
+              className="cc-chip-action"
+            >
+              <X aria-hidden="true" />
+            </button>
+          </span>
         </>
       ) : !canManage ? (
         <>
@@ -269,36 +281,36 @@ function TaxonomyList({
       action={
         canManage
           ? !adding && (
-              <Button variant="secondary" size="sm" iconLeft={<Plus size={14} />} onClick={() => setAdding(true)}>
-                {addLabel}
+              <Button variant="secondary" size="sm" iconLeft={<Plus size={16} aria-hidden="true" />} onClick={() => setAdding(true)}>
+                Add {singular.toLowerCase()}
               </Button>
             )
           : (
-            <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
-              Read-only — only admins can change this list
-            </span>
+            <span className="cc-taxonomy-readonly">Read-only. Only admins can change this list.</span>
           )
       }
     >
       <div className="cc-taxonomy-list" data-kind={kind}>
         {items === null ? (
-          <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>Loading…</p>
+          <div className="cc-chip-row" aria-busy="true" aria-label={`Loading ${title.toLowerCase()}`}>
+            {[88, 72, 104].map((w) => (
+              <Skeleton key={w} width={w} height={30} radius="var(--cc-chip-r)" />
+            ))}
+          </div>
         ) : items.length === 0 && !adding ? (
-          <p className="cc-taxonomy-empty">{emptyLabel}</p>
+          <p className="cc-taxonomy-empty">No {title.toLowerCase()} yet.</p>
         ) : buckets ? (
           // Grouped: every group is shown even when empty, because the groups are
           // the fixed part and their emptiness is information.
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div className="cc-taxonomy-groups">
             {buckets
               .filter((b) => kind === "campaign-statuses" || items.some((i) => i.bucket === b.value))
               .map((b) => (
-                <div key={b.value}>
-                  <p className="cc-microlabel" style={{ marginBottom: 8 }}>
-                    {b.label}
-                  </p>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                <div key={b.value} className="cc-taxonomy-group">
+                  <p className="cc-microlabel">{b.label}</p>
+                  <div className="cc-chip-row">
                     {items.filter((i) => i.bucket === b.value).length === 0 ? (
-                      <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)" }}>None</span>
+                      <span className="cc-taxonomy-none">None</span>
                     ) : (
                       items.filter((i) => i.bucket === b.value).map(chip)
                     )}
@@ -307,63 +319,71 @@ function TaxonomyList({
               ))}
           </div>
         ) : (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{items.map(chip)}</div>
+          <div className="cc-chip-row">{items.map(chip)}</div>
         )}
 
+        {/* One row: the fields at a readable width, Add and Cancel beside them at
+            field height. A form, so Enter adds and the browser's own required
+            check never fires (Add waits for a name instead). */}
         {adding && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+          <form
+            className="cc-taxonomy-add"
+            noValidate
+            onSubmit={(e) => {
+              e.preventDefault();
+              void add();
+            }}
+          >
             {hasEmoji && (
-              <Input
-                value={draftEmoji}
-                onChange={(e) => setDraftEmoji(e.target.value)}
-                placeholder="⚡"
-                aria-label="Flag emoji"
-                style={{ width: 72 }}
-              />
+              <Field label="Emoji" className="cc-taxonomy-add__emoji">
+                <Input value={draftEmoji} onChange={(e) => setDraftEmoji(e.target.value)} placeholder="⚡" />
+              </Field>
             )}
-            <Input
-              value={draftName}
-              onChange={(e) => setDraftName(e.target.value)}
-              placeholder="Name"
-              aria-label={`New ${title.toLowerCase()} name`}
-              autoFocus
-              onKeyDown={(e) => { if (e.key === "Enter") void add(); }}
-              style={{ minWidth: 220 }}
-            />
-            {buckets && (
-              <Dropdown
-                ariaLabel="Group"
-                value={draftBucket}
-                onChange={setDraftBucket}
-                options={buckets.map((b) => ({ value: b.value, label: b.label }))}
-                size="md"
-                align="left"
-                minWidth={170}
+            <Field label="Name" required className="cc-taxonomy-add__name">
+              <Input
+                value={draftName}
+                onChange={(e) => setDraftName(e.target.value)}
+                placeholder={`New ${singular.toLowerCase()}`}
+                autoFocus
+                onKeyDown={(e) => { if (e.key === "Escape") cancelAdd(); }}
               />
+            </Field>
+            {buckets && (
+              <Field label="Group" className="cc-taxonomy-add__pick">
+                <Dropdown
+                  value={draftBucket}
+                  onChange={setDraftBucket}
+                  options={buckets.map((b) => ({ value: b.value, label: b.label }))}
+                  fullWidth
+                  align="left"
+                />
+              </Field>
             )}
             {hasPlatform && (
-              <Dropdown
-                ariaLabel="Platform"
-                value={draftPlatform}
-                onChange={setDraftPlatform}
-                placeholder="Any platform"
-                options={[{ value: "", label: "Any platform" }, ...PLATFORMS.map((p) => ({ value: p, label: p }))]}
-                size="md"
-                align="left"
-                minWidth={170}
-              />
+              <Field label="Platform" className="cc-taxonomy-add__pick">
+                <Dropdown
+                  value={draftPlatform}
+                  onChange={setDraftPlatform}
+                  placeholder="Any platform"
+                  options={[{ value: "", label: "Any platform" }, ...PLATFORMS.map((p) => ({ value: p, label: platformLabel(p) }))]}
+                  fullWidth
+                  align="left"
+                />
+              </Field>
             )}
-            <Button variant="primary" size="sm" onClick={() => void add()} disabled={busy || !draftName.trim()}>
-              Add
-            </Button>
-            <Button variant="secondary" size="sm" onClick={() => { setAdding(false); setDraftName(""); }}>
-              Cancel
-            </Button>
-          </div>
+            <div className="cc-taxonomy-add__actions">
+              <Button type="submit" variant="primary" size="md" disabled={busy || !draftName.trim()}>
+                Add
+              </Button>
+              <Button type="button" variant="secondary" size="md" onClick={cancelAdd}>
+                Cancel
+              </Button>
+            </div>
+          </form>
         )}
 
         {error && (
-          <p role="alert" style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-danger)" }}>{error}</p>
+          <p role="alert" className="cc-form-error">{error}</p>
         )}
       </div>
     </SectionCard>
@@ -374,7 +394,7 @@ export default function GeneralClient({ canManage }: { canManage: boolean }) {
   return (
     <div className="rsp-page page-enter">
       <PageHeader
-        title="General Settings"
+        title="General"
         subtitle="The tags, flags, deliverable types and statuses this workspace uses."
       />
 
@@ -386,54 +406,48 @@ export default function GeneralClient({ canManage }: { canManage: boolean }) {
           theme make that swap -- the inline style this replaces could not be
           re-pointed by any rule. */}
       <div className="cc-section-stack">
-        <h2 className="cc-section-stack-title">Tags &amp; Statuses</h2>
+        <h2 className="cc-section-stack-title">Tags and statuses</h2>
         <TaxonomyList
           canManage={canManage}
           kind="creator-tags"
-          title="Creator Tags"
+          title="Creator tags"
           description="Categorise and label creators by their general attributes — the niche they work in, the audience they reach, the kind of brief they suit."
-          addLabel="Add Creator Tag"
-          emptyLabel="No Creator Tags yet."
+          singular="Creator tag"
         />
         <TaxonomyList
           canManage={canManage}
           kind="creator-flags"
-          title="Creator Flags"
+          title="Creator flags"
           description="Highlight a creator's current status or a standing attribute — fast turnaround, strong view rates, on a break, not responding. Flags show wherever the creator is listed."
-          addLabel="Add Creator Flag"
-          emptyLabel="No Creator Flags yet."
+          singular="Creator flag"
         />
         <TaxonomyList
           canManage={canManage}
           kind="campaign-tags"
-          title="Campaign Tags"
+          title="Campaign tags"
           description="Categorise and label campaigns, for example “Fashion” or “Q4 Launch”, and filter on them."
-          addLabel="Add Campaign Tag"
-          emptyLabel="No Campaign Tags Found"
+          singular="Campaign tag"
         />
         <TaxonomyList
           canManage={canManage}
           kind="deliverable-types"
-          title="Deliverable Types"
+          title="Deliverable types"
           description="The deliverables campaigns can ask for, such as an Instagram Reel or a TikTok song promo."
-          addLabel="New Deliverable Type"
-          emptyLabel="No Deliverable Types yet."
+          singular="Deliverable type"
         />
         <TaxonomyList
           canManage={canManage}
           kind="campaign-statuses"
-          title="Campaign Statuses"
+          title="Campaign statuses"
           description="Your own names for where a campaign stands. Each one sits in a fixed group, and the group is what lists and reports filter on."
-          addLabel="New Campaign Status"
-          emptyLabel="No Campaign Statuses yet."
+          singular="Campaign status"
         />
         <TaxonomyList
           canManage={canManage}
           kind="activation-statuses"
-          title="Activation Statuses"
+          title="Activation statuses"
           description="Your own names for where a single creator's activation stands within a campaign."
-          addLabel="New Activation Status"
-          emptyLabel="No Activation Statuses yet."
+          singular="Activation status"
         />
       </div>
     </div>

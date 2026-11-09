@@ -1,6 +1,7 @@
 "use client";
 
 import { useId } from "react";
+import { DataTable, type DataTableColumn } from "@/components/ds/DataTable";
 import { PlatformGlyph } from "@/components/ui/PlatformGlyph";
 import { SourceLabel, formatCount, formatDay, platformLabel } from "@/components/portal/app/ui";
 import { MetricCells, NUM, Panel, Thumb, type Cell } from "@/components/insights/parts";
@@ -81,7 +82,18 @@ export default function CampaignPosts({ posts }: { posts: CampaignPost[] }) {
   const insightsColumns = columns.some((c) => c.igOnly);
   const cells = (p: CampaignPost): Cell[] =>
     columns.map((c) => ({ label: c.label, value: p[c.key] as number | null, blank: c.igOnly && p.platform !== "INSTAGRAM" }));
-  const th = { fontSize: 12, fontWeight: 500, color: "var(--cc-text-muted)", padding: "0 0 10px 20px", textAlign: "right", whiteSpace: "nowrap" } as const;
+  const tableColumns: DataTableColumn<CampaignPost>[] = [
+    { key: "post", header: "Post", minWidth: 220, render: (p) => <PostCell p={p} /> },
+    ...columns.map(
+      (c): DataTableColumn<CampaignPost> => ({
+        key: c.key,
+        header: c.label,
+        width: 104,
+        align: "right",
+        render: (p) => (c.igOnly && p.platform !== "INSTAGRAM" ? "" : formatCount(p[c.key] as number | null)),
+      }),
+    ),
+  ];
 
   return (
     <Panel labelledBy={id}>
@@ -99,37 +111,15 @@ export default function CampaignPosts({ posts }: { posts: CampaignPost[] }) {
         </span>
       </div>
 
-      <table className="hidden md:table" style={{ width: "100%", borderCollapse: "collapse", tableLayout: "auto" }}>
-        <thead>
-          <tr>
-            <th scope="col" style={{ ...th, textAlign: "left", paddingLeft: 0 }}>
-              Post
-            </th>
-            {columns.map((c) => (
-              <th key={c.key} scope="col" style={th}>
-                {c.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {posts.map((p) => (
-            <tr key={p.id} style={{ borderTop: "1px solid var(--cc-border)" }}>
-              <td style={{ padding: "10px 16px 10px 0", maxWidth: 0, width: "100%" }}>
-                <PostCell p={p} />
-              </td>
-              {columns.map((c) => {
-                const blank = c.igOnly && p.platform !== "INSTAGRAM";
-                return (
-                  <td key={c.key} style={{ ...NUM, padding: "10px 0 10px 20px", textAlign: "right", fontSize: 14, fontWeight: 700, color: "var(--cc-text)", whiteSpace: "nowrap" }}>
-                    {blank ? "" : formatCount(p[c.key] as number | null)}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <DataTable
+        className="hidden md:block"
+        bare
+        caption="Your campaign posts"
+        columns={tableColumns}
+        rows={posts}
+        rowKey={(p) => p.id}
+        stickyFirstColumn={false}
+      />
 
       <ul className="md:hidden" style={{ listStyle: "none", margin: 0, padding: 0 }}>
         {posts.map((p) => (

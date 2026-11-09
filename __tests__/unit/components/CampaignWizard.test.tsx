@@ -72,6 +72,28 @@ jest.mock("next/navigation", () => ({
   useRouter: () => ({ push: jest.fn(), refresh: jest.fn() }),
 }));
 
+/* Start from reads the org's templates and campaigns when the form opens.
+   These suites read the create request as fetch's first call, so that read is
+   stubbed: an org with nothing to start from gets no Start from row, which is
+   the form pinned here. The row itself is pinned in
+   CampaignWizardStartFrom.test.tsx. */
+jest.mock("@/components/campaigns/templates/useStartFromSources", () => ({
+  useStartFromSources: () => ({
+    status: "ready",
+    available: false,
+    canManage: false,
+    query: "",
+    searching: false,
+    templates: [],
+    campaigns: [],
+    campaignsMore: false,
+    search: () => {},
+    rename: async () => ({ ok: true }),
+    remove: async () => ({ ok: true }),
+  }),
+  fetchSetupSource: async () => ({ ok: false, error: "not used here" }),
+}));
+
 import CampaignWizard from "@/components/modals/CampaignWizard";
 
 function openWizard(props: { defaultCurrency?: string } = {}) {
@@ -81,16 +103,31 @@ const create = () => screen.getByText("Create Campaign").closest("button")!;
 const name = (value: string) => fireEvent.change(screen.getByLabelText("Campaign Name"), { target: { value } });
 
 describe("CampaignWizard — currency", () => {
+  const budget = (value: string) => fireEvent.change(screen.getByLabelText("Budget"), { target: { value } });
+
   /* The wizard hardcoded "USD", so an agency billing in INR corrected the
      currency on every single campaign it created. */
   it("opens on the org's own currency", () => {
     openWizard({ defaultCurrency: "INR" });
+    budget("5000");
     expect(screen.getByLabelText("Currency")).toHaveValue("INR");
   });
 
   it("falls back to USD when the org currency is absent or not one we offer", () => {
     openWizard({ defaultCurrency: "XYZ" });
+    budget("5000");
     expect(screen.getByLabelText("Currency")).toHaveValue("USD");
+  });
+
+  /* A currency means nothing without an amount, so it is asked only once
+     there is one. */
+  it("asks for a currency only once a budget is entered", () => {
+    openWizard();
+    expect(screen.queryByLabelText("Currency")).toBeNull();
+    budget("5000");
+    expect(screen.getByLabelText("Currency")).toBeInTheDocument();
+    budget("");
+    expect(screen.queryByLabelText("Currency")).toBeNull();
   });
 });
 

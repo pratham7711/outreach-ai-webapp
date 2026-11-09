@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Modal } from "@pratham7711/ui";
-import { ExternalLink, Copy, Mail, MessageCircle, Search, Instagram, Youtube, Sparkles } from "lucide-react";
+import { Modal, ModalNotice, ModalSection } from "@/components/ds/Modal";
+import { AlertCircle, ExternalLink, Copy, Mail, MessageCircle, Search, Instagram, Youtube, Sparkles, Trash2 } from "lucide-react";
 import { PageHeader, Button, LoadError } from "@/components/ds";
 import { formatCompact, formatDateAbs } from "@/lib/format";
 import {
@@ -517,7 +517,7 @@ function AddPanel({ onAdded }: { onAdded: () => Promise<void> }) {
               style={{ flex: "1 1 240px", border: "1px solid var(--cc-border)", borderRadius: 8, padding: "8px 10px", fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)" }}
             />
             <input
-              aria-label="Country code (optional)"
+              aria-label="Country code"
               value={region}
               onChange={(e) => setRegion(e.target.value.toUpperCase().slice(0, 2))}
               placeholder="Country, e.g. BR"
@@ -775,19 +775,39 @@ function ProspectDrawer({
   const next = NEXT[prospect.status];
 
   return (
-    <Modal open onClose={onClose} title={`@${prospect.handle}`} size="lg">
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }} data-testid="cf-drawer">
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", fontSize: 13, color: "var(--cc-text-muted)" }}>
-          <PlatformIcon platform={prospect.platform} />
-          <span>
-            {PROSPECT_STATUS_LABEL[prospect.status]} · since {formatDateAbs(prospect.statusChangedAt)}
-          </span>
+    <Modal
+      open
+      onClose={onClose}
+      icon={prospect.platform === "YOUTUBE" ? Youtube : Instagram}
+      title={`@${prospect.handle}`}
+      description={
+        <>
+          {`${prospect.platform === "YOUTUBE" ? "YouTube" : "Instagram"} · ${PROSPECT_STATUS_LABEL[prospect.status]} since ${formatDateAbs(prospect.statusChangedAt)} · `}
           <a href={profileUrl(prospect)} target="_blank" rel="noreferrer" style={{ color: "var(--cc-primary)", display: "inline-flex", alignItems: "center", gap: 4 }}>
-            Open profile <ExternalLink style={{ width: 12, height: 12 }} />
+            Open profile <ExternalLink style={{ width: 12, height: 12 }} aria-hidden />
           </a>
+        </>
+      }
+      size="lg"
+      footer={
+        <div className="cc-modal-footer" data-layout="split">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="cc-btn-danger-ghost"
+            iconLeft={<Trash2 size={16} aria-hidden="true" />}
+            onClick={() => void onRemove()}
+          >
+            Remove from the board
+          </Button>
+          <Button variant="secondary" size="sm" onClick={onClose}>
+            Close
+          </Button>
         </div>
-
-        <section aria-label="Profile">
+      }
+    >
+      <div data-testid="cf-drawer">
+        <section aria-label="Profile" className="cc-dialog-section">
           {profileError ? (
             <p style={{ fontSize: 14, color: "var(--cc-text)" }} data-testid="cf-profile-error">
               {profileError}
@@ -802,10 +822,9 @@ function ProspectDrawer({
         </section>
 
         {profile ? (
-          <section aria-label="How to reach them">
-            <h3 style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)", margin: "0 0 6px" }}>How to reach them</h3>
+          <ModalSection title="How to reach them">
             {aiRead?.contacts.length ? (
-              <ul style={{ margin: "0 0 6px", paddingLeft: 18, fontSize: 13, color: "var(--cc-text)" }} data-testid="cf-ai-contacts">
+              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: "var(--cc-text)" }} data-testid="cf-ai-contacts">
                 {aiRead.contacts.map((c) => (
                   <li key={`${c.kind}:${c.value}`}>
                     <b>{c.kind[0].toUpperCase() + c.kind.slice(1)}:</b> {c.value}{" "}
@@ -830,11 +849,10 @@ function ProspectDrawer({
                 ))}
               </ul>
             )}
-          </section>
+          </ModalSection>
         ) : null}
 
-        <section aria-label="What they make">
-          <h3 style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)", margin: "0 0 6px" }}>What they make</h3>
+        <ModalSection title="What they make">
           {shownTags.length ? (
             <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 6 }} data-testid="cf-tags">
               {shownTags.map((t) => (
@@ -869,7 +887,7 @@ function ProspectDrawer({
               {prospect.aiTags ? "The AI found nothing it could quote from their profile." : "Not read yet. The AI tags what they make from their bio and recent posts, quoting each one."}
             </p>
           )}
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <Button variant="secondary" size="sm" loading={aiBusy === "read"} disabled={!!aiBlocked || aiBusy !== null} onClick={() => void callAi("read")} data-testid="cf-ai-read">
               <Sparkles style={{ width: 14, height: 14, marginRight: 4 }} />
               {prospect.aiTags ? "Read again with AI" : "Read profile with AI"}
@@ -881,50 +899,56 @@ function ProspectDrawer({
             ) : null}
           </div>
           {aiAt ? (
-            <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
+            <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: 0 }}>
               AI-read {formatDateAbs(aiAt)} by {aiRead?.model ?? prospect.aiTags?.model}
               {aiRead?.dropped ? ` · ${plural(aiRead.dropped, "answer", "answers")} it couldn't quote from the profile left out` : ""}. Mark a tag
               wrong and it won&apos;t come back.
             </p>
           ) : null}
-          {aiError ? <p style={{ fontSize: 13, color: "var(--cc-danger-ink)", margin: "6px 0 0" }}>{aiError}</p> : null}
-        </section>
+          {aiError ? (
+            <ModalNotice tone="danger" icon={AlertCircle}>
+              {aiError}
+            </ModalNotice>
+          ) : null}
+        </ModalSection>
 
-        <section aria-label="Message">
-          <h3 style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)", margin: "0 0 6px" }}>First message</h3>
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", margin: "0 0 8px" }}>
-            <label htmlFor="cf-campaign" style={{ fontSize: 13, color: "var(--cc-text)" }}>
-              Invite to campaign
-            </label>
-            <select
-              id="cf-campaign"
-              value={picked ? picked.id : ""}
-              onChange={(e) => {
-                onCampaignChange(e.target.value);
-                setAiDraft(null);
-              }}
-              disabled={!joinable.length}
-              style={{ border: "1px solid var(--cc-border)", borderRadius: 6, padding: "4px 6px", fontSize: 13, color: "var(--cc-text)", background: "var(--cc-card)", maxWidth: "100%" }}
-            >
-              <option value="">No link</option>
-              {joinable.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.title}
-                </option>
-              ))}
-            </select>
-          </div>
+        <ModalSection title="First message">
+          {/* The picker only when there is a campaign to pick; with none, the
+              line below says why and how to get one. */}
+          {joinable.length > 0 && (
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <label htmlFor="cf-campaign" style={{ fontSize: 13, color: "var(--cc-text)" }}>
+                Invite to campaign
+              </label>
+              <select
+                id="cf-campaign"
+                value={picked ? picked.id : ""}
+                onChange={(e) => {
+                  onCampaignChange(e.target.value);
+                  setAiDraft(null);
+                }}
+                style={{ border: "1px solid var(--cc-border)", borderRadius: 6, padding: "4px 6px", fontSize: 13, color: "var(--cc-text)", background: "var(--cc-card)", maxWidth: "100%" }}
+              >
+                <option value="">No link</option>
+                {joinable.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           {campaigns === null ? null : "failed" in campaigns ? (
-            <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "0 0 8px" }}>{campaigns.failed}</p>
+            <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: 0 }}>{campaigns.failed}</p>
           ) : joinable.length === 0 ? (
-            <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "0 0 8px" }} data-testid="cf-no-joinable">
+            <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: 0 }} data-testid="cf-no-joinable">
               {campaigns.otherOpen
                 ? `${plural(campaigns.otherOpen, "open campaign has", "open campaigns have")} no join link.`
                 : "No open campaign has a join link."}{" "}
               On a campaign&apos;s page, under Marketplace, set Visibility to Invite only to get one.
             </p>
           ) : picked ? (
-            <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "0 0 8px" }}>
+            <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: 0 }}>
               When they join through the link they&apos;re added to your roster, and this card moves to Joined.
             </p>
           ) : null}
@@ -962,7 +986,7 @@ function ProspectDrawer({
               {message}
             </p>
           )}
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <Button
               variant="secondary"
               size="sm"
@@ -1020,12 +1044,12 @@ function ProspectDrawer({
               </Button>
             )}
           </div>
-          <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
+          <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: 0 }}>
             These open your own Instagram or mail app. Once you&apos;ve sent it, move the card to Contacted.
           </p>
-        </section>
+        </ModalSection>
 
-        <section aria-label="Move">
+        <ModalSection title="Move this card">
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             {next ? (
               <Button variant="primary" size="sm" loading={saving} onClick={() => run({ status: next })} data-testid="cf-advance">
@@ -1062,15 +1086,17 @@ function ProspectDrawer({
               </span>
             )}
           </div>
-          {actionError ? <p style={{ fontSize: 13, color: "var(--cc-danger-ink)", margin: "6px 0 0" }}>{actionError}</p> : null}
-        </section>
+          {actionError ? (
+            <ModalNotice tone="danger" icon={AlertCircle}>
+              {actionError}
+            </ModalNotice>
+          ) : null}
+        </ModalSection>
 
-        <section aria-label="Note">
-          <label htmlFor="cf-note" style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)" }}>
-            Note
-          </label>
+        <ModalSection title="Note">
           <textarea
             id="cf-note"
+            aria-label="Note"
             value={note}
             onChange={(e) => setNote(e.target.value)}
             onBlur={() => {
@@ -1078,13 +1104,12 @@ function ProspectDrawer({
             }}
             rows={2}
             placeholder="e.g. replied on WhatsApp, wants a rate card"
-            style={{ width: "100%", marginTop: 6, border: "1px solid var(--cc-border)", borderRadius: 8, padding: 10, fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)" }}
+            style={{ width: "100%", border: "1px solid var(--cc-border)", borderRadius: 8, padding: 10, fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)" }}
           />
-        </section>
+        </ModalSection>
 
         {prospect.events.length ? (
-          <section aria-label="History">
-            <h3 style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)", margin: "0 0 6px" }}>History</h3>
+          <ModalSection title="History">
             <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: "var(--cc-text-muted)" }}>
               {prospect.events.map((e, i) => (
                 <li key={i}>
@@ -1094,14 +1119,8 @@ function ProspectDrawer({
                 </li>
               ))}
             </ul>
-          </section>
+          </ModalSection>
         ) : null}
-
-        <div>
-          <Button variant="ghost" size="sm" onClick={() => void onRemove()}>
-            Remove from the board
-          </Button>
-        </div>
       </div>
     </Modal>
   );

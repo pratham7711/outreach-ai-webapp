@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Check } from "lucide-react";
+import { useAnchoredMenu } from "./useAnchoredMenu";
 
 /**
  * A select that the app actually draws.
@@ -24,33 +25,43 @@ import { ChevronDown, Check } from "lucide-react";
  * Kept to what a select does: one value, click or arrow to choose, Escape and
  * click-outside to dismiss, and the trigger keeps focus so the keyboard path
  * still works.
+ *
+ * The trigger is the app's one field box (.cc-dropdown__trigger in
+ * globals.css): 36px, 8px corner, the field edge, the field focus halo. In a
+ * form, wrap it in a Field and the label names and focuses it through `id`:
+ *
+ *   <Field label="Platform"><Dropdown fullWidth value={...} ... /></Field>
  */
 
 export type DropdownOption = { value: string; label: string };
-
-const MENU_GAP = 4;
-const VIEWPORT_MARGIN = 8;
 
 export function Dropdown({
   value,
   onChange,
   options,
   ariaLabel,
+  id,
   align = "right",
   minWidth = 170,
   maxWidth,
   disabled = false,
   variant = "outlined",
-  size = "sm",
   fullWidth = false,
+  size = fullWidth ? "md" : "sm",
   placeholder,
   onOpen,
   triggerStyle,
+  "aria-describedby": describedBy,
+  "aria-invalid": invalid,
+  "aria-required": ariaRequired,
 }: {
   value: string;
   onChange: (value: string) => void;
   options: DropdownOption[];
-  ariaLabel: string;
+  /** The accessible name. Optional inside a Field, whose label names it. */
+  ariaLabel?: string;
+  /** Put on the trigger, so a <label htmlFor> focuses and names it. */
+  id?: string;
   align?: "left" | "right";
   minWidth?: number;
   maxWidth?: number;
@@ -58,9 +69,8 @@ export function Dropdown({
   /** "primary" is the solid accent trigger the campaign rows use for status. */
   variant?: "outlined" | "primary";
   /**
-   * "sm" is the filter chip. "md" matches the text inputs in our forms -- same
-   * 10px/14px box, 10px corner and 14px type -- so a converted form select sits
-   * flush with the fields around it instead of shrinking next to them.
+   * Both are 36px. "sm" is the toolbar chip (13px, medium weight); "md" is a
+   * form field (14px, regular) and is the default once `fullWidth` is set.
    */
   size?: "sm" | "md";
   /** Form fields want the trigger to fill its column, like the input beside it. */
@@ -79,44 +89,24 @@ export function Dropdown({
    * and a third variant for a single instance is not worth the API.
    */
   triggerStyle?: React.CSSProperties;
+  "aria-describedby"?: string;
+  "aria-invalid"?: boolean;
+  "aria-required"?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
-  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLUListElement>(null);
   const listId = useId();
 
   const selected = options.find((o) => o.value === value);
   const label = selected?.label ?? placeholder ?? options[0]?.label ?? "";
-  const isPrimary = variant === "primary";
-  const md = size === "md";
 
-  /* Measured off the trigger every time it could have moved, so a menu opened
-     inside a scrolling list stays attached to its own control. */
-  const place = useCallback(() => {
-    const t = triggerRef.current;
-    if (!t) return;
-    const r = t.getBoundingClientRect();
-    const menuH = menuRef.current?.offsetHeight ?? Math.min(options.length * 34 + 8, 320);
-    const width = Math.max(r.width, minWidth);
-
-    const below = window.innerHeight - r.bottom - VIEWPORT_MARGIN;
-    const flip = below < menuH && r.top > below;
-    const top = flip ? r.top - menuH - MENU_GAP : r.bottom + MENU_GAP;
-
-    // Right-aligned menus hang off the trigger's right edge; either way the
-    // menu is then pulled back inside the viewport rather than off-screen.
-    let left = align === "right" ? r.right - width : r.left;
-    left = Math.min(left, window.innerWidth - width - VIEWPORT_MARGIN);
-    left = Math.max(VIEWPORT_MARGIN, left);
-
-    setPos({ top: Math.max(VIEWPORT_MARGIN, top), left, width });
-  }, [align, minWidth, options.length]);
-
-  useLayoutEffect(() => {
-    if (open) place();
-  }, [open, place]);
+  const { pos } = useAnchoredMenu(open, triggerRef, menuRef, {
+    align,
+    minWidth,
+    estimateHeight: Math.min(options.length * 34 + 8, 320),
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -127,18 +117,9 @@ export function Dropdown({
       if (triggerRef.current?.contains(target) || menuRef.current?.contains(target)) return;
       setOpen(false);
     };
-    // Capture, so a scroll inside any ancestor container repositions the menu
-    // instead of leaving it stranded where the trigger used to be.
-    const onMove = () => place();
     document.addEventListener("mousedown", onDown);
-    window.addEventListener("scroll", onMove, true);
-    window.addEventListener("resize", onMove);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      window.removeEventListener("scroll", onMove, true);
-      window.removeEventListener("resize", onMove);
-    };
-  }, [open, options, value, place]);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open, options, value]);
 
   useEffect(() => {
     if (disabled) setOpen(false);
@@ -152,7 +133,12 @@ export function Dropdown({
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (disabled) return;
-    if (e.key === "Escape") return setOpen(false);
+    if (e.key === "Escape") {
+      if (!open) return;
+      // Handled: a dialog around this select closes on the next Escape, not this one.
+      e.preventDefault();
+      return setOpen(false);
+    }
     if (!open && (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ")) {
       e.preventDefault();
       return setOpen(true);
@@ -233,22 +219,24 @@ export function Dropdown({
     ) : null;
 
   return (
-    <div
-      style={{
-        position: "relative",
-        display: fullWidth ? "block" : "inline-block",
-        width: fullWidth ? "100%" : undefined,
-      }}
-    >
+    <div className="cc-dropdown" data-full={fullWidth || undefined}>
       <button
         ref={triggerRef}
+        id={id}
         type="button"
         role="combobox"
         aria-label={ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
+        aria-describedby={describedBy}
+        aria-invalid={invalid || undefined}
+        aria-required={ariaRequired || undefined}
         disabled={disabled}
+        className="cc-dropdown__trigger"
+        data-size={size}
+        data-variant={variant}
+        data-placeholder={selected ? undefined : ""}
         onClick={() => {
           if (!open) onOpen?.();
           setOpen((o) => !o);
@@ -258,40 +246,17 @@ export function Dropdown({
           onKeyDown(e);
         }}
         style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 8,
-          width: fullWidth ? "100%" : undefined,
           minWidth: fullWidth ? undefined : minWidth,
           maxWidth,
-          padding: md ? "10px 14px" : "7px 12px",
-          borderRadius: md ? 10 : 8,
-          fontSize: md ? 14 : 13,
-          fontWeight: isPrimary ? 600 : md ? 400 : 500,
-          border: isPrimary ? "none" : "1px solid var(--cc-border)",
-          background: isPrimary ? "var(--cc-primary)" : "var(--cc-card)",
-          color: isPrimary ? "var(--cc-on-primary)" : selected ? "var(--cc-text)" : "var(--cc-text-muted)",
-          cursor: disabled ? "progress" : "pointer",
-          opacity: disabled ? 0.65 : 1,
           ...triggerStyle,
         }}
       >
-        <span
-          style={{
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {label}
-        </span>
+        <span className="cc-dropdown__value">{label}</span>
         <ChevronDown
           size={15}
-          style={{
-            color: triggerStyle?.color ?? (isPrimary ? "var(--cc-on-primary)" : "var(--cc-text-muted)"),
-            flexShrink: 0,
-          }}
+          aria-hidden="true"
+          className="cc-dropdown__chevron"
+          style={triggerStyle?.color ? { color: triggerStyle.color } : undefined}
         />
       </button>
 

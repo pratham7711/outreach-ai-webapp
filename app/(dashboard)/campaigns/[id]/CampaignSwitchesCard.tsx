@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { SectionCard } from "@/components/ds";
 import { SWITCHES_OFF, type CampaignSwitch, type CampaignSwitches } from "@/lib/campaigns/rulesShape";
 
 /** What each switch does, in the order the card lists them. */
@@ -80,11 +81,7 @@ export function CampaignSwitchesCard({ campaignId }: { campaignId: string }) {
   const disabled = load !== "ready" || !canEdit || saving !== null;
 
   return (
-    <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 24, marginTop: 24 }}>
-      <h3 style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Optional features</h3>
-      <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginBottom: 16 }}>
-        Off until you switch them on, for this campaign only.
-      </p>
+    <SectionCard title="Optional features" description="Off until you switch them on, for this campaign only.">
       {note && (
         <p role={load === "failed" ? "alert" : undefined} style={{ fontSize: "var(--cc-t-12)", color: load === "failed" ? "var(--cc-danger)" : "var(--cc-text-muted)", margin: "0 0 12px" }}>
           {note}
@@ -112,6 +109,6 @@ export function CampaignSwitchesCard({ campaignId }: { campaignId: string }) {
           </label>
         ))}
       </div>
-    </div>
+    </SectionCard>
   );
 }

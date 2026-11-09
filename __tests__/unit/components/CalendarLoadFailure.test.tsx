@@ -29,6 +29,8 @@ jest.mock("@/components/ds", () => {
   return {
     LoadError,
     PageHeader: ({ title }: any) => <h1>{title}</h1>,
+    Skeleton: () => <div data-testid="skeleton" />,
+    StatusBadge: ({ status, children }: { status?: string; children?: React.ReactNode }) => <span>{children ?? status}</span>,
     Button: ({ children, onClick, disabled }: any) => (
       <button onClick={onClick} disabled={disabled}>
         {children}

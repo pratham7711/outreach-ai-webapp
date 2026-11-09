@@ -3,8 +3,7 @@
 import React from "react";
 import dynamic from "next/dynamic";
 import { BarChart3 } from "lucide-react";
-import { MetricTile, SectionCard } from "@/components/ds";
-import { Skeleton } from "@/components/ui/skeleton";
+import { MetricHint, MetricTile, SectionCard, Skeleton } from "@/components/ds";
 import { loadCharts } from "@/components/charts/lazyCharts";
 import { formatNumber, type PerformanceData } from "../types";
 import { asOfCaption } from "@/lib/dataAge";
@@ -13,7 +12,7 @@ import { periodLabel, type SeriesMode } from "@/lib/charts/seriesMode";
 
 const ViewsOverTimeArea = dynamic(
   () => loadCharts().then((m) => m.ViewsOverTimeArea),
-  { ssr: false, loading: () => <Skeleton className="h-[400px] w-full rounded-lg" /> }
+  { ssr: false, loading: () => <Skeleton height={400} /> }
 );
 
 type OverviewSectionProps = {
@@ -58,14 +57,23 @@ export function OverviewSection({
      took. Any request in flight now blanks the tiles. */
   const pending = loading;
   const tileValue = (value: React.ReactNode) =>
-    pending ? <Skeleton className="block h-7 w-24 rounded-md" /> : value;
+    pending ? <Skeleton width={96} height={28} /> : value;
+  /* The tiles share one figure size, set by the longest of them. */
+  const tileFit = pending || !s
+    ? 0
+    : Math.max(
+        String(s.activeCampaigns).length,
+        String(s.totalCreators).length,
+        platforms.length > 0 ? formatNumber(totalViews).length : 0,
+        platforms.length > 0 ? formatNumber(totalPosts).length : 0,
+      );
 
   return (
     <div className="flex flex-col gap-6">
       {widgets.includes("kpi_grid") && (
-        <div className="grid grid-cols-2 gap-5 lg:grid-cols-4" aria-busy={pending}>
+        <div className="cc-tiles-balanced" aria-busy={pending}>
           <MetricTile
-
+            fitTo={tileFit}
             metric="activeCampaigns"
             value={tileValue(String(s ? s.activeCampaigns : fallbackCampaignCount))}
           />
@@ -74,6 +82,7 @@ export function OverviewSection({
               creator holding an activation and read 6 on every range. The
               help text is restated here for the same reason as Total Views'. */}
           <MetricTile
+            fitTo={tileFit}
             metric="workspaceCreators"
             what="How many different creators published at least one post in the selected range."
             how="Counts each creator once, however many posts or campaigns they have in the range chosen above. Posts nobody could attribute to a creator are not counted."
@@ -95,6 +104,7 @@ export function OverviewSection({
                   chart's values not at all; it only drops older readings off
                   the left. */}
               <MetricTile
+                fitTo={tileFit}
                 metric="totalViews"
                 what="How many times posts published in the selected range have been watched, counting each post's lifetime views."
                 how="Adds up the latest view count of every tracked post published inside the range chosen above. The chart below is not filtered this way — each of its points covers every post the workspace holds, so its numbers are larger."
@@ -102,6 +112,7 @@ export function OverviewSection({
                 footer={pending ? null : viewsCaption}
               />
               <MetricTile
+                fitTo={tileFit}
                 metric="totalPosts"
                 what="How many pieces of content your creators published in the selected range."
                 how="Counts tracked posts with a publish date inside the range chosen above, whether or not they are still live."
@@ -131,22 +142,37 @@ export function OverviewSection({
              history was never recorded. */
           description={
             viewsMode === "daily"
-              ? "Views gained in each period: the change from the previous period's last reading (one reading a day, taken at 00:30 UTC). A period is left blank when the one before it has no reading, and a bar below zero means posts left the workspace or a platform corrected its count."
-              : "One reading per day, taken at 00:30 UTC: the lifetime views of every post in this workspace as of that morning, a video in two campaigns counted once — including posts older than the range the tiles above use. The line starts from the first reading; earlier days were never measured."
+              ? "Views gained in each period, from one reading a day."
+              : "Lifetime views across the workspace, read once a day."
           }
+          /* The method used to be the description: two 12px lines in the
+             card header saying when readings are taken and what they cover.
+             One line stays there; the rest is the hint's, where the other
+             metrics keep theirs. */
           action={
-            !loading && series.length >= 2 ? (
-              <SeriesModeToggle
+            <span className="flex items-center gap-3">
+              <MetricHint
                 label="Views over time"
-                value={viewsMode}
-                onChange={setViewsMode}
-                periodLabel={periodLabel(series[0]?.date)}
+                what={
+                  viewsMode === "daily"
+                    ? "Views gained in each period: the change from the previous period's last reading. A period is left blank when the one before it has no reading, and a bar below zero means posts left the workspace or a platform corrected its count."
+                    : "The lifetime views of every post in this workspace, read once a day. A video in two campaigns is counted once, and posts older than the range the tiles above use are included."
+                }
+                how="One reading is taken each day at 00:30 UTC. The line starts from the first reading; earlier days were never measured."
               />
-            ) : undefined
+              {!loading && series.length >= 2 ? (
+                <SeriesModeToggle
+                  label="Views over time"
+                  value={viewsMode}
+                  onChange={setViewsMode}
+                  periodLabel={periodLabel(series[0]?.date)}
+                />
+              ) : null}
+            </span>
           }
         >
           {loading ? (
-            <Skeleton className="h-[400px] w-full rounded-lg" />
+            <Skeleton height={400} />
           ) : series.length < 2 ? (
             /* A chart needs two points to be a chart.
                An empty area chart is indistinguishable from a workspace with
@@ -158,7 +184,7 @@ export function OverviewSection({
             <div className="flex h-[400px] flex-col items-center justify-center gap-3 text-center">
               {series.length === 1 ? (
                 <>
-                  <p className="text-[11px] font-medium tracking-[0.06em] text-[var(--cc-text-muted)] uppercase">
+                  <p className="text-xs font-medium text-[var(--cc-text-muted)]">
                     First reading · {series[0].date}
                   </p>
                   <p className="text-[40px] leading-none font-bold tracking-[-0.02em] text-[var(--cc-text)] tabular-nums">

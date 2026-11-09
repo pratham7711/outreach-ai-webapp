@@ -3,11 +3,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Card, EmptyState, Skeleton, Modal } from "@pratham7711/ui";
+import { Card, EmptyState } from "@pratham7711/ui";
+import { Modal } from "@/components/ds/Modal";
 import { ArrowLeft, Star, MessageSquare } from "lucide-react";
 import { formatDateAbs } from "@/lib/format";
 import { toast } from "sonner";
-import { Dropdown, Button } from "@/components/ds";
+import { Dropdown, Button, Skeleton } from "@/components/ds";
 
 type Review = {
   id: string;
@@ -96,7 +97,7 @@ export default function PortalReviewsPage() {
     return (
       <div className="rsp-page" style={{ maxWidth: 960 }}>
         <Skeleton width="200px" height="32px" />
-        <Skeleton width="100%" height="300px" borderRadius="12px" />
+        <Skeleton width="100%" height="300px" radius="var(--cc-r-card)" />
       </div>
     );
   }
@@ -219,7 +220,7 @@ export default function PortalReviewsPage() {
         </div>
 
         {testimonialsLoading ? (
-          <Skeleton width="100%" height="120px" borderRadius="12px" />
+          <Skeleton width="100%" height="120px" radius="var(--cc-r-card)" />
         ) : testimonials.length === 0 ? (
           <EmptyState
             icon={<MessageSquare size={32} color="var(--cc-text-subtle)" />}
@@ -266,70 +267,82 @@ export default function PortalReviewsPage() {
       </div>
 
       {/* Testimonial Modal */}
-      <Modal open={showModal} onClose={() => setShowModal(false)} title="Write a Testimonial">
-        <label
-          style={{
-            fontSize: 12,
-            fontWeight: 600,
-            color: "var(--cc-text-muted)",
-            textTransform: "uppercase",
-          }}
-        >
-          Campaign
-        </label>
-        <div style={{ marginBottom: 16 }}>
-          <Dropdown
-            ariaLabel="Campaign"
-            align="left"
-            fullWidth
-            value={form.campaignId}
-            onChange={(v) => setForm((f) => ({ ...f, campaignId: v }))}
-            options={[
-              { value: "", label: "Select campaign..." },
-              ...acceptedProposals
-                .filter((p) => !testimonials.some((t) => t.campaign?.id === p.campaignId))
-                .map((p) => ({ value: p.campaignId, label: p.campaign?.title ?? "Untitled" })),
-            ]}
-          />
+      <Modal
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        icon={MessageSquare}
+        tone="brand"
+        title="Write a Testimonial"
+        description="Share your experience working with a brand. One testimonial per campaign."
+        size="md"
+        dismissible={false}
+        footer={
+          <div className="cc-modal-footer">
+            <Button variant="secondary" size="sm" onClick={() => setShowModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleSubmitTestimonial}
+              loading={submitting}
+              disabled={!form.campaignId || form.content.trim().length < 10}
+            >
+              Submit Testimonial
+            </Button>
+          </div>
+        }
+      >
+        <div className="cc-dialog-stack">
+          <div>
+            <span style={FIELD_LABEL}>Campaign</span>
+            <Dropdown
+              ariaLabel="Campaign"
+              align="left"
+              fullWidth
+              value={form.campaignId}
+              onChange={(v) => setForm((f) => ({ ...f, campaignId: v }))}
+              options={[
+                { value: "", label: "Select campaign..." },
+                ...acceptedProposals
+                  .filter((p) => !testimonials.some((t) => t.campaign?.id === p.campaignId))
+                  .map((p) => ({ value: p.campaignId, label: p.campaign?.title ?? "Untitled" })),
+              ]}
+            />
+          </div>
+
+          <div>
+            <label htmlFor="cc-testimonial-content" style={FIELD_LABEL}>
+              Your Experience
+            </label>
+            <textarea
+              id="cc-testimonial-content"
+              rows={4}
+              value={form.content}
+              onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))}
+              placeholder="Share what it was like working with this brand..."
+              style={{
+                width: "100%",
+                borderRadius: 8,
+                border: "1px solid var(--cc-border)",
+                padding: 10,
+                fontSize: 14,
+                color: "var(--cc-text)",
+                background: "var(--cc-card)",
+                resize: "vertical",
+              }}
+            />
+          </div>
         </div>
-
-        <label
-          style={{
-            fontSize: 12,
-            fontWeight: 600,
-            color: "var(--cc-text-muted)",
-            textTransform: "uppercase",
-          }}
-        >
-          Your Experience
-        </label>
-        <textarea
-          rows={4}
-          value={form.content}
-          onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))}
-          placeholder="Share what it was like working with this brand..."
-          style={{
-            width: "100%",
-            borderRadius: 8,
-            border: "1px solid var(--cc-border)",
-            padding: 10,
-            fontSize: 14,
-            color: "var(--cc-text)",
-            background: "var(--cc-card)",
-            resize: "vertical",
-            marginBottom: 16,
-          }}
-        />
-
-        <Button
-          variant="primary"
-          onClick={handleSubmitTestimonial}
-          loading={submitting}
-          disabled={!form.campaignId || form.content.trim().length < 10}
-        >
-          Submit Testimonial
-        </Button>
       </Modal>
     </div>
   );
 }
+
+const FIELD_LABEL: React.CSSProperties = {
+  display: "block",
+  fontSize: "var(--cc-t-13)",
+  fontWeight: "var(--cc-fw-strong)",
+  color: "var(--cc-text)",
+  marginBottom: 6,
+};

@@ -3,9 +3,20 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Modal, Input } from "@pratham7711/ui";
+import { Input } from "@pratham7711/ui";
+import { AlertCircle, RefreshCw, UserPlus } from "lucide-react";
+import { Modal, ModalNotice } from "@/components/ds/Modal";
 import { Dropdown, Button } from "@/components/ds";
+import { Field, FieldRow } from "@/components/ds/Field";
 import { formatFull } from "@/lib/format";
+import { platformLabel } from "@/lib/platforms/registry";
+
+/* The platforms POST /api/creators accepts, named the way the rest of the app
+   names them. */
+const PLATFORM_OPTIONS = ["INSTAGRAM", "TIKTOK", "YOUTUBE", "TWITTER"].map((value) => ({
+  value,
+  label: platformLabel(value),
+}));
 
 type AddLookup =
   | { ok: true; followersCount: number; postsCount: number; via: { username: string } | null }
@@ -45,9 +56,12 @@ export default function AddCreatorModal({ onClose }: { onClose: () => void }) {
     rate: "",
   });
 
+  /* Add waits for the two required fields; the route would 400 without them. */
+  const canSubmit = form.name.trim() !== "" && form.handle.trim() !== "";
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (loading) return;
+    if (loading || !canSubmit) return;
 
     setLoading(true);
     setError(null);
@@ -87,86 +101,77 @@ export default function AddCreatorModal({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const labelStyle = {
-    display: "block" as const,
-    fontSize: "var(--cc-t-13)",
-    fontWeight: 600 as const,
-    color: "var(--cc-text)",
-    marginBottom: 6,
-  };
-
   return (
     <Modal
       open={true}
       onClose={onClose}
-      title="Add Creator"
+      icon={UserPlus}
+      title="Add creator"
+      description="Add someone to your roster by name and handle."
       size="md"
+      dismissible={false}
       footer={
         <div className="cc-modal-footer">
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" loading={loading} onClick={() => { document.getElementById("add-creator-form")?.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true })); }}>
-            Add Creator
+          <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+          <Button
+            type="submit"
+            form="add-creator-form"
+            variant="primary"
+            size="sm"
+            loading={loading}
+            disabled={!canSubmit}
+            iconLeft={<UserPlus size={16} aria-hidden="true" />}
+          >
+            Add creator
           </Button>
         </div>
       }
     >
-      <form id="add-creator-form" onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <form id="add-creator-form" onSubmit={handleSubmit} className="cc-dialog-stack" noValidate>
         {error && (
-          <div
-            role="alert"
-            style={{
-              padding: "10px 12px",
-              borderRadius: 10,
-              background: "color-mix(in srgb, var(--cc-danger) 10%, transparent)",
-              border: "1px solid color-mix(in srgb, var(--cc-danger) 30%, transparent)",
-              color: "var(--cc-danger)",
-              fontSize: "var(--cc-t-13)",
-            }}
-          >
+          <ModalNotice tone="danger" icon={AlertCircle}>
             {error}
-          </div>
+          </ModalNotice>
         )}
-        <Input
-          label="Name"
-          value={form.name}
-          onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-          placeholder="e.g. Blessing Jolie"
-          required
-        />
-        <Input
-          label="Handle"
-          value={form.handle}
-          onChange={(e) => setForm((f) => ({ ...f, handle: e.target.value }))}
-          placeholder="@username"
-          required
-        />
-        <div>
-          <label htmlFor="creator-platform" style={labelStyle}>Platform</label>
-          <Dropdown
-            ariaLabel="Platform"
-            align="left"
-            fullWidth
-            value={form.platform}
-            onChange={(v) => setForm((f) => ({ ...f, platform: v }))}
-            options={[
-              { value: "INSTAGRAM", label: "Instagram" },
-              { value: "TIKTOK", label: "TikTok" },
-              { value: "YOUTUBE", label: "YouTube" },
-              { value: "TWITTER", label: "Twitter / X" },
-            ]}
+        <Field label="Name" required>
+          <Input
+            value={form.name}
+            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            placeholder="e.g. Blessing Jolie"
           />
-        </div>
-        <p style={{ margin: 0, fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
+        </Field>
+        <FieldRow>
+          <Field label="Handle" required>
+            <Input
+              value={form.handle}
+              onChange={(e) => setForm((f) => ({ ...f, handle: e.target.value }))}
+              placeholder="@username"
+            />
+          </Field>
+          <Field label="Platform">
+            <Dropdown
+              id="creator-platform"
+              align="left"
+              fullWidth
+              value={form.platform}
+              onChange={(v) => setForm((f) => ({ ...f, platform: v }))}
+              options={PLATFORM_OPTIONS}
+            />
+          </Field>
+        </FieldRow>
+        <Field label="Rate per Post (USD)">
+          <Input
+            type="number"
+            inputMode="decimal"
+            value={form.rate}
+            onChange={(e) => setForm((f) => ({ ...f, rate: e.target.value }))}
+            placeholder="e.g. 5000"
+          />
+        </Field>
+        <ModalNotice tone="neutral" icon={RefreshCw}>
           Followers and views are read from the platform, so there is nothing to type here. They show
           &ldquo;&mdash;&rdquo; until the first read.
-        </p>
-        <Input
-          label="Rate per Post (USD)"
-          type="number"
-          value={form.rate}
-          onChange={(e) => setForm((f) => ({ ...f, rate: e.target.value }))}
-          placeholder="e.g. 5000"
-        />
+        </ModalNotice>
       </form>
     </Modal>
   );

@@ -7,10 +7,11 @@
  * tree (`:has([aria-expanded="true"])`, which shadcn's table row carries), and
  * Chrome restyles the whole document on every DOM insertion anywhere. Measured
  * on a 300-row list (9,318 elements): an appended span forced a 15ms style
- * recalc (20ms in creatorcore) with the five such rules present and 0.2ms
- * without them, in all three themes; each rule alone measured 0.2ms, so no
- * one of them looks guilty in isolation. At 4x CPU that was 60-80ms per
- * avatar that failed over to initials, five times per page load.
+ * recalc (20ms in the since-removed CreatorCore theme) with the five such
+ * rules present and 0.2ms without them, in every theme; each rule alone
+ * measured 0.2ms, so no one of them looks guilty in isolation. At 4x CPU
+ * that was 60-80ms per avatar that failed over to initials, five times per
+ * page load.
  *
  * A :has() on the subject itself (`X:has(> .y) { ... }`) is fine and stays.
  *

@@ -1,16 +1,28 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { Badge, Card, Skeleton, EmptyState, Input } from "@pratham7711/ui";
-import { PageHeader, MetricTile, Button } from "@/components/ds";
-import { StatusTabs } from "@/components/ds";
-import { formatDateAbs } from "@/lib/format";
-import { Inbox, Search, Download } from "lucide-react";
+import {
+  Button,
+  DataTable,
+  ListToolbar,
+  LoadError,
+  MetricTile,
+  NoResults,
+  PageHeader,
+  Pagination,
+  StatusBadge,
+  StatusTabs,
+  type DataTableColumn,
+} from "@/components/ds";
+import { TileGridSkeleton } from "@/components/ui/PageSkeleton";
+import { formatDateAbs, formatFull } from "@/lib/format";
+import { Inbox, Download } from "lucide-react";
 import { downloadCsv, exportStamp } from "@/lib/csv";
 import { formatMoney, formatRowsByCurrency } from "@/lib/money";
 import { toast } from "sonner";
 import { action } from "@/lib/ui/actions";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import CreatorName from "@/components/creators/CreatorName";
+import { REQUEST_PAGE_SIZE, REQUEST_PAGE_SIZES, REQUEST_WIDTHS } from "./columns";
 
 /**
  * Mirrors what `GET /api/payout-requests` actually returns.
@@ -42,26 +54,25 @@ interface PayoutRequest {
 }
 
 const STATUS_TABS = [
-  { key: "ALL", label: "All", bg: "var(--cc-neutral-bg)", color: "var(--cc-status-neutral-ink)" },
-  { key: "PENDING", label: "Pending", bg: "var(--cc-warning-bg)", color: "var(--cc-warning-ink)" },
-  { key: "APPROVED", label: "Approved", bg: "var(--cc-success-bg)", color: "var(--cc-success)" },
-  { key: "REJECTED", label: "Rejected", bg: "var(--cc-danger-bg)", color: "var(--cc-danger)" },
+  { key: "ALL", label: "All" },
+  { key: "PENDING", label: "Pending" },
+  { key: "APPROVED", label: "Approved" },
+  { key: "REJECTED", label: "Rejected" },
 ];
-
-const STATUS_BADGE: Record<string, "warning" | "success" | "danger" | "neutral"> = {
-  PENDING: "warning",
-  APPROVED: "success",
-  REJECTED: "danger",
-};
 
 export default function RequestsPage() {
   const [requests, setRequests] = useState<PayoutRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  /* A failed read is shown as a failure. It used to be swallowed, so the page
+     said "No payout requests" for a list it had never received. */
+  const [loadFailed, setLoadFailed] = useState(false);
   const [activeTab, setActiveTab] = useState("ALL");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  // The reference lets this list be searched. Over the creator and the campaign,
-  // which are the two things anyone knows a request by.
+  // Over the creator and the campaign, which are the two things anyone knows a
+  // request by.
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(REQUEST_PAGE_SIZE);
 
   const fetchRequests = useCallback(async () => {
     try {
@@ -69,9 +80,12 @@ export default function RequestsPage() {
       if (res.ok) {
         const data = await res.json();
         setRequests(data.payoutRequests ?? []);
+        setLoadFailed(false);
+      } else {
+        setLoadFailed(true);
       }
     } catch {
-      // silent
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -105,7 +119,6 @@ export default function RequestsPage() {
     }
   };
 
-  // Filtered list
   const byStatus = activeTab === "ALL" ? requests : requests.filter((r) => r.status === activeTab);
   const filtered = (() => {
     const q = query.trim().toLowerCase();
@@ -117,10 +130,20 @@ export default function RequestsPage() {
         (r.campaignTitle ?? "").toLowerCase().includes(q),
     );
   })();
+  const isFiltered = query.trim() !== "" || activeTab !== "ALL";
+  const clearFilters = () => {
+    setQuery("");
+    setActiveTab("ALL");
+    setPage(1);
+  };
 
-  // Stats
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const shown = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
   const totalRequests = requests.length;
   const pendingCount = requests.filter((r) => r.status === "PENDING").length;
+  const approvedCount = requests.filter((r) => r.status === "APPROVED").length;
   /* Per currency, not one sum behind one symbol. A payout request carries its
      own currency -- the portal posts whatever the campaign is in -- so adding
      an INR request to a USD one and printing "$" produced a figure that is not
@@ -131,6 +154,12 @@ export default function RequestsPage() {
       .map((r) => ({ currency: r.currency, amount: r.requestedAmount }))
   );
   const rejectedCount = requests.filter((r) => r.status === "REJECTED").length;
+  const tabCount: Record<string, number> = {
+    ALL: totalRequests,
+    PENDING: pendingCount,
+    APPROVED: approvedCount,
+    REJECTED: rejectedCount,
+  };
 
   // Exports the rows on screen, so a status tab or a search narrows the file
   // the same way it narrows the list.
@@ -149,186 +178,184 @@ export default function RequestsPage() {
     ]);
   };
 
+  const columns: DataTableColumn<PayoutRequest>[] = [
+    {
+      key: "creator",
+      header: "Creator",
+      width: REQUEST_WIDTHS.creator,
+      minWidth: 220,
+      render: (r) => {
+        const fallback = r.creatorName ?? r.creatorHandle ?? `Creator ${r.creatorId.slice(0, 6)}`;
+        return (
+          <div className="flex min-w-0 items-center gap-3">
+            <CreatorAvatar id={r.creatorId} name={fallback} size="sm" />
+            {r.creatorName || r.creatorHandle ? (
+              <CreatorName name={r.creatorName} handle={r.creatorHandle} />
+            ) : (
+              <span className="cc-dt-truncate">{fallback}</span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: "campaign",
+      header: "Campaign",
+      width: REQUEST_WIDTHS.campaign,
+      minWidth: 180,
+      truncate: (r) => r.campaignTitle ?? undefined,
+      render: (r) => r.campaignTitle ?? "Unknown campaign",
+    },
+    {
+      key: "amount",
+      header: "Amount",
+      align: "right",
+      width: REQUEST_WIDTHS.amount,
+      render: (r) => formatMoney(r.requestedAmount, r.currency),
+    },
+    {
+      key: "status",
+      header: "Status",
+      width: REQUEST_WIDTHS.status,
+      render: (r) => <StatusBadge status={r.status} />,
+    },
+    {
+      key: "requested",
+      header: "Requested",
+      width: REQUEST_WIDTHS.requested,
+      render: (r) => formatDateAbs(r.createdAt),
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      hideHeader: true,
+      align: "right",
+      width: REQUEST_WIDTHS.actions,
+      render: (r) =>
+        r.status === "PENDING" ? (
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              loading={actionLoading === `${r.id}-APPROVED`}
+              disabled={actionLoading !== null}
+              onClick={() => handleAction(r, "APPROVED")}
+            >
+              Approve
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              loading={actionLoading === `${r.id}-REJECTED`}
+              disabled={actionLoading !== null}
+              onClick={() => handleAction(r, "REJECTED")}
+            >
+              Reject
+            </Button>
+          </div>
+        ) : null,
+    },
+  ];
+
   return (
-    <div className="rsp-page cc-end-41">
+    <div className="rsp-page page-enter">
       <PageHeader
-        /* Their h1 on this screen reads "Requested Payouts" -- MEASURED 233px
-           wide at 291,31 against our 109.5. The rail label stays "Requests". */
-        title="Requested Payouts"
-        subtitle="View and manage payout requests"
+        title="Requests"
+        subtitle="Payout requests from creators, to approve or reject"
         actions={
-          /* PRIMARY, not secondary. MEASURED at desktop-1600: their Export Data
-             on this screen is the filled 180x40 brand-indigo button every
-             other list page gives its create action -- this page has no create,
-             so the export IS the page's action. Ours rendered it as a small
-             secondary, which is also why the parity harness could not see it:
-             page.primary-action resolves through data-cc-slot="primary", which
-             only variant="primary" emits. */
           <Button
-            variant="primary"
-            iconLeft={<Download size={15} />}
+            variant="secondary"
+            iconLeft={<Download size={16} aria-hidden="true" />}
             disabled={filtered.length === 0}
             onClick={exportData}
-           {...action("export-data")}>
-            Export Data
+            {...action("export-data")}
+          >
+            Export CSV
           </Button>
+        }
+        tabs={
+          <StatusTabs
+            ariaLabel="Filter by request status"
+            tabs={STATUS_TABS.map((tab) => ({ ...tab, count: loading ? undefined : tabCount[tab.key] }))}
+            active={activeTab}
+            onChange={(key) => {
+              setActiveTab(key);
+              setPage(1);
+            }}
+          />
         }
       />
 
-      {/* Stat Cards */}
       {loading ? (
-        <div className="rsp-grid-tiles" style={{ marginBottom: 32 }}>
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 20 }}>
-              <Skeleton width={80} height={14} />
-              <div style={{ marginTop: 8 }}><Skeleton width={48} height={28} /></div>
-            </div>
-          ))}
-        </div>
+        <TileGridSkeleton count={4} style={{ marginBottom: 24 }} />
       ) : (
-        <div className="rsp-grid-tiles cc-reqpage-stats">
-          <MetricTile metric="requestsTotal" value={String(totalRequests)} />
-          <MetricTile metric="requestsPending" value={String(pendingCount)} />
+        <div className="cc-tiles-balanced mb-6">
+          <MetricTile metric="requestsTotal" value={formatFull(totalRequests)} />
+          <MetricTile metric="requestsPending" value={formatFull(pendingCount)} />
           <MetricTile metric="requestsApprovedAmount" value={approvedTotal} />
-          <MetricTile metric="requestsRejected" value={String(rejectedCount)} />
+          <MetricTile metric="requestsRejected" value={formatFull(rejectedCount)} />
         </div>
       )}
 
-      {/* Their content card opens with its own heading and a count, then puts
-          the search and the status filter on ONE row -- MEASURED: h2 at
-          290,197, the count at 290,236, the search 309.5x45 at 290,265.8 and
-          the filter labels starting at 966.8. Both the heading and the count
-          are creatorcore-only; base keeps the page it had. */}
-      <h2 className="cc-reqpage-title">Requests</h2>
-      {/* One text node, not two: the census keys on a text node, and
-          `{n} Requests` emits "0" and " Requests" separately. */}
-      <p className="cc-reqpage-caption">{`${filtered.length} Requests`}</p>
-
-      <div className="cc-reqpage-bar">
-      <div className="cc-reqpage-search">
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search Requests"
-          aria-label="Search Requests"
-          iconLeft={<Search size={16} />}
-        />
-      </div>
-      <div className="cc-reqpage-filter">
-      <StatusTabs
-        variant="pill"
-        ariaLabel="Filter by request status"
-        tabs={STATUS_TABS.map((tab) => ({
-          ...tab,
-          count:
-            tab.key === "PENDING"
-              ? pendingCount
-              : tab.key === "APPROVED"
-                ? requests.filter((r) => r.status === "APPROVED").length
-                : tab.key === "REJECTED"
-                  ? rejectedCount
-                  : undefined,
-        }))}
-        active={activeTab}
-        onChange={setActiveTab}
+      <ListToolbar
+        search={{
+          value: query,
+          onChange: (v) => {
+            setQuery(v);
+            setPage(1);
+          },
+          placeholder: "Search requests",
+          ariaLabel: "Search requests by creator or campaign",
+        }}
       />
-      </div>
-      </div>
 
-      {/* Request List */}
-      {loading ? (
-        <Card variant="outlined" noPadding>
-          <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--cc-border)" }}>
-            <Skeleton width={140} height={16} />
-          </div>
-          {[1, 2, 3].map((i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 20px", borderBottom: i < 3 ? "1px solid var(--cc-border)" : "none" }}>
-              <Skeleton width={36} height={36} borderRadius="50%" />
-              <div style={{ flex: 1 }}>
-                <Skeleton width={180} height={14} />
-                <div style={{ marginTop: 4 }}><Skeleton width={120} height={12} /></div>
-              </div>
-              <Skeleton width={60} height={24} borderRadius="6px" />
-              <Skeleton width={60} height={14} />
-            </div>
-          ))}
-        </Card>
-      ) : filtered.length === 0 && query.trim() ? (
-        <EmptyState
-          icon={<Search size={32} color="var(--cc-text-subtle)" />}
-          title="No requests match that search"
-          description={`No requests match "${query}".`}
-          action={<Button variant="secondary" onClick={() => setQuery("")}>Clear search</Button>}
-        />
-      ) : filtered.length === 0 ? (
-        <EmptyState
-          icon={<Inbox size={40} />}
-          title={activeTab === "ALL" ? "No payout requests" : `No ${activeTab.toLowerCase()} requests`}
-          description={activeTab === "ALL" ? "Payout requests from creators will appear here." : `There are no requests with status "${activeTab.toLowerCase()}".`}
+      {loadFailed ? (
+        <LoadError
+          title="We couldn't load payout requests"
+          description="These requests were not read, which is not the same as there being none."
+          onRetry={() => {
+            setLoading(true);
+            fetchRequests();
+          }}
         />
       ) : (
-        <Card variant="outlined" noPadding>
-          <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--cc-border)" }}>
-            <span className="cc-panel-title">
-              {activeTab === "ALL" ? "All Requests" : `${STATUS_TABS.find((t) => t.key === activeTab)?.label} Requests`}
-            </span>
-            <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginLeft: 8 }}>({filtered.length})</span>
-          </div>
-          {filtered.map((r, i) => {
-            const creatorName = r.creatorName ?? r.creatorHandle ?? `Creator ${r.creatorId.slice(0, 6)}`;
-            return (
-              <div
-                key={r.id}
-                className="cc-table-row"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 16,
-                  padding: "14px 20px",
-                  flexWrap: "wrap",
-                  borderBottom: i < filtered.length - 1 ? "1px solid var(--cc-border)" : "none",
-                }}
-              >
-                <CreatorAvatar id={r.creatorId} name={creatorName} size="sm" />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  {r.creatorName || r.creatorHandle ? (
-                    <CreatorName name={r.creatorName} handle={r.creatorHandle} layout="inline" />
-                  ) : (
-                    <div style={{ fontWeight: "var(--cc-fw-strong)", fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>{creatorName}</div>
-                  )}
-                  <div title={r.campaignTitle ?? undefined} style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {r.campaignTitle ?? "Unknown campaign"}
-                  </div>
-                </div>
-                <Badge variant={STATUS_BADGE[r.status] ?? "neutral"} size="sm">{r.status.toLowerCase()}</Badge>
-                <div style={{ textAlign: "right", minWidth: 80 }}>
-                  <div className="cc-panel-title">{formatMoney(r.requestedAmount, r.currency)}</div>
-                  <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{formatDateAbs(r.createdAt)}</div>
-                </div>
-                {r.status === "PENDING" && (
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => handleAction(r, "APPROVED")}
-                      disabled={actionLoading === `${r.id}-APPROVED`}
-                    >
-                      {actionLoading === `${r.id}-APPROVED` ? "..." : "Approve"}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleAction(r, "REJECTED")}
-                      disabled={actionLoading === `${r.id}-REJECTED`}
-                    >
-                      {actionLoading === `${r.id}-REJECTED` ? "..." : "Reject"}
-                    </Button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </Card>
+        <DataTable
+          caption="Payout requests"
+          columns={columns}
+          rows={shown}
+          rowKey={(r) => r.id}
+          loading={loading}
+          skeletonRows={8}
+          empty={
+            isFiltered ? (
+              <NoResults
+                title="No requests match"
+                description="Nothing matches this search and status."
+                onClear={clearFilters}
+              />
+            ) : (
+              <NoResults
+                icon={<Inbox size={32} strokeWidth={1.75} />}
+                title="No payout requests"
+                description="Payout requests from creators will appear here."
+              />
+            )
+          }
+          footer={
+            <Pagination
+              page={currentPage}
+              totalPages={totalPages}
+              total={filtered.length}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              pageSizeOptions={REQUEST_PAGE_SIZES}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setPage(1);
+              }}
+            />
+          }
+        />
       )}
     </div>
   );

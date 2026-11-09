@@ -3,14 +3,31 @@ import { useState, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Badge, Card, Modal, Input, Skeleton, EmptyState } from "@pratham7711/ui";
-import { PageHeader, MetricTile, Button, useConfirm } from "@/components/ds";
+import { Input, EmptyState } from "@pratham7711/ui";
+import { Modal, ModalNotice, ModalOption, ModalOptionList, ModalSection } from "@/components/ds/Modal";
+import {
+  PageHeader,
+  MetricTile,
+  Button,
+  DataTable,
+  Dropdown,
+  ListToolbar,
+  MoreMenu,
+  NoResults,
+  StatusBadge,
+  useConfirm,
+  StatusTabs,
+  type DataTableColumn,
+  type StatusTone,
+} from "@/components/ds";
 import { AgeLabel } from "@/components/ds/AgeLabel";
-import { Music, Plus, RefreshCw, Search, Trash2, TrendingUp } from "lucide-react";
+import { TileGridSkeleton } from "@/components/ui/PageSkeleton";
+import { AlertTriangle, Disc3, Eye, Link2, Music, Plus, RefreshCw, Trash2, TrendingUp } from "lucide-react";
 import { InstagramSourceBanner } from "@/components/integrations/InstagramSourceBanner";
 import { CreatorTrackers } from "./CreatorTrackers";
 import { SoundDetailModal } from "./SoundDetailModal";
 import { TrackersIntro } from "./TrackersIntro";
+import { PeriodControl } from "./PeriodControl";
 import { formatDateAbs, timeAgo, formatFull } from "@/lib/format";
 import { apiDelete, apiFetch, apiPost } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessage";
@@ -79,15 +96,12 @@ function formatCount(n: number): string {
   return formatFull(n);
 }
 
-const STATUS_VARIANTS: Record<
-  TrackedSound["status"],
-  "success" | "accent" | "neutral" | "danger"
-> = {
-  viral: "success",
-  trending: "accent",
-  stable: "neutral",
-  declining: "danger",
-  unknown: "neutral",
+const STATUS_BADGE: Record<TrackedSound["status"], { tone: StatusTone; label: string }> = {
+  viral: { tone: "success", label: "Viral" },
+  trending: { tone: "info", label: "Trending" },
+  stable: { tone: "neutral", label: "Stable" },
+  declining: { tone: "danger", label: "Declining" },
+  unknown: { tone: "neutral", label: "No data" },
 };
 
 function periodLabel(key: string): string {
@@ -179,7 +193,11 @@ export default function TrackersPage() {
   /* Bulk removal. Guarded by a typed confirmation rather than a dialog alone:
      this deletes every tracker and all their history, and history is the one
      thing a re-add cannot recover — readings are point-in-time and TikTok will
-     not tell us what a sound was doing last week. */
+     not tell us what a sound was doing last week. The typing happens in a
+     dialog of our own rather than window.prompt, which could not say any of
+     that legibly and which the browser styles as an error. */
+  const [removeAllOpen, setRemoveAllOpen] = useState(false);
+  const [removeAllTyped, setRemoveAllTyped] = useState("");
   const removeAllMutation = useMutation({
     mutationFn: () =>
       apiFetch<{ removed: number; snapshotsRemoved: number }>("/api/trackers", {
@@ -197,13 +215,17 @@ export default function TrackersPage() {
   });
 
   const confirmRemoveAll = () => {
-    const n = allSounds.length;
-    const typed = window.prompt(
-      `Remove all ${n} tracker${n === 1 ? "" : "s"} and their entire reading history?\n\n` +
-        `History cannot be recovered — TikTok will not tell us what a sound was doing last week.\n\n` +
-        `Type DELETE to confirm.`
-    );
-    if (typed === "DELETE") removeAllMutation.mutate();
+    setRemoveAllTyped("");
+    setRemoveAllOpen(true);
+  };
+  const closeRemoveAll = useCallback(() => {
+    setRemoveAllOpen(false);
+    setRemoveAllTyped("");
+  }, []);
+  const removeAllArmed = removeAllTyped === "DELETE";
+  const submitRemoveAll = () => {
+    if (!removeAllArmed || removeAllMutation.isPending) return;
+    removeAllMutation.mutate(undefined, { onSuccess: closeRemoveAll });
   };
 
   const invalidate = useCallback(() => {
@@ -289,6 +311,8 @@ export default function TrackersPage() {
     return SOUND_URL_ERRORS[reason] ?? SOUND_URL_ERRORS.unrecognised;
   }, [urlInput]);
 
+  const soundLinkReady = urlInput.trim() !== "" && clientError === null;
+
   const closeAddModal = useCallback(() => {
     setModalOpen(false);
     setUrlInput("");
@@ -322,7 +346,8 @@ export default function TrackersPage() {
   const handleDelete = useCallback(
     async (sound: TrackedSound) => {
       const ok = await confirm({
-        title: "Remove this tracker?",
+        verb: "remove",
+        subject: sound.title,
         /* The id is named only where the title alone does not identify the
            tracker, because two rows can read "Roots" and this dialog is the
            last thing standing between the wrong one and a deleted history. */
@@ -362,11 +387,205 @@ export default function TrackersPage() {
   }, [allSounds, period]);
   const { totalTrackers, totalUses, usesNote, trendingCount, newToday, newNote } = stats;
 
+  const soundColumns: DataTableColumn<TrackedSound>[] = [
+    {
+      key: "sound",
+      header: "Sound",
+      minWidth: 240,
+      render: (s) => (
+        <div className="cc-sound-cell">
+          <span className="cc-sound-cover" aria-hidden="true">
+            {s.coverImageUrl ? <img src={s.coverImageUrl} alt="" /> : <Music size={18} />}
+          </span>
+          <span className="cc-sound-cell-text">
+            {/* Opening the detail is a real button, so the row is reachable
+                by keyboard rather than click-only. The id goes in the URL
+                (?tracker=) so a manager can paste the link to one sound. */}
+            <button
+              type="button"
+              className="cc-sound-open cc-dt-truncate"
+              onClick={() => setOpenTracker(s.id)}
+              title={s.title}
+              aria-label={`Open details for ${s.title}`}
+            >
+              {s.title}
+            </button>
+            <span className="cc-dt-sub cc-dt-truncate">
+              {s.artist || "Unknown artist"}
+              {ambiguousLabels.has(`${s.title}\u0000${s.artist}`) ? (
+                <span
+                  className="cc-sound-id"
+                  title="Another tracker in this workspace has the same title and artist. This is the TikTok sound id, which tells them apart."
+                >
+                  {" "}
+                  · {s.tiktokSoundId}
+                </span>
+              ) : null}
+            </span>
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      width: 196,
+      /* Trend and read-health never share a slot. A sound that is genuinely
+         losing uses and a sound nobody has read in a week are different facts,
+         and one badge cannot say both. */
+      render: (s) =>
+        s.health === "live" ? (
+          <StatusBadge tone={STATUS_BADGE[s.status].tone}>{STATUS_BADGE[s.status].label}</StatusBadge>
+        ) : s.health === "pending" ? (
+          <StatusBadge tone="neutral">Awaiting first reading</StatusBadge>
+        ) : (
+          <StatusBadge tone="warning">Not updating</StatusBadge>
+        ),
+    },
+    {
+      key: "uses",
+      header: "Uses",
+      width: 184,
+      align: "right",
+      render: (s) => {
+        const snap = s.latestSnapshot;
+        const added = s.addedInPeriod;
+        const spanLabel = isTrackerWindow(period) ? changeSpanLabel(s.change, period, periodLabel(period)) : periodLabel(period);
+        return (
+          <>
+            <span
+              className="cc-sound-uses"
+              /* A dated number is still useful; a dated number dressed as a
+                 current one is not. Dim it and say when it is from. */
+              data-dated={snap && s.health !== "live" ? "" : undefined}
+              title={snap && s.health !== "live" ? `Last read ${formatDateAbs(s.lastReadAt ?? snap.recordedAt)}` : undefined}
+            >
+              {snap ? formatCount(snap.usesCount) : "—"}
+            </span>
+            {s.change !== null && added !== null ? (
+              /* The span is the one changeOverWindow actually measured, not the
+                 one that was asked for. With fewer than two readings inside the
+                 window it falls back to the last two of all time. */
+              <span
+                className="cc-dt-sub cc-sound-change"
+                data-down={added < 0 ? "" : undefined}
+                title={
+                  spanLabel !== periodLabel(period)
+                    ? `Only ${spanLabel} of readings are available inside the ${periodLabel(period)} window.`
+                    : undefined
+                }
+              >
+                {added >= 0 ? "+" : ""}
+                {formatCount(added)} / {spanLabel}
+                {s.growthPercentage !== null ? ` (${s.growthPercentage >= 0 ? "+" : ""}${s.growthPercentage.toFixed(1)}%)` : ""}
+              </span>
+            ) : (
+              <span
+                className="cc-dt-sub"
+                title={
+                  s.health !== "live" && s.lastReadAt
+                    ? `Readings stopped on ${formatDateAbs(s.lastReadAt)}. The count above is the last known value, not a current one.`
+                    : s.health === "pending"
+                      ? "First reading usually lands within four hours"
+                      : s.snapshotCount < 2
+                        ? "Needs a second reading before change can be measured"
+                        : "No readings inside this period"
+                }
+              >
+                — / {periodLabel(period)}
+              </span>
+            )}
+          </>
+        );
+      },
+    },
+    {
+      key: "read",
+      header: "Last read",
+      width: 148,
+      render: (s) =>
+        s.health === "live" ? (
+          /* The reading's age, with the Stale chip once it is past twice the
+             org's read cadence. */
+          <AgeLabel
+            at={s.latestSnapshot?.recordedAt ?? null}
+            field="sound"
+            ctx={{ cadenceHours }}
+            source="Sound reading"
+            never="Never read"
+            style={{ fontSize: "var(--cc-t-13)" }}
+          />
+        ) : s.lastReadAt ? (
+          <span
+            className="cc-sound-late"
+            title={`Readings stopped on ${formatDateAbs(s.lastReadAt)}. The count is the last known value, not a current one.`}
+          >
+            {timeAgo(s.lastReadAt)}
+          </span>
+        ) : (
+          <span className="cc-sound-never">Not read yet</span>
+        ),
+    },
+    {
+      key: "since",
+      header: "Tracked since",
+      width: 132,
+      render: (s) => formatDateAbs(s.trackedSince),
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      hideHeader: true,
+      width: 64,
+      render: (s) => (
+        <MoreMenu
+          size="sm"
+          label={`More actions for ${s.title}`}
+          items={[
+            { label: "Open details", icon: <Eye size={15} />, onClick: () => setOpenTracker(s.id) },
+            {
+              label: "Refresh now",
+              icon: <RefreshCw size={15} />,
+              onClick: () => refreshOneMutation.mutate(s.id),
+              disabled: refreshOneMutation.isPending,
+            },
+            {
+              label: "Remove tracker",
+              icon: <Trash2 size={15} />,
+              onClick: () => handleDelete(s),
+              danger: true,
+              startsGroup: true,
+            },
+          ]}
+        />
+      ),
+    },
+  ];
+
   return (
     <div className="rsp-page">
       <PageHeader
         title="Trackers"
-        subtitle="Track TikTok and Instagram sounds, and creators"
+        /* The plan's count, which is sounds AND tracked creators -- so it can
+           be higher than the Sound trackers tile below. It is a fact about
+           the page, not an action, so it sits under the title rather than
+           between the buttons. The tooltip gives the split. */
+        subtitle={
+          limits?.max != null ? (
+            <span
+              style={{ color: atLimit ? "var(--cc-warning)" : undefined }}
+              title={
+                planHasNoTrackers
+                  ? "Your plan does not include sound trackers"
+                  : `${limits.used} of ${limits.max} trackers used on this plan: ${allSounds.length} ${noun(allSounds.length, "sound")} and ${Math.max(0, limits.used - allSounds.length)} ${noun(Math.max(0, limits.used - allSounds.length), "creator")}`
+              }
+            >
+              {planHasNoTrackers ? "Trackers are not on this plan" : `${limits.used} of ${limits.max} trackers used on this plan`}
+            </span>
+          ) : (
+            "Track TikTok and Instagram sounds, and creators"
+          )
+        }
         /* The two tabs track different things, so they get different actions in
            the same place rather than one tab's buttons sitting inert. */
         actions={
@@ -375,50 +594,11 @@ export default function TrackersPage() {
             <Button
               variant="secondary"
               onClick={() => refreshMutation.mutate()}
-              disabled={refreshMutation.isPending}
+              loading={refreshMutation.isPending}
+              iconLeft={<RefreshCw size={16} aria-hidden="true" />}
             >
-              <RefreshCw
-                size={16}
-                style={{
-                  marginRight: 6,
-                  animation: refreshMutation.isPending ? "cc-spin 1s linear infinite" : undefined,
-                }}
-              />
-              {refreshMutation.isPending ? "Refreshing..." : "Refresh"}
+              {refreshMutation.isPending ? "Refreshing…" : "Refresh"}
             </Button>
-            {allSounds.length > 0 ? (
-              /* Danger, but in the action-slot box: as a bare danger button it
-                 rendered a different size from Refresh beside it. */
-              <Button
-                variant="danger"
-                data-cc-slot="secondary"
-                onClick={confirmRemoveAll}
-                disabled={removeAllMutation.isPending}
-                title="Remove every tracker and its reading history"
-              >
-                {removeAllMutation.isPending ? "Removing…" : "Remove all"}
-              </Button>
-            ) : null}
-            {limits?.max != null ? (
-              <span
-                style={{
-                  fontSize: "var(--cc-t-13)",
-                  alignSelf: "center",
-                  color: atLimit ? "var(--cc-warning)" : "var(--cc-text-muted)",
-                }}
-                /* The plan's count, which is sounds AND tracked creators --
-                   so it can be higher than the Sound trackers tile below. The
-                   words say "trackers" rather than "tracked" and the tooltip
-                   gives the split, so the two numbers stop contradicting. */
-                title={
-                  planHasNoTrackers
-                    ? "Your plan does not include sound trackers"
-                    : `${limits.used} of ${limits.max} trackers used on this plan: ${allSounds.length} ${noun(allSounds.length, "sound")} and ${Math.max(0, limits.used - allSounds.length)} ${noun(Math.max(0, limits.used - allSounds.length), "creator")}`
-                }
-              >
-                {planHasNoTrackers ? "Not on this plan" : `${limits.used} / ${limits.max} trackers`}
-              </span>
-            ) : null}
             <Button
               variant="primary"
               onClick={() => setModalOpen(true)}
@@ -430,17 +610,44 @@ export default function TrackersPage() {
                     ? "You have used every tracker on your plan"
                     : undefined
               }
-             {...action("track-sound")}>
-              <Plus size={16} style={{ marginRight: 6 }} />
-              Track Sound
+              iconLeft={<Plus size={16} aria-hidden="true" />}
+              {...action("track-sound")}
+            >
+              Track sound
             </Button>
+            {allSounds.length > 0 && (
+              <MoreMenu
+                label="More tracker actions"
+                items={[
+                  {
+                    label: removeAllMutation.isPending ? "Removing…" : "Remove all sound trackers",
+                    icon: <Trash2 size={15} />,
+                    onClick: confirmRemoveAll,
+                    disabled: removeAllMutation.isPending,
+                    danger: true,
+                  },
+                ]}
+              />
+            )}
           </>
           ) : (
-            <Button variant="primary" onClick={() => setCreatorPickerOpen(true)} {...action("track-creator")}>
-              <Plus size={16} style={{ marginRight: 6 }} />
-              Track Creator
+            <Button
+              variant="primary"
+              onClick={() => setCreatorPickerOpen(true)}
+              iconLeft={<Plus size={16} aria-hidden="true" />}
+              {...action("track-creator")}
+            >
+              Track creator
             </Button>
           )
+        }
+        tabs={
+          <StatusTabs
+            ariaLabel="What to track"
+            tabs={SUBS.map((t) => ({ key: t.key, label: t.label }))}
+            active={sub}
+            onChange={(key) => setSub(key as Sub)}
+          />
         }
       />
 
@@ -449,51 +656,21 @@ export default function TrackersPage() {
           trackers read Instagram's audio page directly and never touch that
           token, so on Audios the warning described numbers it does not show.
           Renders nothing while the source is up. */}
-      {sub === "creator" && <InstagramSourceBanner style={{ marginTop: 16, marginBottom: 16 }} />}
-
-      {/* Sub-tabs: Audios | Creators */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
-        {SUBS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setSub(t.key)}
-            style={{
-              padding: "10px 32px",
-              borderRadius: 10,
-              fontSize: "var(--cc-t-14)",
-              fontWeight: "var(--cc-fw-strong)",
-              cursor: "pointer",
-              border: "1px solid var(--cc-primary)",
-              background: sub === t.key ? "var(--cc-primary)" : "var(--cc-card)",
-              color: sub === t.key ? "var(--cc-on-primary)" : "var(--cc-primary)",
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      {sub === "creator" && <InstagramSourceBanner style={{ marginBottom: 16 }} />}
 
       {sub === "creator" ? (
         <CreatorTrackers pickerOpen={creatorPickerOpen} setPickerOpen={setCreatorPickerOpen} />
       ) : (
       <>
-      {/* Stat Cards */}
       {loading ? (
-        <div className="cc-tiles-balanced" style={{ marginBottom: 32 }}>
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 20 }}>
-              <Skeleton width={80} height={14} />
-              <div style={{ marginTop: 8 }}><Skeleton width={48} height={28} /></div>
-            </div>
-          ))}
-        </div>
+        <TileGridSkeleton count={4} style={{ marginBottom: 24 }} />
       ) : allSounds.length === 0 ? (
         /* Four zeroes above TrackersIntro, which is the screen that explains
            what a tracker is. Nothing has been measured yet, so there is nothing
            to report; the tiles arrive with the first tracked sound. */
         null
       ) : (
-        <div className="cc-tiles-balanced" style={{ marginBottom: 32 }}>
+        <div className="cc-tiles-balanced cc-trackers-tiles">
           <MetricTile metric="trackersActive" value={String(totalTrackers)} />
           <MetricTile
             metric="trackerUses"
@@ -502,7 +679,7 @@ export default function TrackersPage() {
           />
           <MetricTile metric="trackersTrending" value={String(trendingCount)} />
           {/* The label has to carry the period, because the number changes when
-              the buttons below are clicked. "New today" was wrong on three of
+              the period below is changed. "New today" was wrong on three of
               the four settings. */}
           <MetricTile
             metric="trackersNewUses"
@@ -513,325 +690,172 @@ export default function TrackersPage() {
         </div>
       )}
 
-      {/* Sound List */}
-      {loading ? (
-        <Card variant="outlined" noPadding>
-          <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--cc-border)" }}>
-            <Skeleton width={140} height={16} />
-          </div>
-          {[1, 2, 3].map((i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 20px", borderBottom: i < 3 ? "1px solid var(--cc-border)" : "none" }}>
-              <Skeleton width={40} height={40} borderRadius="50%" />
-              <div style={{ flex: 1 }}>
-                <Skeleton width={200} height={14} />
-                <div style={{ marginTop: 4 }}><Skeleton width={100} height={12} /></div>
-              </div>
-              <Skeleton width={60} height={24} borderRadius="6px" />
-              <Skeleton width={60} height={14} />
-            </div>
-          ))}
-        </Card>
-      ) : loadError ? (
+      {loadError ? (
         <EmptyState
           icon={<TrendingUp size={40} />}
           title="Could not load trackers"
           description="Something went wrong fetching your sound trackers."
           action={<Button variant="primary" onClick={() => refetch()}>Retry</Button>}
         />
-      ) : allSounds.length === 0 ? (
+      ) : !loading && allSounds.length === 0 ? (
         <TrackersIntro onAdd={() => setModalOpen(true)} />
-      ) : sounds.length === 0 ? (
-        <EmptyState
-          icon={<Search size={40} />}
-          title="No trackers match that search"
-          description={`Nothing tracked matches "${query}".`}
-          action={<Button variant="secondary" onClick={() => setQuery("")}>Clear search</Button>}
-        />
       ) : (
-        <Card variant="outlined" noPadding>
-          <div
-            style={{
-              padding: "16px 20px",
-              borderBottom: "1px solid var(--cc-border)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 16,
-              flexWrap: "wrap",
+        <>
+          <ListToolbar
+            search={{
+              value: query,
+              onChange: setQuery,
+              placeholder: "Search sounds",
+              ariaLabel: "Search sound trackers by title or artist",
             }}
-          >
-            <span className="cc-panel-title">Sound Trackers</span>
-            <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-              <div style={{ minWidth: 200 }}>
-                <Input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search Trackers"
-                  aria-label="Search Trackers"
-                  iconLeft={<Search size={16} />}
+            end={
+              <>
+                <PeriodControl periods={PERIODS} value={period} onChange={setPeriod} />
+                <Dropdown
+                  ariaLabel="Sort sound trackers"
+                  size="md"
+                  align="right"
+                  value={sort}
+                  onChange={setSort}
+                  options={SORTS.map((o) => ({ value: o.key, label: o.label }))}
+                  minWidth={150}
                 />
-              </div>
-              <div style={{ display: "flex", gap: 4 }}>
-                {PERIODS.map((p) => (
-                  <button
-                    key={p.key}
-                    onClick={() => setPeriod(p.key)}
-                    style={{
-                      padding: "5px 12px",
-                      borderRadius: 8,
-                      fontSize: "var(--cc-t-13)",
-                      fontWeight: "var(--cc-fw-strong)",
-                      cursor: "pointer",
-                      border: "1px solid",
-                      borderColor: period === p.key ? "var(--cc-primary)" : "var(--cc-border)",
-                      background: period === p.key ? "var(--cc-primary)" : "var(--cc-card)",
-                      color: period === p.key ? "var(--cc-on-primary)" : "var(--cc-text-muted)",
-                    }}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>Sort</span>
-                {SORTS.map((s) => (
-                  <button
-                    key={s.key}
-                    onClick={() => setSort(s.key)}
-                    style={{
-                      padding: "5px 10px",
-                      borderRadius: 8,
-                      fontSize: "var(--cc-t-13)",
-                      fontWeight: "var(--cc-fw-strong)",
-                      cursor: "pointer",
-                      border: "1px solid",
-                      borderColor: sort === s.key ? "var(--cc-primary)" : "var(--cc-border)",
-                      background: "var(--cc-card)",
-                      color: sort === s.key ? "var(--cc-primary)" : "var(--cc-text-muted)",
-                    }}
-                  >
-                    {s.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-          {sounds.map((s, i) => {
-            const snap = s.latestSnapshot;
-            const added = s.addedInPeriod;
-            const measured = s.change !== null;
-            const spanLabel = isTrackerWindow(period)
-              ? changeSpanLabel(s.change, period, periodLabel(period))
-              : periodLabel(period);
-            return (
-              <div
-                key={s.id}
-                className="cc-table-row cc-sound-row"
-                style={{
-                  borderBottom: i < sounds.length - 1 ? "1px solid var(--cc-border)" : "none",
-                }}
-              >
-                <div className="cc-sound-row-cover" style={{ width: 40, height: 40, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--cc-primary-light)" }}>
-                  {s.coverImageUrl ? (
-                    <img src={s.coverImageUrl} alt={s.title} style={{ width: 40, height: 40, borderRadius: 12, objectFit: "cover" }} />
-                  ) : (
-                    <Music size={18} style={{ color: "var(--cc-primary)" }} />
-                  )}
-                </div>
-                <div className="cc-sound-row-main" style={{ flex: 1, minWidth: 0 }}>
-                  {/* Opening the detail is a real button, so the row is reachable
-                      by keyboard rather than click-only. The id goes in the URL
-                      (?tracker=) so a manager can paste the link to one sound. */}
-                  <button
-                    type="button"
-                    onClick={() => setOpenTracker(s.id)}
-                    title={s.title}
-                    aria-label={`Open details for ${s.title}`}
-                    style={{
-                      display: "block", width: "100%", textAlign: "left",
-                      background: "none", border: "none", padding: 0, cursor: "pointer",
-                      fontWeight: "var(--cc-fw-strong)", fontSize: "var(--cc-t-14)", color: "var(--cc-text)",
-                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                    }}
-                  >
-                    {s.title}
-                  </button>
-                  <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
-                    {s.artist || "Unknown artist"}
-                    {ambiguousLabels.has(`${s.title}\u0000${s.artist}`) ? (
-                      <span
-                        style={{ marginLeft: 6, color: "var(--cc-text-subtle)", fontVariantNumeric: "tabular-nums" }}
-                        title="Another tracker in this workspace has the same title and artist. This is the TikTok sound id, which tells them apart."
-                      >
-                        · {s.tiktokSoundId}
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-                {/* Trend and read-health never share a slot. A sound that is
-                    genuinely losing uses and a sound nobody has read in a week
-                    are different facts, and one badge cannot say both. */}
-                <span className="cc-sound-row-badge">
-                  {s.health === "live" ? (
-                    <Badge variant={STATUS_VARIANTS[s.status]} size="sm">
-                      {s.status === "unknown" ? "no data" : s.status}
-                    </Badge>
-                  ) : (
-                    <Badge variant={s.health === "pending" ? "neutral" : "warning"} size="sm">
-                      {s.health === "pending" ? "awaiting first reading" : "not updating"}
-                    </Badge>
-                  )}
-                </span>
-                <div className="cc-sound-row-count">
-                  <div
-                    style={{
-                      fontWeight: 700,
-                      fontSize: "var(--cc-t-14)",
-                      color: "var(--cc-text)",
-                      // A dated number is still useful; a dated number dressed
-                      // as a current one is not. Dim it and say when it is from.
-                      opacity: s.health === "live" || !snap ? 1 : 0.6,
-                    }}
-                    title={
-                      snap && s.health !== "live"
-                        ? `Last read ${formatDateAbs(s.lastReadAt ?? snap.recordedAt)}`
-                        : undefined
-                    }
-                  >
-                    {snap ? formatCount(snap.usesCount) : "—"}
-                  </div>
-                  {measured && added !== null ? (
-                    /* The span is the one changeOverWindow actually measured, not
-                       the one that was asked for. With fewer than two readings
-                       inside the window it falls back to the last two of all
-                       time, and printing "/ 24h" over a ten-day gain overstated
-                       the rate by a factor of ten. */
-                    <div
-                      style={{ fontSize: "var(--cc-t-12)", color: added >= 0 ? "var(--cc-primary)" : "var(--cc-danger-fg)" }}
-                      title={
-                        spanLabel !== periodLabel(period)
-                          ? `Only ${spanLabel} of readings are available inside the ${periodLabel(period)} window.`
-                          : undefined
-                      }
-                    >
-                      {added >= 0 ? "+" : ""}
-                      {formatCount(added)} / {spanLabel}
-                      {s.growthPercentage !== null
-                        ? ` (${s.growthPercentage >= 0 ? "+" : ""}${s.growthPercentage.toFixed(1)}%)`
-                        : ""}
-                    </div>
-                  ) : s.health !== "live" && s.lastReadAt ? (
-                    // The case this whole change exists for: rather than "+0 /
-                    // 24hr" computed from two readings a minute apart nine days
-                    // ago, say plainly that nobody has looked since.
-                    <div
-                      style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-warning)" }}
-                      title={`Readings stopped on ${formatDateAbs(s.lastReadAt)}. The count above is the last known value, not a current one.`}
-                    >
-                      last read {timeAgo(s.lastReadAt)}
-                    </div>
-                  ) : (
-                    <div
-                      style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}
-                      title={
-                        s.health === "pending"
-                          ? "First reading usually lands within four hours"
-                          : s.snapshotCount < 2
-                            ? "Needs a second reading before change can be measured"
-                            : "No readings inside this period"
-                      }
-                    >
-                      — / {periodLabel(period)}
-                    </div>
-                  )}
-                </div>
-                <div className="cc-sound-row-read" style={{ minWidth: 110, textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
-                  {/* Only while the reader is keeping up: when it is not, the trend
-                      slot above already carries "last read …", and saying it twice
-                      in two colours reads as two different facts. */}
-                  {s.health === "live" ? (
-                    /* The reading's age, with the Stale chip once it is past
-                       twice the org's read cadence (plan A6). */
-                    <AgeLabel
-                      at={snap?.recordedAt ?? null}
-                      field="sound"
-                      ctx={{ cadenceHours }}
-                      prefix="Read"
-                      source="Sound reading"
-                      never="Never read"
-                      style={{ fontSize: "var(--cc-t-12)" }}
-                    />
-                  ) : null}
-                  <span style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-subtle)" }}>
-                    Tracked since {formatDateAbs(s.trackedSince)}
-                  </span>
-                </div>
-                <button
-                  className="cc-sound-row-del"
-                  onClick={() => handleDelete(s)}
-                  /* The icon alone named nothing to a screen reader, and a 28px
-                     target is under the 44px minimum for a destructive control. */
-                  aria-label={`Remove tracker for ${s.title}`}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    width: 44,
-                    height: 44,
-                    borderRadius: 8,
-                    color: "var(--cc-text-muted)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                  title="Remove tracker"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            );
-          })}
-        </Card>
+              </>
+            }
+          />
+          <DataTable
+            className="cc-actions-table"
+            caption="Sound trackers"
+            columns={soundColumns}
+            rows={sounds}
+            rowKey={(s) => s.id}
+            loading={loading}
+            skeletonRows={4}
+            empty={
+              <NoResults
+                onClear={() => setQuery("")}
+                clearLabel="Clear search"
+                description={`Nothing tracked matches "${query}".`}
+              />
+            }
+          />
+        </>
       )}
 
       </>
       )}
 
       {/* Track Sound Modal */}
-      <Modal open={modalOpen} onClose={closeAddModal} title="Track a Sound" size="sm" footer={
-        <div className="cc-modal-footer">
-          <Button variant="ghost" onClick={closeAddModal}>Cancel</Button>
-          <Button variant="primary" onClick={handleCreate} disabled={submitting || !urlInput.trim() || clientError !== null}>
-            {submitting ? "Adding\u2026" : "Track Sound"}
-          </Button>
-        </div>
-      }>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <label htmlFor="sound-url" style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>
-            TikTok sound link
-          </label>
+      <Modal
+        open={modalOpen}
+        onClose={closeAddModal}
+        icon={Music}
+        title="Track a sound"
+        description="Paste the link to a sound's own page. Its title and artwork fill in after the first reading."
+        size="sm"
+        dismissible={false}
+        footer={
+          <div className="cc-modal-footer">
+            <Button variant="secondary" size="sm" onClick={closeAddModal}>Cancel</Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleCreate}
+              disabled={submitting || !urlInput.trim() || clientError !== null}
+              iconLeft={<Plus size={16} aria-hidden="true" />}
+            >
+              {submitting ? "Adding\u2026" : "Track sound"}
+            </Button>
+          </div>
+        }
+      >
+        <Input
+          id="sound-url"
+          label="TikTok sound link"
+          autoFocus
+          placeholder="tiktok.com/music/..."
+          value={urlInput}
+          onChange={(e) => setUrlInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && !clientError && urlInput.trim()) handleCreate(); }}
+          error={clientError ?? undefined}
+          iconLeft={<Link2 size={16} />}
+          autoComplete="off"
+          {...(clientError || soundLinkReady ? {} : { "aria-describedby": "sound-url-help" })}
+        />
+        {/* How to find the link, until there is one: it goes once a link the
+            parser accepts is in the field, and comes back if it stops being one. */}
+        {!soundLinkReady && (
+          <ModalSection title="Where to find the link">
+            <div id="sound-url-help">
+              <ModalOptionList>
+                <ModalOption
+                  as="div"
+                  icon={Disc3}
+                  title="Open the sound's own page"
+                  description="Tap the spinning record on any video, or the sound name at the bottom."
+                />
+                <ModalOption
+                  as="div"
+                  icon={Link2}
+                  title="Copy that page's link"
+                  description="Paste it above. A link to a video will not work."
+                />
+              </ModalOptionList>
+            </div>
+          </ModalSection>
+        )}
+      </Modal>
+
+      {/* Remove all: typed confirmation, see removeAllMutation above. */}
+      <Modal
+        open={removeAllOpen}
+        onClose={() => { if (!removeAllMutation.isPending) closeRemoveAll(); }}
+        icon={Trash2}
+        tone="danger"
+        title={`Remove all ${allSounds.length} sound ${noun(allSounds.length, "tracker")}?`}
+        description="Each one is deleted along with its entire reading history."
+        size="sm"
+        footer={
+          <div className="cc-modal-footer">
+            <Button variant="secondary" size="sm" onClick={closeRemoveAll} disabled={removeAllMutation.isPending}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              type="submit"
+              form="cc-remove-all-trackers"
+              disabled={!removeAllArmed || removeAllMutation.isPending}
+              iconLeft={<Trash2 size={16} aria-hidden="true" />}
+            >
+              {removeAllMutation.isPending ? "Removing\u2026" : "Remove all trackers"}
+            </Button>
+          </div>
+        }
+      >
+        <form
+          id="cc-remove-all-trackers"
+          className="cc-dialog-stack"
+          onSubmit={(e) => {
+            e.preventDefault();
+            submitRemoveAll();
+          }}
+        >
+          <ModalNotice tone="warning" icon={AlertTriangle} title="History cannot be recovered">
+            TikTok will not tell us what a sound was doing last week.
+          </ModalNotice>
           <Input
-            id="sound-url"
+            id="cc-remove-all-confirm"
+            label="Type DELETE to confirm"
+            value={removeAllTyped}
+            onChange={(e) => setRemoveAllTyped(e.target.value)}
+            autoComplete="off"
+            autoCapitalize="characters"
+            spellCheck={false}
+            disabled={removeAllMutation.isPending}
             autoFocus
-            placeholder="tiktok.com/music/..."
-            value={urlInput}
-            onChange={(e) => setUrlInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && !clientError && urlInput.trim()) handleCreate(); }}
-            aria-invalid={clientError !== null}
-            aria-describedby={clientError ? "sound-url-error" : "sound-url-help"}
           />
-          {clientError ? (
-            <div id="sound-url-error" role="alert" style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-danger)" }}>
-              {clientError}
-            </div>
-          ) : (
-            <div id="sound-url-help" style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
-              Open the sound&apos;s own page — tap the spinning record on any video, or the sound
-              name at the bottom — then copy that link. The title and artwork fill in
-              automatically after the first reading.
-            </div>
-          )}
-        </div>
+        </form>
       </Modal>
 
       {/* Detail for one audio. Driven off the already-fetched row, so opening it

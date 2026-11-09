@@ -1,12 +1,22 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
-import { Badge, Card, EmptyState, Input } from "@pratham7711/ui";
-import { Columns3, Search, UserPlus, Users } from "lucide-react";
-import { Button, useTableSort, type SortAccessors, type SortState } from "@/components/ds";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Check, Columns3, UserPlus, Users } from "lucide-react";
+import {
+  Button,
+  DataTable,
+  ListToolbar,
+  NoResults,
+  PlatformTag,
+  StatusBadge,
+  statusTone,
+  useTableSort,
+  type DataTableColumn,
+  type SortAccessors,
+  type SortState,
+  type StatusTone,
+} from "@/components/ds";
 import { formatDateAbs, stripAt, formatFull } from "@/lib/format";
-import { ACTIVATION_STATUS_LABEL } from "@/lib/activationQueues";
 import { enumLabel } from "@/lib/ui/enumLabel";
 import { formatMoney } from "@/lib/money";
 import { CampaignHeaderActions } from "@/components/campaigns/CampaignHeaderActions";
@@ -22,13 +32,13 @@ import type { FigureTimeDto } from "@/lib/creators/figureTime";
  * The campaign roster, with the toolbar the reference puts above it.
  *
  * The reference offers Search, Filtering, Sorting, Grouping and Add Columns over
- * this table. Search, sorting and Add Columns are here; Grouping and its saved
+ * this table. Search, sorting and column choice are here; Grouping and its saved
  * "New View" are not, and are not faked -- see the note on columns below for how
  * far the URL gets us.
  *
  * Two of the offered columns are ones the table could not previously show at
  * all: the deliverable due date, which buildRoster used to discard, and average
- * views per post. So Add Columns reveals data rather than only hiding it.
+ * views per post. So the Columns control reveals data rather than only hiding it.
  */
 
 export type RosterRow = {
@@ -56,7 +66,12 @@ export type RosterRow = {
 type Col = {
   key: string;
   label: string;
-  width: string;
+  /** Fixed width in px. The creator column has none and takes what is left. */
+  width?: number;
+  /** Floor for the creator column, used to decide when the table scrolls. */
+  minWidth?: number;
+  /** Numbers: right-aligned and tabular. */
+  align?: "right";
   /** Creator is the row's identity, so it is never hidden. */
   locked?: boolean;
   /** Off until someone asks for it. */
@@ -64,22 +79,23 @@ type Col = {
 };
 
 const COLUMNS: Col[] = [
-  { key: "creator", label: "Creator", width: "1fr", locked: true },
-  { key: "platform", label: "Platform", width: "120px" },
-  { key: "followers", label: "Followers", width: "100px" },
-  { key: "posts", label: "Posts", width: "80px" },
-  { key: "views", label: "Views", width: "100px" },
-  { key: "avgViews", label: "Avg. Views", width: "110px", optional: true },
-  { key: "rate", label: "Rate", width: "100px", optional: true },
-  { key: "due", label: "Due", width: "110px", optional: true },
-  { key: "status", label: "Status", width: "130px" },
+  { key: "creator", label: "Creator", minWidth: 240, locked: true },
+  { key: "platform", label: "Platform", width: 128 },
+  { key: "followers", label: "Followers", width: 128, align: "right" },
+  { key: "posts", label: "Posts", width: 96, align: "right" },
+  { key: "views", label: "Views", width: 128, align: "right" },
+  { key: "avgViews", label: "Avg. views", width: 128, align: "right", optional: true },
+  { key: "rate", label: "Rate", width: 120, align: "right", optional: true },
+  { key: "due", label: "Due", width: 120, optional: true },
+  { key: "status", label: "Status", width: 168 },
 ];
 
 const DEFAULT_KEYS = COLUMNS.filter((c) => !c.optional).map((c) => c.key);
 
-const ACTIVATION_STATUS: Record<string, "success" | "warning" | "danger" | "neutral" | "accent"> = {
+/* The tones this table already used. A status not listed takes the shared tone. */
+const ACTIVATION_TONE: Record<string, StatusTone> = {
   AWAITING_DRAFT: "warning",
-  DRAFT_SUBMITTED: "accent",
+  DRAFT_SUBMITTED: "info",
   REVISION_REQUESTED: "danger",
   APPROVED: "success",
   POSTED: "success",
@@ -114,10 +130,6 @@ function viewsReason(r: RosterRow): string | undefined {
   return undefined;
 }
 
-function currencyOf(n: number, currency: string): string {
-  return formatMoney(n, currency);
-}
-
 const ACCESSORS: SortAccessors<RosterRow> = {
   creator: (r) => r.creator.name,
   platform: (r) => r.creator.platform,
@@ -130,28 +142,70 @@ const ACCESSORS: SortAccessors<RosterRow> = {
   status: (r) => r.activationStatus ?? "POSTED",
 };
 
-const HEAD: React.CSSProperties = {
-  fontSize: "var(--cc-t-11)",
-  fontWeight: 700,
-  textTransform: "uppercase",
-  letterSpacing: "0.06em",
-  color: "var(--cc-text-subtle)",
-  background: "none",
-  border: "none",
-  padding: 0,
-  textAlign: "left",
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  gap: 4,
-};
-
-const CELL: React.CSSProperties = { fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" };
+function renderCell(key: string, r: RosterRow, currency: string): React.ReactNode {
+  switch (key) {
+    case "creator":
+      return (
+        <>
+          <CreatorAvatar id={r.creator.id} name={r.creator.name} size="sm" />
+          <CreatorName name={r.creator.name} handle={r.creator.handle} />
+        </>
+      );
+    case "platform":
+      return <PlatformTag platform={r.creator.platform} />;
+    case "followers": {
+      const f = unwritten(r.creator.followersCount);
+      if (f === null) return "—";
+      /* The figure's age on its own line, as on the Creators list: a Stale
+         chip past twice its cadence, or "time not recorded" when no read can
+         be shown to have produced it. */
+      return (
+        <>
+          {formatFull(f)}
+          {r.followersAt ? (
+            <span className="cc-dt-sub">
+              <AgeLabel
+                at={r.followersAt.at}
+                field={r.followersAt.field}
+                source={r.followersAt.at ? r.followersAt.source : r.followersAt.missing}
+                never={TIME_NOT_RECORDED}
+                style={{ maxWidth: "100%", overflow: "hidden" }}
+              />
+            </span>
+          ) : null}
+        </>
+      );
+    }
+    case "posts":
+      return r.posts;
+    case "views":
+      return <span title={viewsReason(r)}>{r.views === null ? "—" : formatFull(r.views)}</span>;
+    case "avgViews": {
+      const avg = avgViewsOf(r);
+      return <span title={viewsReason(r)}>{avg === null ? "—" : formatFull(avg)}</span>;
+    }
+    case "rate":
+      // Null means no rate agreed, which is not a rate of nothing.
+      return r.creator.rate === null || r.creator.rate <= 0 ? "—" : formatMoney(r.creator.rate, currency);
+    case "due":
+      return r.deliverableDueDate ? formatDateAbs(r.deliverableDueDate) : "—";
+    case "status":
+      return r.activationStatus ? (
+        <StatusBadge tone={ACTIVATION_TONE[r.activationStatus] ?? statusTone(r.activationStatus)}>
+          {enumLabel(r.activationStatus)}
+        </StatusBadge>
+      ) : (
+        <StatusBadge tone="success">Posted</StatusBadge>
+      );
+    default:
+      return null;
+  }
+}
 
 /**
- * Which columns are on. Local rather than a shared control: Dropdown and
- * EntityPicker are both single-select, and widening the one every campaign row
- * uses for its status is a larger change than one table warrants.
+ * Which columns are on: a checkbox list under a toolbar button, drawn with the
+ * filter drawer's checkbox rows. Not a MenuButton, whose items cannot carry a
+ * checked state, so a screen reader would not hear which columns are shown.
  */
 function ColumnPicker({
   selected,
@@ -162,6 +216,7 @@ function ColumnPicker({
 }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
+  const panelId = useId();
 
   useEffect(() => {
     if (!open) return;
@@ -169,7 +224,9 @@ function ColumnPicker({
       if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
     };
     const esc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key !== "Escape") return;
+      setOpen(false);
+      box.current?.querySelector("button")?.focus();
     };
     document.addEventListener("mousedown", away);
     document.addEventListener("keydown", esc);
@@ -183,47 +240,31 @@ function ColumnPicker({
     onChange(selected.includes(key) ? selected.filter((k) => k !== key) : [...selected, key]);
 
   return (
-    <div ref={box} style={{ position: "relative" }}>
-      <button
-        onClick={() => setOpen((o) => !o)}
+    <div ref={box} className="cc-column-picker">
+      <Button
+        variant="secondary"
+        size="sm"
+        iconLeft={<Columns3 size={16} aria-hidden="true" />}
         aria-expanded={open}
-        aria-haspopup="true"
-        style={{
-          display: "flex", alignItems: "center", gap: 8, height: 38, padding: "0 14px",
-          background: "var(--cc-card)", color: "var(--cc-text)",
-          border: "1px solid var(--cc-border)", borderRadius: 8,
-          fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", cursor: "pointer", whiteSpace: "nowrap",
-        }}
+        aria-controls={open ? panelId : undefined}
+        onClick={() => setOpen((o) => !o)}
       >
-        <Columns3 size={15} /> Add Columns
-      </button>
+        Columns
+      </Button>
       {open && (
-        <div
-          role="group"
-          aria-label="Add Columns"
-          style={{
-            position: "absolute", top: 42, right: 0, zIndex: 40, minWidth: 190,
-            background: "var(--cc-card)", border: "1px solid var(--cc-border)",
-            borderRadius: 10, boxShadow: "var(--cc-popover-shadow)", padding: 6,
-          }}
-        >
-          {COLUMNS.filter((c) => !c.locked).map((c) => (
-            <label
-              key={c.key}
-              style={{
-                display: "flex", alignItems: "center", gap: 10, padding: "7px 8px",
-                borderRadius: 8, cursor: "pointer", fontSize: "var(--cc-t-13)", color: "var(--cc-text)",
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={selected.includes(c.key)}
-                onChange={() => toggle(c.key)}
-                style={{ accentColor: "var(--cc-primary)" }}
-              />
-              {c.label}
-            </label>
-          ))}
+        <div id={panelId} role="group" aria-label="Columns to show" className="cc-column-picker-panel">
+          {COLUMNS.filter((c) => !c.locked).map((c) => {
+            const on = selected.includes(c.key);
+            return (
+              <label key={c.key} className="cc-filter-option" data-on={on}>
+                <input type="checkbox" checked={on} onChange={() => toggle(c.key)} className="sr-only" />
+                <span aria-hidden className="cc-checkbox" data-on={on}>
+                  {on && <Check size={11} strokeWidth={3} />}
+                </span>
+                <span className="cc-filter-option-label">{c.label}</span>
+              </label>
+            );
+          })}
         </div>
       )}
     </div>
@@ -249,14 +290,20 @@ export default function RosterTable({
 }) {
   const [query, setQuery] = useState("");
 
-  const visible = useMemo(
-    () => COLUMNS.filter((c) => c.locked || columnKeys.includes(c.key)),
-    [columnKeys],
+  const columns = useMemo<DataTableColumn<RosterRow>[]>(
+    () =>
+      COLUMNS.filter((c) => c.locked || columnKeys.includes(c.key)).map((c) => ({
+        key: c.key,
+        header: c.label,
+        width: c.width,
+        minWidth: c.minWidth,
+        align: c.align,
+        sortKey: c.key,
+        primary: c.locked,
+        render: (r: RosterRow) => renderCell(c.key, r, currency),
+      })),
+    [columnKeys, currency],
   );
-  const grid = visible.map((c) => c.width).join(" ");
-  // The widths are fixed, so the minimum is their sum -- otherwise the columns
-  // squeeze instead of the card scrolling.
-  const minWidth = visible.reduce((n, c) => n + (c.width.endsWith("px") ? parseInt(c.width, 10) : 300), 0) + 60;
 
   const searched = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -270,89 +317,33 @@ export default function RosterTable({
   // so an unsorted table looks exactly as it did.
   const { sorted, sort, toggle } = useTableSort<RosterRow>(searched, ACCESSORS, null as SortState | null);
 
-  const cell = (key: string, r: RosterRow) => {
-    switch (key) {
-      case "creator":
-        return (
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <CreatorAvatar id={r.creator.id} name={r.creator.name} size="sm" />
-            <CreatorName name={r.creator.name} handle={r.creator.handle} />
-          </div>
-        );
-      case "platform":
-        return <Badge variant="neutral">{r.creator.platform}</Badge>;
-      case "followers": {
-        const f = unwritten(r.creator.followersCount);
-        if (f === null) return <span style={CELL}>—</span>;
-        /* The figure's age on its own line, as on the Creators list: a Stale
-           chip past twice its cadence, or "time not recorded" when no read can
-           be shown to have produced it. */
-        return (
-          <span style={{ ...CELL, display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
-            {formatFull(f)}
-            {r.followersAt ? (
-              <AgeLabel
-                at={r.followersAt.at}
-                field={r.followersAt.field}
-                source={r.followersAt.at ? r.followersAt.source : r.followersAt.missing}
-                never={TIME_NOT_RECORDED}
-                style={{ display: "flex", maxWidth: "100%", overflow: "hidden", marginTop: 2 }}
-              />
-            ) : null}
-          </span>
-        );
-      }
-      case "posts":
-        return <span style={CELL}>{r.posts}</span>;
-      case "views":
-        return (
-          <span style={CELL} title={viewsReason(r)}>
-            {r.views === null ? "—" : formatFull(r.views)}
-          </span>
-        );
-      case "avgViews": {
-        const avg = avgViewsOf(r);
-        return <span style={CELL} title={viewsReason(r)}>{avg === null ? "—" : formatFull(avg)}</span>;
-      }
-      case "rate":
-        // Null means no rate agreed, which is not a rate of nothing.
-        return (
-          <span style={CELL}>
-            {r.creator.rate === null || r.creator.rate <= 0 ? "—" : currencyOf(r.creator.rate, currency)}
-          </span>
-        );
-      case "due":
-        return <span style={CELL}>{r.deliverableDueDate ? formatDateAbs(r.deliverableDueDate) : "—"}</span>;
-      case "status":
-        return r.activationStatus ? (
-          <Badge variant={ACTIVATION_STATUS[r.activationStatus] ?? "neutral"} dot>
-            {ACTIVATION_STATUS_LABEL[r.activationStatus] ?? enumLabel(r.activationStatus)}
-          </Badge>
-        ) : (
-          <Badge variant="success" dot>Posted</Badge>
-        );
-      default:
-        return null;
-    }
-  };
+  const empty =
+    rows.length === 0 ? (
+      <NoResults
+        icon={<Users size={32} strokeWidth={1.75} />}
+        title="No creators yet"
+        description="Creators you add to this campaign will be listed here."
+      />
+    ) : (
+      <NoResults
+        title="No creators match"
+        description={`Nothing on this campaign matches "${query.trim()}".`}
+        onClear={() => setQuery("")}
+        clearLabel="Clear search"
+      />
+    );
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-        <div style={{ flex: "1 1 260px", minWidth: 200 }}>
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search"
-            aria-label="Search roster"
-            iconLeft={<Search size={16} />}
-          />
-        </div>
-
-        <ColumnPicker selected={columnKeys} onChange={onColumnKeysChange} />
-
-        {campaignId && <TrackCampaignCreatorsButton campaignId={campaignId} count={rows.length} />}
-      </div>
+    <div>
+      <ListToolbar
+        search={{ value: query, onChange: setQuery, placeholder: "Search this roster" }}
+        end={
+          <>
+            <ColumnPicker selected={columnKeys} onChange={onColumnKeysChange} />
+            {campaignId && <TrackCampaignCreatorsButton campaignId={campaignId} count={rows.length} />}
+          </>
+        }
+      />
 
       {/* In the campaign header, where theirs is (MEASURED at desktop-1600).
           A ds/Button rather than the hand-rolled one it replaces: the inline
@@ -361,63 +352,21 @@ export default function RosterTable({
           `data-cc-slot="primary"` that only ds/Button emits. */}
       <CampaignHeaderActions>
         <Button variant="primary" iconLeft={<UserPlus size={14} />} onClick={onAddCreator} {...action("add-campaign-creator")}>
-          Add Creator
+          Add creator
         </Button>
       </CampaignHeaderActions>
 
-      {rows.length === 0 ? (
-        <EmptyState
-          icon={<Users size={32} color="var(--cc-text-subtle)" />}
-          title="No creators yet"
-          description="Add creators to this campaign to get started."
-        />
-      ) : sorted.length === 0 ? (
-        <EmptyState
-          icon={<Search size={32} color="var(--cc-text-subtle)" />}
-          title="No creators match that search"
-          description={`Nothing on this campaign matches "${query}".`}
-        />
-      ) : (
-        <Card variant="solid" noPadding style={{ overflowX: "auto" }}>
-          <div
-            style={{
-              display: "grid", gridTemplateColumns: grid, minWidth,
-              gap: 12, padding: "12px 24px",
-              borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",
-            }}
-          >
-            {visible.map((c) => (
-              <button
-                key={c.key}
-                style={HEAD}
-                onClick={() => toggle(c.key)}
-                aria-label={`Sort by ${c.label}`}
-              >
-                {c.label}
-                {sort?.key === c.key && <span aria-hidden>{sort.dir === "asc" ? "↑" : "↓"}</span>}
-              </button>
-            ))}
-          </div>
-          <div className="cc-stagger">
-            {sorted.map((r, i) => (
-              <Link
-                key={r.creator.id}
-                href={`/creators/${r.creator.id}`}
-                className="cc-table-row"
-                style={{
-                  textDecoration: "none", display: "grid", gridTemplateColumns: grid, minWidth,
-                  gap: 12, padding: "14px 24px", alignItems: "center",
-                  borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
-                }}
-              >
-                {visible.map((c) => (
-                  <React.Fragment key={c.key}>{cell(c.key, r)}</React.Fragment>
-                ))}
-              </Link>
-            ))}
-          </div>
-        </Card>
-      )}
+      <DataTable
+        className="cc-campaign-roster"
+        caption="Campaign creators"
+        columns={columns}
+        rows={sorted}
+        rowKey={(r) => r.creator.id}
+        rowHref={(r) => `/creators/${r.creator.id}`}
+        sort={sort}
+        onSort={toggle}
+        empty={empty}
+      />
     </div>
   );
 }

@@ -2,11 +2,21 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Plus, Pencil, Trash2, Users, ClipboardList } from "lucide-react";
-import { Card, Modal, Input, Textarea, EmptyState, Badge } from "@pratham7711/ui";
-import { FEATURES, type FeatureKey } from "@/lib/features";
-import { PageHeader, useConfirm, Button } from "@/components/ds";
+import { Card, EmptyState } from "@pratham7711/ui";
+import { Modal, ModalSection } from "@/components/ds/Modal";
+import { FEATURES } from "@/lib/features";
+import { PageHeader, useConfirm, Button, MoreMenu, StatusBadge } from "@/components/ds";
+import { useDirty } from "@/lib/useDirty";
 import { toast } from "sonner";
 import { action } from "@/lib/ui/actions";
+import {
+  PlanDetailsFields,
+  PlanFeatureList,
+  enabledCount,
+  featureKeys,
+  planDraft,
+  type PlanDraft,
+} from "./planFields";
 
 type Plan = {
   id: string;
@@ -18,42 +28,6 @@ type Plan = {
   createdAt: string;
 };
 
-const featureKeys = Object.keys(FEATURES) as FeatureKey[];
-
-function ToggleSwitch({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(!on)}
-      style={{
-        width: 36,
-        height: 20,
-        borderRadius: 10,
-        background: on ? "var(--cc-success-fg)" : "var(--cc-text-subtle)",
-        border: "none",
-        cursor: "pointer",
-        position: "relative",
-        transition: "background 0.2s",
-        flexShrink: 0,
-      }}
-    >
-      <div
-        style={{
-          width: 16,
-          height: 16,
-          borderRadius: "50%",
-          background: "var(--cc-on-primary)",
-          position: "absolute",
-          top: 2,
-          left: on ? 18 : 2,
-          transition: "left 0.2s",
-          boxShadow: "0 1px 3px color-mix(in srgb, var(--cc-shadow-ink) 20%, transparent)",
-        }}
-      />
-    </button>
-  );
-}
-
 function PlanModal({
   open,
   onClose,
@@ -61,30 +35,31 @@ function PlanModal({
   initial,
   title,
   saveLabel,
+  icon = ClipboardList,
 }: {
   open: boolean;
   onClose: () => void;
-  onSave: (data: { name: string; description: string; features: Record<string, boolean>; isCustom: boolean }) => Promise<void>;
+  onSave: (data: PlanDraft) => Promise<void>;
   initial?: { name: string; description: string; features: Record<string, boolean>; isCustom: boolean };
   title: string;
   saveLabel: string;
+  icon?: React.ElementType;
 }) {
-  const [name, setName] = useState(initial?.name ?? "");
-  const [description, setDescription] = useState(initial?.description ?? "");
-  const [features, setFeatures] = useState<Record<string, boolean>>(() => {
-    const init: Record<string, boolean> = {};
-    for (const key of featureKeys) init[key] = initial?.features?.[key] ?? false;
-    return init;
-  });
-  const [isCustom, setIsCustom] = useState(initial?.isCustom ?? true);
+  /* The snapshot an Edit is compared with; null for a new plan, whose Create
+     waits for the required name instead of for a change. */
+  const [saved] = useState<PlanDraft | null>(() => (initial ? planDraft(initial) : null));
+  const [draft, setDraft] = useState<PlanDraft>(() => planDraft(initial));
   const [saving, setSaving] = useState(false);
+  const dirty = useDirty(saved, draft);
+  const named = draft.name.trim().length > 0;
+  const canSave = named && (saved === null || dirty) && !saving;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!canSave) return;
     setSaving(true);
     try {
-      await onSave({ name: name.trim(), description: description.trim(), features, isCustom });
+      await onSave({ ...draft, name: draft.name.trim(), description: draft.description.trim() });
     } finally {
       setSaving(false);
     }
@@ -94,14 +69,19 @@ function PlanModal({
     <Modal
       open={open}
       onClose={onClose}
+      icon={icon}
       title={title}
+      description="Name the plan and choose which features clients on it can use."
       size="lg"
+      dismissible={false}
       footer={
         <div className="cc-modal-footer">
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
           <Button
             variant="primary"
+            size="sm"
             loading={saving}
+            disabled={!canSave}
             onClick={() => {
               document.getElementById("plan-modal-form")?.dispatchEvent(
                 new Event("submit", { cancelable: true, bubbles: true })
@@ -113,56 +93,23 @@ function PlanModal({
         </div>
       }
     >
-      <form id="plan-modal-form" onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-        <Input
-          label="Plan Name *"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Pro Plan"
-          required
-        />
-
-        <Textarea
-          label="Description"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Optional plan description..."
-          rows={3}
-        />
-
-        {/* Custom toggle */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <ToggleSwitch on={isCustom} onChange={setIsCustom} />
-          <span style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>Mark as custom plan</span>
-        </div>
-
-        {/* Feature Toggles */}
-        <div>
-          <div style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-muted)", marginBottom: 12 }}>
-            Feature Access
+      <form id="plan-modal-form" onSubmit={handleSubmit} noValidate>
+        <ModalSection title="Details">
+          <div className="cc-dialog-stack">
+            <PlanDetailsFields draft={draft} onChange={setDraft} autoFocus />
           </div>
-          <div style={{ borderRadius: 10, overflow: "hidden", border: "1px solid var(--cc-border)" }}>
-            {featureKeys.map((key, i) => (
-              <div
-                key={key}
-                className="cc-table-row"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "12px 16px",
-                  borderBottom: i < featureKeys.length - 1 ? "1px solid var(--cc-border)" : "none",
-                }}
-              >
-                <div>
-                  <div style={{ fontSize: "var(--cc-t-14)", fontWeight: 500, color: "var(--cc-text)" }}>{FEATURES[key].label}</div>
-                  <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{FEATURES[key].description}</div>
-                </div>
-                <ToggleSwitch on={features[key] ?? false} onChange={(v) => setFeatures((prev) => ({ ...prev, [key]: v }))} />
-              </div>
-            ))}
-          </div>
-        </div>
+        </ModalSection>
+
+        <ModalSection
+          title="Feature access"
+          aside={
+            <span className="cc-dialog-meta">
+              {enabledCount(draft)} of {featureKeys.length} on
+            </span>
+          }
+        >
+          <PlanFeatureList draft={draft} onChange={setDraft} />
+        </ModalSection>
       </form>
     </Modal>
   );
@@ -176,18 +123,20 @@ export default function PlansClient({ plans: initialPlans }: { plans: Plan[] }) 
   const [showCreate, setShowCreate] = useState(false);
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
 
-  async function handleDelete(id: string, clientCount: number) {
+  async function handleDelete(plan: Plan) {
+    const { id, clientCount } = plan;
     const ok = await confirm(
       clientCount > 0
         ? {
-            title: `Delete this plan and unassign ${clientCount} ${clientCount === 1 ? "client" : "clients"}?`,
-            description: `${clientCount === 1 ? "That client" : "Those clients"} will be left with no plan, so ${clientCount === 1 ? "their" : "their"} feature access falls back to the defaults until you assign a new plan. This cannot be undone.`,
+            verb: "delete",
+            subject: plan.name,
+            description: `${clientCount === 1 ? "Its client" : `Its ${clientCount} clients`} will be left with no plan, so their feature access falls back to the defaults until you assign a new plan. This can't be undone.`,
             confirmLabel: "Delete and unassign",
           }
         : {
-            title: "Delete this plan?",
-            description: "No clients are assigned to it, so nothing else changes. This cannot be undone.",
-            confirmLabel: "Delete plan",
+            verb: "delete",
+            subject: plan.name,
+            description: "No clients are assigned to it, so nothing else changes. This can't be undone.",
           },
     );
     if (!ok) return;
@@ -208,7 +157,7 @@ export default function PlansClient({ plans: initialPlans }: { plans: Plan[] }) 
     }
   }
 
-  async function handleCreate(data: { name: string; description: string; features: Record<string, boolean>; isCustom: boolean }) {
+  async function handleCreate(data: PlanDraft) {
     const res = await fetch("/api/plans", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -223,7 +172,7 @@ export default function PlansClient({ plans: initialPlans }: { plans: Plan[] }) 
     toast.error("Couldn't create that plan. Nothing was saved.");
   }
 
-  async function handleEdit(data: { name: string; description: string; features: Record<string, boolean>; isCustom: boolean }) {
+  async function handleEdit(data: PlanDraft) {
     if (!editingPlan) return;
     const res = await fetch(`/api/plans/${editingPlan.id}`, {
       method: "PATCH",
@@ -242,11 +191,11 @@ export default function PlansClient({ plans: initialPlans }: { plans: Plan[] }) 
     <div className="rsp-page page-enter">
       <style>{`.plan-feat-grid{display:grid;grid-template-columns:1fr;gap:8px 16px}@media(min-width:480px){.plan-feat-grid{grid-template-columns:1fr 1fr}}`}</style>
       <PageHeader
-        title="Plans & Feature Access"
-        subtitle="Manage subscription plans and feature access for clients"
+        title="Plans"
+        subtitle="Subscription plans and the features clients on each can use."
         actions={
-          <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowCreate(true)} {...action("new-plan")}>
-            New Plan
+          <Button variant="primary" iconLeft={<Plus size={16} />} onClick={() => setShowCreate(true)} {...action("new-plan")}>
+            New plan
           </Button>
         }
       />
@@ -257,71 +206,93 @@ export default function PlansClient({ plans: initialPlans }: { plans: Plan[] }) 
           title="No plans yet"
           description="Create a plan to assign features to clients"
           action={
-            <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowCreate(true)}>
+            <Button variant="primary" iconLeft={<Plus size={16} />} onClick={() => setShowCreate(true)}>
               Create first plan
             </Button>
           }
         />
       ) : (
-        <div className="cc-stagger" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 300px), 1fr))", gap: 20 }}>
+        <div className="cc-stagger" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 300px), 1fr))", gap: 24 }}>
           {plans.map((plan) => {
-            const enabledCount = featureKeys.filter((k) => plan.features[k]).length;
+            const on = enabledCount(plan);
             return (
-              <Card key={plan.id} variant="outlined" noPadding>
-                {/* Card Header */}
-                <div style={{ padding: "20px 20px 16px", borderBottom: "1px solid var(--cc-border)" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-                    <span style={{ fontSize: "var(--cc-t-18)", fontWeight: 700, color: "var(--cc-text)" }}>{plan.name}</span>
-                    <Badge variant={plan.isCustom ? "success" : "accent"} size="sm">
-                      {plan.isCustom ? "Custom" : "Default"}
-                    </Badge>
+              /* A column, so the footer is pushed to the card's foot and
+                 lines up across a row even when one description wraps. */
+              <Card
+                key={plan.id}
+                variant="outlined"
+                noPadding
+                aria-busy={deleting === plan.id || undefined}
+                style={{ display: "flex", flexDirection: "column", opacity: deleting === plan.id ? 0.6 : undefined }}
+              >
+                <div style={{ padding: "var(--cc-card-inset)", borderBottom: "1px solid var(--cc-border)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <h2 style={{ margin: 0, fontSize: "var(--cc-t-16)", fontWeight: 600, color: "var(--cc-text)" }}>{plan.name}</h2>
+                    <StatusBadge tone={plan.isCustom ? "info" : "neutral"}>{plan.isCustom ? "Custom" : "Default"}</StatusBadge>
                   </div>
-                  {plan.description && (
-                    <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>{plan.description}</p>
-                  )}
+                  <p
+                    title={plan.description ?? undefined}
+                    style={{
+                      fontSize: "var(--cc-t-14)", lineHeight: 1.5, color: "var(--cc-text-muted)", margin: "4px 0 0",
+                      minHeight: "3em", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
+                    }}
+                  >
+                    {plan.description}
+                  </p>
                 </div>
 
-                {/* Feature Flags Section */}
-                <div style={{ padding: 20, flex: 1 }}>
+                <div style={{ padding: "var(--cc-card-inset)" }}>
                   <div className="cc-microlabel" style={{ marginBottom: 12 }}>
-                    Feature Access ({enabledCount}/{featureKeys.length})
+                    Feature access · {on} of {featureKeys.length}
                   </div>
                   <div className="plan-feat-grid">
                     {featureKeys.map((key) => {
-                      const on = plan.features[key] === true;
+                      const enabled = plan.features[key] === true;
                       return (
                         <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                          <span style={{ fontSize: "var(--cc-t-13)", color: on ? "var(--cc-text)" : "var(--cc-text-muted)" }}>
+                          <span style={{ fontSize: "var(--cc-t-13)", color: enabled ? "var(--cc-text)" : "var(--cc-text-muted)" }}>
                             {FEATURES[key].label}
                           </span>
-                          <Badge variant={on ? "success" : "neutral"} size="sm">
-                            {on ? "On" : "Off"}
-                          </Badge>
+                          <StatusBadge tone={enabled ? "success" : "neutral"}>{enabled ? "On" : "Off"}</StatusBadge>
                         </div>
                       );
                     })}
                   </div>
                 </div>
 
-                {/* Footer */}
-                <div style={{ padding: "14px 20px", borderTop: "1px solid var(--cc-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
-                    <Users size={13} style={{ verticalAlign: "middle", marginRight: 4 }} />
+                <div
+                  style={{
+                    marginTop: "auto",
+                    padding: "12px var(--cc-card-inset)",
+                    borderTop: "1px solid var(--cc-border)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 12,
+                  }}
+                >
+                  {/* inline-flex: the library resets svg to display:block, so
+                      an icon in a plain inline span sat on its own line. */}
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
+                    <Users size={14} aria-hidden="true" />
                     {plan.clientCount} client{plan.clientCount !== 1 ? "s" : ""}
                   </span>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <Button variant="ghost" size="sm" iconLeft={<Pencil size={13} />} onClick={() => setEditingPlan(plan)}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <Button variant="secondary" size="sm" iconLeft={<Pencil size={14} />} onClick={() => setEditingPlan(plan)}>
                       Edit
                     </Button>
-                    <Button
-                      variant="danger"
+                    <MoreMenu
                       size="sm"
-                      iconLeft={<Trash2 size={13} />}
-                      loading={deleting === plan.id}
-                      onClick={() => handleDelete(plan.id, plan.clientCount)}
-                    >
-                      Delete
-                    </Button>
+                      label={`More actions for ${plan.name}`}
+                      items={[
+                        {
+                          label: "Delete plan",
+                          icon: <Trash2 size={16} aria-hidden="true" />,
+                          danger: true,
+                          onClick: () => handleDelete(plan),
+                        },
+                      ]}
+                    />
                   </div>
                 </div>
               </Card>
@@ -335,8 +306,9 @@ export default function PlansClient({ plans: initialPlans }: { plans: Plan[] }) 
         open={showCreate}
         onClose={() => setShowCreate(false)}
         onSave={handleCreate}
-        title="Create New Plan"
-        saveLabel="Create Plan"
+        title="New plan"
+        saveLabel="Create plan"
+        icon={Plus}
       />
 
       {/* Edit Modal */}
@@ -351,8 +323,9 @@ export default function PlansClient({ plans: initialPlans }: { plans: Plan[] }) 
             features: editingPlan.features,
             isCustom: editingPlan.isCustom,
           }}
-          title={`Edit Plan — ${editingPlan.name}`}
-          saveLabel="Save Changes"
+          title={`Edit ${editingPlan.name}`}
+          saveLabel="Save changes"
+          icon={Pencil}
         />
       )}
     </div>

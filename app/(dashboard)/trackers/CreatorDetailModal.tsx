@@ -1,8 +1,11 @@
 "use client";
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Modal, Badge, Skeleton } from "@pratham7711/ui";
-import { RefreshCw } from "lucide-react";
+import { Badge } from "@pratham7711/ui";
+import { Skeleton } from "@/components/ds";
+import { Modal, ModalNotice } from "@/components/ds/Modal";
+import { Button } from "@/components/ds/Button";
+import { AlertTriangle, RefreshCw } from "lucide-react";
 import { timeAgo, formatFull, formatHandle, platformLabel } from "@/lib/format";
 import { AgeLabel } from "@/components/ds/AgeLabel";
 import { apiFetch } from "@/lib/api/client";
@@ -131,33 +134,37 @@ export function CreatorDetailModal({
   const stale = creator.health !== "live";
   const figures = trackedFigures(creator);
 
+  /* The header is the creator -- avatar, name, handle and platform, with the
+     refresh action and read state beside them -- so it stays in the body and
+     the dialog is named by aria-label rather than a text-only title. */
   return (
-    <Modal open={open} onClose={onClose} title="" size="lg">
-      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
+    <Modal open={open} onClose={onClose} aria-label={`${creator.name} — creator details`} size="lg">
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 24, flexWrap: "wrap" }}>
         <CreatorAvatar id={creator.id} name={creator.name} size="lg" />
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: "var(--cc-t-20)", fontWeight: 700, color: "var(--cc-text)" }}>{creator.name}</div>
+        <div style={{ minWidth: 0, flex: "1 1 200px" }}>
+          <div tabIndex={-1} data-autofocus style={{ outline: "none", fontSize: "var(--cc-t-20)", fontWeight: 700, color: "var(--cc-text)", overflowWrap: "anywhere" }}>{creator.name}</div>
           <div style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
             {formatHandle(creator.handle)} · {platformLabel(creator.platform)}
           </div>
         </div>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
           {onRefresh ? (
-            <button
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => onRefresh(creator.id)}
               disabled={refreshing}
               title="Read this creator's figures now"
-              style={{
-                display: "flex", alignItems: "center", gap: 6,
-                padding: "6px 12px", borderRadius: 8, fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)",
-                border: "1px solid var(--cc-border)", background: "var(--cc-card)",
-                color: "var(--cc-text)", cursor: refreshing ? "default" : "pointer",
-                opacity: refreshing ? 0.6 : 1,
-              }}
+              iconLeft={
+                <RefreshCw
+                  size={14}
+                  aria-hidden="true"
+                  style={{ animation: refreshing ? "cc-spin 1s linear infinite" : undefined }}
+                />
+              }
             >
-              <RefreshCw size={14} style={{ animation: refreshing ? "cc-spin 1s linear infinite" : undefined }} />
               {refreshing ? "Refreshing…" : "Refresh Data"}
-            </button>
+            </Button>
           ) : null}
           <Badge variant={stale ? "warning" : "success"} size="sm">
             {creator.health === "pending" ? "awaiting first reading" : stale ? "not updating" : "live"}
@@ -168,14 +175,10 @@ export function CreatorDetailModal({
       {/* The reason the figures are what they are, stated once and plainly,
           rather than repeated as a blank in every cell below. */}
       {creator.readError ? (
-        <div
-          role="status"
-          style={{
-            borderLeft: "3px solid var(--cc-warning)", background: "var(--cc-card)",
-            padding: "10px 14px", marginBottom: 18, fontSize: "var(--cc-t-13)", color: "var(--cc-text)",
-          }}
-        >
-          {creator.readError}
+        <div role="status" style={{ marginBottom: 20 }}>
+          <ModalNotice tone="warning" icon={AlertTriangle}>
+            {creator.readError}
+          </ModalNotice>
         </div>
       ) : null}
 
@@ -304,7 +307,7 @@ export function CreatorDetailModal({
 
 const PERIOD_LABEL: Record<ChartGranularity, string> = { "6hourly": "Per 6h", daily: "Daily", weekly: "Weekly" };
 
-/** One CreatorCore-style card: the current figure, its changes, and its chart. */
+/** One figure card: the current figure, its changes, and its chart. */
 function MetricCard({
   title,
   value,

@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { Search, ChevronRight, Settings, LogOut, Check } from "lucide-react";
+import { Search, ChevronRight, Settings, LogOut, Check, ChevronLeft } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { MenuButton } from "@/components/ds/MenuButton";
@@ -30,7 +30,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/settings": "Settings",
   "/analytics": "Analytics",
   "/plans": "Plans",
-  "/admin": "Feature Access",
+  "/admin": "Feature access",
   "/fan-pages": "Fan Pages",
   "/requests": "Requests",
   "/recipients": "Recipients",
@@ -156,6 +156,7 @@ export function TopBar({ user, navHrefs }: { user?: TopBarUser; navHrefs?: strin
         {isDetailPage ? (
           <>
             <Link href={currentPage} className="cc-crumb">
+              <ChevronLeft size={14} className="cc-crumb-back" aria-hidden="true" />
               {title}
             </Link>
             <ChevronRight size={13} className="cc-crumb-sep" />

@@ -38,7 +38,7 @@ test.describe('Settings', () => {
   test('notifications page lists the events you can mute', async ({ page }) => {
     const errors = collectPageErrors(page);
     await navigateAndWait(page, '/settings/notifications');
-    await expectHeading(page, 'Notifications Settings');
+    await expectHeading(page, 'Notifications');
     await expect(page.getByText('Campaign Created').first()).toBeVisible({ timeout: 20000 });
     await expect(page.getByText('Post Uploaded').first()).toBeVisible();
     expect(unexpectedErrors(errors)).toEqual([]);
@@ -47,7 +47,7 @@ test.describe('Settings', () => {
   test('integrations page offers Slack', async ({ page }) => {
     const errors = collectPageErrors(page);
     await navigateAndWait(page, '/settings/integrations');
-    await expectHeading(page, 'Integrations Settings');
+    await expectHeading(page, 'Integrations');
     await expect(page.locator('.cc-provider-name').filter({ hasText: 'Slack' })).toBeVisible({ timeout: 20000 });
     expect(unexpectedErrors(errors)).toEqual([]);
   });

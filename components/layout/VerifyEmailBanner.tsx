@@ -2,6 +2,8 @@
 
 import React, { useState } from "react";
 import { MailWarning } from "lucide-react";
+import { Banner } from "@/components/ds/Banner";
+import { Button } from "@/components/ds/Button";
 
 /**
  * The only in-app route back to a confirmation mail that was missed.
@@ -33,47 +35,23 @@ export function VerifyEmailBanner({ email }: { email: string }) {
   }
 
   return (
-    <div
-      role="status"
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        flexWrap: "wrap",
-        padding: "10px 20px",
-        background: "var(--cc-warning-bg)",
-        borderBottom: "1px solid var(--cc-border)",
-        fontSize: "var(--cc-t-13)",
-        color: "var(--cc-warning-fg)",
-      }}
+    <Banner
+      placement="shell"
+      tone="warning"
+      icon={<MailWarning aria-hidden="true" />}
+      action={
+        state === "sent" ? (
+          <span className="cc-banner-title">Sent — check your inbox.</span>
+        ) : state === "unavailable" ? (
+          <span className="cc-banner-title">Could not send right now. Try again shortly.</span>
+        ) : (
+          <Button variant="secondary" size="sm" onClick={resend} disabled={state === "sending"}>
+            {state === "sending" ? "Sending…" : "Resend the link"}
+          </Button>
+        )
+      }
     >
-      <MailWarning size={16} strokeWidth={2} style={{ flexShrink: 0 }} />
-      <span>
-        Confirm <strong>{email}</strong> so we know this address reaches you.
-      </span>
-      {state === "sent" ? (
-        <span style={{ fontWeight: "var(--cc-fw-strong)"}}>Sent — check your inbox.</span>
-      ) : state === "unavailable" ? (
-        <span style={{ fontWeight: "var(--cc-fw-strong)"}}>Could not send right now. Try again shortly.</span>
-      ) : (
-        <button
-          type="button"
-          onClick={resend}
-          disabled={state === "sending"}
-          style={{
-            background: "none",
-            border: "none",
-            padding: 0,
-            font: "inherit",
-            fontWeight: "var(--cc-fw-strong)",
-            color: "var(--cc-warning-fg)",
-            textDecoration: "underline",
-            cursor: state === "sending" ? "default" : "pointer",
-          }}
-        >
-          {state === "sending" ? "Sending…" : "Resend the link"}
-        </button>
-      )}
-    </div>
+      Confirm <strong>{email}</strong> so we know this address reaches you.
+    </Banner>
   );
 }

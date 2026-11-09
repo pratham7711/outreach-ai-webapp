@@ -2,15 +2,34 @@
 import { useState, useEffect, use } from "react";
 import { motion } from "framer-motion";
 import {
-  Eye, Heart, MessageCircle, Share2, Play, ChevronRight, ExternalLink, DollarSign, Pencil, Plus, Trash2, Users,
+  Eye, Heart, MessageCircle, Share2, ExternalLink, Pencil, Plus, Trash2, Users,
   User, Video, ClipboardList, Link2, Combine, Megaphone, Image as ImageIcon, Activity, StickyNote, Tag, Flag, ListChecks, RefreshCw,
-  type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Card, Badge, EmptyState, Skeleton, Modal, Input, Tooltip } from "@pratham7711/ui";
+import { Card, EmptyState, Input } from "@pratham7711/ui";
+import { Modal, ModalSection } from "@/components/ds/Modal";
 import { NotFoundState } from "@/components/errors/NotFoundState";
-import { Dropdown, MetricTile, useConfirm } from "@/components/ds";
+import {
+  Button,
+  DataTable,
+  Dropdown,
+  Field,
+  FieldRow,
+  MetricTile,
+  MoreMenu,
+  PageHeader,
+  SectionCard,
+  Skeleton,
+  StatusBadge,
+  StatusTabs,
+  statusTone,
+  useConfirm,
+  type DataTableColumn,
+} from "@/components/ds";
+import { PlatformTag } from "@/components/ds/StatusBadge";
+import { PageHeaderSkeleton, TileGridSkeleton } from "@/components/ui/PageSkeleton";
+import { useDirty } from "@/lib/useDirty";
 import { formatDateAbs, platformLabel, formatFull, formatFullCurrency } from "@/lib/format";
 import { campaignStatusLabel } from "@/lib/statusColors";
 import { ACTIVATION_STATUS_LABEL } from "@/lib/activationQueues";
@@ -49,25 +68,8 @@ function formatCurrency(n: number, currency = "USD") {
   return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(n);
 }
 
-const PLATFORM_COLORS: Record<string, string> = {
-  TIKTOK: "var(--cc-brand-tiktok)",
-  INSTAGRAM: "var(--cc-brand-instagram)",
-  YOUTUBE: "var(--cc-brand-youtube)",
-  TWITTER: "var(--cc-brand-twitter)",
-};
-
-const STATUS_VARIANT: Record<string, "warning" | "success" | "danger" | "neutral"> = {
-  PENDING: "warning",
-  PROCESSING: "neutral",
-  SUCCESS: "success",
-  FAILED: "danger",
-  AWAITING_DRAFT: "warning",
-  DRAFT_SUBMITTED: "neutral",
-  APPROVED: "success",
-  POSTED: "success",
-  COMPLETE: "success",
-  DECLINED: "danger",
-};
+/** "ROSTER" reads "roster"; a source someone typed is left as they typed it. */
+const joinedVia = (source: string) => (/^[A-Z0-9_]+$/.test(source) ? enumLabel(source).toLowerCase() : source);
 
 type Tab = "profile" | "posts" | "campaigns" | "social";
 
@@ -193,16 +195,6 @@ type LabelDef = { id: string; name: string; emoji?: string | null };
  * already knows the full selection, and a set means clicking the same tag twice
  * cannot leave a duplicate or a half-applied state behind.
  */
-/** A card's title with the mark for what the card holds. */
-function PanelTitle({ icon: Icon, children }: { icon: LucideIcon; children: React.ReactNode }) {
-  return (
-    <span className="cc-panel-title" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-      <Icon size={15} aria-hidden="true" style={{ color: "var(--cc-text-muted)", flexShrink: 0 }} />
-      {children}
-    </span>
-  );
-}
-
 function LabelCard({
   creatorId,
   kind,
@@ -260,13 +252,11 @@ function LabelCard({
   const available = (defs ?? []).filter((d) => !selectedIds.includes(d.id));
 
   return (
-    <Card variant="outlined" style={{ padding: 24 }}>
-      <PanelTitle icon={kind === "tags" ? Tag : Flag}>{title}</PanelTitle>
-
+    <SectionCard icon={kind === "tags" ? Tag : Flag} title={title}>
       {selected.length === 0 ? (
-        <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", lineHeight: 1.6 }}>{emptyLabel}</p>
+        <p className="cd-empty-line">{emptyLabel}</p>
       ) : (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           {selected.map((s) => (
             <span
               key={s.id}
@@ -318,7 +308,7 @@ function LabelCard({
       {error && (
         <p role="alert" style={{ marginTop: 8, fontSize: "var(--cc-t-12)", color: "var(--cc-danger)" }}>{error}</p>
       )}
-    </Card>
+    </SectionCard>
   );
 }
 
@@ -359,10 +349,9 @@ function ListsCard({ creatorId, lists, onSaved }: { creatorId: string; lists: { 
   const available = (all ?? []).filter((l) => !onIds.includes(l.id));
 
   return (
-    <Card variant="outlined" style={{ padding: 24 }}>
-      <PanelTitle icon={ListChecks}>On lists</PanelTitle>
+    <SectionCard icon={ListChecks} title="On lists">
       {shown.length === 0 ? (
-        <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", lineHeight: 1.6 }}>Not on any list yet.</p>
+        <p className="cd-empty-line">Not on any list yet.</p>
       ) : (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           {shown.map((l) => (
@@ -412,79 +401,91 @@ function ListsCard({ creatorId, lists, onSaved }: { creatorId: string; lists: { 
           />
         </div>
       )}
-    </Card>
+    </SectionCard>
   );
 }
 
 const responsiveStyles = `
-  .cd-stats-grid {
+  .cd-stats { margin-bottom: 24px; }
+  /* Two column stacks rather than one grid: five cards in a 2-column grid
+     left "On lists" alone in its row and stretched Notes to the height of
+     About. Each stack is as tall as its own cards. */
+  .cd-profile {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-    margin-top: 24px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
   }
-  .cd-profile-header {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    flex-wrap: wrap;
-    margin: 0 -16px;
-    padding: 20px 16px;
-  }
-  .cd-profile-info { flex: 1; padding-bottom: 4px; min-width: 180px; }
-  .cd-profile-actions {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-  }
-  .cd-banner-inner { padding: 0 16px 20px; }
-  .cd-tabs-bar-wrap {
-    position: relative;
-    margin-bottom: 24px;
-  }
-  .cd-tabs-bar-wrap::after {
-    content: "";
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 1px;
-    width: 48px;
-    pointer-events: none;
-    background: linear-gradient(to right, transparent, var(--cc-bg));
-  }
-  .cd-banner-band {
-    background: linear-gradient(to right, color-mix(in srgb, var(--cd-band) 13%, transparent), color-mix(in srgb, var(--cd-band) 7%, transparent));
-  }
-  :root.light .cd-banner-band { --cd-band: var(--cc-text); }
-  .cd-tabs-bar {
-    display: flex;
-    gap: 4px;
-    border-bottom: 1px solid var(--cc-border);
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-  .cd-tabs-bar::-webkit-scrollbar { display: none; }
-  .cd-tabs-bar button { white-space: nowrap; flex-shrink: 0; }
-  .cd-profile-cards {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
-  .cd-posts-table-header,
-  .cd-posts-table-row {
-    display: none;
-  }
-  .cd-post-card {
+  .cd-profile-col {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding: 16px;
-    border-top: 1px solid var(--cc-border);
-    text-decoration: none;
+    gap: 24px;
+    min-width: 0;
   }
-  .cd-post-card:first-child { border-top: none; }
+  .cd-empty-line {
+    margin: 0;
+    font-size: var(--cc-t-14);
+    line-height: 1.5;
+    color: var(--cc-text-muted);
+  }
+  .cd-bio {
+    margin: 0;
+    font-size: var(--cc-t-14);
+    line-height: 1.6;
+    color: var(--cc-text);
+  }
+  /* Label over value, in a 2-column grid: the label is the muted 12px line,
+     the value 14px medium in the ink. */
+  .cd-facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px 32px;
+    margin: 0;
+  }
+  .cd-bio + .cd-facts { margin-top: 20px; }
+  .cd-facts > div { min-width: 0; }
+  .cd-facts dt {
+    margin: 0 0 4px;
+    font-size: var(--cc-t-12);
+    color: var(--cc-text-muted);
+  }
+  .cd-facts dd {
+    margin: 0;
+    font-size: var(--cc-t-14);
+    font-weight: var(--cc-fw-medium);
+    color: var(--cc-text);
+    overflow-wrap: anywhere;
+    font-variant-numeric: tabular-nums;
+  }
+  .cd-facts dd[data-figure] {
+    font-size: var(--cc-t-18);
+    font-weight: 700;
+  }
+  .cd-account-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 16px;
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--cc-border);
+    font-size: var(--cc-t-12);
+    color: var(--cc-text-muted);
+  }
+  .cd-account-foot > span { display: inline-flex; align-items: center; gap: 6px; }
+  .cd-section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .cd-section-head h2 {
+    margin: 0;
+    font-size: var(--cc-t-16);
+    font-weight: 600;
+    color: var(--cc-text);
+  }
   .cd-post-stats {
     display: flex;
     flex-wrap: wrap;
@@ -494,23 +495,10 @@ const responsiveStyles = `
     display: flex;
     align-items: center;
     gap: 4px;
-    font-size: 13px;
+    font-size: var(--cc-t-13);
     color: var(--cc-text-muted);
+    font-variant-numeric: tabular-nums;
   }
-  .cd-payouts-header,
-  .cd-payout-row {
-    display: none;
-  }
-  .cd-payout-card {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 16px;
-    border-top: 1px solid var(--cc-border);
-  }
-  .cd-payout-card:first-child { border-top: none; }
-  .cd-campaign-row-budget { display: none; }
-  .cd-campaign-row-chevron { display: none; }
   .cd-social-grid {
     display: grid;
     grid-template-columns: 1fr;
@@ -521,57 +509,9 @@ const responsiveStyles = `
     .cd-social-grid { grid-template-columns: repeat(2, 1fr); }
   }
 
-  @media (min-width: 640px) {
-    .cd-stats-grid { grid-template-columns: repeat(2, 1fr); gap: 16px; }
-    .cd-banner-inner { padding: 0 24px 24px; }
-    .cd-profile-header { margin: 0 -24px; padding: 24px; }
-    .cd-profile-cards { grid-template-columns: 1fr 1fr; gap: 24px; }
-    .cd-campaign-row-budget { display: block; }
-    .cd-campaign-row-chevron { display: block; }
-    .cd-payouts-header {
-      display: grid;
-      grid-template-columns: 1fr 120px 100px 100px;
-      gap: 12px;
-      padding: 12px 24px;
-      border-bottom: 1px solid var(--cc-border);
-      background: var(--cc-bg);
-    }
-    .cd-payout-row {
-      display: grid;
-      grid-template-columns: 1fr 120px 100px 100px;
-      gap: 12px;
-      padding: 14px 24px;
-      align-items: center;
-    }
-    .cd-payout-card { display: none; }
-  }
-
-  @media (min-width: 768px) {
-    .cd-stats-grid { grid-template-columns: repeat(4, 1fr); }
-  }
-
   @media (min-width: 900px) {
+    .cd-profile { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .cd-social-grid { grid-template-columns: repeat(3, 1fr); }
-  }
-
-  @media (min-width: 1024px) {
-    .cd-posts-table-header {
-      display: grid;
-      grid-template-columns: 1fr 120px 100px 80px 80px 80px 80px;
-      gap: 12px;
-      padding: 12px 24px;
-      border-bottom: 1px solid var(--cc-border);
-      background: var(--cc-bg);
-    }
-    .cd-posts-table-row {
-      display: grid;
-      grid-template-columns: 1fr 120px 100px 80px 80px 80px 80px;
-      gap: 12px;
-      padding: 14px 24px;
-      align-items: center;
-      text-decoration: none;
-    }
-    .cd-post-card { display: none; }
   }
 `;
 
@@ -597,22 +537,99 @@ function PostAge({ post }: { post: Post }) {
   );
 }
 
+const percentText = (n: number) => `${n.toFixed(1)}%`;
+
+/** A creator's posts: the caption opens the post on its platform. */
+const POST_COLUMNS: DataTableColumn<Post>[] = [
+  {
+    key: "post",
+    header: "Post",
+    minWidth: 240,
+    render: (post) => (
+      <>
+        <a href={post.postUrl} target="_blank" rel="noopener noreferrer" className="cc-dt-primary cc-dt-truncate" title={post.caption ?? undefined}>
+          {post.caption?.slice(0, 80) || "Untitled post"}
+          <ExternalLink size={12} aria-hidden="true" style={{ marginLeft: 4, verticalAlign: "-1px", display: "inline" }} />
+          <span className="sr-only"> (opens in a new tab)</span>
+        </a>
+        <span className="cc-dt-sub" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
+          {formatDateAbs(post.postedAt)}
+          <PostAge post={post} />
+        </span>
+      </>
+    ),
+  },
+  { key: "campaign", header: "Campaign", width: 200, truncate: (p) => p.campaign?.title, render: (p) => p.campaign?.title ?? "—" },
+  { key: "views", header: "Views", width: 112, align: "right", render: (p) => <MetricFigure value={postCounterValue(p.viewsCount, p, "views")} format={formatFull} /> },
+  { key: "likes", header: "Likes", width: 104, align: "right", render: (p) => <MetricFigure value={postCounterValue(p.likesCount, p, "likes")} format={formatFull} /> },
+  { key: "comments", header: "Comments", width: 112, align: "right", render: (p) => <MetricFigure value={postCounterValue(p.commentsCount, p, "comments")} format={formatFull} /> },
+  { key: "shares", header: "Shares", width: 96, align: "right", render: (p) => <MetricFigure value={postCounterValue(p.sharesCount, p, "shares")} format={formatFull} /> },
+  { key: "eng", header: "Eng. rate", width: 104, align: "right", render: (p) => <MetricFigure value={postEngagementValue(p)} format={percentText} /> },
+];
+
+type CreatorCampaign = Creator["campaigns"][number];
+
+/** The activation's status when there is one; otherwise the campaign's own. */
+function campaignRowStatus(c: CreatorCampaign) {
+  const raw = c.activation?.status ?? c.status;
+  const label = c.activation?.status
+    ? ACTIVATION_STATUS_LABEL[c.activation.status] ?? enumLabel(c.activation.status)
+    : campaignStatusLabel(c.status);
+  return <StatusBadge tone={statusTone(raw)}>{label}</StatusBadge>;
+}
+
+const CAMPAIGN_COLUMNS: DataTableColumn<CreatorCampaign>[] = [
+  {
+    key: "title",
+    header: "Campaign",
+    primary: true,
+    minWidth: 240,
+    render: (c) => (
+      <>
+        <span className="cc-dt-truncate" title={c.title}>{c.title}</span>
+        <span className="cc-dt-sub">
+          {c.postCount > 0 ? `${formatFull(c.postCount)} post${c.postCount === 1 ? "" : "s"}` : "No posts"}
+          {c.activation?.deliverableDueDate ? ` · Due ${formatDateAbs(c.activation.deliverableDueDate)}` : ""}
+        </span>
+      </>
+    ),
+  },
+  { key: "status", header: "Status", width: 168, render: campaignRowStatus },
+  {
+    key: "budget",
+    header: "Budget",
+    width: 136,
+    align: "right",
+    render: (c) => (c.budget ? formatCurrency(Number(c.budget), c.currency) : "—"),
+  },
+];
+
+/** The loaded page's shape: header band, the four tiles, then the cards. */
 function LoadingSkeleton() {
   return (
-    <div className="rsp-page" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      <Skeleton width="120px" height="16px" />
-      <Skeleton width="100%" height="220px" borderRadius="12px" />
-      <div className="cd-stats-grid">
-        {[1, 2, 3, 4].map(i => <Skeleton key={i} height="80px" borderRadius="10px" />)}
-      </div>
-      <Skeleton width="100%" height="300px" borderRadius="12px" />
+    <div className="rsp-page">
       <style>{responsiveStyles}</style>
+      <PageHeaderSkeleton />
+      <TileGridSkeleton count={4} style={{ marginBottom: 24 }} />
+      <div className="cd-profile">
+        <Skeleton height={220} radius="var(--cc-r-card)" />
+        <Skeleton height={220} radius="var(--cc-r-card)" />
+      </div>
     </div>
   );
 }
 
-function EditCreatorModal({ open, onClose, creator, onSaved }: { open: boolean; onClose: () => void; creator: Creator; onSaved: () => void }) {
-  const [form, setForm] = useState({
+const PLATFORMS = ["INSTAGRAM", "TIKTOK", "YOUTUBE", "TWITTER"] as const;
+const PLATFORM_OPTIONS = PLATFORMS.map((p) => ({ value: p, label: platformLabel(p) }));
+
+type EditForm = {
+  name: string; handle: string; platform: string; bio: string; contactEmail: string; rate: string;
+  notes: string; country: string; audienceCountry: string; niche: string;
+};
+
+/** The edit form as the creator stands now: what "unchanged" is measured against. */
+function editFormOf(creator: Creator): EditForm {
+  return {
     name: creator.name,
     handle: creator.handle,
     platform: creator.platform,
@@ -623,29 +640,29 @@ function EditCreatorModal({ open, onClose, creator, onSaved }: { open: boolean; 
     country: creator.detail?.country ?? "",
     audienceCountry: creator.detail?.audienceCountry ?? "",
     niche: creator.detail?.niche ?? "",
-  });
+  };
+}
+
+function EditCreatorModal({ open, onClose, creator, onSaved }: { open: boolean; onClose: () => void; creator: Creator; onSaved: () => void }) {
+  const [saved, setSaved] = useState<EditForm>(() => editFormOf(creator));
+  const [form, setForm] = useState<EditForm>(saved);
   const [saving, setSaving] = useState(false);
+  /* Save waits for a change, and for the two fields the creator cannot be
+     without. Typing a character and deleting it again is not a change. */
+  const dirty = useDirty(saved, form);
+  const missing = !form.name.trim() || !form.handle.trim();
 
   useEffect(() => {
     if (open) {
-      setForm({
-        name: creator.name,
-        handle: creator.handle,
-        platform: creator.platform,
-        bio: creator.bio ?? "",
-        contactEmail: creator.contactEmail ?? "",
-        rate: creator.rate != null ? String(creator.rate) : "",
-        notes: creator.notes ?? "",
-        country: creator.detail?.country ?? "",
-        audienceCountry: creator.detail?.audienceCountry ?? "",
-        niche: creator.detail?.niche ?? "",
-      });
+      const next = editFormOf(creator);
+      setSaved(next);
+      setForm(next);
     }
   }, [open, creator]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (saving) return;
+    if (saving || !dirty || missing) return;
     setSaving(true);
 
     const payload: Record<string, unknown> = {};
@@ -683,67 +700,84 @@ function EditCreatorModal({ open, onClose, creator, onSaved }: { open: boolean; 
     }
   };
 
-  const set = (key: string, value: string) => setForm(prev => ({ ...prev, [key]: value }));
-
-  const textareaStyle: React.CSSProperties = {
-    width: "100%",
-    border: "1px solid var(--cc-border)",
-    borderRadius: 8,
-    padding: 10,
-    fontSize: "var(--cc-t-14)",
-    color: "var(--cc-text)",
-    resize: "vertical",
-    minHeight: 80,
-    fontFamily: "inherit",
-    background: "var(--cc-card)",
-  };
+  const set = (key: keyof EditForm, value: string) => setForm(prev => ({ ...prev, [key]: value }));
 
   return (
-    <Modal open={open} onClose={onClose} title="Edit Creator">
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16, paddingBottom: 4 }}>
-        <Input label="Name" value={form.name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => set("name", e.target.value)} required />
-        <Input label="Handle" value={form.handle} onChange={(e: React.ChangeEvent<HTMLInputElement>) => set("handle", e.target.value)} required />
-        <div>
-          <label htmlFor="edit-creator-platform" style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Platform</label>
-          <Dropdown
-            ariaLabel="Platform"
-            align="left"
-            fullWidth
-            value={form.platform}
-            onChange={v => set("platform", v)}
-            options={["INSTAGRAM", "TIKTOK", "YOUTUBE", "TWITTER"].map((p) => ({ value: p, label: p }))}
-          />
+    <Modal
+      open={open}
+      onClose={onClose}
+      icon={Pencil}
+      title="Edit creator"
+      description={<>Update the details on <strong className="cc-dialog__subject">{creator.name}</strong>&rsquo;s profile.</>}
+      size="md"
+      dismissible={false}
+      footer={
+        <div className="cc-modal-footer">
+          <Button type="button" variant="secondary" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" form="edit-creator-form" variant="primary" size="sm" loading={saving} disabled={!dirty || missing}>
+            Save changes
+          </Button>
         </div>
-        <div>
-          <label htmlFor="edit-creator-bio" style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Bio</label>
-          <textarea id="edit-creator-bio" value={form.bio} onChange={e => set("bio", e.target.value)} style={textareaStyle} />
-        </div>
-        <Input label="Contact Email" type="email" value={form.contactEmail} onChange={(e: React.ChangeEvent<HTMLInputElement>) => set("contactEmail", e.target.value)} />
-        <Input label="Rate per Post (USD)" type="number" value={form.rate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => set("rate", e.target.value)} />
-        <Input label="Country" value={form.country} onChange={(e: React.ChangeEvent<HTMLInputElement>) => set("country", e.target.value)} />
-        <Input label="Audience country" value={form.audienceCountry} onChange={(e: React.ChangeEvent<HTMLInputElement>) => set("audienceCountry", e.target.value)} />
-        <Input label="Niche" value={form.niche} onChange={(e: React.ChangeEvent<HTMLInputElement>) => set("niche", e.target.value)} />
-        <div>
-          <label htmlFor="edit-creator-notes" style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Notes</label>
-          <textarea id="edit-creator-notes" value={form.notes} onChange={e => set("notes", e.target.value)} style={textareaStyle} />
-        </div>
-        <button
-          type="submit"
-          disabled={saving}
-          style={{
-            background: "var(--cc-primary)",
-            color: "var(--cc-on-primary)",
-            border: "none",
-            borderRadius: 8,
-            padding: "9px 16px",
-            fontSize: "var(--cc-t-14)",
-            fontWeight: "var(--cc-fw-strong)",
-            cursor: saving ? "not-allowed" : "pointer",
-            opacity: saving ? 0.6 : 1,
-          }}
-        >
-          {saving ? "Saving..." : "Save Changes"}
-        </button>
+      }
+    >
+      <form id="edit-creator-form" onSubmit={handleSubmit}>
+        <ModalSection title="Profile">
+          <div className="cc-dialog-stack">
+            <FieldRow>
+              <Field label="Name" required>
+                <Input value={form.name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => set("name", e.target.value)} />
+              </Field>
+              <Field label="Handle" required>
+                <Input value={form.handle} onChange={(e: React.ChangeEvent<HTMLInputElement>) => set("handle", e.target.value)} />
+              </Field>
+            </FieldRow>
+            <Field label="Platform">
+              <Dropdown
+                id="edit-creator-platform"
+                align="left"
+                fullWidth
+                value={form.platform}
+                onChange={v => set("platform", v)}
+                options={PLATFORM_OPTIONS}
+              />
+            </Field>
+            <Field label="Bio">
+              <textarea id="edit-creator-bio" className="ui-textarea" rows={3} value={form.bio} onChange={e => set("bio", e.target.value)} />
+            </Field>
+          </div>
+        </ModalSection>
+        <ModalSection title="Contact and rate">
+          <FieldRow>
+            <Field label="Contact email">
+              <Input type="email" value={form.contactEmail} onChange={(e: React.ChangeEvent<HTMLInputElement>) => set("contactEmail", e.target.value)} />
+            </Field>
+            <Field label="Rate per post (USD)">
+              <Input type="number" value={form.rate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => set("rate", e.target.value)} />
+            </Field>
+          </FieldRow>
+        </ModalSection>
+        <ModalSection title="Location and niche">
+          <div className="cc-dialog-stack">
+            <FieldRow>
+              <Field label="Country">
+                <Input value={form.country} onChange={(e: React.ChangeEvent<HTMLInputElement>) => set("country", e.target.value)} />
+              </Field>
+              <Field label="Audience country">
+                <Input value={form.audienceCountry} onChange={(e: React.ChangeEvent<HTMLInputElement>) => set("audienceCountry", e.target.value)} />
+              </Field>
+            </FieldRow>
+            <Field label="Niche">
+              <Input value={form.niche} onChange={(e: React.ChangeEvent<HTMLInputElement>) => set("niche", e.target.value)} />
+            </Field>
+          </div>
+        </ModalSection>
+        <ModalSection>
+          <Field label="Notes">
+            <textarea id="edit-creator-notes" className="ui-textarea" rows={3} value={form.notes} onChange={e => set("notes", e.target.value)} />
+          </Field>
+        </ModalSection>
       </form>
     </Modal>
   );
@@ -849,15 +883,14 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
     if (!creator || deleting) return;
     const posts = creator._count.posts;
     const ok = await confirm({
-      title: `Delete ${creator.name}?`,
+      verb: "delete",
+      subject: creator.name,
       description:
         "They come off the roster and out of every list, and their profiles stop refreshing. " +
         (posts > 0
           ? `Their ${formatFull(posts)} ${posts === 1 ? "post stays" : "posts stay"} in the campaigns they ran in. `
           : "") +
-        "This can't be undone from the app.",
-      confirmLabel: "Delete creator",
-      tone: "danger",
+        "This can't be undone.",
     });
     if (!ok) return;
     setDeleting(true);
@@ -894,7 +927,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
     { label: "Profile", value: "profile" },
     { label: "Posts", value: "posts", count: creator?._count.posts },
     { label: "Campaigns", value: "campaigns", count: creator?.campaignCount },
-    { label: "Social Accounts", value: "social" },
+    { label: "Social accounts", value: "social" },
   ];
 
   if (loading) return <LoadingSkeleton />;
@@ -950,234 +983,177 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
      age, so it is labelled as the newest one and never called stale. */
   const followersAt = primaryHeld ? primaryHeld.age ?? null : creator.figureTimes?.followers ?? null;
   const engagementAsOf = dataAsOf(creator.posts.map((p) => p.lastSyncedAt));
+  /* Only the facts that are filled in; an empty one is not a fact. */
+  const profileFacts = (
+    [
+      ["Price per video", creator.rate ? formatFullCurrency(creator.rate) : null],
+      ["Email", creator.contactEmail],
+      ["Country", creator.detail?.country],
+      ["Audience", creator.detail?.audienceCountry],
+      ["Niche", creator.detail?.niche],
+    ] as [string, string | null | undefined][]
+  ).filter((f): f is [string, string] => Boolean(f[1]));
 
   return (
     <div className="rsp-page">
       <style>{responsiveStyles}</style>
 
-      {/* No in-page trail: the top bar already reads Creators > <name>, at
-          every width, and two stacked trails was the only detail page that
-          had them. */}
+      {/* The band, not a hero card: the KPI tiles below were cards inside the
+          header's card, and the platform wash under the name was a grey
+          gradient in light and nothing at all in dark. The account chips are
+          the platform when there are any, so they take the badge's place. */}
+      <PageHeader
+        title={creator.name}
+        back={{ href: "/creators", label: "Creator Roster" }}
+        leading={<CreatorAvatar id={creator.id} name={creator.name} size="md" />}
+        badges={
+          creator.profileLinks && creator.profileLinks.length > 0 ? (
+            <PlatformChips links={creator.profileLinks} />
+          ) : (
+            <PlatformTag platform={creator.platform} />
+          )
+        }
+        meta={
+          <>
+            <span>{creator.handle.startsWith("@") ? creator.handle : `@${creator.handle}`}</span>
+            {creator.contactEmail && <span>{creator.contactEmail}</span>}
+            {creator.detail?.source && <span>Joined via {joinedVia(creator.detail.source)}</span>}
+            {creator.detail?.signedUpAt && <span>Signed up {formatDateAbs(creator.detail.signedUpAt)}</span>}
+          </>
+        }
+        actions={
+          <>
+            <Button variant="secondary" iconLeft={<Pencil size={16} />} onClick={() => setEditOpen(true)}>
+              Edit
+            </Button>
+            <MoreMenu
+              label={`More actions for ${creator.name}`}
+              items={[
+                { label: "Merge duplicate", icon: <Combine size={15} />, onClick: () => setMergeOpen(true) },
+                { label: deleting ? "Deleting…" : "Delete creator", icon: <Trash2 size={15} />, onClick: deleteCreator, disabled: deleting, danger: true },
+              ]}
+            />
+          </>
+        }
+      />
 
-      {/* Banner + Profile */}
-      <Card variant="outlined" noPadding style={{ marginBottom: 24 }}>
-        {/* The platform's colour as a 13%-to-7% wash. color-mix rather than a
-            hex alpha suffix: the old `${colour}22` turned the fallback into
-            "var(--cc-primary)22", which is not a colour, so an unknown platform
-            drew no band at all. Light swaps the hue for ink (see .cd-banner-band).
-            The band is the identity row's own background now, not an 80px strip
-            the row was pulled up over: the strip ended mid-header, through the
-            @handle line and across the Edit and Merge buttons. */}
-        <div className="cd-banner-inner" style={{ "--cd-band": PLATFORM_COLORS[creator.platform] ?? "var(--cc-primary)" } as React.CSSProperties}>
-          <div className="cd-profile-header cd-banner-band">
-            <CreatorAvatar id={creator.id} name={creator.name} size="lg" />
-            <div className="cd-profile-info">
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <h1 className="cc-page-title" data-mb="0">{creator.name}</h1>
-                {!creator.profileLinks?.length && <Badge variant="neutral">{platformLabel(creator.platform)}</Badge>}
-              </div>
-              <div style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", marginTop: 2 }}>
-                {creator.handle.startsWith("@") ? creator.handle : `@${creator.handle}`}
-                {creator.contactEmail && <> · {creator.contactEmail}</>}
-              </div>
-              {creator.profileLinks && creator.profileLinks.length > 0 && (
-                <div style={{ marginTop: 8 }}>
-                  <PlatformChips links={creator.profileLinks} />
-                </div>
-              )}
-              {(creator.detail?.source || creator.detail?.signedUpAt) && (
-                <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginTop: 6 }}>
-                  {creator.detail.source ? `Joined via ${creator.detail.source}` : "Signed up"}
-                  {creator.detail.signedUpAt && <> · {formatDateAbs(creator.detail.signedUpAt)}</>}
-                </div>
-              )}
-            </div>
-            <div className="cd-profile-actions">
-              <button
-                onClick={() => setEditOpen(true)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  padding: "6px 14px", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)",
-                  color: "var(--cc-primary)", background: "var(--cc-card)",
-                  border: "1.5px solid var(--cc-primary)", borderRadius: 8, cursor: "pointer",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                <Pencil size={14} /> Edit
-              </button>
-              <button
-                onClick={() => setMergeOpen(true)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  padding: "6px 14px", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)",
-                  color: "var(--cc-text)", background: "var(--cc-card)",
-                  border: "1.5px solid var(--cc-border)", borderRadius: 8, cursor: "pointer",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                <Combine size={14} /> Merge duplicate
-              </button>
-              <button
-                onClick={deleteCreator}
-                disabled={deleting}
-                aria-busy={deleting}
-                style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  padding: "6px 14px", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)",
-                  color: "var(--cc-danger-fg)", background: "var(--cc-card)",
-                  border: "1.5px solid var(--cc-border)", borderRadius: 8,
-                  cursor: deleting ? "progress" : "pointer", opacity: deleting ? 0.6 : 1,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                <Trash2 size={14} /> {deleting ? "Deleting…" : "Delete"}
-              </button>
-            </div>
-          </div>
-
-          {creator.profileLinks?.some((l) => l.problem) && (
-            <div className="cc-handle-fixes">
-              {creator.profileLinks.map((l) =>
-                l.problem ? (
-                  <HandleFix key={l.id} creatorId={creator.id} link={{ ...l, problem: l.problem }} onSaved={refreshCreator} />
-                ) : null,
-              )}
-            </div>
+      {creator.profileLinks?.some((l) => l.problem) && (
+        <div className="cc-handle-fixes" style={{ marginTop: 0, marginBottom: 16 }}>
+          {creator.profileLinks.map((l) =>
+            l.problem ? (
+              <HandleFix key={l.id} creatorId={creator.id} link={{ ...l, problem: l.problem }} onSaved={refreshCreator} />
+            ) : null,
           )}
-
-          {/* Stats row */}
-          {/* Every tile, always. Follower counts and engagement rates are
-              absent for most of the imported roster; a tile reading 0 would
-              claim a measurement that was never taken, so an unknown one reads
-              "—" and says why on hover (plan A1). Hiding it instead left the
-              reader to guess whether the figure was missing or the page was. */}
-          <div className="cd-stats-grid">
-            <MetricTile
-              metric="followers"
-              icon={Users}
-              value={<MetricFigure value={followers} format={formatNumber} />}
-              footer={
-                followersAt && !isUnknownMetric(followers) ? (
-                  <>
-                    <AgeLabel
-                      at={followersAt.at}
-                      field={followersAt.field}
-                      source={primaryHeld ? `${platformLabel(primaryHeld.platform)} account, as on its chip` : followersAt.source}
-                      never={primaryHeld ? `${platformLabel(primaryHeld.platform)} account · ${followersAt.missing}` : followersAt.missing}
-                      style={{ whiteSpace: "normal" }}
-                    />
-                    {creator.instagramReadVia ? (
-                      <span className="cc-ig-read-via">
-                        via your Instagram Business account (@{creator.instagramReadVia.username})
-                      </span>
-                    ) : null}
-                  </>
-                ) : undefined
-              }
-            />
-            <MetricTile metric="creatorCampaigns" icon={Megaphone} value={String(creator.campaignCount)} />
-            <MetricTile metric="posts" label="Posts" icon={ImageIcon} value={formatNumber(creator._count.posts)} />
-            <MetricTile
-              metric="engagementRate"
-              icon={Activity}
-              label="Avg engagement"
-              value={<MetricFigure value={avgEngagement} format={percent} />}
-              footer={
-                !isUnknownMetric(avgEngagement) ? (
-                  <AgeLabel at={engagementAsOf} field="post" ctx={{ tracked: false }} prefix="Newest read" source="Tracked posts" never="no post read by us yet" />
-                ) : undefined
-              }
-            />
-          </div>
         </div>
-      </Card>
+      )}
 
-      {/* Tabs */}
-      <div className="cd-tabs-bar-wrap">
-        <div className="cd-tabs-bar" role="tablist">
-          {tabsList.map(tab => (
-            <button
-              key={tab.value}
-              role="tab"
-              aria-selected={activeTab === tab.value}
-              onClick={() => setActiveTab(tab.value)}
-              style={{
-                padding: "10px 16px", fontSize: "var(--cc-t-14)", fontWeight: 500,
-                background: "none", border: "none", cursor: "pointer",
-                borderBottom: activeTab === tab.value ? "2px solid var(--cc-primary)" : "2px solid transparent",
-                color: activeTab === tab.value ? "var(--cc-primary)" : "var(--cc-text-muted)",
-                display: "flex", alignItems: "center", gap: 6,
-              }}
-            >
-              {tab.label}
-              {tab.count !== undefined && (
-                <span style={{ fontSize: "var(--cc-t-11)", background: "var(--cc-bg)", borderRadius: 10, padding: "1px 7px", color: "var(--cc-text-muted)" }}>{tab.count}</span>
-              )}
-            </button>
-          ))}
-        </div>
+      {/* Stats row */}
+      {/* Every tile, always. Follower counts and engagement rates are
+          absent for most of the imported roster; a tile reading 0 would
+          claim a measurement that was never taken, so an unknown one reads
+          "—" and says why on hover (plan A1). Hiding it instead left the
+          reader to guess whether the figure was missing or the page was. */}
+      <div className="cc-tiles-balanced cd-stats">
+        <MetricTile
+          metric="followers"
+          icon={Users}
+          value={<MetricFigure value={followers} format={formatNumber} breakable />}
+          footer={
+            followersAt && !isUnknownMetric(followers) ? (
+              <>
+                <AgeLabel
+                  at={followersAt.at}
+                  field={followersAt.field}
+                  source={primaryHeld ? `${platformLabel(primaryHeld.platform)} account, as on its chip` : followersAt.source}
+                  never={primaryHeld ? `${platformLabel(primaryHeld.platform)} account · ${followersAt.missing}` : followersAt.missing}
+                  style={{ whiteSpace: "normal" }}
+                />
+                {creator.instagramReadVia ? (
+                  <span className="cc-ig-read-via">
+                    via your Instagram Business account (@{creator.instagramReadVia.username})
+                  </span>
+                ) : null}
+              </>
+            ) : undefined
+          }
+        />
+        <MetricTile metric="creatorCampaigns" icon={Megaphone} value={String(creator.campaignCount)} />
+        <MetricTile metric="posts" label="Posts" icon={ImageIcon} value={formatNumber(creator._count.posts)} />
+        <MetricTile
+          metric="engagementRate"
+          icon={Activity}
+          label="Avg engagement"
+          value={<MetricFigure value={avgEngagement} format={percent} breakable />}
+          footer={
+            !isUnknownMetric(avgEngagement) ? (
+              <AgeLabel at={engagementAsOf} field="post" ctx={{ tracked: false }} prefix="Newest read" source="Tracked posts" never="no post read by us yet" />
+            ) : undefined
+          }
+        />
       </div>
 
-      <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+      {/* Tabs */}
+      <StatusTabs
+        ariaLabel={`${creator.name}'s details`}
+        idBase="creator"
+        tabs={tabsList.map((t) => ({ key: t.value, label: t.label, count: t.count }))}
+        active={activeTab}
+        onChange={(key) => setActiveTab(key as Tab)}
+        style={{ marginBottom: 24 }}
+      />
+
+      <motion.div
+        key={activeTab}
+        role="tabpanel"
+        id="creator-panel"
+        aria-labelledby={`creator-tab-${activeTab}`}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
         {/* Profile Tab */}
         {activeTab === "profile" && (
-          <div className="cd-profile-cards">
-            <Card variant="outlined" style={{ padding: 24 }}>
-              <PanelTitle icon={User}>About</PanelTitle>
-              {/* Their bio or nothing. The fallback was a sentence nobody wrote,
-                  printed where the creator's own words go. */}
-              {creator.bio?.trim() ? (
-                <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", lineHeight: 1.6 }}>
-                  {creator.bio}
-                </p>
-              ) : (
-                <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-subtle)", lineHeight: 1.6 }}>
-                  No bio.
-                </p>
-              )}
-              {creator.contactEmail && (
-                <div style={{ marginTop: 16, fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
-                  <strong>Email:</strong> {creator.contactEmail}
-                </div>
-              )}
-              {[
-                ["Price per video", creator.rate ? formatFullCurrency(creator.rate) : null],
-                ["Country", creator.detail?.country],
-                ["Audience", creator.detail?.audienceCountry],
-                ["Niche", creator.detail?.niche],
-              ]
-                .filter(([, v]) => v)
-                .map(([label, value]) => (
-                  <div key={label} style={{ marginTop: 8, fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
-                    <strong>{label}:</strong> {value}
-                  </div>
-                ))}
-            </Card>
-            <Card variant="outlined" style={{ padding: 24 }}>
-              <PanelTitle icon={StickyNote}>Notes</PanelTitle>
-              <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", lineHeight: 1.6 }}>
-                {creator.notes ?? "No notes added yet."}
-              </p>
-            </Card>
-            <LabelCard
-              creatorId={id}
-              kind="tags"
-              title="Tags"
-              emptyLabel="No tags added yet!"
-              addLabel="Add Tag"
-              selected={(creator.tagLinks ?? []).map((l) => l.tag)}
-              onSaved={refreshCreator}
-            />
-            <LabelCard
-              creatorId={id}
-              kind="flags"
-              title="Flags"
-              emptyLabel="No flags added yet!"
-              addLabel="Flag Creator"
-              selected={(creator.flagLinks ?? []).map((l) => l.flag)}
-              onSaved={refreshCreator}
-            />
-            <ListsCard creatorId={id} lists={creator.lists ?? []} onSaved={refreshCreator} />
+          <div className="cd-profile">
+            <div className="cd-profile-col">
+              <SectionCard icon={User} title="About">
+                {/* Their bio or nothing. The fallback was a sentence nobody wrote,
+                    printed where the creator's own words go. */}
+                {creator.bio?.trim() ? <p className="cd-bio">{creator.bio}</p> : <p className="cd-empty-line">No bio.</p>}
+                {profileFacts.length > 0 ? (
+                  <dl className="cd-facts">
+                    {profileFacts.map(([label, value]) => (
+                      <div key={label}>
+                        <dt>{label}</dt>
+                        <dd>{value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                ) : null}
+              </SectionCard>
+              <SectionCard icon={StickyNote} title="Notes">
+                {creator.notes?.trim() ? <p className="cd-bio">{creator.notes}</p> : <p className="cd-empty-line">No notes yet.</p>}
+              </SectionCard>
+            </div>
+            <div className="cd-profile-col">
+              <LabelCard
+                creatorId={id}
+                kind="tags"
+                title="Tags"
+                emptyLabel="No tags yet."
+                addLabel="Add tag"
+                selected={(creator.tagLinks ?? []).map((l) => l.tag)}
+                onSaved={refreshCreator}
+              />
+              <LabelCard
+                creatorId={id}
+                kind="flags"
+                title="Flags"
+                emptyLabel="No flags."
+                addLabel="Flag creator"
+                selected={(creator.flagLinks ?? []).map((l) => l.flag)}
+                onSaved={refreshCreator}
+              />
+              <ListsCard creatorId={id} lists={creator.lists ?? []} onSaved={refreshCreator} />
+            </div>
           </div>
         )}
         {activeTab === "profile" && (
@@ -1197,201 +1173,99 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
           creator.posts.length === 0 ? (
             <EmptyState icon={<Video size={32} color="var(--cc-text-subtle)" />} title="No posts yet" description="Posts will appear here when synced from social platforms." />
           ) : (
-            <Card variant="solid" noPadding>
-              {/* Desktop table header */}
-              <div className="cd-posts-table-header">
-                {["Post", "Campaign", "Views", "Likes", "Comments", "Shares", "Eng %"].map(h => (
-                  <span key={h} className="cc-microlabel">{h}</span>
-                ))}
-              </div>
-              <div className="cc-stagger">
-                {creator.posts.map((post, i) => (
-                  <div key={post.id}>
-                    {/* Desktop row */}
-                    <a
-                      href={post.postUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="cd-posts-table-row cc-table-row"
-                      style={{ borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }}
-                    >
-                      <div>
-                        <p title={post.caption ?? undefined} style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {post.caption?.slice(0, 60) ?? "Untitled Post"} <ExternalLink size={11} style={{ opacity: 0.4 }} />
-                        </p>
-                        <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
-                          {formatDateAbs(post.postedAt)}
-                          <PostAge post={post} />
-                        </p>
-                      </div>
-                      <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{post.campaign?.title ?? "—"}</span>
-                      <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}><MetricFigure value={postCounterValue(post.viewsCount, post, "views")} format={formatNumber} /></span>
-                      <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}><MetricFigure value={postCounterValue(post.likesCount, post, "likes")} format={formatNumber} /></span>
-                      <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}><MetricFigure value={postCounterValue(post.commentsCount, post, "comments")} format={formatNumber} /></span>
-                      <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}><MetricFigure value={postCounterValue(post.sharesCount, post, "shares")} format={formatNumber} /></span>
-                      <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-primary)" }}><MetricFigure value={postEngagementValue(post)} format={percent} /></span>
-                    </a>
-                    {/* Mobile card */}
-                    <a href={post.postUrl} target="_blank" rel="noopener noreferrer" className="cd-post-card">
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <p title={post.caption ?? undefined} style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", margin: 0 }}>
-                            {post.caption?.slice(0, 50) ?? "Untitled Post"} <ExternalLink size={11} style={{ opacity: 0.4 }} />
-                          </p>
-                          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "2px 0 0" }}>
-                            {post.campaign?.title ?? "—"} · {formatDateAbs(post.postedAt)}
-                          </p>
-                          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 4 }}>
-                            <PostAge post={post} />
-                          </div>
-                        </div>
-                        <span style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: "var(--cc-primary)", flexShrink: 0 }}><MetricFigure value={postEngagementValue(post)} format={percent} /></span>
-                      </div>
-                      <div className="cd-post-stats">
-                        <span className="cd-post-stat"><Eye size={13} /> <MetricFigure value={postCounterValue(post.viewsCount, post, "views")} format={formatNumber} /></span>
-                        <span className="cd-post-stat"><Heart size={13} /> <MetricFigure value={postCounterValue(post.likesCount, post, "likes")} format={formatNumber} /></span>
-                        <span className="cd-post-stat"><MessageCircle size={13} /> <MetricFigure value={postCounterValue(post.commentsCount, post, "comments")} format={formatNumber} /></span>
-                        <span className="cd-post-stat"><Share2 size={13} /> <MetricFigure value={postCounterValue(post.sharesCount, post, "shares")} format={formatNumber} /></span>
-                      </div>
-                    </a>
-                  </div>
-                ))}
-              </div>
-            </Card>
+            <DataTable caption={`${creator.name}'s posts`} columns={POST_COLUMNS} rows={creator.posts} rowKey={(p) => p.id} />
           )
         )}
 
         {/* Campaigns Tab */}
         {activeTab === "campaigns" && (
           /* Driven by creator.campaigns, not creator.activations. Activations did
-             not import from CreatorCore, so 1,824 of 1,834 creators had none and
+             not import with the roster, so 1,824 of 1,834 creators had none and
              this tab said "No campaigns yet" directly under a badge reading 215. */
           (creator.campaigns ?? []).length === 0 ? (
             <EmptyState icon={<ClipboardList size={32} color="var(--cc-text-subtle)" />} title="No campaigns yet" description="This creator has no posts on, and no activation for, any campaign." />
           ) : (
-            <div className="cc-stagger" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {(creator.campaigns ?? []).map(c => (
-                <Link prefetch={false} key={c.id} href={`/campaigns/${c.id}`} style={{ textDecoration: "none" }}>
-                  <Card variant="outlined" style={{ padding: "16px 20px" }} clickable>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                      <div style={{ flex: 1, minWidth: 140 }}>
-                        <div style={{ fontWeight: 700, fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>{c.title}</div>
-                        <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginTop: 2 }}>
-                          {c.postCount > 0 ? `${c.postCount} post${c.postCount === 1 ? "" : "s"}` : "No posts"}
-                          {c.activation?.deliverableDueDate ? ` · Due ${formatDateAbs(c.activation.deliverableDueDate)}` : ""}
-                        </div>
-                      </div>
-                      {/* The activation status when there is one; otherwise the
-                          campaign's own, rather than a blank where a pill was. */}
-                      <Badge variant={STATUS_VARIANT[c.activation?.status ?? c.status] ?? "neutral"} dot>
-                        {c.activation?.status
-                          ? ACTIVATION_STATUS_LABEL[c.activation.status] ?? enumLabel(c.activation.status)
-                          : campaignStatusLabel(c.status)}
-                      </Badge>
-                      {c.budget && (
-                        <span className="cd-campaign-row-budget" style={{ fontWeight: 700, fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>
-                          {formatCurrency(Number(c.budget), c.currency)}
-                        </span>
-                      )}
-                      <span className="cd-campaign-row-chevron">
-                        <ChevronRight size={16} style={{ color: "var(--cc-text-subtle)" }} />
-                      </span>
-                    </div>
-                  </Card>
-                </Link>
-              ))}
-            </div>
+            <DataTable
+              caption={`Campaigns ${creator.name} is on`}
+              columns={CAMPAIGN_COLUMNS}
+              rows={creator.campaigns}
+              rowKey={(c) => c.id}
+              rowHref={(c) => `/campaigns/${c.id}`}
+            />
           )
         )}
 
         {/* Social Accounts Tab */}
         {activeTab === "social" && (
           <div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <span style={{ fontWeight: 700, fontSize: "var(--cc-t-16)", color: "var(--cc-text)" }}>Social Accounts</span>
-              <button
-                onClick={() => setShowAddSocial(true)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  background: "var(--cc-primary)", color: "var(--cc-on-primary)", border: "none",
-                  borderRadius: 8, padding: "7px 14px", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", cursor: "pointer",
-                }}
-              >
-                <Plus size={14} /> Add Account
-              </button>
+            <div className="cd-section-head">
+              <h2>Social accounts</h2>
+              {!showAddSocial && (
+                <Button variant="secondary" size="sm" iconLeft={<Plus size={16} />} onClick={() => setShowAddSocial(true)}>
+                  Add account
+                </Button>
+              )}
             </div>
 
             {/* Add form */}
             {showAddSocial && (
-              <Card variant="outlined" style={{ padding: 20, marginBottom: 16 }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                    <div>
-                      <label htmlFor="add-social-platform" style={{ display: "block", fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 4 }}>Platform</label>
+              <Card variant="outlined" style={{ marginBottom: 16 }}>
+                <form
+                  className="cc-dialog-stack"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void handleAddSocial();
+                  }}
+                >
+                  <FieldRow>
+                    <Field label="Platform">
                       <Dropdown
-                        ariaLabel="Platform"
+                        id="add-social-platform"
                         align="left"
                         fullWidth
                         value={addSocialForm.platform}
                         onChange={v => setAddSocialForm(prev => ({ ...prev, platform: v }))}
-                        options={["INSTAGRAM", "TIKTOK", "YOUTUBE", "TWITTER"].map((p) => ({ value: p, label: p }))}
+                        options={PLATFORM_OPTIONS}
                       />
-                    </div>
-                    <Input
-                      label="Handle"
-                      value={addSocialForm.handle}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAddSocialForm(prev => ({ ...prev, handle: e.target.value }))}
-                      placeholder="@username"
-                    />
-                  </div>
+                    </Field>
+                    <Field label="Handle" required helper="Followers and views are read from the platform, not typed in.">
+                      <Input
+                        value={addSocialForm.handle}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAddSocialForm(prev => ({ ...prev, handle: e.target.value }))}
+                        placeholder="@username"
+                      />
+                    </Field>
+                  </FieldRow>
                   {/* No Followers / Avg Views inputs: an account's figures come
                       from the platform, never typed in (Pratham, 2026-10-13). */}
-                  <p style={{ margin: 0, fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
-                    Followers and views are read from the platform, not typed in.
-                  </p>
                   <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                    <button
-                      onClick={() => setShowAddSocial(false)}
-                      style={{
-                        padding: "7px 14px", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", cursor: "pointer",
-                        background: "var(--cc-card)", color: "var(--cc-text-muted)",
-                        border: "1px solid var(--cc-border)", borderRadius: 8,
-                      }}
-                    >
+                    <Button type="button" variant="secondary" size="sm" onClick={() => setShowAddSocial(false)}>
                       Cancel
-                    </button>
-                    <button
-                      onClick={handleAddSocial}
-                      disabled={addingSocial || !addSocialForm.handle.trim()}
-                      style={{
-                        padding: "7px 14px", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", cursor: addingSocial ? "not-allowed" : "pointer",
-                        background: "var(--cc-primary)", color: "var(--cc-on-primary)", border: "none", borderRadius: 8,
-                        opacity: addingSocial || !addSocialForm.handle.trim() ? 0.5 : 1,
-                      }}
-                    >
-                      {addingSocial ? "Adding..." : "Add"}
-                    </button>
+                    </Button>
+                    <Button type="submit" variant="primary" size="sm" loading={addingSocial} disabled={!addSocialForm.handle.trim()}>
+                      Add account
+                    </Button>
                   </div>
-                </div>
+                </form>
               </Card>
             )}
 
             {socialLoading ? (
               <div className="cd-social-grid">
-                {[1, 2, 3].map(i => <Skeleton key={i} height="140px" borderRadius="12px" />)}
+                {[1, 2, 3].map(i => <Skeleton key={i} height={140} radius="var(--cc-r-card)" />)}
               </div>
             ) : socialAccounts.length === 0 ? (
               <EmptyState icon={<Link2 size={32} color="var(--cc-text-subtle)" />} title="No social accounts" description="Link social media accounts to track cross-platform presence." />
             ) : (
               <div className="cd-social-grid">
                 {socialAccounts.map(acct => (
-                  <Card key={acct.id} variant="outlined" style={{ padding: 16 }}>
+                  <Card key={acct.id} variant="outlined">
                     {(() => {
                       const followers = followersValue(acct.followersCount);
                       const avgViews = avgViewsValue(acct.avgViews);
                       const figures = [
-                        { key: "followers", icon: Users, label: acct.platform === "YOUTUBE" ? "Subscribers" : "Followers", value: followers },
-                        { key: "views", icon: Eye, label: "Avg views", value: avgViews },
+                        { key: "followers", label: acct.platform === "YOUTUBE" ? "Subscribers" : "Followers", value: followers },
+                        { key: "views", label: "Avg views", value: avgViews },
                       ].filter((f) => !isUnknownMetric(f.value));
                       const firstUnknown = [followers, avgViews].find(isUnknownMetric);
                       return (
@@ -1410,7 +1284,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                               onClick={() => handleRemoveSocial(acct.id)}
                               disabled={removingSocial === acct.id}
                               aria-busy={removingSocial === acct.id}
-                              aria-label={`Remove ${acct.platform} account ${acct.handle}`}
+                              aria-label={`Remove ${platformLabel(acct.platform)} account ${acct.handle}`}
                               style={{
                                 alignSelf: "flex-start",
                                 background: "none", border: "none",
@@ -1427,18 +1301,16 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                               connected account, so an unknown one is left out and the
                               reason is said once, instead of a row of dashes. */}
                           {figures.length > 0 ? (
-                            <div style={{ display: "grid", gridTemplateColumns: `repeat(${figures.length}, minmax(0, 1fr))`, gap: 8, marginTop: 14 }}>
-                              {figures.map(({ key, icon: Icon, label, value }) => (
-                                <div key={key} style={{ padding: "10px 12px", borderRadius: 10, background: "var(--cc-bg)", border: "1px solid var(--cc-border)" }}>
-                                  <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
-                                    <Icon size={12} aria-hidden="true" /> {label}
-                                  </div>
-                                  <div style={{ fontSize: "var(--cc-t-18)", fontWeight: 700, color: "var(--cc-text)", fontVariantNumeric: "tabular-nums", marginTop: 2 }}>
+                            <dl className="cd-facts" style={{ marginTop: 16 }}>
+                              {figures.map(({ key, label, value }) => (
+                                <div key={key}>
+                                  <dt>{label}</dt>
+                                  <dd data-figure="">
                                     <MetricFigure value={value} format={formatNumber} breakable />
-                                  </div>
+                                  </dd>
                                 </div>
                               ))}
-                            </div>
+                            </dl>
                           ) : (
                             firstUnknown && (
                               <p style={{ margin: "14px 0 0", fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", lineHeight: 1.45 }}>
@@ -1450,12 +1322,12 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                               entered by hand has never been read, and says so. "Connected"
                               only for a creator's own connection; a handle the agency
                               typed in was added, nobody connected anything. */}
-                          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px 16px", marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--cc-border)", fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                          <div className="cd-account-foot">
+                            <span>
                               <RefreshCw size={12} aria-hidden="true" />
                               <AgeLabel at={acct.statsSyncedAt ?? null} field="account" prefix="Read" source="Connected account" never="never read by us" />
                             </span>
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                            <span>
                               {acct.addedByHand ? <Plus size={12} aria-hidden="true" /> : <Link2 size={12} aria-hidden="true" />}
                               {acct.addedByHand ? "Added" : "Connected"} {formatDateAbs(acct.createdAt)}
                             </span>
@@ -1472,28 +1344,18 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
 
             {socialAccounts.some(a => a.platform === "TIKTOK") && tiktokNotConnected === false && (
               <div style={{ marginTop: 32 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                  <span style={{ fontWeight: 700, fontSize: "var(--cc-t-16)", color: "var(--cc-text)" }}>TikTok posts</span>
-                  <button
-                    onClick={fetchTikTokVideos}
-                    disabled={tiktokLoading}
-                    style={{
-                      background: "var(--cc-card)", color: "var(--cc-primary)",
-                      border: "1.5px solid var(--cc-primary)", borderRadius: 8,
-                      padding: "6px 12px", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)",
-                      cursor: tiktokLoading ? "not-allowed" : "pointer",
-                      opacity: tiktokLoading ? 0.5 : 1,
-                    }}
-                  >
-                    {tiktokLoading ? "Refreshing..." : "Refresh"}
-                  </button>
+                <div className="cd-section-head" style={{ marginBottom: 4 }}>
+                  <h2>TikTok posts</h2>
+                  <Button variant="secondary" size="sm" iconLeft={<RefreshCw size={16} />} loading={tiktokLoading} onClick={fetchTikTokVideos}>
+                    Refresh
+                  </Button>
                 </div>
-                <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginBottom: 16 }}>
+                <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: "0 0 16px" }}>
                   Public posts and their performance, read from TikTok with the creator&rsquo;s permission.
                 </p>
                 {tiktokLoading ? (
                   <div className="cd-social-grid">
-                    {[1, 2, 3].map(i => <Skeleton key={i} height="200px" borderRadius="12px" />)}
+                    {[1, 2, 3].map(i => <Skeleton key={i} height={200} radius="var(--cc-r-card)" />)}
                   </div>
                 ) : tiktokError ? (
                   <EmptyState icon={<Video size={32} color="var(--cc-text-subtle)" />} title="Could not load TikTok posts" description={tiktokError} />
@@ -1502,7 +1364,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                 ) : (
                   <div className="cd-social-grid">
                     {tiktokVideos.map(video => (
-                      <Card key={video.id} variant="outlined" style={{ padding: 0, overflow: "hidden" }}>
+                      <Card key={video.id} variant="outlined" noPadding style={{ overflow: "hidden" }}>
                         {video.coverImageUrl && (
                           /* eslint-disable-next-line @next/next/no-img-element */
                           <img

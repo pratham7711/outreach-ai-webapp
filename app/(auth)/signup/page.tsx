@@ -5,6 +5,8 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { Input } from "@pratham7711/ui";
 import { Button } from "@/components/ds";
+import { Field } from "@/components/ds/Field";
+import { AuthFrame } from "@/components/auth/AuthShell";
 import { Eye, EyeOff, Building2, Sparkles } from "lucide-react";
 import { BRAND } from "@/lib/brand";
 
@@ -83,51 +85,11 @@ export default function SignupPage() {
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100dvh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "40px 16px",
-        background: "var(--cc-bg)",
-        position: "relative",
-        overflow: "hidden",
-      }}
-    >
-      <motion.div
-        style={{ width: "100%", maxWidth: 380, position: "relative", zIndex: 1 }}
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center", marginBottom: 32 }}>
-          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <circle cx="12" cy="12" r="10" stroke="var(--cc-primary)" strokeWidth="2.5" />
-            <circle cx="12" cy="12" r="5.5" stroke="var(--cc-primary)" strokeWidth="2" />
-            <circle cx="12" cy="12" r="2" fill="var(--cc-primary)" />
-          </svg>
-          <span style={{ fontWeight: 800, fontSize: 20, color: "var(--cc-text)", letterSpacing: "-0.02em" }}>
-            {BRAND.name}
-          </span>
-        </div>
-
-        <motion.div
-          initial={{ opacity: 0, scale: 0.97 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.4, delay: 0.15, ease: "easeOut" }}
-          style={{
-            background: "var(--cc-card)",
-            border: "1px solid var(--cc-border)",
-            borderRadius: 20,
-            boxShadow: "var(--ui-shadow-lg)",
-            padding: 40,
-          }}
-        >
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
+    <AuthFrame>
+          <h1 className="cc-auth__title">
             Create your account
           </h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 24 }}>
+          <p className="cc-auth__sub">
             Set up your workspace on {BRAND.name}
           </p>
 
@@ -153,16 +115,16 @@ export default function SignupPage() {
 
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }} noValidate>
             <div>
-              <Input
-                ref={orgRef}
-                label="Organization name"
-                type="text"
-                value={orgName}
-                onChange={(e) => setOrgName(e.target.value)}
-                placeholder="Acme Agency"
-                required
-                autoComplete="organization"
-              />
+              <Field label="Organization name" required>
+                <Input
+                  ref={orgRef}
+                  type="text"
+                  value={orgName}
+                  onChange={(e) => setOrgName(e.target.value)}
+                  placeholder="Acme Agency"
+                  autoComplete="organization"
+                />
+              </Field>
             </div>
 
             <div>
@@ -218,40 +180,40 @@ export default function SignupPage() {
             </div>
 
             <div>
-              <Input
-                label="Your name"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Jane Doe"
-                required
-                autoComplete="name"
-              />
+              <Field label="Your name" required>
+                <Input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Jane Doe"
+                  autoComplete="name"
+                />
+              </Field>
             </div>
 
             <div>
-              <Input
-                label="Email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@company.com"
-                required
-                autoComplete="email"
-              />
+              <Field label="Email" required>
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@company.com"
+                  autoComplete="email"
+                />
+              </Field>
             </div>
 
             <div style={{ position: "relative" }}>
-              <Input
-                label="Password"
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Min. 8 characters"
-                required
-                minLength={8}
-                autoComplete="new-password"
-              />
+              <Field label="Password" required>
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Min. 8 characters"
+                  minLength={8}
+                  autoComplete="new-password"
+                />
+              </Field>
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
@@ -284,16 +246,16 @@ export default function SignupPage() {
             </div>
 
             <div>
-              <Input
-                label="Confirm password"
-                type={showPassword ? "text" : "password"}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Re-enter your password"
-                required
-                minLength={8}
-                autoComplete="new-password"
-              />
+              <Field label="Confirm password" required>
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Re-enter your password"
+                  minLength={8}
+                  autoComplete="new-password"
+                />
+              </Field>
             </div>
 
             <div style={{ marginTop: 8 }}>
@@ -309,8 +271,6 @@ export default function SignupPage() {
               Sign in
             </Link>
           </p>
-        </motion.div>
-      </motion.div>
-    </div>
+    </AuthFrame>
   );
 }

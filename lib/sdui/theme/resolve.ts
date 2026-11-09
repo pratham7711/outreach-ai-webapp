@@ -9,16 +9,13 @@
  * page. Every rejection is recorded and surfaced by the debug view instead of
  * being swallowed.
  *
- * The checked-in default is a real file, reviewed like any other, so `git log -p
- * lib/sdui/defaults/creatorcore.theme.json` still answers "why does this look
- * like this" for every org that has not customised -- which is most of them.
- * That is the price paid for moving styling out of code, and paying it up front
- * is the difference between a config system and an unexplainable app.
+ * The checked-in default is empty: light and dark are globals.css as shipped.
+ * It used to be lib/sdui/defaults/creatorcore.theme.json, which carried only
+ * the CreatorCore theme's tokens and went with that theme in November 2026.
  */
 import { db } from "@/lib/db";
 import { storedThemeSchema, type StoredTheme } from "./contract";
 import { emitThemeCss, type ResponsiveLayer, type ThemeMode } from "./emit";
-import fileDefault from "../defaults/creatorcore.theme.json";
 
 export type ResolvedTheme = {
   css: string;
@@ -32,7 +29,7 @@ export type ResolvedTheme = {
   degraded: boolean;
 };
 
-const FILE_THEME: StoredTheme = storedThemeSchema.parse(fileDefault);
+const FILE_THEME: StoredTheme = storedThemeSchema.parse({});
 
 function mergeModes(
   base: StoredTheme,
@@ -40,7 +37,7 @@ function mergeModes(
 ): { modes: Partial<Record<ThemeMode, Record<string, unknown>>>; source: Record<string, "file" | "org"> } {
   const modes: Partial<Record<ThemeMode, Record<string, unknown>>> = {};
   const source: Record<string, "file" | "org"> = {};
-  for (const mode of ["light", "dark", "creatorcore"] as const) {
+  for (const mode of ["light", "dark"] as const) {
     const b = base.modes?.[mode] ?? {};
     const o = over?.modes?.[mode] ?? {};
     const merged: Record<string, unknown> = { ...b, ...o };
@@ -91,9 +88,9 @@ export async function resolveOrgTheme(
   }
 
   /* The org's brand colour used to be folded in here as --cc-primary on every
-     mode. It is gone (October 2026): the three themes own the app's colours,
-     and a brand colour on Light's black controls or CreatorCore's measured
-     indigo is exactly the drift they exist to prevent. */
+     mode. It is gone (October 2026): the themes own the app's colours, and a
+     brand colour on Light's black controls is exactly the drift they exist to
+     prevent. */
   const { modes, source } = mergeModes(FILE_THEME, stored);
   /* Responsive layers merge BY BREAKPOINT, so an org retuning the >=1024 shell
      replaces that layer's tokens without silently dropping the file's other
@@ -106,7 +103,6 @@ export async function resolveOrgTheme(
       modes: {
         light: { ...(prev?.modes.light ?? {}), ...(layer.modes.light ?? {}) },
         dark: { ...(prev?.modes.dark ?? {}), ...(layer.modes.dark ?? {}) },
-        creatorcore: { ...(prev?.modes.creatorcore ?? {}), ...(layer.modes.creatorcore ?? {}) },
       },
     });
   }

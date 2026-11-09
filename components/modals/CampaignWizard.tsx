@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState, type ChangeEvent, type ClipboardEvent, type FocusEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Modal, Input } from "@pratham7711/ui";
-import { Check, Music2 } from "lucide-react";
+import { Input } from "@pratham7711/ui";
+import { Modal, ModalNotice, ModalOption, ModalOptionList, ModalSection } from "@/components/ds/Modal";
+import { Switch } from "@/components/ds/Switch";
+import { AlertCircle, Check, Megaphone, Music2, UserCheck, Zap, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Dropdown, Button } from "@/components/ds";
 import { SOUND_URL_ERRORS, parseSoundUrl } from "@/lib/trackers/soundUrl";
@@ -23,6 +25,9 @@ import {
   type InstagramAudioCheck,
 } from "@/components/campaigns/InstagramAudioCheck";
 import { AudioFieldNotice } from "@/components/campaigns/AudioFieldNotice";
+import { StartFromPicker, type StartFromChoice } from "@/components/campaigns/templates/StartFromPicker";
+import { fetchSetupSource, useStartFromSources, type SourceKind } from "@/components/campaigns/templates/useStartFromSources";
+import type { SetupSummary } from "@/lib/campaigns/templates/payload";
 import {
   audioFieldFor,
   droppedNotice,
@@ -90,29 +95,15 @@ const POST_APPROVAL_MODES: { value: PostApprovalMode; label: string; desc: strin
   { value: "AUTO_APPROVED", label: "Auto-Approved", desc: "Posts are approved automatically on submission" },
 ];
 
+const POST_APPROVAL_ICONS: Record<PostApprovalMode, LucideIcon> = {
+  MANUAL: UserCheck,
+  AUTO_APPROVED: Zap,
+};
+
 /* Payment is always self-managed: the org pays its creators directly, outside
    the platform. We do not hold deposits or release payments, so asking the
    question offered a service that does not exist. The column keeps its schema
    default (SELF_MANAGED) and this form no longer sends it. */
-
-const selectStyle = {
-  width: "100%",
-  padding: "10px 14px",
-  borderRadius: 10,
-  border: "1px solid var(--cc-border)",
-  fontSize: "var(--cc-t-14)",
-  color: "var(--cc-text)",
-  background: "var(--cc-card)",
-  boxSizing: "border-box" as const,
-};
-
-const labelStyle = {
-  display: "block" as const,
-  fontSize: "var(--cc-t-13)",
-  fontWeight: 600 as const,
-  color: "var(--cc-text)",
-  marginBottom: 6,
-};
 
 const cardOptionStyle = (selected: boolean) => ({
   padding: 16,
@@ -247,6 +238,65 @@ export default function CampaignWizard({
   });
 
   const set = (patch: Partial<WizardForm>) => setForm((f) => ({ ...f, ...patch }));
+
+  /* Start from: Blank, a saved template, or a past campaign's setup. Picking
+     one fills the fields a person can see and edit here -- client, budget,
+     currency, approval, notes -- and names the source in the create, so the
+     server copies the brief, rules and phases from its own copy. The title,
+     the sound links and the picture are never touched: they belong to this
+     campaign alone. */
+  const sources = useStartFromSources();
+  const [startFrom, setStartFrom] = useState<StartFromChoice>(null);
+  const [startSummary, setStartSummary] = useState<{ copies: string | null; summary: SetupSummary } | null>(null);
+  const [startBusy, setStartBusy] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
+  /* The newest pick wins, as with the link checks below. */
+  const pickSeq = useRef(0);
+
+  const blankSetup = (): Partial<WizardForm> => ({
+    clientId: "",
+    budget: "",
+    currency: resolveCurrency(defaultCurrency),
+    postApprovalMode: "MANUAL",
+    notes: "",
+  });
+
+  const pickSource = async (kind: SourceKind, id: string, name: string) => {
+    const n = ++pickSeq.current;
+    setStartFrom({ kind, id, name });
+    setStartSummary(null);
+    setStartError(null);
+    setStartBusy(true);
+    const read = await fetchSetupSource(kind, id);
+    if (n !== pickSeq.current) return;
+    setStartBusy(false);
+    if (!read.ok) {
+      setStartFrom(null);
+      setStartError(read.error);
+      return;
+    }
+    const { setup } = read.source;
+    set({
+      ...blankSetup(),
+      /* A client deleted since the template was saved is not offered. */
+      clientId: setup.clientId && clients.some((c) => c.id === setup.clientId) ? setup.clientId : "",
+      budget: setup.budget !== null ? String(setup.budget) : "",
+      ...(setup.currency ? { currency: resolveCurrency(setup.currency) } : {}),
+      postApprovalMode: setup.postApprovalMode ?? "MANUAL",
+      notes: setup.notes ?? "",
+    });
+    setStartFrom({ kind, id, name: read.source.name });
+    setStartSummary({ copies: read.source.alsoCopies, summary: read.source.summary });
+  };
+
+  const backToBlank = () => {
+    pickSeq.current++;
+    setStartFrom(null);
+    setStartSummary(null);
+    setStartError(null);
+    setStartBusy(false);
+    set(blankSetup());
+  };
 
   const preview = picture?.preview ?? null;
   useEffect(() => () => {
@@ -523,6 +573,9 @@ export default function CampaignWizard({
              sent here would be downloaded in the background and could land
              after it. */
           ...(form.hasAudio && thumbnailFromAudio && !picture ? { thumbnailUrl: thumbnailFromAudio } : {}),
+          /* Only the source is named. The fields above, which the person
+             saw and could change, win over the source's on the server. */
+          ...(startFrom ? { setupFrom: { kind: startFrom.kind, id: startFrom.id } } : {}),
         }),
       });
       if (res.ok) {
@@ -535,6 +588,10 @@ export default function CampaignWizard({
         }
         if (data.instagramLinked === false) {
           toast.error("Campaign created, but the Instagram audio didn't save beside the TikTok sound. Add it from the campaign's audio settings.");
+        }
+        /* Only on a database that does not have the rules table yet. */
+        if (data.setupFrom?.copied && startSummary && startSummary.summary.rules > 0 && data.setupFrom.copied.rules === false) {
+          toast.error("Campaign created, but its rules didn't copy. Add them from the campaign's Overview.");
         }
         if (picture) {
           const saved = await uploadCampaignThumbnail(data.id, picture);
@@ -573,85 +630,123 @@ export default function CampaignWizard({
     form.title.trim().length > 0 &&
     !checkingLink &&
     !budgetError &&
-    !preparingPicture;
+    !preparingPicture &&
+    !startBusy;
+
+  /* Asked only once there is a budget for it to describe. */
+  const showCurrency = form.budget.trim() !== "";
 
   return (
     <Modal
       open={true}
       onClose={onClose}
+      icon={Megaphone}
+      tone="brand"
       title="New Campaign"
-      size="lg"
+      description="Name it, link the sound it promotes, and choose how posts get approved."
+      size="md"
+      dismissible={false}
       footer={
-        <div className="cc-modal-footer" data-layout="split">
-          <div />
-          <div style={{ display: "flex", gap: 8 }}>
-            <Button variant="secondary" onClick={onClose}>Cancel</Button>
-            <Button variant="primary" loading={loading} disabled={!canCreate} onClick={handleSubmit}>
-              <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <Check size={14} /> Create Campaign
-              </span>
-            </Button>
-          </div>
+        <div className="cc-modal-footer">
+          <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+          <Button
+            variant="primary"
+            size="sm"
+            loading={loading}
+            disabled={!canCreate}
+            onClick={handleSubmit}
+            iconLeft={<Check size={16} aria-hidden="true" />}
+          >
+            Create Campaign
+          </Button>
         </div>
       }
     >
-      {error && (
-        <div role="alert" style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-danger)", marginBottom: 16 }}>
-          {error}
-        </div>
-      )}
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div className="cc-dialog-stack">
+        {/* Only when there is something to start from: an org with no
+            templates and no campaigns sees the form exactly as before. While
+            the list loads the row's space is held, so the form does not jump. */}
+        {(sources.status === "loading" || (sources.status === "ready" && sources.available)) && (
+          <StartFromPicker
+            placeholder={sources.status === "loading"}
+            sources={sources}
+            choice={startFrom}
+            busy={startBusy}
+            copies={startSummary?.copies ?? null}
+            error={startError}
+            onPick={(kind, id, name) => void pickSource(kind, id, name)}
+            onBlank={backToBlank}
+          />
+        )}
+        {error && (
+          <ModalNotice tone="danger" icon={AlertCircle}>
+            {error}
+          </ModalNotice>
+        )}
         <Input
           label="Campaign Name"
           value={form.title}
           onChange={(e) => set({ title: e.target.value })}
           placeholder="e.g. Summer Drop 2026"
           required
+          data-autofocus
         />
-        <div>
-          <label htmlFor="wz-client" style={labelStyle}>Client</label>
-          <Dropdown
-            ariaLabel="Client"
-            align="left"
-            fullWidth
-            value={form.clientId}
-            onChange={(v) => set({ clientId: v })}
-            options={[
-              { value: "", label: "No client" },
-              ...clients.map((c) => ({ value: c.id, label: c.name })),
-            ]}
-          />
-        </div>
-
-        {/* Audio is asked here rather than in a later step because it is a
-            fact about the campaign, known when it is set up, not a payment
-            decision. Off by default: brand work has no sound behind it. */}
-        <div>
-          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-            <input
-              type="checkbox"
-              checked={form.hasAudio}
-              onChange={(e) => {
-                set({
-                  hasAudio: e.target.checked,
-                  ...(e.target.checked ? {} : { audioUrl: "", instagramAudioUrl: "", spotifyUrl: "" }),
-                });
-                if (!e.target.checked) {
-                  forgetCheck("TIKTOK");
-                  forgetCheck("INSTAGRAM");
-                  forgetCheck("SPOTIFY");
-                  setNotices({});
-                }
-              }}
+        {/* No clients, no question: "No client" would be the only answer. */}
+        {clients.length > 0 && (
+          <div className="ui-input-root">
+            <label htmlFor="wz-client" className="ui-input-label">Client</label>
+            <Dropdown
+              id="wz-client"
+              ariaLabel="Client"
+              align="left"
+              fullWidth
+              value={form.clientId}
+              onChange={(v) => set({ clientId: v })}
+              options={[
+                { value: "", label: "No client" },
+                ...clients.map((c) => ({ value: c.id, label: c.name })),
+              ]}
             />
-            <span style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>This campaign promotes a sound</span>
-          </label>
+          </div>
+        )}
+      </div>
+
+      {/* Audio is asked here rather than in a later step because it is a
+          fact about the campaign, known when it is set up, not a payment
+          decision. Off by default: brand work has no sound behind it. */}
+      <ModalSection>
+        <ModalOptionList>
+          <ModalOption
+            icon={Music2}
+            title="This campaign promotes a sound"
+            description={
+              form.hasAudio
+                ? "Paste the song's links. Each one goes to its own field, whichever box you paste it in."
+                : "Link its TikTok sound, Instagram audio and Spotify track."
+            }
+            control={
+              <Switch
+                checked={form.hasAudio}
+                aria-label="This campaign promotes a sound"
+                onChange={(on) => {
+                  set({
+                    hasAudio: on,
+                    ...(on ? {} : { audioUrl: "", instagramAudioUrl: "", spotifyUrl: "" }),
+                  });
+                  if (!on) {
+                    forgetCheck("TIKTOK");
+                    forgetCheck("INSTAGRAM");
+                    forgetCheck("SPOTIFY");
+                    setNotices({});
+                  }
+                }}
+              />
+            }
+          />
+        </ModalOptionList>
           {form.hasAudio && (
-            <div style={{ marginTop: 12 }}>
-              <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "0 0 10px" }}>
-                Paste the song&apos;s links. Each one goes to its own field, whichever box you paste it in.
-              </p>
+            <div className="cc-dialog-stack">
+              <div style={{ minWidth: 0 }}>
               <Input
                 label="TikTok sound"
                 {...fieldProps("TIKTOK")}
@@ -757,8 +852,9 @@ export default function CampaignWizard({
                   ) : null}
                 </>
               )}
+              </div>
 
-              <div style={{ marginTop: 16, minWidth: 0 }}>
+              <div style={{ minWidth: 0 }}>
                 <Input
                   label={INSTAGRAM_AUDIO_LABEL}
                   {...fieldProps("INSTAGRAM")}
@@ -784,7 +880,7 @@ export default function CampaignWizard({
                 )}
               </div>
 
-              <div style={{ marginTop: 16, minWidth: 0 }}>
+              <div style={{ minWidth: 0 }}>
                 <Input
                   label={SPOTIFY_LINK_LABEL}
                   {...fieldProps("SPOTIFY")}
@@ -799,8 +895,10 @@ export default function CampaignWizard({
               </div>
             </div>
           )}
-        </div>
+      </ModalSection>
 
+      <ModalSection>
+        <div className="cc-dialog-stack">
         <ThumbnailDrop
           hint={
             form.hasAudio
@@ -822,19 +920,23 @@ export default function CampaignWizard({
           }}
         />
 
-        <div>
-          <label htmlFor="wz-notes" style={labelStyle}>Notes</label>
+        <div className="ui-input-root">
+          <label htmlFor="wz-notes" className="ui-input-label">Notes</label>
           <textarea
             id="wz-notes"
+            className="ui-textarea"
             value={form.notes}
             onChange={(e) => set({ notes: e.target.value })}
             placeholder="Internal notes about this campaign..."
             rows={3}
-            style={{ ...selectStyle, resize: "vertical" as const }}
           />
         </div>
-        <div style={{ display: "flex", gap: 12 }}>
-          <div style={{ flex: 1 }}>
+        </div>
+      </ModalSection>
+
+      <ModalSection>
+        <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+          <div className="cc-form-field" style={{ flex: 1 }}>
             <Input
               label="Budget"
               type="number"
@@ -843,37 +945,54 @@ export default function CampaignWizard({
               onChange={(e) => set({ budget: e.target.value })}
               placeholder="e.g. 10000"
               aria-invalid={Boolean(budgetError)}
+              aria-describedby={budgetError ? "wz-budget-error" : undefined}
             />
             {budgetError && (
-              <p role="alert" style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-danger)", margin: "6px 0 0" }}>
+              <p id="wz-budget-error" role="alert" className="cc-form-error">
                 {budgetError}
               </p>
             )}
           </div>
-          <div style={{ width: 110 }}>
-            <label htmlFor="wz-currency" style={labelStyle}>Currency</label>
-            <Dropdown
-              ariaLabel="Currency"
-              align="left"
-              fullWidth
-              value={form.currency}
-              onChange={(v) => set({ currency: v as WizardForm["currency"] })}
-              options={CURRENCIES.map((c) => ({ value: c, label: c }))}
-            />
-          </div>
+          {showCurrency && (
+            <div className="ui-input-root" style={{ width: 120 }}>
+              <label htmlFor="wz-currency" className="ui-input-label">Currency</label>
+              <Dropdown
+                id="wz-currency"
+                ariaLabel="Currency"
+                align="left"
+                fullWidth
+                value={form.currency}
+                onChange={(v) => set({ currency: v as WizardForm["currency"] })}
+                options={CURRENCIES.map((c) => ({ value: c, label: c }))}
+              />
+            </div>
+          )}
         </div>
+      </ModalSection>
 
-        <div>
-          <p style={labelStyle}>Post Approval Mode</p>
-          <CardRadioGroup
-            label="Post approval mode"
-            row
-            value={form.postApprovalMode}
-            options={POST_APPROVAL_MODES}
-            onChange={(postApprovalMode) => set({ postApprovalMode })}
-          />
-        </div>
-      </div>
+      <ModalSection title="Post approval">
+        <CardRadioGroup
+          label="Post approval mode"
+          row
+          value={form.postApprovalMode}
+          options={POST_APPROVAL_MODES}
+          onChange={(postApprovalMode) => set({ postApprovalMode })}
+          renderBody={(opt) => {
+            const Icon = POST_APPROVAL_ICONS[opt.value];
+            return (
+              <span style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                <span className="cc-dialog-option__icon" aria-hidden="true">
+                  <Icon size={18} strokeWidth={1.9} />
+                </span>
+                <span className="cc-dialog-option__text">
+                  <span className="cc-dialog-option__title">{opt.label}</span>
+                  <span className="cc-dialog-option__desc">{opt.desc}</span>
+                </span>
+              </span>
+            );
+          }}
+        />
+      </ModalSection>
     </Modal>
   );
 }

@@ -18,6 +18,8 @@ import { navHrefsForRole, resolveDashboardPolicy } from "@/lib/dashboardPolicy";
 import { usableIconHref } from "@/lib/brandingDefaults";
 import type { OrgUiConfig } from "@/lib/orgConfig";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
+import { RAIL_COOKIE, RAIL_COLLAPSED } from "@/lib/railCookie";
 import { readAccount } from "@/lib/accountCheck";
 import { VerifyEmailBanner } from "@/components/layout/VerifyEmailBanner";
 import { ActingAsBanner } from "@/components/layout/ActingAsBanner";
@@ -119,9 +121,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
     ? navHrefsForRole(policy.allowedNavHrefs, (session.user as { role?: string }).role)
     : null;
 
+  /* Read here so the rail's first paint is already the width the person left
+     it at. Outside a request (the layout's tests) there is no cookie store. */
+  const railCollapsed = await (async () => (await cookies()).get(RAIL_COOKIE)?.value === RAIL_COLLAPSED)().catch(
+    () => false,
+  );
+
   return (
     <TenantProvider initial={entitlements ? tenantConfigFor(entitlements) : undefined}>
-      <SidebarProvider>
+      <SidebarProvider initialCollapsed={railCollapsed}>
        {/* Wraps the rail and the page both: the campaign page below publishes
            its title and counts, and the rail above reads them. */}
        <CampaignNavProvider>

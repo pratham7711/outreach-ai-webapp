@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
-import { Modal, Skeleton } from "@pratham7711/ui";
-import { Dropdown, Button } from "@/components/ds";
-import { Trash2 } from "lucide-react";
+import { Modal, ModalOption, ModalOptionList, ModalSection } from "@/components/ds/Modal";
+import { Dropdown, Button, Skeleton } from "@/components/ds";
+import { ListChecks, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateAbs } from "@/lib/format";
 
@@ -136,118 +136,118 @@ export default function DeliverablesModal({
     <Modal
       open
       onClose={onClose}
-      title="Manage Deliverables"
+      icon={ListChecks}
+      tone="brand"
+      title="Manage deliverables"
+      description={<>What <strong className="cc-dialog__subject">{creatorName}</strong> owes on this activation.</>}
       size="md"
+      dismissible={false}
       footer={
-        <div className="cc-modal-footer" data-layout="split" data-align="center" data-gap="0">
-          <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
-            {items === null ? "" : `${done} of ${items.length} complete`}
-          </span>
-          <Button variant="secondary" onClick={onClose}>Done</Button>
-        </div>
+        /* The tally only once there is something to count: "0 of 0 complete"
+           says nothing the empty dialog does not. */
+        items?.length ? (
+          <div className="cc-modal-footer" data-layout="split" data-align="center" data-gap="0">
+            <span className="cc-dialog-meta">{`${done} of ${items.length} complete`}</span>
+            <Button variant="secondary" size="sm" onClick={onClose}>Done</Button>
+          </div>
+        ) : (
+          <div className="cc-modal-footer">
+            <Button variant="secondary" size="sm" onClick={onClose}>Done</Button>
+          </div>
+        )
       }
     >
-      <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginBottom: 16 }}>
-        What {creatorName} owes on this activation.
-      </p>
-
-      {items === null ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {[1, 2].map((i) => <Skeleton key={i} height={44} borderRadius="10px" />)}
-        </div>
-      ) : items.length === 0 ? (
-        <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", marginBottom: 16 }}>
-          Nothing listed yet.
-        </p>
-      ) : (
-        <ul style={{ listStyle: "none", margin: "0 0 16px", padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
-          {items.map((d) => (
-            <li
-              key={d.id}
-              style={{
-                display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
-                border: "1px solid var(--cc-border)", borderRadius: 10, background: "var(--cc-card)",
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={!!d.completedAt}
-                disabled={busy}
-                aria-label={`Mark ${d.name} complete`}
-                onChange={(e) => patch(d.id, { completed: e.target.checked })}
-                style={{ width: 16, height: 16, cursor: busy ? "default" : "pointer" }}
-              />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div
-                  style={{
-                    fontSize: "var(--cc-t-14)", color: "var(--cc-text)",
-                    textDecoration: d.completedAt ? "line-through" : "none",
-                    opacity: d.completedAt ? 0.6 : 1,
-                  }}
-                >
-                  {d.name}
-                </div>
-                <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
-                  {d.completedAt
-                    ? `Completed ${formatDateAbs(d.completedAt)}`
-                    : d.dueDate
-                      ? `Due ${formatDateAbs(d.dueDate)}`
-                      : "No due date"}
-                </div>
-              </div>
-              <button
-                type="button"
-                aria-label={`Remove ${d.name}`}
-                disabled={busy}
-                onClick={() => remove(d.id)}
-                style={{
-                  background: "none", border: "none", cursor: busy ? "default" : "pointer",
-                  color: "var(--cc-text-muted)", display: "inline-flex", padding: 4,
-                }}
-              >
-                <Trash2 size={14} aria-hidden="true" />
-              </button>
-            </li>
-          ))}
-        </ul>
+      {/* With nothing listed, the dialog is just the form below. */}
+      {items?.length !== 0 && (
+        <ModalSection>
+          {items === null ? (
+            <div className="cc-dialog-stack" data-gap="tight">
+              {[1, 2].map((i) => <Skeleton key={i} height={44} />)}
+            </div>
+          ) : (
+            <ModalOptionList>
+              {items.map((d) => (
+                <ModalOption
+                  key={d.id}
+                  as="div"
+                  title={
+                    <span
+                      style={{
+                        textDecoration: d.completedAt ? "line-through" : "none",
+                        opacity: d.completedAt ? 0.6 : 1,
+                      }}
+                    >
+                      {d.name}
+                    </span>
+                  }
+                  description={
+                    d.completedAt
+                      ? `Completed ${formatDateAbs(d.completedAt)}`
+                      : d.dueDate
+                        ? `Due ${formatDateAbs(d.dueDate)}`
+                        : "No due date"
+                  }
+                  control={
+                    <span className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={!!d.completedAt}
+                        disabled={busy}
+                        aria-label={`Mark ${d.name} complete`}
+                        onChange={(e) => patch(d.id, { completed: e.target.checked })}
+                        style={{ width: 16, height: 16, cursor: busy ? "default" : "pointer" }}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="cc-btn-danger-ghost"
+                        aria-label={`Remove deliverable ${d.name}`}
+                        disabled={busy}
+                        onClick={() => remove(d.id)}
+                      >
+                        <Trash2 size={14} aria-hidden="true" />
+                      </Button>
+                    </span>
+                  }
+                />
+              ))}
+            </ModalOptionList>
+          )}
+        </ModalSection>
       )}
 
-      <div style={{ borderTop: "1px solid var(--cc-border)", paddingTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
-        {types.length > 0 && (
-          <Dropdown
-            ariaLabel="Deliverable type"
-            size="md"
-            fullWidth
-            align="left"
-            placeholder="Pick a type"
-            value={typeDefId}
-            onChange={setTypeDefId}
-            options={types.map((t) => ({ value: t.id, label: t.name }))}
+      <ModalSection title="Add a deliverable">
+        <div className="cc-dialog-stack" data-gap="tight">
+          {types.length > 0 && (
+            <Dropdown
+              ariaLabel="Deliverable type"
+              size="md"
+              fullWidth
+              align="left"
+              placeholder="Pick a type"
+              value={typeDefId}
+              onChange={setTypeDefId}
+              options={types.map((t) => ({ value: t.id, label: t.name }))}
+            />
+          )}
+          <input
+            type="text"
+            value={name}
+            aria-label="Deliverable name"
+            onChange={(e) => setName(e.target.value)}
+            placeholder={types.length ? "Or name it yourself" : "What do they owe?"}
+            className="cc-field"
           />
-        )}
-        <input
-          type="text"
-          value={name}
-          aria-label="Deliverable name"
-          onChange={(e) => setName(e.target.value)}
-          placeholder={types.length ? "Or name it yourself" : "What do they owe?"}
-          style={fieldStyle}
-        />
-        <input
-          type="date"
-          value={dueDate}
-          aria-label="Due date"
-          onChange={(e) => setDueDate(e.target.value)}
-          style={fieldStyle}
-        />
-        <Button variant="primary" loading={busy} onClick={add}>Add Deliverable</Button>
-      </div>
+          <input
+            type="date"
+            value={dueDate}
+            aria-label="Due date"
+            onChange={(e) => setDueDate(e.target.value)}
+            className="cc-field"
+          />
+          <Button variant="primary" loading={busy} disabled={!typeDefId && !name.trim()} onClick={add}>Add deliverable</Button>
+        </div>
+      </ModalSection>
     </Modal>
   );
 }
-
-const fieldStyle: React.CSSProperties = {
-  width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)",
-  fontSize: "var(--cc-t-14)", color: "var(--cc-text)", background: "var(--cc-card)",
-  boxSizing: "border-box",
-};

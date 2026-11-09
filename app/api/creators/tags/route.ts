@@ -5,12 +5,40 @@ import { requirePermission } from "@/lib/authz";
 import { getAuditActor } from "@/lib/authenticate";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
-import { resolveRosterSelection, rosterSelectionSchema } from "@/lib/creators/rosterSelection";
+import { MAX_BULK_CREATORS, resolveRosterSelection, rosterSelectionSchema } from "@/lib/creators/rosterSelection";
 
 const bodySchema = z.intersection(
   z.object({ tag: z.string().trim().min(1).max(120), action: z.enum(["add", "remove"]) }),
   rosterSelectionSchema,
 );
+
+// GET /api/creators/tags?<roster filters>  or  ?ids=a,b,c -- the tags the
+// selected creators carry, named the way the export route takes a selection.
+// The bulk tag dialog offers "Remove a tag" only when there is one to remove.
+export async function GET(request: NextRequest) {
+  const gate = await requirePermission(request, "creators:read");
+  if (!gate.ok) return gate.response;
+  const { orgId } = gate.auth;
+
+  const sp = new URLSearchParams(request.nextUrl.searchParams);
+  const ids = sp.get("ids");
+  sp.delete("ids");
+  const picked = ids?.split(",").filter(Boolean) ?? null;
+  if (picked && picked.length > MAX_BULK_CREATORS) {
+    return NextResponse.json({ error: `At most ${MAX_BULK_CREATORS} creators at a time` }, { status: 413 });
+  }
+  const target = await resolveRosterSelection(orgId, picked ? { creatorIds: picked } : { query: sp.toString() });
+  if (!target.ok) return NextResponse.json({ error: target.error }, { status: target.status });
+
+  const tags = target.ids.length
+    ? await db.creatorTagDef.findMany({
+        where: { orgId, creators: { some: { creatorId: { in: target.ids } } } },
+        select: { name: true },
+        orderBy: { name: "asc" },
+      })
+    : [];
+  return NextResponse.json({ tags: tags.map((t) => t.name) });
+}
 
 // POST /api/creators/tags -- add or remove one tag across many creators.
 export async function POST(request: NextRequest) {

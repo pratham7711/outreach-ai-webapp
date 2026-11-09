@@ -1,12 +1,17 @@
 "use client";
-import type { CSSProperties } from "react";
-import { useState, useEffect, useCallback, use } from "react";
-import Link from "next/link";
+import { useState, useEffect, useCallback, useMemo, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
-import { Card, Badge, EmptyState, Avatar, Skeleton, Modal } from "@pratham7711/ui";
-import { Dropdown, MetricTile, EntityPicker, Button } from "@/components/ds";
+import Link from "next/link";
+import { Badge, EmptyState, Avatar, Input, Textarea } from "@pratham7711/ui";
+import { Modal } from "@/components/ds/Modal";
+import { Dropdown, MetricTile, EntityPicker, Button, PageHeader, SectionCard, Field, FieldRow, Skeleton } from "@/components/ds";
+import { TileGridSkeleton, PageHeaderSkeleton } from "@/components/ui/PageSkeleton";
+import { PlatformSplit } from "@/components/charts/PlatformSplit";
+import { useDirty } from "@/lib/useDirty";
+import { CAMPAIGN_STATUS_OPTIONS, campaignStatusText } from "@/components/campaigns/campaignStatus";
+import { StatusBadge } from "@/components/ds/StatusBadge";
 import PostsTab from "./PostsTab";
 import ActivityFeed from "./ActivityFeed";
 import DraftsTab from "./DraftsTab";
@@ -21,6 +26,7 @@ import { CampaignAudioSetup } from "@/components/campaigns/CampaignAudioSetup";
 import { CampaignSwitchesCard } from "./CampaignSwitchesCard";
 import { CampaignPictureCard } from "@/components/campaigns/CampaignPictureCard";
 import { CAMPAIGN_HEADER_ACTIONS_ID } from "@/components/campaigns/CampaignHeaderActions";
+import { SaveAsTemplateAction } from "@/components/campaigns/templates/SaveAsTemplateAction";
 import { CampaignShareButton } from "@/components/campaigns/CampaignShareButton";
 import { NotFoundState } from "@/components/errors/NotFoundState";
 import { useCampaignListHref } from "@/lib/campaigns/listReturn";
@@ -28,40 +34,33 @@ import InvitesSection from "./InvitesSection";
 import {
   Eye, Heart, MessageCircle, Share2, TrendingUp, Users,
   Calendar, Play, ExternalLink, DollarSign,
-  ClipboardList, BarChart3, Wallet, Trash2, AlertTriangle, X,
+  ClipboardList, Wallet, Trash2, AlertTriangle, UserPlus,
 } from "lucide-react";
 import { toast } from "sonner";
-import { formatCompact, formatDateAbs, formatFull, formatFullCurrency, fitFigureSize } from "@/lib/format";
+import { formatCompact, formatDateAbs, formatFull, formatFullCurrency } from "@/lib/format";
 import { asOfCaption } from "@/lib/dataAge";
 import { CreatorSelect } from "@/components/CreatorSelect";
 import { TOP_CREATOR_BARS, type CampaignPostSummary } from "@/lib/campaigns/detailSummary";
-import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import { loadCharts } from "@/components/charts/lazyCharts";
 import { noun } from "@/lib/ui/noun";
+import { platformLabel } from "@/lib/format";
 import { followersReached } from "@/lib/campaigns/followersReached";
 
 const ChartSkeleton = ({ height }: { height: number }) => (
-  <Skeleton width="100%" height={`${height}px`} borderRadius="12px" />
+  <Skeleton width="100%" height={height} radius="var(--cc-r-card)" />
 );
 
 const PerformanceTab = dynamic(() => loadCharts().then((m) => m.PerformanceTab), {
   ssr: false,
   loading: () => (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      <div className="rsp-grid-tiles">
-        {[1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} height="88px" borderRadius="12px" />)}
-      </div>
-      <Skeleton width="100%" height="320px" borderRadius="12px" />
+      <TileGridSkeleton count={9} />
+      <Skeleton width="100%" height={320} radius="var(--cc-r-card)" />
     </div>
   ),
 });
 
 const MarketplaceAnalytics = dynamic(() => loadCharts().then((m) => m.MarketplaceAnalytics), {
-  ssr: false,
-  loading: () => <Skeleton width="100%" height="240px" borderRadius="12px" />,
-});
-
-const PlatformViewsPie = dynamic(() => loadCharts().then((m) => m.PlatformViewsPie), {
   ssr: false,
   loading: () => <ChartSkeleton height={240} />,
 });
@@ -83,26 +82,6 @@ function formatCurrency(n: number, currency = "USD") {
   return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(n);
 }
 
-/* Title case, not the raw enum. MEASURED 2026-09-14 at desktop-1600: their
-   campaign header's status reads `Complete`, and ours read `IN PROGRESS` --
-   the same place, the same size and the same colour, shouting. The map is
-   explicit rather than a generic de-snake, so a status whose reading is not
-   just its enum spelled out has somewhere to say so. */
-const STATUS_LABEL: Record<string, string> = {
-  DRAFT: "Draft",
-  PENDING: "Pending",
-  IN_PROGRESS: "In Progress",
-  COMPLETE: "Complete",
-  CANCELLED: "Cancelled",
-};
-
-const STATUS_BADGE: Record<string, "success" | "warning" | "accent" | "neutral"> = {
-  DRAFT: "neutral",
-  PENDING: "warning",
-  IN_PROGRESS: "accent",
-  COMPLETE: "success",
-  CANCELLED: "neutral",
-};
 
 /* The roster and the post totals arrive built by GET /api/campaigns/[id]
    (lib/campaigns/detailSummary), which no longer sends the posts themselves:
@@ -120,17 +99,10 @@ type Activation = {
 };
 
 const CAMPAIGN_TYPE_LABELS: Record<string, string> = {
-  BUDGET_BASED: "Budget Based",
-  VIEW_BASED: "View Based",
-  OPEN_COMMUNITY: "Open Community",
-  PRIVATE_INVITE: "Private Invite",
-};
-
-const CAMPAIGN_TYPE_BADGE: Record<string, "accent" | "success" | "warning" | "neutral"> = {
-  BUDGET_BASED: "accent",
-  VIEW_BASED: "success",
-  OPEN_COMMUNITY: "warning",
-  PRIVATE_INVITE: "neutral",
+  BUDGET_BASED: "Budget based",
+  VIEW_BASED: "View based",
+  OPEN_COMMUNITY: "Open community",
+  PRIVATE_INVITE: "Private invite",
 };
 
 // ─── Marketplace (Phase 2M) ────────────────────────────────────────────────
@@ -141,17 +113,6 @@ const VISIBILITY_OPTIONS: { value: "PRIVATE" | "GLOBAL" | "INVITE_ONLY"; label: 
   { value: "GLOBAL", label: "Public marketplace", desc: "Listed on the public /explore page. Any creator can discover and join." },
   { value: "INVITE_ONLY", label: "Invite only", desc: "Reachable only by creators who have your invite code." },
 ];
-
-const mktLabel: CSSProperties = {
-  display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6,
-};
-const mktInput: CSSProperties = {
-  width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)",
-  fontSize: "var(--cc-t-14)", color: "var(--cc-text)", background: "var(--cc-card)", boxSizing: "border-box",
-};
-const mktTextarea: CSSProperties = {
-  ...mktInput, resize: "vertical", fontFamily: "inherit",
-};
 
 // Amounts are stored as integer MINOR units (cents/paise). UI works in major units.
 function minorToMajor(minor: number | null | undefined): string {
@@ -272,34 +233,33 @@ function CampaignTagsCard({
   const selectedIds = selected.map((s) => s.id);
   const available = (defs ?? []).filter((d) => !selectedIds.includes(d.id));
 
-  return (
-    <Card variant="outlined" className="cc-overview-card">
-      <span className="cc-panel-title" style={{ display: "block", marginBottom: 12 }}>
-        Tags
-      </span>
+  const noDefs = defs !== null && defs.length === 0;
 
+  return (
+    <SectionCard title="Tags">
       {selected.length === 0 ? (
-        <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)" }}>No tags added yet!</p>
+        /* One line, not two: the empty card used to say "No tags added yet!"
+           and then, under it, that no tags were defined either. */
+        <p className="cc-campaign-card-note">
+          No tags yet.
+          {noDefs ? (
+            <>
+              {" "}Define campaign tags in <Link href="/settings/general">Settings → General</Link>.
+            </>
+          ) : null}
+        </p>
       ) : (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+        <div className="cc-campaign-tag-list">
           {selected.map((s) => (
-            <span
-              key={s.id}
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
-                background: "var(--cc-bg)", border: "1px solid var(--cc-border)",
-                borderRadius: 8, padding: "6px 8px 6px 12px", fontSize: "var(--cc-t-13)", color: "var(--cc-text)",
-              }}
-            >
+            <span key={s.id} className="cc-campaign-tag">
               {s.name}
               <button
                 type="button"
                 aria-label={`Remove ${s.name}`}
                 disabled={busy}
                 onClick={() => void save(selectedIds.filter((v) => v !== s.id))}
-                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)", display: "inline-flex", padding: 0 }}
               >
-                <Trash2 size={13} aria-hidden="true" />
+                <Trash2 size={14} aria-hidden="true" />
               </button>
             </span>
           ))}
@@ -308,39 +268,51 @@ function CampaignTagsCard({
 
       {defs === null ? null : available.length > 0 ? (
         <Dropdown
-          ariaLabel="Add Tag"
+          ariaLabel="Add tag"
           value=""
-          placeholder="Add Tag"
+          placeholder="Add tag"
           disabled={busy}
           align="left"
           minWidth={180}
           onChange={(v) => void save([...selectedIds, v])}
           options={available.map((d) => ({ value: d.id, label: d.name }))}
         />
+      ) : noDefs ? (
+        selected.length > 0 ? (
+          <p className="cc-campaign-card-note">
+            Define more campaign tags in <Link href="/settings/general">Settings → General</Link>.
+          </p>
+        ) : null
       ) : (
-        <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
-          {(defs ?? []).length === 0
-            ? "No campaign tags defined yet — add them in Settings → General."
-            : "All tags applied."}
-        </p>
+        <p className="cc-campaign-card-note">All tags applied.</p>
       )}
 
-      {error && <p role="alert" style={{ marginTop: 8, fontSize: "var(--cc-t-12)", color: "var(--cc-danger)" }}>{error}</p>}
-    </Card>
+      {error && <p role="alert" className="cc-form-error">{error}</p>}
+    </SectionCard>
   );
 }
 
 function LoadingSkeleton() {
   return (
-    <div className="cc-page-content" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      <Skeleton width="120px" height="16px" />
-      <Skeleton width="300px" height="32px" />
-      <div className="rsp-grid-tiles">
-        {[1, 2, 3, 4].map(i => <Skeleton key={i} height="80px" borderRadius="10px" />)}
+    <div className="cc-page-content rsp-page" aria-busy="true">
+      <PageHeaderSkeleton />
+      <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+        <TileGridSkeleton count={4} />
+        <Skeleton width="100%" height={300} radius="var(--cc-r-card)" />
       </div>
-      <Skeleton width="100%" height="300px" borderRadius="12px" />
     </div>
   );
+}
+
+function editFormFrom(c: Campaign) {
+  return {
+    title: c.title,
+    status: c.status,
+    currency: c.currency,
+    notes: c.notes ?? "",
+    clientId: c.clientId ?? "",
+    budget: c.budget != null ? String(c.budget) : "",
+  };
 }
 
 export default function CampaignDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -434,14 +406,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const [formsFrom, setFormsFrom] = useState<Campaign | null>(null);
   if (campaign && campaign !== formsFrom) {
     setFormsFrom(campaign);
-    setEditForm({
-      title: campaign.title,
-      status: campaign.status,
-      currency: campaign.currency,
-      notes: campaign.notes ?? "",
-      clientId: campaign.clientId ?? "",
-      budget: campaign.budget != null ? String(campaign.budget) : "",
-    });
+    setEditForm(editFormFrom(campaign));
     const rates: Partial<Record<(typeof MARKETPLACE_PLATFORMS)[number], string>> = {};
     const src = campaign.ratePerThousand ?? {};
     for (const p of MARKETPLACE_PLATFORMS) {
@@ -461,6 +426,12 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     });
   }
 
+
+  /* Save waits for a change. The snapshot is the campaign the form was last
+     reset from, so after a save (which hands back the new campaign) the form
+     reads clean again without any bookkeeping here. */
+  const savedEditForm = useMemo(() => (formsFrom ? editFormFrom(formsFrom) : null), [formsFrom]);
+  const editDirty = useDirty(savedEditForm, editForm);
 
   useEffect(() => {
     if (activeTab === "edit" && !clientsLoaded) {
@@ -711,11 +682,17 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     campaign.budget == null ? 0 : formatFullCurrency(campaign.budget, campaign.currency).length,
   );
 
-  const platformPieData = summary.platforms
-    .filter((stats) => stats.views > 0)
-    .map((stats) => ({
-      name: stats.platform, value: stats.views, fill: platformColor(stats.platform),
-    }));
+  const platformSplitRows = summary.platforms
+    .filter((stats) => stats.posts > 0 || stats.views > 0)
+    .map((stats) => ({ platform: stats.platform, views: stats.views > 0 ? stats.views : null, posts: stats.posts }));
+  /* The Analytics tiles share one figure size, set by the longest of them. */
+  const analyticsFit = Math.max(
+    totalViewsText.length,
+    likesMeasured ? formatNumber(totalLikes).length : 0,
+    avgEngagement === null ? 0 : (avgEngagement.toFixed(2) + "%").length,
+    engagement.engagements === null ? 0 : formatNumber(engagement.engagements).length,
+    formatNumber(summary.posts).length,
+  );
 
   /* The leaders only, already chosen and ordered by the server: drawing every
      creator's bar pair measured all their tick labels in the DOM -- a single
@@ -728,81 +705,46 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
   return (
     <div className="cc-page-content rsp-page">
-      {/* No breadcrumb here. The rail's "All campaigns" is the way back out now
-          and the top bar carries the trail, so this row said the same thing a
-          third time, in the same viewport. */}
-      {/* Header. Not <PageHeader>: that stacks its title and puts everything
-          else in a column, and this screen's status chips sit ON the title
-          line. The shared markers are here so the parity harness measures the
-          same landmarks it measures on every other screen -- without them the
-          whole campaign shell reported UNRESOLVED and read as unmeasurable. */}
-      <div className="cc-page-titlebar" data-region="page-header" data-parity="page.header-strip">
-        {/* Title and status as ONE block, so a theme decides whether they sit
-            on a line or stack. MEASURED 2026-09-14 at desktop-1600: their
-            campaign header is two rows at the same x -- the title at y=38.3
-            (20px/700, brand indigo) and the status alone under it at y=73.3
-            (14px/400, pale indigo) -- while ours was one row with the
-            status and type as pills to the right of the title. The wrapper is
-            a flex row at base with the titlebar's own gap, so light and dark
-            paint exactly what they painted before. */}
-        <div className="cc-page-titleblock">
-          <h1 className="cc-page-title" data-parity="page.title">{campaign.title}</h1>
-          <div className="cc-page-titlemeta">
-            <Badge variant={STATUS_BADGE[campaign.status] ?? "neutral"}>
-              {STATUS_LABEL[campaign.status] ?? campaign.status.replace(/_/g, " ")}
-            </Badge>
-            {campaign.campaignType && (
-              <Badge variant={CAMPAIGN_TYPE_BADGE[campaign.campaignType] ?? "neutral"}>
-                {CAMPAIGN_TYPE_LABELS[campaign.campaignType] ?? campaign.campaignType}
-              </Badge>
-            )}
-          </div>
-        </div>
-        {/* The section's own actions land here, through CampaignHeaderActions,
-            after Share Campaign, which every section carries.
-            `data-region="page-actions"` is
-            what the parity harness looks for -- page.primary-action resolves
-            through `[data-region="page-actions"] [data-cc-slot="primary"]`, the
-            same selector every other page satisfies through PageHeader. */}
-        <div
-          className="cc-page-actions"
-          data-region="page-actions"
-          id={CAMPAIGN_HEADER_ACTIONS_ID}
-        >
-          {/* Share is the page's own child, so every section has it and it
-              comes first: it is in the host when the page commits, before any
-              section's portal mounts and appends after it, and it is never
-              unmounted while the campaign is open, so it never moves to the
-              end. That also means the row is no longer :empty on Overview,
-              which is what puts Share on a phone's Overview at all. */}
-          <CampaignShareButton campaignId={id} campaignTitle={campaign.title} />
-        </div>
-        {/* Close the campaign. MEASURED 2026-09-14 at desktop-1600 on the
-            reference: a 16x16 grey glyph at 1548..1563.5 x 56.5..72, i.e. a
-            28x28 hit area whose right edge is the header card's inner edge at
-            1570. It is the reason their `Add Posts` starts at 1332 and ours
-            started at 1370 -- the 38px offset the harness reported was this
-            control, not a spacing error.
+      {/* The shared header band: back to the campaign list (the same place
+          the rail's "All campaigns" goes -- a link, never history.back(), so
+          a deep-linked visitor is not sent off-site), the status as a badge
+          with its dot, and the campaign's type as a fact in the line under
+          the title rather than a second chip that looked like a status.
 
-            A Link, not a button with router.back(): back() would return to
-            whatever opened the campaign, which on a deep link is another site.
-            Their close always lands on the campaign list, and so does this. The
-            rail's "All campaigns" row is the same destination and stays -- they
-            carry both too. */}
-        <Link
-          href={campaignListHref}
-          className="cc-icon-btn cc-page-close"
-          aria-label="Close campaign"
-          title="Close campaign"
-        >
-          <X size={16} aria-hidden="true" />
-        </Link>
-      </div>
-      <div className="cc-page-meta" data-region="page-meta">
-        <span className="cc-page-meta-item"><Calendar size={14} />{formatDateAbs(campaign.createdAt)}</span>
-        <span>·</span>
-        <span>{roster.length} {noun(roster.length, "creator")} · {campaign._count.posts} {noun(campaign._count.posts, "post")}</span>
-      </div>
+          The section's own actions portal into the span between Share
+          Campaign and the menu, through CampaignHeaderActions. Share is the
+          page's own child, so every section has it and it comes first: it is
+          in the row when the page commits, before any section's portal
+          mounts. */}
+      <PageHeader
+        title={campaign.title}
+        back={{ href: campaignListHref, label: "Campaigns" }}
+        badges={
+          <StatusBadge status={campaign.status} dot>
+            {campaignStatusText(campaign.status)}
+          </StatusBadge>
+        }
+        meta={
+          <>
+            <span>
+              <Calendar size={14} aria-hidden="true" />
+              {formatDateAbs(campaign.createdAt)}
+            </span>
+            {campaign.campaignType ? (
+              <span>{CAMPAIGN_TYPE_LABELS[campaign.campaignType] ?? campaign.campaignType}</span>
+            ) : null}
+            <span>{roster.length} {noun(roster.length, "creator")}</span>
+            <span>{campaign._count.posts} {noun(campaign._count.posts, "post")}</span>
+          </>
+        }
+        actions={
+          <>
+            <CampaignShareButton campaignId={id} campaignTitle={campaign.title} />
+            <span id={CAMPAIGN_HEADER_ACTIONS_ID} className="cc-header-portal" />
+            <SaveAsTemplateAction campaignId={id} campaignTitle={campaign.title} />
+          </>
+        }
+      />
 
       {/* No longer a tabpanel: the control that opens this is a link in the
           rail, so role="tabpanel" would name a tab that does not exist and
@@ -898,25 +840,23 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
             {/* Notes */}
             {campaign.notes && (
-              <Card variant="outlined" className="cc-overview-card">
-                <span className="cc-panel-title" style={{ display: "block", marginBottom: 12 }}>Notes</span>
-                <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", lineHeight: 1.6 }}>{campaign.notes}</p>
-              </Card>
+              <SectionCard title="Notes">
+                <p className="cc-campaign-notes">{campaign.notes}</p>
+              </SectionCard>
             )}
 
             {/* Team */}
             {campaign.teamMembers.length > 0 && (
-              <Card variant="outlined" className="cc-overview-card">
-                <span className="cc-panel-title" style={{ display: "block", marginBottom: 12 }}>Team</span>
-                <div style={{ display: "flex", gap: 12 }}>
+              <SectionCard title="Team">
+                <div className="cc-campaign-team-list">
                   {campaign.teamMembers.map(tm => (
-                    <div key={tm.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 8, background: "var(--cc-bg)" }}>
+                    <span key={tm.id} className="cc-campaign-team-member">
                       <Avatar name={tm.user.name} size="sm" />
-                      <span style={{ fontSize: "var(--cc-t-13)", fontWeight: 500, color: "var(--cc-text)" }}>{tm.user.name}</span>
-                    </div>
+                      {tm.user.name}
+                    </span>
                   ))}
                 </div>
-              </Card>
+              </SectionCard>
             )}
             </div>
           </div>
@@ -965,106 +905,76 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
         {/* Analytics Tab */}
         {activeTab === "analytics" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          <div className="cc-campaign-analytics">
             {campaign.marketplaceVisibility && campaign.marketplaceVisibility !== "PRIVATE" && (
-              <div>
-                <span className="cc-panel-title" style={{ display: "block", marginBottom: 16 }}>Marketplace</span>
+              <section aria-labelledby="campaign-marketplace-analytics">
+                <h2 id="campaign-marketplace-analytics" className="cc-section-card-title cc-campaign-analytics-heading">Marketplace</h2>
                 <MarketplaceAnalytics campaignId={id} currency={campaign.currency ?? "USD"} />
-              </div>
+              </section>
             )}
             {(summary.posts === 0 ? (
             <EmptyState icon={<TrendingUp size={32} color="var(--cc-text-subtle)" />} title="No analytics yet" description="Analytics will be available once posts are synced." />
           ) : (
-            <div className="rsp-grid-2">
-              {/* Summary stats FIRST. MEASURED at desktop-1600 on their campaign
-                  analytics: the figures lead the screen -- `Post Performance`
-                  at 243,148.3 over three 434x80 panels at y=182 -- and the
-                  charts sit under them at y=307. Ours had the two charts at the
-                  top and the numbers at the bottom of the grid, so nothing on
-                  the page was where theirs is. The tiles carry classes for the
-                  same reason the KPI strip on Posts does: their inline styles
-                  were unreachable from the theme. */}
-              <Card variant="outlined" className="cc-analytics-summary" style={{ gridColumn: "1 / -1" }}>
-                <span className="cc-panel-title cc-analytics-summary-title" style={{ display: "block" }}>Performance Summary</span>
-                <div className="cc-kpi-strip cc-kpi-quiet">
-                  <div className="cc-kpi-chip" style={{ "--cc-kpi-fit": fitFigureSize(totalViewsText, 22) } as CSSProperties}>
-                    <span className="cc-kpi-chip-label">Total Views</span>
-                    <span className="cc-kpi-chip-value" title={viewsNote ?? totalViewsText}>{totalViewsText}</span>
-                  </div>
-                  {likesMeasured && (
-                    <div className="cc-kpi-chip cc-kpi-chip-extra" style={{ "--cc-kpi-fit": fitFigureSize(formatNumber(totalLikes), 22) } as CSSProperties}>
-                      <span className="cc-kpi-chip-label">Total Likes</span>
-                      <span className="cc-kpi-chip-value" title={formatNumber(totalLikes)}>{formatNumber(totalLikes)}</span>
-                    </div>
-                  )}
-                  {/* "Avg. Campaign Engagement Rate" is their wording, and it is
-                      the more honest one: this is the campaign-wide rate from
-                      rollupEngagement, not a per-post average. Both engagement
-                      chips are left out, rather than printed as an em dash, for
-                      a campaign whose engagement nobody has fetched. */}
-                  {avgEngagement !== null && (
-                    <div className="cc-kpi-chip">
-                      <span className="cc-kpi-chip-label">Avg. Campaign Engagement Rate</span>
-                      <span className="cc-kpi-chip-value cc-kpi-chip-value-accent">{avgEngagement.toFixed(2) + "%"}</span>
-                    </div>
-                  )}
-                  {/* Their third panel. The figure is the numerator the rate
-                      beside it is computed from, so the two always agree. */}
-                  {engagement.engagements !== null && (
-                    <div className="cc-kpi-chip">
-                      <span className="cc-kpi-chip-label">Total Engagement</span>
-                      <span className="cc-kpi-chip-value">{formatNumber(engagement.engagements)}</span>
-                    </div>
-                  )}
-                  <div className="cc-kpi-chip cc-kpi-chip-extra">
-                    <span className="cc-kpi-chip-label">Posts</span>
-                    <span className="cc-kpi-chip-value">{summary.posts}</span>
-                  </div>
-                </div>
-              </Card>
-
-              {/* Platform breakdown */}
-              <Card variant="outlined" style={{ padding: 24 }}>
-                <span className="cc-panel-title cc-chart-title" style={{ display: "block", marginBottom: 16 }}>Views by Platform</span>
-                {/* platformPieData drops every platform with no measured views,
-                    so a campaign whose posts have never synced leaves it empty --
-                    and an unguarded pie draws 240px of frame and legend around
-                    nothing. The bar chart beside it has always had this guard. */}
-                {platformPieData.length > 0 ? (
-                  <div style={{ height: 240 }}>
-                    <PlatformViewsPie data={platformPieData} formatNumber={formatNumber} />
-                  </div>
-                ) : (
-                  <EmptyState icon={<TrendingUp size={32} color="var(--cc-text-subtle)" />} title="No views measured yet" />
+            <>
+              {/* The figures lead, then the charts. They were five chips in a
+                  card whose ground matched the page, at three figure sizes
+                  (16, 16, 22, 22, 22px), with one label wrapping so its value
+                  sat 16px lower; they are the shared tile now, the same row
+                  the Overview and Performance sections draw. A figure nobody
+                  measured is left out rather than shown as 0. */}
+              <div className="cc-tiles-balanced">
+                <MetricTile fitTo={analyticsFit} metric="totalViews" value={totalViewsText} footer={viewsNote} />
+                {likesMeasured && (
+                  <MetricTile fitTo={analyticsFit} metric="totalLikes" value={formatNumber(totalLikes)} />
                 )}
-              </Card>
-
-              {/* Creator performance */}
-              <Card variant="outlined" style={{ padding: 24 }}>
-                <span className="cc-panel-title cc-chart-title" style={{ display: "block", marginBottom: creatorCount > TOP_CREATOR_BARS ? 4 : 16 }}>Creator Performance</span>
-                {creatorCount > TOP_CREATOR_BARS && (
-                  <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginBottom: 12 }}>
-                    Top {TOP_CREATOR_BARS} of {creatorCount} creators, by views
-                  </p>
+                {/* The campaign-wide rate from rollupEngagement, not a per-post
+                    average, so it is labelled as the campaign's. */}
+                {avgEngagement !== null && (
+                  <MetricTile fitTo={analyticsFit} metric="engagementRate" label="Campaign engagement rate" value={avgEngagement.toFixed(2) + "%"} />
                 )}
-                {creatorBarData.length > 0 ? (
-                  <div style={{ height: 240 }}>
-                    <CreatorPerformanceBar data={creatorBarData} formatNumber={formatNumber} />
-                  </div>
-                ) : (
-                  <EmptyState icon={<BarChart3 size={32} color="var(--cc-text-subtle)" />} title="No creator data" />
+                {/* The numerator the rate beside it is computed from, so the
+                    two always agree. */}
+                {engagement.engagements !== null && (
+                  <MetricTile fitTo={analyticsFit} metric="engagements" label="Total engagement" value={formatNumber(engagement.engagements)} />
                 )}
-              </Card>
+                <MetricTile fitTo={analyticsFit} metric="totalPosts" label="Posts" value={formatNumber(summary.posts)} />
+              </div>
 
-            </div>
+              <div className="rsp-grid-2 cc-campaign-analytics-charts">
+                {/* A ranked list rather than a donut: each platform's share,
+                    figure and post count on one line, sorted biggest first. A
+                    platform whose posts have no view count read yet (views 0
+                    over its posts) reads "—", not 0. */}
+                <SectionCard title="Views by platform">
+                  {platformSplitRows.some((r) => r.views !== null) ? (
+                    <PlatformSplit rows={platformSplitRows} ariaLabel="Views by platform" />
+                  ) : (
+                    <p className="cc-campaign-card-note">No views measured yet.</p>
+                  )}
+                </SectionCard>
+
+                <SectionCard
+                  title="Creator performance"
+                  description={creatorCount > TOP_CREATOR_BARS ? `Top ${TOP_CREATOR_BARS} of ${creatorCount} creators, by views` : undefined}
+                >
+                  {creatorBarData.length > 0 ? (
+                    <div style={{ height: 240 }}>
+                      <CreatorPerformanceBar data={creatorBarData} formatNumber={formatNumber} />
+                    </div>
+                  ) : (
+                    <p className="cc-campaign-card-note">No creator data yet.</p>
+                  )}
+                </SectionCard>
+              </div>
+            </>
           ))}
           </div>
         )}
 
         {/* Edit Tab */}
         {activeTab === "edit" && (
-          <div style={{ maxWidth: 640 }}>
-            <div style={{ marginBottom: 24 }}>
+          <div className="cc-campaign-settings">
+            <div>
               <CampaignPictureCard
                 key={`${campaign.id}:${campaign.thumbnailUrl ?? ""}`}
                 campaignId={id}
@@ -1073,39 +983,31 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 version={campaign.updatedAt}
               />
             </div>
-            <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 24 }}>
-              <h3 style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 20 }}>Edit Campaign</h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                <div>
-                  <label htmlFor="edit-campaign-title" style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Campaign Title</label>
-                  <input
+            <SectionCard title="Campaign details">
+              <div className="cc-campaign-form">
+                <Field label="Campaign title" required>
+                  <Input
                     id="edit-campaign-title"
                     type="text"
                     value={editForm.title}
                     onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
-                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: "var(--cc-t-14)", color: "var(--cc-text)", background: "var(--cc-card)", boxSizing: "border-box" }}
                   />
-                </div>
-                <div className="rsp-grid-2">
-                  <div>
-                    <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Status</label>
+                </Field>
+                <FieldRow>
+                  <Field label="Status">
                     <Dropdown
-                      ariaLabel="Status"
+                      id="edit-campaign-status"
                       size="md"
                       fullWidth
                       align="left"
                       value={editForm.status}
                       onChange={v => setEditForm(f => ({ ...f, status: v }))}
-                      options={["PENDING", "IN_PROGRESS", "COMPLETE", "CANCELLED"].map(s => ({
-                        value: s,
-                        label: STATUS_LABEL[s] ?? s.replace(/_/g, " "),
-                      }))}
+                      options={CAMPAIGN_STATUS_OPTIONS}
                     />
-                  </div>
-                  <div>
-                    <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Currency</label>
+                  </Field>
+                  <Field label="Currency">
                     <Dropdown
-                      ariaLabel="Currency"
+                      id="edit-campaign-currency"
                       size="md"
                       fullWidth
                       align="left"
@@ -1113,33 +1015,27 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                       onChange={v => setEditForm(f => ({ ...f, currency: v }))}
                       options={["USD", "EUR", "GBP", "INR"].map(c => ({ value: c, label: c }))}
                     />
-                  </div>
-                </div>
-                <div>
-                  <label htmlFor="edit-budget" style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>
-                    Budget <span style={{ fontWeight: 500, color: "var(--cc-text-muted)" }}>(optional)</span>
-                  </label>
-                  <input
+                  </Field>
+                </FieldRow>
+                <Field label="Budget" helper="Leave blank if you are not tracking one.">
+                  <Input
                     id="edit-budget"
                     type="number"
                     min={0}
                     step="any"
                     inputMode="decimal"
-                    placeholder="Leave blank if not tracking one"
                     value={editForm.budget}
                     onChange={e => setEditForm(f => ({ ...f, budget: e.target.value }))}
-                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: "var(--cc-t-14)", color: "var(--cc-text)", background: "var(--cc-card)" }}
                   />
-                </div>
-                <div>
-                  <label htmlFor="edit-client" style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Client</label>
-                  {/* Searched rather than scrolled, as the reference does it. A
-                      dropdown listing every client is fine at five and useless
-                      at two hundred. Clearing the picker unsets the client. */}
+                </Field>
+                {/* Searched rather than scrolled. A dropdown listing every
+                    client is fine at five and useless at two hundred.
+                    Clearing the picker unsets the client. */}
+                <Field label="Client">
                   <EntityPicker
                     id="edit-client"
                     endpoint="/api/clients"
-                    placeholder="Search Clients"
+                    placeholder="Search clients"
                     extract={(json) => (json.clients ?? []).map((c: { id: string; name: string }) => ({ id: c.id, label: c.name }))}
                     value={
                       editForm.clientId
@@ -1154,54 +1050,46 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                     }
                     onChange={(opt) => setEditForm(f => ({ ...f, clientId: opt?.id ?? "" }))}
                   />
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }} htmlFor="edit-notes">Notes</label>
-                  <textarea
+                </Field>
+                <Field label="Notes">
+                  <Textarea
                     id="edit-notes"
                     value={editForm.notes}
                     onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
                     rows={3}
-                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: "var(--cc-t-14)", color: "var(--cc-text)", background: "var(--cc-card)", resize: "vertical", fontFamily: "inherit", boxSizing: "border-box" }}
                   />
-                </div>
-                <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                  <button
+                </Field>
+                <div className="cc-campaign-form-actions">
+                  <Button
+                    variant="primary"
                     onClick={handleSave}
-                    disabled={saving}
-                    style={{
-                      padding: "9px 20px", borderRadius: 8, border: "none",
-                      background: saving ? "var(--cc-border)" : "var(--cc-primary)",
-                      color: saving ? "white" : "var(--cc-on-primary)", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)",
-                      cursor: saving ? "not-allowed" : "pointer",
-                    }}
+                    disabled={!editDirty || saving || editForm.title.trim() === ""}
                   >
-                    {saving ? "Saving..." : "Save Changes"}
-                  </button>
+                    {saving ? "Saving…" : "Save changes"}
+                  </Button>
                 </div>
               </div>
-            </div>
+            </SectionCard>
 
             {/* The campaign's sound, added and changed here rather than from a
                 button on the report: it is a property of the campaign, asked
                 for when one is created and edited alongside the rest of it. */}
-            <div style={{ marginTop: 24 }}>
+            <div>
               <CampaignAudioSetup campaignId={id} />
             </div>
 
             <CampaignSwitchesCard campaignId={id} />
 
             {/* ─── Marketplace section (Phase 2M) ─── */}
-            <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 24, marginTop: 24 }}>
-              <h3 style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Marketplace</h3>
-              <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginBottom: 20 }}>
-                Control how creators discover and join this campaign.{SHOW_MONEY && <> Rates are shown in {campaign.currency} and stored to the cent.</>}
-              </p>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            <SectionCard
+              className="cc-campaign-settings-card"
+              title="Marketplace"
+              description={`Control how creators discover and join this campaign.${SHOW_MONEY ? ` Rates are shown in ${campaign.currency} and stored to the cent.` : ""}`}
+            >
+              <div className="cc-campaign-form">
                 {/* Visibility picker */}
                 <div>
-                  <div id="mkt-visibility-label" style={mktLabel}>Visibility</div>
+                  <div id="mkt-visibility-label" className="cc-form-label">Visibility</div>
                   <div role="radiogroup" aria-labelledby="mkt-visibility-label" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {VISIBILITY_OPTIONS.map((opt) => {
                       const selected = mkt.marketplaceVisibility === opt.value;
@@ -1232,125 +1120,102 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
                 {/* Invite code (INVITE_ONLY only) */}
                 {mkt.marketplaceVisibility === "INVITE_ONLY" && (
-                  <div>
-                    <label style={mktLabel}>Invite code</label>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <code style={{
-                        flex: 1, padding: "10px 14px", borderRadius: 10, fontSize: "var(--cc-t-15)", letterSpacing: "0.08em",
-                        border: "1px solid var(--cc-border)", background: "var(--cc-bg)", color: "var(--cc-text)", fontWeight: 700,
-                      }}>
-                        {campaign.inviteCode ?? "— saved on first save —"}
-                      </code>
-                      <button
+                  <Field
+                    group
+                    label="Invite code"
+                    helper="Share this code with invited creators. A new code is generated when you first save; regenerating invalidates the old one."
+                  >
+                    <div className="cc-campaign-invite-code">
+                      <code>{campaign.inviteCode ?? "— saved on first save —"}</code>
+                      <Button
+                        variant="secondary"
                         onClick={handleRotateInviteCode}
                         disabled={rotatingCode || !campaign.inviteCode}
-                        style={{
-                          padding: "9px 16px", borderRadius: 8, border: "1px solid var(--cc-border)",
-                          background: "var(--cc-card)", color: "var(--cc-text)", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)",
-                          cursor: rotatingCode || !campaign.inviteCode ? "not-allowed" : "pointer", whiteSpace: "nowrap",
-                        }}
                       >
                         {rotatingCode ? "Rotating…" : "Regenerate"}
-                      </button>
+                      </Button>
                     </div>
-                    <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginTop: 6 }}>
-                      Share this code with invited creators. A new code is generated when you first save; regenerating invalidates the old one.
-                    </p>
-                  </div>
+                  </Field>
                 )}
 
                 {/* Brief editor */}
-                <div>
-                  <label htmlFor="mkt-guidelines" style={mktLabel}>Guidelines {mkt.marketplaceVisibility === "GLOBAL" && <span style={{ color: "var(--cc-danger)" }}>*</span>}</label>
-                  <textarea
+                <Field label="Guidelines" required={mkt.marketplaceVisibility === "GLOBAL"}>
+                  <Textarea
                     id="mkt-guidelines"
                     value={mkt.guidelines}
                     onChange={(e) => setMkt((m) => ({ ...m, guidelines: e.target.value }))}
                     rows={4}
-                    placeholder="What should creators make? Tone, hooks, must-include beats…"
-                    style={mktTextarea}
+                    placeholder="What should creators make? Tone, hooks, must-include beats"
                   />
-                </div>
-                <div>
-                  <label htmlFor="mkt-requirements" style={mktLabel}>Requirements</label>
-                  <textarea
+                </Field>
+                <Field label="Requirements">
+                  <Textarea
                     id="mkt-requirements"
                     value={mkt.requirements}
                     onChange={(e) => setMkt((m) => ({ ...m, requirements: e.target.value }))}
                     rows={3}
-                    placeholder="Minimum length, hashtags, disclosure, do's and don'ts…"
-                    style={mktTextarea}
+                    placeholder="Minimum length, hashtags, disclosure, do's and don'ts"
                   />
-                </div>
-                <div>
-                  <label htmlFor="mkt-assets-url" style={mktLabel}>Content assets URL</label>
-                  <input
+                </Field>
+                <Field label="Content assets URL">
+                  <Input
                     id="mkt-assets-url"
                     type="url"
                     value={mkt.contentAssetsUrl}
                     onChange={(e) => setMkt((m) => ({ ...m, contentAssetsUrl: e.target.value }))}
-                    placeholder="https://drive.google.com/…"
-                    style={mktInput}
+                    placeholder="https://drive.google.com/"
                   />
-                </div>
+                </Field>
 
                 {/* Per-platform rates (major units → stored minor). Hidden while
                     SHOW_MONEY is off; see lib/moneyUi for why that is safe. */}
                 {SHOW_MONEY && (
-                  <div>
-                    <label style={mktLabel}>
-                      Rate per 1,000 verified views {mkt.marketplaceVisibility === "GLOBAL" && <span style={{ color: "var(--cc-danger)" }}>*</span>}
-                    </label>
-                    <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginBottom: 10 }}>
-                      Set a payout rate per platform (in {campaign.currency}). Leave blank to exclude a platform.
-                    </p>
+                  <Field
+                    group
+                    label="Rate per 1,000 verified views"
+                    required={mkt.marketplaceVisibility === "GLOBAL"}
+                    helper={`Set a payout rate per platform (in ${campaign.currency}). Leave blank to exclude a platform.`}
+                  >
                     <div className="rsp-grid-2">
                       {MARKETPLACE_PLATFORMS.map((p) => (
-                        <div key={p}>
-                          <label style={{ display: "block", fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)", marginBottom: 4 }} htmlFor={`mkt-rate-${p}`}>{p}</label>
-                          <input
+                        <Field key={p} label={platformLabel(p)}>
+                          <Input
                             id={`mkt-rate-${p}`}
                             type="number" min="0" step="0.01"
                             value={mkt.rates[p] ?? ""}
                             onChange={(e) => setMkt((m) => ({ ...m, rates: { ...m.rates, [p]: e.target.value } }))}
                             placeholder="e.g. 1.50"
-                            style={mktInput}
                           />
-                        </div>
+                        </Field>
                       ))}
                     </div>
-                  </div>
+                  </Field>
                 )}
 
                 {/* Deadline + auto-approve */}
-                <div className="rsp-grid-2">
-                  <div>
-                    <label htmlFor="mkt-deadline" style={mktLabel}>Submission deadline</label>
-                    <input
+                <FieldRow>
+                  <Field label="Submission deadline">
+                    <Input
                       id="mkt-deadline"
                       type="date"
                       value={mkt.submissionDeadline}
                       onChange={(e) => setMkt((m) => ({ ...m, submissionDeadline: e.target.value }))}
-                      style={mktInput}
                     />
-                  </div>
-                  <div>
-                    <label htmlFor="mkt-auto-approve" style={mktLabel}>Auto-approve after (hours)</label>
-                    <input
+                  </Field>
+                  <Field label="Auto-approve after (hours)">
+                    <Input
                       id="mkt-auto-approve"
                       type="number" min="1" max="720"
                       value={mkt.autoApproveHours}
                       onChange={(e) => setMkt((m) => ({ ...m, autoApproveHours: e.target.value }))}
                       placeholder="48"
-                      style={mktInput}
                     />
-                  </div>
-                </div>
+                  </Field>
+                </FieldRow>
 
                 {/* Public URL preview */}
-                <div>
-                  <label style={mktLabel}>Public page</label>
-                  <div style={{ padding: "10px 14px", borderRadius: 10, border: "1px dashed var(--cc-border)", background: "var(--cc-bg)", fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
+                <Field group label="Public page">
+                  <div className="cc-campaign-public-url">
                     {campaign.publicSlug ? (
                       <span style={{ color: "var(--cc-text)" }}>/explore/{campaign.publicSlug}</span>
                     ) : mkt.marketplaceVisibility === "GLOBAL" ? (
@@ -1359,56 +1224,54 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                       <span>Set visibility to <strong>Public marketplace</strong> and save to generate a public URL.</span>
                     )}
                   </div>
-                </div>
+                </Field>
 
-                <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                  <button
-                    onClick={handleSaveMarketplace}
-                    disabled={savingMkt}
-                    style={{
-                      padding: "9px 20px", borderRadius: 8, border: "none",
-                      background: savingMkt ? "var(--cc-border)" : "var(--cc-primary)",
-                      color: savingMkt ? "white" : "var(--cc-on-primary)", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)",
-                      cursor: savingMkt ? "not-allowed" : "pointer",
-                    }}
-                  >
-                    {savingMkt ? "Saving…" : "Save Marketplace Settings"}
-                  </button>
+                <div className="cc-campaign-form-actions">
+                  <Button variant="primary" onClick={handleSaveMarketplace} disabled={savingMkt}>
+                    {savingMkt ? "Saving…" : "Save marketplace settings"}
+                  </Button>
                 </div>
               </div>
-            </div>
+            </SectionCard>
           </div>
         )}
       </motion.div>
 
       {showAddCreator && (
-        <Modal open onClose={() => { setShowAddCreator(false); setSelectedCreatorId(""); }} title="Add Creator to Campaign" size="md">
-          <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>
-            <CreatorSelect
-              value={selectedCreatorId}
-              onChange={(id) => setSelectedCreatorId(id)}
-              excludeIds={campaign?.activations.map((a: Activation) => a.creator.id) ?? []}
-            />
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              <button
+        <Modal
+          open
+          onClose={() => { setShowAddCreator(false); setSelectedCreatorId(""); }}
+          icon={UserPlus}
+          tone="brand"
+          title="Add creator to campaign"
+          description="Search your roster by name or handle. Creators already on this campaign are marked Added."
+          size="md"
+          footer={
+            <div className="cc-modal-footer">
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => { setShowAddCreator(false); setSelectedCreatorId(""); }}
-                style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid var(--cc-border)", background: "var(--cc-card)", fontSize: "var(--cc-t-14)", cursor: "pointer", color: "var(--cc-text)" }}
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={handleAddCreator}
                 disabled={!selectedCreatorId || addingCreator}
-                style={{
-                  padding: "9px 16px", borderRadius: 8, border: "none",
-                  background: selectedCreatorId && !addingCreator ? "var(--cc-primary)" : "var(--cc-border)",
-                  color: selectedCreatorId && !addingCreator ? "var(--cc-on-primary)" : "white", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", cursor: selectedCreatorId ? "pointer" : "not-allowed",
-                }}
+                iconLeft={<UserPlus size={16} aria-hidden="true" />}
               >
-                {addingCreator ? "Adding..." : "Add Creator"}
-              </button>
+                {addingCreator ? "Adding…" : "Add creator"}
+              </Button>
             </div>
-          </div>
+          }
+        >
+          <CreatorSelect
+            value={selectedCreatorId}
+            onChange={(id) => setSelectedCreatorId(id)}
+            excludeIds={campaign?.activations.map((a: Activation) => a.creator.id) ?? []}
+          />
         </Modal>
       )}
     </div>

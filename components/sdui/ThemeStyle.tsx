@@ -3,8 +3,8 @@
  *
  * This REPLACES an inline style object on the dashboard root. The difference is
  * not cosmetic: an inline custom property beats every selector, so the previous
- * approach put a tenant's brand colour above `.dark` and `.creatorcore` in the
- * cascade and it bled into every mode. A <style> block carrying `:root.<mode>`
+ * approach put a tenant's brand colour above `.dark` in the cascade and it bled
+ * into every mode. A <style> block carrying `:root.<mode>`
  * sits at the same specificity as the stylesheet's own theme blocks, so modes
  * resolve normally and a tenant can drive twenty tokens as safely as one.
  *

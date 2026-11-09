@@ -7,7 +7,7 @@ import { getAuditActor } from "@/lib/authenticate";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { rosterTablesReady } from "@/lib/creators/rosterTables";
-import { DEFAULT_SHARE_FIELDS, listSharePath, parseShareFields, type ListShareFields } from "@/lib/lists/listShare";
+import { DEFAULT_SHARE_FIELDS, listSharePath, parseShareFields, sharedListPlatforms, type ListShareFields } from "@/lib/lists/listShare";
 import { listApprovalTablesReady } from "@/lib/lists/approvalTables";
 import { DEFAULT_SHARE_REVIEW, SHARE_PLATFORMS, mergeShareReview, parseShareReview, type ShareReview } from "@/lib/lists/shareSettings";
 
@@ -90,7 +90,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const g = await gateList(request, id, "creators:read");
   if (!g.ok) return g.response;
   const share = await db.creatorListShare.findUnique({ where: { listId: id } });
-  return NextResponse.json(serialize(share, await listApprovalTablesReady()));
+  const body = serialize(share, await listApprovalTablesReady());
+  if (!body.share?.review) return NextResponse.json(body);
+  /* The platform chips sit with the review switches, so the platforms the
+     list's creators actually have are read only for a live link that has
+     them. A failed read answers null, and the panel then offers every chip. */
+  const platforms = await sharedListPlatforms(g.auth.orgId, id).catch((e) => {
+    console.error("[list share] could not read the list's platforms", e);
+    return null;
+  });
+  return NextResponse.json({ ...body, platforms });
 }
 
 // POST -- turn sharing on. A revoked link stays dead: turning sharing back on mints a new one.

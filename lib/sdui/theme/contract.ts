@@ -61,13 +61,9 @@ export const TOKEN_CONTRACT = {
   // regardless of label -- and that box is a RATIO of the viewport above the
   // desktop breakpoint (11.25vw x 2.5vw on the dashboard shell: 180x40 at 1600,
   // 162x36 at 1440, both exactly 0.9), falling back to a fixed 180x40 below it.
-  // Ours was content-width x 30. The type does not scale with the box: 18px/400
-  // at every desktop width.
+  // Ours was content-width x 30.
   "--cc-action-min-w": { kind: "length", units: LENGTH_UNITS, note: "primary action width (11.25vw desktop, 180px floor)" },
   "--cc-action-h": { kind: "length", units: LENGTH_UNITS, note: "primary action height (2.5vw desktop, 40px floor)" },
-  "--cc-action-fs": { kind: "length", units: LENGTH_UNITS, note: "primary action type size (measured 18px)" },
-  "--cc-action-fw": { kind: "number", min: 100, max: 900, note: "primary action weight (measured 400)" },
-  "--cc-action-fg": { kind: "color", note: "primary action label (measured #ffffff)" },
   "--cc-control-h": { kind: "length", units: LENGTH_UNITS, note: "default control height" },
 
   // ---- radii --------------------------------------------------------------
@@ -137,15 +133,16 @@ export const storedThemeSchema = z
   .object({
     version: z.number().int().min(1).default(1),
     label: z.string().max(80).optional(),
-    /* One row carries every mode, so a tenant's light and creatorcore themes
-       cannot drift apart in separate records. Each mode is OPTIONAL: a record
-       keyed by an enum would demand all three be present, and a theme that only
-       retunes creatorcore is the common case. */
+    /* One row carries every mode, so a tenant's light and dark themes cannot
+       drift apart in separate records. Each mode is OPTIONAL: a record keyed
+       by an enum would demand both be present, and a theme that only retunes
+       one is the common case. Not .strict(): a row written while the
+       creatorcore theme existed may still carry a `creatorcore` mode, and it
+       is stripped here rather than failing the whole theme. */
     modes: z
       .object({
         light: themeOverridesSchema.optional(),
         dark: themeOverridesSchema.optional(),
-        creatorcore: themeOverridesSchema.optional(),
       })
       .default({}),
     /* Breakpoint-scoped re-points. Necessary, not a nicety: the measured
@@ -166,7 +163,6 @@ export const storedThemeSchema = z
             .object({
               light: themeOverridesSchema.optional(),
               dark: themeOverridesSchema.optional(),
-              creatorcore: themeOverridesSchema.optional(),
             })
             .default({}),
         }),

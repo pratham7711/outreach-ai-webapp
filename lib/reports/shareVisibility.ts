@@ -75,6 +75,22 @@ export type ShareVisibility = {
 };
 
 /**
+ * What a campaign holds for each share option to act on, so the Share dialog
+ * can leave out a switch that would control nothing: platform chips for
+ * platforms with no posts, a budget tile with no budget, a brief section with
+ * no brief, a removed-post flag with nothing removed. Read by
+ * GET /api/campaigns/[id]/share.
+ */
+export type ShareFacts = {
+  /** The SHARE_PLATFORMS this campaign has posts on. */
+  platforms: SharePlatform[];
+  hasBudget: boolean;
+  hasBrief: boolean;
+  /** Posts the platform has stopped serving (lib/postRemoval#isPostRemoved). */
+  removedPosts: number;
+};
+
+/**
  * What a link with no stored visibility shows.
  *
  * Everything except budget. Links created before this feature existed have only

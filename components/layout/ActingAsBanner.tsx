@@ -3,6 +3,8 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Building2 } from "lucide-react";
+import { Banner } from "@/components/ds/Banner";
+import { Button } from "@/components/ds/Button";
 
 /**
  * Says whose workspace this is, on every page, while an operator is in it.
@@ -42,44 +44,21 @@ export function ActingAsBanner({
     }
   }
 
+  /* Read-only is a neutral notice; full access is the danger tone, because
+     there every change lands in the customer's workspace. */
   return (
-    <div
-      role="status"
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        flexWrap: "wrap",
-        padding: "10px 20px",
-        background: mode === "full" ? "var(--cc-danger-bg)" : "var(--cc-accent-bg)",
-        borderBottom: "1px solid var(--cc-border)",
-        fontSize: "var(--cc-t-13)",
-        color: mode === "full" ? "var(--cc-danger-fg)" : "var(--cc-accent-fg)",
-      }}
+    <Banner
+      placement="shell"
+      tone={mode === "full" ? "danger" : "info"}
+      icon={<Building2 aria-hidden="true" />}
+      action={
+        <Button variant="secondary" size="sm" onClick={leave} disabled={leaving}>
+          {leaving ? "Leaving…" : "Return to my workspace"}
+        </Button>
+      }
     >
-      <Building2 size={16} strokeWidth={2} style={{ flexShrink: 0 }} />
-      <span>
-        You are in <strong>{orgName}</strong> as platform staff —{" "}
-        {mode === "full" ? "full access, your changes are theirs" : "read-only"}.
-      </span>
-      <button
-        type="button"
-        onClick={leave}
-        disabled={leaving}
-        style={{
-          background: "none",
-          border: "none",
-          padding: 0,
-          font: "inherit",
-          fontWeight: "var(--cc-fw-strong)",
-          color: "inherit",
-          textDecoration: "underline",
-          cursor: leaving ? "default" : "pointer",
-          marginLeft: "auto",
-        }}
-      >
-        {leaving ? "Leaving…" : "Return to my workspace"}
-      </button>
-    </div>
+      You are in <strong>{orgName}</strong> as platform staff —{" "}
+      {mode === "full" ? "full access, your changes are theirs" : "read-only"}.
+    </Banner>
   );
 }

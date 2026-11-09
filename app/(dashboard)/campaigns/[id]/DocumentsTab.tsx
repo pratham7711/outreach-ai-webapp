@@ -1,10 +1,10 @@
 "use client";
 
-import React from "react";
 import { useState, useEffect, useCallback } from "react";
-import { Card, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
-import { Button } from "@/components/ds";
-import { FileText, ExternalLink, Trash2, Plus } from "lucide-react";
+import { Card, EmptyState, Input } from "@pratham7711/ui";
+import { Modal } from "@/components/ds/Modal";
+import { Button, Skeleton } from "@/components/ds";
+import { FileText, FilePlus2, ExternalLink, Trash2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { CampaignHeaderActions } from "@/components/campaigns/CampaignHeaderActions";
 import { action } from "@/lib/ui/actions";
@@ -207,34 +207,33 @@ export default function DocumentsTab({ campaignId }: { campaignId: string }) {
         <Modal
           open
           onClose={() => setShowAdd(false)}
+          icon={FilePlus2}
+          tone="brand"
           title="Add Document"
+          description="Paste a link to where the document already lives — Drive, Dropbox, Notion, anywhere."
           size="md"
+          dismissible={false}
           footer={
-            <div className="cc-modal-footer" data-width="full">
-              <Button variant="secondary" onClick={() => setShowAdd(false)}>Cancel</Button>
-              <Button variant="primary" loading={busy} onClick={add}>Add Document</Button>
+            <div className="cc-modal-footer">
+              <Button variant="secondary" size="sm" onClick={() => setShowAdd(false)}>Cancel</Button>
+              <Button variant="primary" size="sm" loading={busy} onClick={add}>Add Document</Button>
             </div>
           }
         >
-          <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginBottom: 16 }}>
-            Paste a link to where the document already lives — Drive, Dropbox, Notion, anywhere.
-          </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <input
+          <div className="cc-dialog-stack">
+            <Input
               type="text"
+              label="Document name"
               value={name}
-              aria-label="Document name"
               onChange={(e) => setName(e.target.value)}
               placeholder="Signed contract"
-              style={fieldStyle}
             />
-            <input
+            <Input
               type="url"
+              label="Document link"
               value={url}
-              aria-label="Document link"
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://…"
-              style={fieldStyle}
             />
           </div>
         </Modal>
@@ -242,9 +241,3 @@ export default function DocumentsTab({ campaignId }: { campaignId: string }) {
     </div>
   );
 }
-
-const fieldStyle: React.CSSProperties = {
-  width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)",
-  fontSize: "var(--cc-t-14)", color: "var(--cc-text)", background: "var(--cc-card)",
-  boxSizing: "border-box",
-};

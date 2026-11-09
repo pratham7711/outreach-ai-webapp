@@ -9,19 +9,19 @@
  *
  * The selector matters as much as the content. The seam this replaces wrote
  * --cc-primary as an INLINE style on the dashboard root, and an inline custom
- * property out-specifies both .dark and .creatorcore -- so an org's brand colour
- * leaked into dark mode. At one token that is a cosmetic bug; at twenty it is
+ * property out-specifies .dark -- so an org's brand colour leaked into dark
+ * mode. At one token that is a cosmetic bug; at twenty it is
  * guaranteed. Emitting :root.<mode> puts tenant values on exactly the same
  * footing as the stylesheet's own theme blocks, where the cascade can resolve
  * them normally.
  */
 import { TOKEN_CONTRACT, canonicalise, type TokenName } from "./contract";
 
-export type ThemeMode = "light" | "dark" | "creatorcore";
+export type ThemeMode = "light" | "dark";
 
-/** `:root.light` / `:root.dark` / `:root.creatorcore`. Light was the bare
- *  `:root` until it got its own block in globals.css; a bare `:root` here would
- *  now lose to that block, and would leak into the other two themes besides. */
+/** `:root.light` / `:root.dark`. Light was the bare `:root` until it got its
+ *  own block in globals.css; a bare `:root` here would now lose to that block,
+ *  and would leak into dark besides. */
 function selectorFor(mode: ThemeMode): string {
   return `:root.${mode}`;
 }
@@ -49,7 +49,7 @@ export function emitThemeCss(
     prefix: string,
   ) => {
     const out: string[] = [];
-    for (const mode of ["light", "dark", "creatorcore"] as const) {
+    for (const mode of ["light", "dark"] as const) {
       const overrides = src[mode];
       if (!overrides) continue;
       const decls: string[] = [];

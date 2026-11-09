@@ -1,9 +1,8 @@
 import { redirect } from "next/navigation";
-import { Card } from "@pratham7711/ui";
 import { auth } from "@/lib/auth";
 import { hasPermission } from "@/lib/rbac";
 import { TrackerSettingsClient } from "./TrackerSettingsClient";
-import { PageHeader } from "@/components/ds";
+import { FeatureState, PageHeader } from "@/components/ds";
 
 export const metadata = { title: "Tracker settings" };
 
@@ -27,16 +26,11 @@ export default async function TrackerSettingsPage() {
       {canManage ? (
         <TrackerSettingsClient />
       ) : (
-        <Card variant="outlined">
-          <h2 style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 6 }}>
-            Only admins can manage tracker settings
-          </h2>
-          <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>
-            Read cadence and chart granularity apply to the whole workspace and cost
-            reading time, so they are limited to owners and admins. Ask one of them if
-            you need a tracked sound read more often.
-          </p>
-        </Card>
+        <FeatureState
+          kind="locked"
+          title="Only admins can manage tracker settings"
+          body="Read cadence and chart granularity apply to the whole workspace and cost reading time, so they are limited to owners and admins. Ask one of them if you need a tracked sound read more often."
+        />
       )}
     </div>
   );

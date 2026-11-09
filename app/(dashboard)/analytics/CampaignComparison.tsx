@@ -1,8 +1,9 @@
 "use client";
 import React, { useState, useEffect, useCallback, useId, useRef } from "react";
 import dynamic from "next/dynamic";
-import { Card, EmptyState, Skeleton } from "@pratham7711/ui";
-import { ArrowUpRight, ArrowDownRight, Folder, TrendingUp, AlertTriangle, TrendingDown, Search, X } from "lucide-react";
+import { EmptyState } from "@pratham7711/ui";
+import { ArrowUpRight, ArrowDownRight, Folder, GitCompareArrows, TrendingUp, TrendingDown, Search, X } from "lucide-react";
+import { DataTable, LoadError, SectionCard, Skeleton, type DataTableColumn } from "@/components/ds";
 import { campaignStatusLabel } from "@/lib/statusColors";
 import { formatNumber, formatPercent, rangeToFrom, SERIES_COLORS } from "./shared";
 import { loadCharts } from "@/components/charts/lazyCharts";
@@ -11,7 +12,7 @@ import type { SeriesMode } from "@/lib/charts/seriesMode";
 
 const CampaignComparisonLine = dynamic(() => loadCharts().then((m) => m.CampaignComparisonLine), {
   ssr: false,
-  loading: () => <Skeleton width="100%" height="100%" borderRadius="8px" />,
+  loading: () => <Skeleton width="100%" height="100%" />,
 });
 
 type CampaignOption = { id: string; title: string; status: string };
@@ -306,23 +307,63 @@ export default function CampaignComparison({
     [campaigns]
   );
 
-  return (
-    <Card variant="outlined" style={{ padding: 24, marginBottom: 24 }}>
-      <style>{`.cmp-chart{height:220px;margin-bottom:24px}@media(min-width:768px){.cmp-chart{height:300px}}`}</style>
-      <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
-        <div>
-          <span className="cc-panel-title" style={{ display: "block" }}>Campaign Comparison</span>
-          <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
-            {viewsMode === "daily"
-              ? "Views each campaign gained per day. A day is left blank when the day before has no reading."
-              : "Select 2–5 campaigns to overlay views over time."}
-          </span>
-        </div>
-        {selected.length >= 2 && resp && resp.series.length > 0 ? (
-          <SeriesModeToggle label="Campaign comparison" value={viewsMode} onChange={setViewsMode} />
-        ) : null}
-      </div>
+  /* The overlay's numbers, in the listing table: one header style, figures
+     right-aligned, each campaign's swatch beside its name as the legend. */
+  const columns: DataTableColumn<ComparisonRow>[] = [
+    {
+      key: "campaign",
+      header: "Campaign",
+      minWidth: 200,
+      render: (row) => (
+        <span className="flex min-w-0 items-center gap-2">
+          <span aria-hidden="true" className="size-2.5 shrink-0 rounded-[3px]" style={{ background: colorById[row.id] ?? SERIES_COLORS[0] }} />
+          <span className="cc-dt-truncate font-medium" title={row.title}>{row.title}</span>
+        </span>
+      ),
+    },
+    {
+      key: "views",
+      header: "Views",
+      width: 136,
+      align: "right",
+      render: (row) => (
+        <>
+          <div className="font-semibold">{formatNumber(row.views)}</div>
+          <DeltaBadge pct={row.viewsVsOrg.pct} />
+        </>
+      ),
+    },
+    { key: "engagements", header: "Engagements", width: 136, align: "right", render: (row) => formatNumber(row.engagements) },
+    {
+      key: "rate",
+      header: "Engagement rate",
+      width: 156,
+      align: "right",
+      render: (row) => (
+        <>
+          <div className="font-semibold">{formatPercent(row.engagementRate)}</div>
+          <DeltaBadge pct={row.engRateVsOrg.pct} />
+        </>
+      ),
+    },
+  ];
 
+  return (
+    <SectionCard
+      icon={GitCompareArrows}
+      title="Campaign comparison"
+      description={
+        viewsMode === "daily"
+          ? "Views each campaign gained per day. A day is left blank when the day before has no reading."
+          : "Select 2–5 campaigns to overlay views over time."
+      }
+      action={
+        selected.length >= 2 && resp && resp.series.length > 0 ? (
+          <SeriesModeToggle label="Campaign comparison" value={viewsMode} onChange={setViewsMode} />
+        ) : undefined
+      }
+    >
+      <style>{`.cmp-chart{height:220px;margin-bottom:24px}@media(min-width:768px){.cmp-chart{height:300px}}`}</style>
       {campaigns.length === 0 ? (
         <EmptyState icon={<Folder size={32} color="var(--cc-text-subtle)" />} title="No campaigns" description="Create campaigns to compare their performance." />
       ) : (
@@ -331,13 +372,17 @@ export default function CampaignComparison({
 
           {selected.length < 2 ? (
             <EmptyState icon={<TrendingUp size={32} color="var(--cc-text-subtle)" />} title="Pick at least 2 campaigns" description="Search for campaigns above to see the comparison." />
-          ) : loading ? (
+          ) : loading || (!error && !resp) ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <Skeleton height="260px" borderRadius="12px" />
-              <Skeleton height="120px" borderRadius="12px" />
+              <Skeleton height={260} />
+              <Skeleton height={120} />
             </div>
           ) : error || !resp ? (
-            <EmptyState icon={<AlertTriangle size={32} color="var(--cc-text-subtle)" />} title="Failed to load comparison" description="Try changing your selection or filters." />
+            <LoadError
+              title="We couldn't load the comparison"
+              description="These campaigns' figures were not read. Try again, or change the selection."
+              onRetry={load}
+            />
           ) : resp.series.length === 0 ? (
             <EmptyState icon={<TrendingDown size={32} color="var(--cc-text-subtle)" />} title="No time-series data" description="These campaigns have no posts in the selected range." />
           ) : (
@@ -352,50 +397,21 @@ export default function CampaignComparison({
                 />
               </div>
 
-              <div className="rsp-table-wrap">
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "var(--cc-t-13)"}}>
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid var(--cc-border)" }}>
-                      {["Campaign", "Views", "Engagements", "Eng. Rate"].map((h, i) => (
-                        <th
-                          key={h}
-                          className="cc-microlabel" style={{ padding: "8px 12px", textAlign: i === 0 ? "left" : "right" }}
-                        >
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {resp.comparison.map((row, i) => (
-                      <tr key={row.id} style={{ borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }}>
-                        <td style={{ padding: "10px 12px" }}>
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                            <span style={{ width: 10, height: 10, borderRadius: 3, background: colorById[row.id] ?? SERIES_COLORS[0], flexShrink: 0 }} />
-                            <span style={{ fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{row.title}</span>
-                          </span>
-                        </td>
-                        <td style={{ padding: "10px 12px", textAlign: "right" }}>
-                          <div style={{ fontWeight: 700, color: "var(--cc-text)" }}>{formatNumber(row.views)}</div>
-                          <DeltaBadge pct={row.viewsVsOrg.pct} />
-                        </td>
-                        <td style={{ padding: "10px 12px", textAlign: "right", color: "var(--cc-text)" }}>{formatNumber(row.engagements)}</td>
-                        <td style={{ padding: "10px 12px", textAlign: "right" }}>
-                          <div style={{ fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{formatPercent(row.engagementRate)}</div>
-                          <DeltaBadge pct={row.engRateVsOrg.pct} />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <p style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-subtle)", marginTop: 12 }}>
+              <DataTable
+                bare
+                caption="Campaign comparison"
+                columns={columns}
+                rows={resp.comparison}
+                rowKey={(row) => row.id}
+                stickyFirstColumn={false}
+              />
+              <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginTop: 12 }}>
                 Delta badges compare each campaign against the org-wide average for the current filters.
               </p>
             </>
           )}
         </>
       )}
-    </Card>
+    </SectionCard>
   );
 }

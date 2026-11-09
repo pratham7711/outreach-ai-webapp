@@ -1,9 +1,18 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2 } from "lucide-react";
-import { Card, Badge, EmptyState, Skeleton } from "@pratham7711/ui";
-import { PageHeader, MetricTile, Button } from "@/components/ds";
-import { formatDateAbs, formatDateTimeAbs } from "@/lib/format";
+import { Camera, CheckCircle2, CircleAlert, Inbox } from "lucide-react";
+import {
+  PageHeader,
+  MetricTile,
+  SectionCard,
+  DataTable,
+  NoResults,
+  LoadError,
+  Skeleton,
+  PlatformTag,
+  type DataTableColumn,
+} from "@/components/ds";
+import { formatDateAbs, formatDateTimeAbs, platformLabel } from "@/lib/format";
 import { InstagramSourceBanner } from "@/components/integrations/InstagramSourceBanner";
 
 type PlatformStats = {
@@ -30,18 +39,30 @@ type SnapshotSource = {
   count: number;
 };
 
-const PLATFORM_LABELS: Record<string, string> = {
-  TIKTOK: "TikTok",
-  INSTAGRAM: "Instagram",
-  YOUTUBE: "YouTube",
-};
+const DEAD_LETTER_COLUMNS: DataTableColumn<DeadLetterPost>[] = [
+  {
+    key: "post",
+    header: "Post URL",
+    minWidth: 280,
+    primary: true,
+    render: (p) => (
+      <span className="cc-ingestion-post">
+        <a href={p.postUrl} target="_blank" rel="noreferrer" title={p.postUrl} className="cc-dt-truncate cc-ingestion-post__url">
+          {p.postUrl}
+        </a>
+        {p.campaignTitle ? <span className="cc-dt-truncate cc-ingestion-post__campaign">{p.campaignTitle}</span> : null}
+      </span>
+    ),
+  },
+  { key: "platform", header: "Platform", width: 140, render: (p) => <PlatformTag platform={p.platform} /> },
+  { key: "fails", header: "Fail count", width: 120, align: "right", render: (p) => p.syncFailCount.toLocaleString("en-US") },
+  { key: "disabled", header: "Disabled", width: 140, render: (p) => (p.syncDisabledAt ? formatDateAbs(p.syncDisabledAt) : "—") },
+];
 
-const cellStyle = {
-  padding: "10px 12px",
-  borderBottom: "1px solid var(--cc-border)",
-  fontSize: "var(--cc-t-13)",
-  color: "var(--cc-text)",
-} as const;
+const SNAPSHOT_COLUMNS: DataTableColumn<SnapshotSource>[] = [
+  { key: "source", header: "Source", minWidth: 200, render: (s) => s.syncSource },
+  { key: "count", header: "Snapshots", width: 140, align: "right", render: (s) => s.count.toLocaleString("en-US") },
+];
 
 export default function IngestionClient() {
   const [perPlatform, setPerPlatform] = useState<PlatformStats[]>([]);
@@ -72,134 +93,98 @@ export default function IngestionClient() {
   return (
     <div className="rsp-page page-enter">
       <PageHeader
-        title="Ingestion Health"
-        subtitle="Sync status per platform, dead-lettered posts, and snapshot sources"
+        title="Ingestion"
+        subtitle="Sync health per platform, dead-lettered posts and snapshot sources."
       />
 
-      {/* Above the per-platform tables, and outside the loading branch: the
-          Instagram rows below keep reporting healthy syncs while views are
-          frozen, because the embed fallback still answers. This is the line that
-          says which number stopped. */}
-      <InstagramSourceBanner style={{ marginBottom: 20 }} />
+      <div className="cc-ingestion-stack">
+        {/* Above the per-platform tiles, and outside the loading branch: the
+            Instagram rows below keep reporting healthy syncs while views are
+            frozen, because the embed fallback still answers. This is the line
+            that says which number stopped. */}
+        <InstagramSourceBanner />
 
-      {error && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, border: "1px solid var(--cc-border)", borderRadius: 8, padding: "12px 16px", marginBottom: 20, fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
-          <span>{error}</span>
-          <Button variant="secondary" size="sm" onClick={load}>Retry</Button>
-        </div>
-      )}
-
-      {loading ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-          <Skeleton width="100%" height="120px" borderRadius="12px" />
-          <Skeleton width="100%" height="120px" borderRadius="12px" />
-          <Skeleton width="100%" height="120px" borderRadius="12px" />
-          <Skeleton width="100%" height="240px" borderRadius="12px" />
-        </div>
-      ) : (
-        !error && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-            {/* The API now returns only platforms this org has posts on, so an
-                empty list means there is genuinely nothing to ingest yet —
-                not that every platform is broken. It used to render ten
-                all-zero blocks, which read as exactly that. */}
-            {perPlatform.length === 0 && (
-              <Card variant="outlined" style={{ padding: 24 }}>
-                <EmptyState
-                  icon={<CheckCircle2 size={32} color="var(--cc-text-subtle)" />}
+        {error ? (
+          <LoadError title="Ingestion status could not be loaded" onRetry={load} retrying={loading} />
+        ) : loading ? (
+          <div className="cc-ingestion-stack" aria-busy="true">
+            <div className="cc-tiles-balanced">
+              {[0, 1, 2, 3].map((i) => (
+                <Skeleton key={i} height={104} radius="var(--cc-r-card)" />
+              ))}
+            </div>
+            <Skeleton height={240} radius="var(--cc-r-card)" />
+          </div>
+        ) : (
+          <>
+            {/* The API returns only platforms this org has posts on, so an
+                empty list means there is genuinely nothing to ingest yet. */}
+            {perPlatform.length === 0 ? (
+              <SectionCard icon={Inbox} title="Platforms">
+                <NoResults
+                  icon={<CheckCircle2 size={32} strokeWidth={1.75} />}
                   title="No posts to ingest yet"
                   description="Add a post to a campaign and its platform will appear here with its sync health."
                 />
-              </Card>
+              </SectionCard>
+            ) : (
+              perPlatform.map((p) => (
+                <section key={p.platform} className="cc-ingestion-platform" aria-label={`${platformLabel(p.platform)} sync health`}>
+                  <header className="cc-ingestion-platform__head">
+                    <h2 className="cc-ingestion-platform__title">
+                      <PlatformTag platform={p.platform} />
+                    </h2>
+                    <span className="cc-ingestion-platform__meta">
+                      {p.lastSyncAt ? `Last sync ${formatDateTimeAbs(p.lastSyncAt)}` : "No syncs yet"}
+                      {` · ${p.sealed.toLocaleString("en-US")} sealed`}
+                    </span>
+                  </header>
+                  <div className="cc-tiles-balanced">
+                    <MetricTile metric="ingestionTotalPosts" value={p.total.toLocaleString("en-US")} />
+                    <MetricTile metric="ingestionSynced24h" value={p.syncedLast24h.toLocaleString("en-US")} />
+                    <MetricTile metric="ingestionNeverSynced" value={p.neverSynced.toLocaleString("en-US")} />
+                    <MetricTile metric="ingestionDeadLettered" value={p.deadLettered.toLocaleString("en-US")} />
+                  </div>
+                </section>
+              ))
             )}
-            {perPlatform.map((p) => (
-              <div key={p.platform}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                  <Badge variant="neutral" size="sm">{PLATFORM_LABELS[p.platform] ?? p.platform}</Badge>
-                  <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
-                    {p.lastSyncAt ? `Last sync ${formatDateTimeAbs(p.lastSyncAt)}` : "No syncs yet"}
-                    {` · ${p.sealed} sealed`}
-                  </span>
-                </div>
-                <div className="rsp-grid-tiles">
-                  <MetricTile metric="ingestionTotalPosts" value={String(p.total)} />
-                  <MetricTile metric="ingestionSynced24h" value={String(p.syncedLast24h)} />
-                  <MetricTile metric="ingestionNeverSynced" value={String(p.neverSynced)} />
-                  <MetricTile metric="ingestionDeadLettered" value={String(p.deadLettered)} />
-                </div>
-              </div>
-            ))}
 
-            <Card variant="outlined" style={{ padding: 24 }}>
-              <h2 style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", margin: "0 0 16px" }}>Dead-lettered posts</h2>
-              {deadLetter.length === 0 ? (
-                <EmptyState
-                  icon={<CheckCircle2 size={32} color="var(--cc-text-subtle)" />}
-                  title="No failed posts — ingestion healthy"
-                  description="Posts that repeatedly fail to sync will appear here."
-                />
-              ) : (
-                <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 560 }}>
-                    <thead>
-                      <tr>
-                        {["Post URL", "Platform", "Fail count", "Disabled"].map((h) => (
-                          <th key={h} style={{ textAlign: "left", fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)", padding: "8px 12px", borderBottom: "1px solid var(--cc-border)" }}>
-                            {h}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {deadLetter.map((p) => (
-                        <tr key={p.id}>
-                          <td style={{ ...cellStyle, maxWidth: 360 }}>
-                            <a
-                              href={p.postUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              title={p.postUrl}
-                              style={{ color: "var(--cc-primary)", textDecoration: "none", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                            >
-                              {p.postUrl}
-                            </a>
-                            {p.campaignTitle && (
-                              <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{p.campaignTitle}</span>
-                            )}
-                          </td>
-                          <td style={cellStyle}>
-                            <Badge variant="neutral" size="sm">{PLATFORM_LABELS[p.platform] ?? p.platform}</Badge>
-                          </td>
-                          <td style={cellStyle}>{p.syncFailCount}</td>
-                          <td style={cellStyle}>
-                            {p.syncDisabledAt ? formatDateAbs(p.syncDisabledAt) : "—"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </Card>
+            <SectionCard icon={CircleAlert} title="Dead-lettered posts" padded={false}>
+              <DataTable
+                bare
+                caption="Dead-lettered posts"
+                columns={DEAD_LETTER_COLUMNS}
+                rows={deadLetter}
+                rowKey={(p) => p.id}
+                empty={
+                  <NoResults
+                    icon={<CheckCircle2 size={32} strokeWidth={1.75} />}
+                    title="No failed posts"
+                    description="Ingestion is healthy. Posts that repeatedly fail to sync appear here."
+                  />
+                }
+              />
+            </SectionCard>
 
-            <Card variant="outlined" style={{ padding: 24 }}>
-              <h2 style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", margin: "0 0 16px" }}>Snapshot sources (last 24h)</h2>
-              {recentSnapshots.length === 0 ? (
-                <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>No snapshots recorded in the last 24 hours</p>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {recentSnapshots.map((s) => (
-                    <div key={s.syncSource} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", border: "1px solid var(--cc-border)", borderRadius: 8 }}>
-                      <span style={{ fontSize: "var(--cc-t-13)", fontWeight: 500, color: "var(--cc-text)" }}>{s.syncSource}</span>
-                      <Badge variant="neutral" size="sm">{s.count}</Badge>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Card>
-          </div>
-        )
-      )}
+            <SectionCard icon={Camera} title="Snapshot sources (last 24h)" padded={false}>
+              <DataTable
+                bare
+                caption="Snapshot sources in the last 24 hours"
+                columns={SNAPSHOT_COLUMNS}
+                rows={recentSnapshots}
+                rowKey={(s) => s.syncSource}
+                empty={
+                  <NoResults
+                    icon={<Camera size={32} strokeWidth={1.75} />}
+                    title="No snapshots in the last 24 hours"
+                    description="Snapshots written in the last 24 hours appear here, grouped by source."
+                  />
+                }
+              />
+            </SectionCard>
+          </>
+        )}
+      </div>
     </div>
   );
 }

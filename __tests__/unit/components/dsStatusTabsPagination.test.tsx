@@ -58,13 +58,13 @@ describe("StatusTabs", () => {
 describe("Pagination", () => {
   it("renders range text when total and pageSize provided", () => {
     render(<Pagination page={2} totalPages={5} total={94} pageSize={20} onPageChange={() => {}} />);
-    expect(screen.getByText("Showing 21-40 of 94")).toBeInTheDocument();
-    expect(screen.getByText("Page 2 of 5")).toBeInTheDocument();
+    expect(screen.getByText("21–40 of 94")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Page 2" })).toHaveAttribute("aria-current", "page");
   });
 
   it("clamps the range end to total on the last page", () => {
     render(<Pagination page={5} totalPages={5} total={94} pageSize={20} onPageChange={() => {}} />);
-    expect(screen.getByText("Showing 81-94 of 94")).toBeInTheDocument();
+    expect(screen.getByText("81–94 of 94")).toBeInTheDocument();
   });
 
   it("disables Prev on the first page and Next on the last", () => {

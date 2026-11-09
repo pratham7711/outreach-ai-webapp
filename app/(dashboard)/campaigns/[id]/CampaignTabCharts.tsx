@@ -5,20 +5,12 @@ import {
   PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from "recharts";
 import { ChartFrame } from "@/components/ds/ChartFrame";
+import { chartAxisTick, chartLegendProps, chartTooltipProps } from "@/components/charts/chartTheme";
+import { platformLabel } from "@/lib/platforms/registry";
 
 type PieDatum = { name?: string; value: number; fill?: string };
 /** Null where none of the creator's posts measured that counter: no bar, not a 0. */
 type BarDatum = { name: string; views: number | null; likes: number | null };
-
-const axisTick = { fontSize: 12, fill: "var(--muted-foreground)" } as const;
-
-const chartTooltipStyle: React.CSSProperties = {
-  background: "var(--popover)",
-  border: "1px solid var(--border)",
-  borderRadius: 12,
-  color: "var(--popover-foreground)",
-  fontSize: "var(--cc-t-13)",
-};
 
 export function PlatformViewsPie({
   data,
@@ -36,8 +28,8 @@ export function PlatformViewsPie({
           ))}
         </Pie>
         <Tooltip
-          contentStyle={chartTooltipStyle}
-          formatter={(v: any, name: any) => [`${formatNumber(Number(v ?? 0))} views`, String(name)]}
+          {...chartTooltipProps}
+          formatter={(v: unknown, name: unknown) => [`${formatNumber(Number(v ?? 0))} views`, platformLabel(String(name))]}
         />
         {/* 40, not 24: recharts pins the legend wrapper to this height and lays
             its items out as inline-blocks that never wrap. Three platform names
@@ -45,7 +37,7 @@ export function PlatformViewsPie({
             either ran outside the wrapper or -- once the stylesheet let it wrap
             -- ran 14px below it. 40px is the room the second line needs; the
             legend is still one line wherever it fits. MEASURED 2026-09-15. */}
-        <Legend itemSorter={null} verticalAlign="bottom" height={40} wrapperStyle={{ fontSize: "var(--cc-t-12)"}} formatter={(value: any) => <span style={{ color: "var(--cc-text-muted)" }}>{value}</span>} />
+        <Legend {...chartLegendProps} itemSorter={null} verticalAlign="bottom" height={40} />
       </PieChart>
     </ChartFrame>
   );
@@ -62,10 +54,10 @@ export function CreatorPerformanceBar({
     <ChartFrame minHeight={200}>
       <BarChart data={data} margin={{ top: 4, right: 0, bottom: 0, left: -8 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
-        <XAxis dataKey="name" tick={axisTick} axisLine={false} tickLine={false} />
+        <XAxis dataKey="name" tick={chartAxisTick} axisLine={false} tickLine={false} />
         <YAxis
           yAxisId="views"
-          tick={{ ...axisTick, fill: "var(--chart-1)" }}
+          tick={{ ...chartAxisTick, fill: "var(--chart-1)" }}
           axisLine={false}
           tickLine={false}
           width={52}
@@ -74,27 +66,22 @@ export function CreatorPerformanceBar({
         <YAxis
           yAxisId="likes"
           orientation="right"
-          tick={{ ...axisTick, fill: "var(--chart-3)" }}
+          tick={{ ...chartAxisTick, fill: "var(--chart-3)" }}
           axisLine={false}
           tickLine={false}
           width={44}
           tickFormatter={(v) => formatCompact(Number(v))}
         />
         <Tooltip
-          contentStyle={chartTooltipStyle}
-          formatter={(v: any, name: any) => [v == null ? "—" : formatNumber(Number(v)), String(name)]}
+          {...chartTooltipProps}
+          formatter={(v: unknown, name: unknown) => [v == null ? "—" : formatNumber(Number(v)), String(name)]}
         />
         {/* Formatted like the pie chart's legend above. Left to itself recharts
             paints each label in its series colour, so "Likes" rendered in the
-            green of its own bar -- 2.62:1 on the light ground and 2.22:1 on
-            creatorcore. A series colour is chosen to read as a bar, not as
-            12px text; the swatch beside the label already carries it. */}
-        <Legend itemSorter={null}
-          verticalAlign="top"
-          height={24}
-          wrapperStyle={{ fontSize: "var(--cc-t-12)"}}
-          formatter={(value: any) => <span style={{ color: "var(--cc-text-muted)" }}>{value}</span>}
-        />
+            green of its own bar -- 2.62:1 on the light ground. A series colour
+            is chosen to read as a bar, not as 12px text; the swatch beside the
+            label already carries it. */}
+        <Legend {...chartLegendProps} itemSorter={null} verticalAlign="top" height={24} />
         <Bar isAnimationActive={false} yAxisId="views" dataKey="views" name="Views" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
         <Bar isAnimationActive={false} yAxisId="likes" dataKey="likes" name="Likes" fill="var(--chart-3)" radius={[4, 4, 0, 0]} />
       </BarChart>
@@ -122,7 +109,7 @@ export function BudgetBreakdownPie({
               in all three themes. */}
           <Cell fill="var(--ui-bg-3)" />
         </Pie>
-        <Tooltip formatter={(v: any) => formatCurrency(Number(v ?? 0), currency)} contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12 }} />
+        <Tooltip {...chartTooltipProps} formatter={(v: unknown) => formatCurrency(Number(v ?? 0), currency)} />
       </PieChart>
     </ChartFrame>
   );

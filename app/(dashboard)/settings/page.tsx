@@ -15,7 +15,7 @@ const cards = [
   },
   {
     title: "Profile",
-    description: "Update your organization name and logo.",
+    description: "Your organization's name, regional defaults and branding.",
     href: "/settings/profile",
     icon: Building2,
   },
@@ -26,7 +26,7 @@ const cards = [
     icon: Users,
   },
   {
-    title: "API Keys",
+    title: "API keys",
     description: "Create and revoke keys for API access and integrations.",
     href: "/settings/api-keys",
     /* The key glyph the sidebar uses for this page; it was a credit card,
@@ -34,14 +34,14 @@ const cards = [
     icon: Key,
   },
   {
-    title: "Trackers",
+    title: "Tracker settings",
     description: "How often tracked sounds are read from TikTok, and how densely their charts are drawn.",
     href: "/settings/trackers",
     icon: LineChart,
   },
   {
     title: "Notifications",
-    description: "Which events reach your notification bell. Personal — every teammate chooses their own.",
+    description: "Which events reach your notification bell. Personal: every teammate chooses their own.",
     href: "/settings/notifications",
     icon: Bell,
   },
@@ -53,10 +53,9 @@ const cards = [
   },
   /* The other seven settings pages were all reachable two ways -- a rail row and
      a card here -- but Ingestion had only the rail row, so it was the one page
-     that a theme collapsing the rail would orphan outright. That is now what the
-     creatorcore theme does (see --cc-nav-subpage-display in globals.css), which
-     turns a cosmetic inconsistency into a page nobody can reach. Listed here so
-     the hub is the complete index of settings it always appeared to be. */
+     that a theme collapsing the rail would orphan outright, as the former
+     CreatorCore theme did. Listed here so the hub is the complete index of
+     settings it always appeared to be. */
   {
     title: "Ingestion",
     description: "Health of the post and profile ingestion pipeline, and the dead-letter queue.",
@@ -68,7 +67,7 @@ const cards = [
 /* Left the sidebar in October 2026; the log itself is unchanged. */
 const adminCards = [
   {
-    title: "Activity Log",
+    title: "Audit log",
     description: "Who changed what in this workspace, and when.",
     href: "/audit-log",
     icon: FileText,
@@ -88,61 +87,21 @@ export default async function SettingsPage() {
         subtitle="Manage your workspace, team, access and integrations."
       />
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-          gap: 16,
-        }}
-      >
+      <div className="cc-settings-hub">
         {visibleCards.map((card) => {
           const Icon = card.icon;
 
           return (
-            <Link
-              key={card.href}
-              href={card.href}
-              style={{
-                textDecoration: "none",
-                color: "inherit",
-              }}
-            >
-              <div className="group h-full rounded-2xl border border-[var(--cc-border)] bg-[var(--cc-card)] p-5 shadow-[0_1px_0_color-mix(in_srgb,var(--cc-shadow-ink)_2%,transparent)] transition-[transform,border-color,box-shadow] duration-150 hover:-translate-y-0.5 hover:border-[color-mix(in_srgb,var(--cc-primary)_35%,transparent)] hover:shadow-[0_12px_30px_color-mix(in_srgb,var(--cc-shadow-ink)_6%,transparent)]">
-                <div
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 12,
-                    background: "var(--cc-primary-light)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    marginBottom: 16,
-                    color: "var(--cc-primary)",
-                  }}
-                >
-                  <Icon size={20} />
-                </div>
-                <h2 style={{ fontSize: "var(--cc-t-16)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 8 }}>
-                  {card.title}
-                </h2>
-                <p style={{ fontSize: "var(--cc-t-14)", lineHeight: 1.6, color: "var(--cc-text-muted)", marginBottom: 16 }}>
-                  {card.description}
-                </p>
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    fontSize: "var(--cc-t-13)",
-                    fontWeight: "var(--cc-fw-strong)",
-                    color: "var(--cc-primary)",
-                  }}
-                >
-                  Open
-                  <ArrowRight size={14} />
-                </span>
-              </div>
+            <Link key={card.href} href={card.href} className="cc-settings-hub-card">
+              <span className="cc-settings-hub-card__icon" aria-hidden="true">
+                <Icon size={20} />
+              </span>
+              <h2 className="cc-settings-hub-card__title">{card.title}</h2>
+              <p className="cc-settings-hub-card__body">{card.description}</p>
+              <span className="cc-settings-hub-card__link">
+                Open
+                <ArrowRight size={16} aria-hidden="true" />
+              </span>
             </Link>
           );
         })}

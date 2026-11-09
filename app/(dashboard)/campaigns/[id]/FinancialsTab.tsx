@@ -1,10 +1,9 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Badge, Card, Skeleton } from "@pratham7711/ui";
-import { MetricTile } from "@/components/ds";
+import { Badge, Card } from "@pratham7711/ui";
+import { MetricTile, Skeleton } from "@/components/ds";
 import { formatDateAbs } from "@/lib/format";
-import { Wallet, TrendingUp } from "lucide-react";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import CreatorName from "@/components/creators/CreatorName";
 
@@ -167,17 +166,11 @@ export default function FinancialsTab({
           </div>
         </Card>
 
-        {/* Their two rollups lead with a 30px indigo glyph inset 20 from a 671
-            wide card, which is what puts their label on x=974. The glyph is
-            creatorcore-only -- it is hidden at base, so light and dark render
-            the same two tiles they always did. */}
         <div className="cc-fin-tiles">
           <div className="cc-fin-tile">
-            <Wallet className="cc-fin-tile-icon" size={30} aria-hidden />
             <MetricTile label="Creator Rate Totals" value={money(creatorRateTotals ?? 0, currency)} />
           </div>
           <div className="cc-fin-tile">
-            <TrendingUp className="cc-fin-tile-icon" size={30} aria-hidden />
             <MetricTile label="Total Profit" value={money(profitTotal ?? 0, currency)} />
           </div>
         </div>
@@ -189,7 +182,7 @@ export default function FinancialsTab({
         ) : !deposit ? (
           <Empty>No payments created for this campaign!</Empty>
         ) : (
-          <Card className="overflow-hidden py-0">
+          <Card noPadding className="overflow-hidden">
             <div style={{ ...ROW, fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)", borderBottom: "1px solid var(--cc-border)" }}>
               <span>Gateway</span>
               <span>Amount</span>
@@ -219,7 +212,7 @@ export default function FinancialsTab({
         ) : payouts.length === 0 ? (
           <Empty>No payouts created for this campaign!</Empty>
         ) : (
-          <Card className="overflow-hidden py-0">
+          <Card noPadding className="overflow-hidden">
             <div style={{ ...ROW, fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)", borderBottom: "1px solid var(--cc-border)" }}>
               <span>Creator</span>
               <span>Amount</span>

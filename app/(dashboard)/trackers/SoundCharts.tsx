@@ -20,7 +20,7 @@ import { CHART_BUCKET_HOURS, type ChartGranularity } from "@/lib/trackers/granul
 export type SeriesPoint = { value: number; recordedAt: string; rounded?: boolean };
 
 /**
- * The two charts CreatorCore shows for an audio, in Recharts rather than its
+ * The two charts shown for an audio, in Recharts rather than its
  * Chart.js: a cumulative level, and the change between consecutive points.
  *
  * They are two views of one series and must be read together. The level answers

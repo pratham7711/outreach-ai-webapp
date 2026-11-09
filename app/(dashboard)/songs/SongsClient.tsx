@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { Music, Plus } from "lucide-react";
 import { Card, EmptyState, Input } from "@pratham7711/ui";
-import { PageHeader, Button } from "@/components/ds";
+import { PageHeader, Button, Field, ListToolbar, NoResults } from "@/components/ds";
 import { platformLabel, formatFull } from "@/lib/format";
 import { asOfCaption } from "@/lib/dataAge";
 import { imgSrc } from "@/lib/postMedia";
@@ -40,12 +40,13 @@ export default function SongsClient({ songs: initial }: { songs: SongRow[] }) {
 
   const filtered = songs.filter(
     (s) =>
-      s.title.toLowerCase().includes(search.toLowerCase()) ||
-      s.artist.toLowerCase().includes(search.toLowerCase()),
+      s.title.toLowerCase().includes(search.trim().toLowerCase()) ||
+      s.artist.toLowerCase().includes(search.trim().toLowerCase()),
   );
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
+    if (saving || !title.trim() || !artist.trim()) return;
     setSaving(true);
     setError(null);
     try {
@@ -91,59 +92,56 @@ export default function SongsClient({ songs: initial }: { songs: SongRow[] }) {
         title="Songs"
         subtitle="One release, every campaign promoting it, rolled up."
         actions={
-          <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setCreating((v) => !v)} {...action("add-song")}>
-            Add Song
+          <Button variant="primary" iconLeft={<Plus size={16} />} onClick={() => setCreating((v) => !v)} {...action("add-song")}>
+            Add song
           </Button>
         }
       />
 
       {creating && (
-        <Card variant="solid" style={{ padding: 20, marginBottom: 20 }}>
-          <form onSubmit={handleCreate} style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
-            <div style={{ flex: 1, minWidth: 180 }}>
-              <label htmlFor="song-title" style={{ display: "block", fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)", marginBottom: 6 }}>
-                Title
-              </label>
-              <Input id="song-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Song title" required />
+        <Card variant="outlined" className="cc-song-add">
+          <form onSubmit={handleCreate} className="cc-song-add-form">
+            <Field label="Title" required id="song-title">
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Song title" />
+            </Field>
+            <Field label="Artist" required id="song-artist">
+              <Input value={artist} onChange={(e) => setArtist(e.target.value)} placeholder="Artist" />
+            </Field>
+            <div className="cc-song-add-actions">
+              <Button variant="secondary" onClick={() => setCreating(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" loading={saving} disabled={!title.trim() || !artist.trim()}>
+                Save song
+              </Button>
             </div>
-            <div style={{ flex: 1, minWidth: 180 }}>
-              <label htmlFor="song-artist" style={{ display: "block", fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)", marginBottom: 6 }}>
-                Artist
-              </label>
-              <Input id="song-artist" value={artist} onChange={(e) => setArtist(e.target.value)} placeholder="Artist" required />
-            </div>
-            <Button type="submit" variant="primary" size="sm" disabled={saving || !title.trim() || !artist.trim()}>
-              {saving ? "Saving…" : "Save"}
-            </Button>
           </form>
-          {error && <p style={{ marginTop: 10, fontSize: "var(--cc-t-13)", color: "var(--cc-danger-fg)" }}>{error}</p>}
+          {error && <p className="cc-form-error" role="alert">{error}</p>}
         </Card>
       )}
 
       {songs.length > 0 && (
-        <div style={{ marginBottom: 20, maxWidth: 360 }}>
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search songs…" />
-        </div>
+        <ListToolbar search={{ value: search, onChange: setSearch, placeholder: "Search songs", ariaLabel: "Search songs by title or artist" }} />
       )}
 
-      {filtered.length === 0 ? (
+      {songs.length === 0 ? (
         <EmptyState
           icon={<Music size={32} color="var(--cc-text-subtle)" />}
-          title={songs.length === 0 ? "No songs yet" : "No songs match that search"}
-          description={
-            songs.length === 0
-              ? "Add a release, then attach campaigns to it to see combined performance. Campaigns work fine without a song too."
-              : "Try a different title or artist."
-          }
+          title="No songs yet"
+          description="Add a release, then attach campaigns to it to see combined performance. Campaigns work fine without a song too."
         />
+      ) : filtered.length === 0 ? (
+        <div className="cc-dt-card">
+          <NoResults onClear={() => setSearch("")} clearLabel="Clear search" description="No song title or artist matches that search." />
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" style={{ gap: 20 }}>
           {filtered.map((s) => {
             const viewsNote = asOfCaption(s.viewsAsOf, { known: s.viewsKnown, total: s.videoCount, noun: "video", what: "views" });
             const cover = imgSrc(s.coverUrl, 104);
             return (
-            <Link key={s.id} href={`/songs/${s.id}`} style={{ textDecoration: "none" }}>
-              <Card variant="solid" className="ui-card-clickable" style={{ padding: 20 }}>
+            <Link key={s.id} href={`/songs/${s.id}`} className="cc-list-card-link">
+              <Card variant="outlined" clickable>
                 <div style={{ display: "flex", gap: 14, marginBottom: 16 }}>
                   <div
                     aria-hidden="true"

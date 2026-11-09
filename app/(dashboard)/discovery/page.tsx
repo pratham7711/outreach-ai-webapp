@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Plus, Search, SlidersHorizontal, X, Lock } from "lucide-react";
-import { Card, EmptyState, Input, Badge, Skeleton, StatCard } from "@pratham7711/ui";
-import { PageHeader, Dropdown, Pagination, Button, LoadError } from "@/components/ds";
+import { Card, EmptyState, Input, Badge, StatCard } from "@pratham7711/ui";
+import { PageHeader, Dropdown, Pagination, Button, LoadError, Skeleton } from "@/components/ds";
 import Link from "next/link";
 import { toast } from "sonner";
 import { stripAt, platformLabel, formatFull } from "@/lib/format";
@@ -175,7 +175,7 @@ export default function DiscoveryPage() {
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name or handle..."
+          placeholder="Search creators"
           iconLeft={<Search size={16} />}
         />
       </div>
@@ -346,7 +346,7 @@ export default function DiscoveryPage() {
       {loading ? (
         <div className="rsp-grid-3">
           {[1, 2, 3, 4, 5, 6].map(i => (
-            <Skeleton key={i} height="220px" borderRadius="12px" />
+            <Skeleton key={i} height={220} radius="var(--cc-r-card)" />
           ))}
         </div>
       ) : loadFailed ? (
@@ -387,7 +387,7 @@ export default function DiscoveryPage() {
       ) : (
         <div className="cc-stagger rsp-grid-3">
           {creators.map((c) => (
-            <Card key={c.id} variant="outlined" style={{ padding: 20 }}>
+            <Card key={c.id} variant="outlined">
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
                 <CreatorAvatar id={c.id} name={c.name} size="md" />
                 <div style={{ flex: 1, minWidth: 0 }}>

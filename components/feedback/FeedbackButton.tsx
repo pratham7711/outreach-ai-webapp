@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { MessageSquareWarning } from "lucide-react";
-import { Modal } from "@pratham7711/ui";
-import { Button } from "@/components/ds";
+import { AlertCircle, CheckCircle2, ImageOff, MessageSquareWarning } from "lucide-react";
+import { Modal, ModalNotice } from "@/components/ds/Modal";
+import { Button, Field } from "@/components/ds";
 import { capturePage } from "@/lib/feedback/capture";
 import { installClientSignals, recentClientErrors, recentFailedRequests } from "@/lib/feedback/clientSignals";
 import { MAX_MESSAGE_CHARS, type FeedbackSurface } from "@/lib/feedback/limits";
@@ -18,8 +18,8 @@ import { MAX_MESSAGE_CHARS, type FeedbackSurface } from "@/lib/feedback/limits";
  * failed requests, so a report of "this is broken" can be acted on without a
  * round of questions.
  *
- * It sits in the page's own chrome -- the top bar, the creatorcore rail's
- * utility row, the creator app's header -- and never floats over the page. It
+ * It sits in the page's own chrome -- the top bar, the creator app's
+ * header -- and never floats over the page. It
  * used to be a fixed pill in the bottom-right corner, and that corner is where
  * pages put their last control: MEASURED 2026-10-13 at 1440x900 it covered
  * "Next page" on the posts list (a real click timed out because the pill took
@@ -44,7 +44,7 @@ function isWidget(node: Node): boolean {
 
 function currentTheme(): string {
   const cl = document.documentElement.classList;
-  return ["dark", "creatorcore", "light"].find((t) => cl.contains(t)) ?? "unknown";
+  return ["dark", "light"].find((t) => cl.contains(t)) ?? "unknown";
 }
 
 type PageContext = ReturnType<typeof pageContext>;
@@ -68,13 +68,10 @@ function pageContext() {
 export function FeedbackButton({
   surface,
   linkToken,
-  iconOnly = false,
 }: {
   surface: FeedbackSurface;
   /** The share or list link's token: on those pages it is who the feedback is from. */
   linkToken?: string;
-  /** The glyph alone, as an icon button beside the bell -- the creatorcore rail has no room for a label. */
-  iconOnly?: boolean;
 }) {
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [message, setMessage] = useState("");
@@ -158,43 +155,48 @@ export function FeedbackButton({
       <button
         type="button"
         {...{ [WIDGET_ATTR]: "" }}
-        className={iconOnly ? "cc-icon-btn cc-feedback-trigger-icon" : "cc-feedback-trigger"}
+        className="cc-feedback-trigger"
         onClick={start}
         disabled={busy}
         aria-busy={busy || undefined}
         aria-label={busy ? "Capturing the page for feedback" : "Send feedback about this page"}
-        title={iconOnly ? "Send feedback about this page" : undefined}
       >
-        <MessageSquareWarning size={iconOnly ? 17 : 15} aria-hidden="true" />
-        {!iconOnly && <span className="cc-feedback-trigger-label">{busy ? "Capturing…" : "Feedback"}</span>}
+        <MessageSquareWarning size={15} aria-hidden="true" />
+        <span className="cc-feedback-trigger-label">{busy ? "Capturing…" : "Feedback"}</span>
       </button>
 
       {open && (
         <Modal
           open
           onClose={close}
+          icon={phase.kind === "sent" ? CheckCircle2 : MessageSquareWarning}
+          tone={phase.kind === "sent" ? "success" : "brand"}
           title={phase.kind === "sent" ? "Feedback sent" : "Send feedback"}
+          description={
+            phase.kind === "sent" ? undefined : "Your note goes with the page address and your browser details."
+          }
           size="sm"
+          dismissible={phase.kind === "sent"}
           footer={
             phase.kind === "sent" ? (
               <div className="cc-modal-footer">
-                <Button variant="secondary" onClick={close}>
+                <Button variant="secondary" size="sm" onClick={close}>
                   Close
                 </Button>
               </div>
             ) : (
               <div className="cc-modal-footer">
-                <Button variant="secondary" onClick={close} disabled={phase.kind === "sending"}>
+                <Button variant="secondary" size="sm" onClick={close} disabled={phase.kind === "sending"}>
                   Cancel
                 </Button>
-                <Button variant="primary" onClick={send} loading={phase.kind === "sending"}>
+                <Button variant="primary" size="sm" onClick={send} loading={phase.kind === "sending"}>
                   Send feedback
                 </Button>
               </div>
             )
           }
         >
-          <div {...{ [WIDGET_ATTR]: "" }} className="cc-feedback-panel">
+          <div {...{ [WIDGET_ATTR]: "" }} className="cc-dialog-stack">
             {phase.kind === "sent" ? (
               <p role="status" className="cc-feedback-thanks">
                 Thanks — we&rsquo;ve got it. We&rsquo;ll look at what you sent, along with a screenshot of the page.
@@ -208,29 +210,31 @@ export function FeedbackButton({
                     <figcaption>A screenshot of this page is sent with your feedback.</figcaption>
                   </figure>
                 ) : (
-                  <p className="cc-feedback-note">
+                  <ModalNotice tone="warning" icon={ImageOff}>
                     We couldn&rsquo;t capture a screenshot of this page. Your message is still sent, with the page
                     address and your browser details.
-                  </p>
+                  </ModalNotice>
                 )}
-                <label className="cc-feedback-label" htmlFor="cc-feedback-message">
-                  What went wrong? <span>(optional)</span>
-                </label>
-                <textarea
-                  id="cc-feedback-message"
-                  className="cc-feedback-input"
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  maxLength={MAX_MESSAGE_CHARS}
-                  rows={4}
-                  placeholder="e.g. The numbers on this campaign haven't updated since yesterday"
-                  disabled={phase.kind === "sending"}
-                  autoFocus
-                />
+                <Field
+                  label="What went wrong?"
+                  helper="Leave it blank and the screenshot and page address still reach us."
+                >
+                  <textarea
+                    id="cc-feedback-message"
+                    className="cc-feedback-input"
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    maxLength={MAX_MESSAGE_CHARS}
+                    rows={4}
+                    placeholder="e.g. The numbers on this campaign haven't updated since yesterday"
+                    disabled={phase.kind === "sending"}
+                    autoFocus
+                  />
+                </Field>
                 {error && (
-                  <p role="alert" className="cc-feedback-error">
+                  <ModalNotice tone="danger" icon={AlertCircle}>
                     {error}
-                  </p>
+                  </ModalNotice>
                 )}
               </>
             )}

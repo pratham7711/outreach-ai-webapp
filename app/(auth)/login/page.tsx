@@ -3,12 +3,12 @@
 import { useState, useRef, useEffect } from "react";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { Input } from "@pratham7711/ui";
 import { Button } from "@/components/ds";
-import { Eye, EyeOff } from "lucide-react";
+import { Field } from "@/components/ds/Field";
 import { BRAND } from "@/lib/brand";
-import { AUTH_BACKDROP, AuthBrand, AuthPlatforms } from "@/components/auth/AuthBrand";
+import { AuthPlatforms } from "@/components/auth/AuthBrand";
+import { AuthForm, AuthNotice, AuthShell, PasswordField } from "@/components/auth/AuthShell";
 import { CALLBACK_PARAM, safeCallbackPath } from "@/lib/callbackPath";
 
 export default function LoginPage() {
@@ -26,7 +26,6 @@ export default function LoginPage() {
      verify param at all falls back to the cautious wording. */
   const [verifyState, setVerifyState] = useState<"sent" | "unavailable" | "unknown">("unknown");
   const [notice, setNotice] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const emailRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -93,242 +92,72 @@ export default function LoginPage() {
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100dvh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "0 16px",
-        background: AUTH_BACKDROP,
-        position: "relative",
-        overflow: "hidden",
-      }}
+    <AuthShell
+      title="Sign in"
+      subtitle={`Welcome back to ${BRAND.name}`}
+      footer={
+        <>
+          Don&apos;t have an account? <Link href="/signup">Sign up</Link>
+        </>
+      }
+      below={<AuthPlatforms />}
     >
-      <motion.div
-        style={{ width: "100%", maxWidth: 380, position: "relative", zIndex: 1 }}
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-      >
-        {/* Logo */}
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 28 }}>
-          <AuthBrand />
-        </div>
+      {notice && !error && <AuthNotice tone="warning">{notice}</AuthNotice>}
 
-        {/* Card */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.97 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.4, delay: 0.15, ease: "easeOut" }}
-          style={{
-            background: "var(--cc-card)",
-            border: "1px solid var(--cc-border)",
-            borderRadius: 20,
-            boxShadow: "var(--ui-shadow-lg)",
-            padding: 40,
-          }}
-        >
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
-            Sign in
-          </h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 24 }}>
-            Welcome back to {BRAND.name}
-          </p>
-
-          {notice && !error && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2 }}
-              role="status"
-              style={{
-                padding: "12px 16px",
-                borderRadius: 12,
-                background: "color-mix(in srgb, var(--cc-warning) 12%, transparent)",
-                border: "1px solid color-mix(in srgb, var(--cc-warning) 32%, transparent)",
-                color: "var(--cc-text)",
-                fontSize: 13,
-                marginBottom: 16,
-              }}
-            >
-              {notice}
-            </motion.div>
+      {/* Three states, because signup has three outcomes and only one of
+          them is an email that went out. Saying "we have emailed you a
+          link" on the other two sends a new account looking through spam
+          for a message nothing ever sent. */}
+      {registered && !error && (
+        <AuthNotice tone={verifyState === "unavailable" ? "warning" : "success"}>
+          {verifyState === "sent" ? (
+            <>Account created. We have emailed you a link to confirm your address. Sign in to get started.</>
+          ) : verifyState === "unavailable" ? (
+            <>Account created, but we could not send the confirmation email just now. Sign in anyway: there is a Resend button in the banner at the top of the app.</>
+          ) : (
+            <>Account created. Sign in to get started.</>
           )}
+        </AuthNotice>
+      )}
 
-          {/* Three states, because signup has three outcomes and only one of
-              them is an email that went out. Saying "we have emailed you a
-              link" on the other two sends a new account looking through spam
-              for a message nothing ever sent. */}
-          {registered && !error && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2 }}
-              role="status"
-              style={{
-                padding: "12px 16px",
-                borderRadius: 12,
-                background:
-                  verifyState === "unavailable"
-                    ? "color-mix(in srgb, var(--cc-warning) 12%, transparent)"
-                    : "color-mix(in srgb, var(--cc-success) 12%, transparent)",
-                border:
-                  verifyState === "unavailable"
-                    ? "1px solid color-mix(in srgb, var(--cc-warning) 32%, transparent)"
-                    : "1px solid color-mix(in srgb, var(--cc-success) 32%, transparent)",
-                color: verifyState === "unavailable" ? "var(--cc-text)" : "var(--cc-success)",
-                fontSize: 13,
-                marginBottom: 16,
-              }}
-            >
-              {verifyState === "sent" ? (
-                <>Account created. We have emailed you a link to confirm your address &mdash; sign in to get started.</>
-              ) : verifyState === "unavailable" ? (
-                <>Account created, but we could not send the confirmation email just now. Sign in anyway &mdash; there is a Resend button in the banner at the top of the app.</>
-              ) : (
-                <>Account created. Sign in to get started.</>
-              )}
-            </motion.div>
-          )}
+      {invited && !registered && !error && (
+        <AuthNotice tone="success">
+          Invitation accepted. Sign in with the address it was sent to and the password you just chose.
+        </AuthNotice>
+      )}
 
-          {invited && !registered && !error && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2 }}
-              role="status"
-              style={{
-                padding: "12px 16px",
-                borderRadius: 12,
-                background: "color-mix(in srgb, var(--cc-success) 12%, transparent)",
-                border: "1px solid color-mix(in srgb, var(--cc-success) 32%, transparent)",
-                color: "var(--cc-success)",
-                fontSize: 13,
-                marginBottom: 16,
-              }}
-            >
-              Invitation accepted. Sign in with the address it was sent to and the
-              password you just chose.
-            </motion.div>
-          )}
+      {error && <AuthNotice tone="danger">{error}</AuthNotice>}
 
-          {error && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2 }}
-              role="alert"
-              style={{
-                padding: "12px 16px",
-                borderRadius: 12,
-                background: "color-mix(in srgb, var(--cc-danger) 12%, transparent)",
-                border: "1px solid color-mix(in srgb, var(--cc-danger) 32%, transparent)",
-                color: "var(--cc-danger)",
-                fontSize: 13,
-                marginBottom: 16,
-              }}
-            >
-              {error}
-            </motion.div>
-          )}
+      <AuthForm onSubmit={handleSubmit} noValidate>
+        <Field label="Email" required>
+          <Input
+            ref={emailRef}
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            autoComplete="email"
+          />
+        </Field>
 
-          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }} noValidate>
-            <div>
-              <Input
-                ref={emailRef}
-                label="Email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                required
-                autoComplete="email"
-              />
-            </div>
+        <PasswordField
+          label="Password"
+          value={password}
+          onChange={setPassword}
+          placeholder="Enter your password"
+          autoComplete="current-password"
+        />
 
-            <div style={{ position: "relative" }}>
-              <Input
-                label="Password"
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
-                required
-                autoComplete="current-password"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                aria-label={showPassword ? "Hide password" : "Show password"}
-                style={{
-                  position: "absolute",
-                  right: 12,
-                  /* Centred on the 38px input rather than pinned 10px off its
-                     bottom: the phone touch rule makes this button 44px tall,
-                     and growing upward from a fixed bottom put the eye 13px
-                     above the field's centre. */
-                  bottom: 19,
-                  transform: "translateY(50%)",
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  padding: 4,
-                  color: "var(--cc-text-muted)",
-                  display: "flex",
-                  alignItems: "center",
-                  zIndex: 2,
-                  borderRadius: 4,
-                  transition: "color 0.15s",
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.color = "var(--cc-primary)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = "var(--cc-text-muted)"; }}
-              >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
+        {/* The only route into the reset flow a locked-out user can reach:
+            they cannot get past this screen to find it. */}
+        <Link href="/forgot-password" className="cc-auth__aside-link">
+          Forgot password?
+        </Link>
 
-            {/* The reset flow existed for weeks with nothing linking to it, which
-                for anyone who forgot their password is the same as not having
-                one. This is the only route into it a locked-out user can
-                reach -- they cannot get past this screen to find it. */}
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: -4 }}>
-              <Link
-                href="/forgot-password"
-                style={{
-                  fontSize: 12,
-                  color: "var(--cc-text-muted)",
-                  textDecoration: "none",
-                  fontWeight: 500,
-                }}
-              >
-                Forgot password?
-              </Link>
-            </div>
-
-            <div style={{ marginTop: 8 }}>
-              <Button
-                type="submit"
-                variant="primary"
-                fullWidth
-                loading={loading}
-              >
-                Sign in
-              </Button>
-            </div>
-          </form>
-
-          <p style={{ fontSize: 12, color: "var(--cc-text-muted)", textAlign: "center", marginTop: 24 }}>
-            Don&apos;t have an account?{" "}
-            <Link href="/signup" style={{ color: "var(--cc-primary)", fontWeight: 600, textDecoration: "none" }}>
-              Sign up
-            </Link>
-          </p>
-        </motion.div>
-        <div style={{ marginTop: 24 }}>
-          <AuthPlatforms />
-        </div>
-      </motion.div>
-    </div>
+        <Button type="submit" variant="primary" fullWidth loading={loading}>
+          Sign in
+        </Button>
+      </AuthForm>
+    </AuthShell>
   );
 }

@@ -3,35 +3,112 @@
 import React from "react";
 import dynamic from "next/dynamic";
 import { Activity, BarChart3, Download, Eye, TrendingUp } from "lucide-react";
-import { Badge } from "@pratham7711/ui";
-import { SectionCard } from "@/components/ds";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { distinctPlatformColors } from "@/app/(dashboard)/analytics/shared";
-import { UNKNOWN, platformLabel, stripAt } from "@/lib/format";
+  Button,
+  DataTable,
+  PlatformTag,
+  SectionCard,
+  Skeleton,
+  type DataTableColumn,
+} from "@/components/ds";
+import { PlatformSplit } from "@/components/charts/PlatformSplit";
+import { UNKNOWN, stripAt } from "@/lib/format";
 import { loadCharts } from "@/components/charts/lazyCharts";
 import { formatNumber, type PerformanceData } from "../types";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import { creatorNameParts } from "@/lib/creators/creatorName";
-import { noun } from "@/lib/ui/noun";
-
-const PlatformBreakdownPie = dynamic(
-  () => loadCharts().then((m) => m.PlatformBreakdownPie),
-  { ssr: false, loading: () => <Skeleton className="h-[200px] w-full rounded-lg" /> }
-);
 
 const ViewsByCampaignBar = dynamic(
   () => loadCharts().then((m) => m.ViewsByCampaignBar),
-  { ssr: false, loading: () => <Skeleton className="h-[200px] w-full rounded-lg" /> }
+  { ssr: false, loading: () => <Skeleton height={200} /> }
 );
+
+type TopPost = PerformanceData["topPosts"][number];
+type CreatorRow = PerformanceData["creatorPerformance"][number];
+
+/* Both tables sit in a SectionCard that runs to its edges, so they are bare
+   DataTables: one header style, numbers right-aligned and tabular. */
+const TOP_POST_COLUMNS: DataTableColumn<TopPost>[] = [
+  {
+    key: "creator",
+    header: "Creator",
+    minWidth: 200,
+    render: (post) => {
+      const { name, handle } = creatorNameParts(post.creatorName, post.creatorHandle);
+      return (
+        <span className="flex items-center gap-2.5">
+          <CreatorAvatar id={post.creatorId} name={post.creatorName ?? "Unknown"} size="sm" />
+          <span className="min-w-0">
+            <span className="cc-dt-truncate font-medium" title={name}>{name}</span>
+            {handle ? <span className="cc-dt-sub">{handle}</span> : null}
+          </span>
+        </span>
+      );
+    },
+  },
+  {
+    key: "campaign",
+    header: "Campaign",
+    minWidth: 160,
+    truncate: (post) => post.campaignTitle ?? undefined,
+    render: (post) => post.campaignTitle ?? "—",
+  },
+  { key: "platform", header: "Platform", width: 136, render: (post) => <PlatformTag platform={post.platform} /> },
+  { key: "views", header: "Views", width: 120, align: "right", render: (post) => formatNumber(post.viewsCount) },
+  {
+    key: "engagement",
+    header: "Engagement",
+    width: 128,
+    align: "right",
+    /* Two decimals, as the post's rate reads on the Posts tab, the post page
+       and the exports. */
+    render: (post) => (post.engagementRate === null ? UNKNOWN : `${post.engagementRate.toFixed(2)}%`),
+  },
+];
+
+const CREATOR_COLUMNS: DataTableColumn<CreatorRow>[] = [
+  {
+    key: "creator",
+    header: "Creator",
+    minWidth: 220,
+    render: (c) => (
+      <span className="flex items-center gap-2.5">
+        <CreatorAvatar id={c.creatorId} name={c.name} size="sm" />
+        <span className="min-w-0">
+          <span className="cc-dt-truncate font-medium" title={c.name}>{c.name}</span>
+          {/* Same handle, different platform, different person's account --
+              and two rows here that look identical without it. */}
+          <span className="cc-dt-sub flex items-center gap-1.5">
+            <span>@{stripAt(c.handle)}</span>
+            {c.platform ? <PlatformTag platform={c.platform} /> : null}
+          </span>
+        </span>
+      </span>
+    ),
+  },
+  { key: "activations", header: "Activations", width: 128, align: "right", render: (c) => formatNumber(c.activationCount) },
+  {
+    key: "views",
+    header: "Views",
+    width: 128,
+    align: "right",
+    /* "—" with the reason, never 0: none of their posts in range has a view
+       count we read. */
+    render: (c) =>
+      c.views === null ? (
+        <span title="No view count read for any of their posts in this range">{UNKNOWN}</span>
+      ) : (
+        formatNumber(c.views)
+      ),
+  },
+  {
+    key: "engagement",
+    header: "Avg engagement",
+    width: 148,
+    align: "right",
+    render: (c) => (c.avgEngagement === null ? UNKNOWN : `${c.avgEngagement}%`),
+  },
+];
 
 type PerformanceSectionProps = {
   financials: PerformanceData | null;
@@ -41,7 +118,7 @@ type PerformanceSectionProps = {
 };
 
 function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="py-10 text-center text-sm text-muted-foreground">{children}</p>;
+  return <p className="py-10 text-center text-sm text-[var(--cc-text-muted)]">{children}</p>;
 }
 
 export function PerformanceSection({
@@ -51,7 +128,6 @@ export function PerformanceSection({
   onExportCreators,
 }: PerformanceSectionProps) {
   const platforms = financials?.platformBreakdown ?? [];
-  const platformColors = distinctPlatformColors(platforms.map((p) => p.platform));
   const byCampaign = financials?.viewsByCampaign ?? [];
   const topPosts = financials?.topPosts ?? [];
   const creators = financials?.creatorPerformance ?? [];
@@ -71,40 +147,19 @@ export function PerformanceSection({
               metric="views"
             >
               {loading ? (
-                <Skeleton className="h-[200px] w-full rounded-lg" />
+                <Skeleton height={160} />
               ) : platforms.length > 0 ? (
-                /* Alone in the row, the legend sits beside the donut: stacked
-                   under it at full width, each name and its figure ended up a
-                   thousand pixels apart. */
-                <div className={chartCount === 1 ? "grid gap-6 lg:grid-cols-2 lg:items-center" : undefined}>
-                  <div className="h-[200px]">
-                    <PlatformBreakdownPie
-                      data={platforms}
-                      colors={platformColors}
-                      formatNumber={formatNumber}
-                    />
-                  </div>
-                  <ul className={chartCount === 1 ? "mt-4 flex flex-col gap-2 lg:mt-0" : "mt-4 flex flex-col gap-2"}>
-                    {platforms.map((p, i) => (
-                      <li key={p.platform} className="flex items-center justify-between text-[13px]">
-                        <span className="flex items-center gap-2">
-                          <span
-                            aria-hidden="true"
-                            className="size-2.5 shrink-0 rounded-full"
-                            style={{ background: platformColors[i] }}
-                          />
-                          <span className="font-semibold text-foreground">{platformLabel(p.platform)}</span>
-                        </span>
-                        {/* A platform whose posts in range carry no view count
-                            (Instagram photos publish none) sums to 0 -- which
-                            is "not known", not "no views". */}
-                        <span className="text-muted-foreground tabular-nums">
-                          {p.views > 0 ? `${formatNumber(p.views)} views` : "views not known"} · {p.postsCount} {noun(p.postsCount, "post")}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                /* One labelled bar per platform, the same component as every
+                   other "views by platform". A platform whose posts in range
+                   carry no view count (Instagram photos publish none) sums to
+                   0 -- which is "not known", not "no views", so it reads "—". */
+                <PlatformSplit
+                  rows={platforms.map((p) => ({
+                    platform: p.platform,
+                    views: p.views > 0 ? p.views : null,
+                    posts: p.postsCount,
+                  }))}
+                />
               ) : (
                 <Empty>No platform data yet</Empty>
               )}
@@ -119,7 +174,7 @@ export function PerformanceSection({
               metric="totalViews"
             >
               {loading ? (
-                <Skeleton className="h-[200px] w-full rounded-lg" />
+                <Skeleton height={200} />
               ) : byCampaign.length > 0 ? (
                 <div className="h-[200px]">
                   <ViewsByCampaignBar
@@ -144,66 +199,24 @@ export function PerformanceSection({
           metric="views"
           padded={false}
         >
-          {loading ? (
-            <div className="px-6 py-5">
-              <Skeleton className="h-40 w-full rounded-lg" />
-            </div>
-          ) : topPosts.length > 0 ? (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Creator</TableHead>
-                    <TableHead>Campaign</TableHead>
-                    <TableHead>Platform</TableHead>
-                    <TableHead className="text-right">Views</TableHead>
-                    <TableHead className="text-right">Engagement</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {topPosts.map((post) => (
-                    <TableRow key={post.id}>
-                      <TableCell className="font-semibold text-foreground">
-                        <div className="flex items-center gap-2.5">
-                          <CreatorAvatar id={post.creatorId} name={post.creatorName ?? "Unknown"} size="sm" />
-                          <div className="min-w-0">
-                            <div>{creatorNameParts(post.creatorName, post.creatorHandle).name}</div>
-                            {creatorNameParts(post.creatorName, post.creatorHandle).handle && (
-                              <div className="text-xs font-normal text-muted-foreground">{creatorNameParts(post.creatorName, post.creatorHandle).handle}</div>
-                            )}
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {post.campaignTitle ?? "—"}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="neutral" size="sm">
-                          {platformLabel(post.platform)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-semibold text-foreground tabular-nums">
-                        {formatNumber(post.viewsCount)}
-                      </TableCell>
-                      <TableCell className="text-right text-muted-foreground tabular-nums">
-                        {/* Two decimals, as the post's rate reads on the Posts
-                            tab, the post page and the exports. */}
-                        {post.engagementRate === null ? UNKNOWN : `${post.engagementRate.toFixed(2)}%`}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          ) : (
-            /* The list only ranks posts with a view count, so posts can exist
-               in the range while it is empty. */
-            <Empty>
-              {platforms.some((p) => p.postsCount > 0)
-                ? "No post in this range has a view count yet"
-                : "No posts yet"}
-            </Empty>
-          )}
+          <DataTable
+            bare
+            caption="Top posts"
+            columns={TOP_POST_COLUMNS}
+            rows={loading ? [] : topPosts}
+            rowKey={(post) => post.id}
+            loading={loading}
+            skeletonRows={5}
+            empty={
+              /* The list only ranks posts with a view count, so posts can
+                 exist in the range while it is empty. */
+              <Empty>
+                {platforms.some((p) => p.postsCount > 0)
+                  ? "No post in this range has a view count yet"
+                  : "No posts yet"}
+              </Empty>
+            }
+          />
         </SectionCard>
       )}
 
@@ -218,69 +231,21 @@ export function PerformanceSection({
           description="Your ten highest-reaching creators, with how many campaigns each is booked on and how hard their posts worked."
           padded={false}
           action={
-            <Button variant="outline" size="sm" onClick={onExportCreators}>
-              <Download aria-hidden="true" className="size-3.5" />
+            <Button variant="secondary" size="sm" iconLeft={<Download size={14} aria-hidden="true" />} onClick={onExportCreators}>
               Export
             </Button>
           }
         >
-          {loading ? (
-            <div className="px-6 py-5">
-              <Skeleton className="h-40 w-full rounded-lg" />
-            </div>
-          ) : creators.length > 0 ? (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Creator</TableHead>
-                    <TableHead className="text-right">Activations</TableHead>
-                    <TableHead className="text-right">Views</TableHead>
-                    <TableHead className="text-right">Avg engagement</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {creators.map((c) => (
-                    <TableRow key={c.creatorId}>
-                      <TableCell>
-                        <div className="flex items-center gap-2.5">
-                        <CreatorAvatar id={c.creatorId} name={c.name} size="sm" />
-                        <div className="min-w-0">
-                        <div className="font-semibold text-foreground">{c.name}</div>
-                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <span>@{stripAt(c.handle)}</span>
-                          {/* Same handle, different platform, different person's
-                              account -- and two rows here that look identical
-                              without it. */}
-                          {c.platform ? (
-                            <Badge variant="neutral" size="sm">{platformLabel(c.platform)}</Badge>
-                          ) : null}
-                        </div>
-                        </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right text-muted-foreground tabular-nums">
-                        {c.activationCount}
-                      </TableCell>
-                      {/* "—" with the reason, never 0: none of their posts in
-                          range has a view count we read. */}
-                      <TableCell
-                        className="text-right text-muted-foreground tabular-nums"
-                        title={c.views === null ? "No view count read for any of their posts in this range" : undefined}
-                      >
-                        {c.views === null ? UNKNOWN : formatNumber(c.views)}
-                      </TableCell>
-                      <TableCell className="text-right text-muted-foreground tabular-nums">
-                        {c.avgEngagement === null ? UNKNOWN : `${c.avgEngagement}%`}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          ) : (
-            <Empty>No creator performance data yet</Empty>
-          )}
+          <DataTable
+            bare
+            caption="Creator performance"
+            columns={CREATOR_COLUMNS}
+            rows={loading ? [] : creators}
+            rowKey={(c) => c.creatorId}
+            loading={loading}
+            skeletonRows={5}
+            empty={<Empty>No creator performance data yet</Empty>}
+          />
         </SectionCard>
       )}
     </div>

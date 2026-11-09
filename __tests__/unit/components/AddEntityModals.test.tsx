@@ -13,8 +13,10 @@ jest.mock(
         {footer}
       </div>
     ),
-    Input: ({ label, value, onChange, type, "aria-invalid": ariaInvalid }: any) => (
-      <input aria-label={label} value={value} onChange={onChange} type={type} aria-invalid={ariaInvalid} />
+    /* ds Field labels the input with <label for>, so the mock keeps the id it
+       is given (and the required flag Field sets). */
+    Input: ({ id, label, value, onChange, type, required, "aria-invalid": ariaInvalid }: any) => (
+      <input id={id} aria-label={label} value={value} onChange={onChange} type={type} required={required} aria-invalid={ariaInvalid} />
     ),
   }),
   { virtual: true }
@@ -68,6 +70,7 @@ describe("AddCreatorModal", () => {
 
     render(<AddCreatorModal onClose={onClose} />);
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Jane" } });
+    fireEvent.change(screen.getByLabelText("Handle"), { target: { value: "@jane" } });
     submit("add-creator-form");
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/session has expired/i);
@@ -92,6 +95,25 @@ describe("AddCreatorModal", () => {
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body).not.toHaveProperty("followersCount");
     expect(body).not.toHaveProperty("averageViews");
+  });
+});
+
+/* Add waits for its required fields: the button stays disabled and a submit
+   (Enter in a field) sends nothing until Name and Handle are both filled. */
+describe("AddCreatorModal gating", () => {
+  it("sends nothing while a required field is empty", () => {
+    const fetchMock = jest.fn();
+    global.fetch = fetchMock as any;
+
+    render(<AddCreatorModal onClose={jest.fn()} />);
+    const add = screen.getByRole("button", { name: "Add creator" });
+    expect(add).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Jane" } });
+    expect(add).toBeDisabled();
+    submit("add-creator-form");
+    expect(fetchMock).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("Handle"), { target: { value: "@jane" } });
+    expect(add).toBeEnabled();
   });
 });
 

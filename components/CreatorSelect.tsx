@@ -1,9 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
+import { Users } from "lucide-react";
+import { ModalNotice } from "@/components/ds/Modal";
+import { Button } from "@/components/ds/Button";
 import { apiFetch } from "@/lib/api/client";
 import { isUnattributedCreator } from "@/lib/posts/unattributedName";
+import { platformLabel } from "@/lib/platforms/registry";
 
 /**
  * Pick one creator out of the whole roster.
@@ -20,6 +25,27 @@ import { isUnattributedCreator } from "@/lib/posts/unattributedName";
  * query actually returned, and says so when nothing matches.
  */
 
+/**
+ * What a creator picker shows when the roster has nobody to pick: one way
+ * forward instead of a search box over an empty list.
+ */
+export function EmptyRosterNotice() {
+  return (
+    <ModalNotice
+      tone="neutral"
+      icon={Users}
+      title="No creators on your roster yet"
+      action={
+        <Link href="/creators" className="ui-btn ui-btn-secondary ui-btn-sm" data-cc-slot="secondary">
+          Go to Creators
+        </Link>
+      }
+    >
+      Add them on the Creators page, then pick one here.
+    </ModalNotice>
+  );
+}
+
 export type PickableCreator = {
   id: string;
   name: string;
@@ -28,20 +54,32 @@ export type PickableCreator = {
   avatarUrl?: string | null;
 };
 
+/** "@handle · TikTok": the handle once, and the platform by its name. */
+function creatorMeta(c: PickableCreator): string {
+  const handle = c.handle.replace(/^@/, "");
+  return [handle && `@${handle}`, c.platform && platformLabel(c.platform)].filter(Boolean).join(" · ");
+}
+
 export function CreatorSelect({
   value,
   onChange,
   excludeIds,
   placeholder = "Search creators by name or handle",
-  emptyHint,
+  id,
+  "aria-describedby": describedBy,
+  "aria-invalid": invalid,
+  "aria-required": ariaRequired,
 }: {
   value: string;
   onChange: (id: string, creator: PickableCreator | null) => void;
   /** Creators already used by the caller — shown as taken rather than hidden. */
   excludeIds?: Iterable<string>;
   placeholder?: string;
-  /** Shown before anything is typed, when the unsearched first page is empty. */
-  emptyHint?: string;
+  /** On the search input, so a Field's label names and focuses it. */
+  id?: string;
+  "aria-describedby"?: string;
+  "aria-invalid"?: boolean;
+  "aria-required"?: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -54,7 +92,7 @@ export function CreatorSelect({
 
   const taken = useMemo(() => new Set(excludeIds ?? []), [excludeIds]);
 
-  const { data, isFetching } = useQuery({
+  const { data, isFetching, isError } = useQuery({
     queryKey: ["creator-select", debounced],
     queryFn: () =>
       apiFetch<{ creators: PickableCreator[] }>(
@@ -70,81 +108,55 @@ export function CreatorSelect({
     if (!value) setPicked(null);
   }, [value]);
 
+  /* The unsearched first page came back with nobody on it: the roster itself
+     is empty, so there is nothing to search. */
+  if (!debounced && data && results.length === 0) return <EmptyRosterNotice />;
+
   if (value && picked) {
     return (
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          padding: "10px 12px",
-          borderRadius: 8,
-          border: "1px solid var(--cc-primary)",
-          background: "var(--cc-card)",
-        }}
-      >
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{picked.name}</div>
-          <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
-            {[picked.handle.replace(/^@/, "") && `@${picked.handle.replace(/^@/, "")}`, picked.platform].filter(Boolean).join(" — ")}
-          </div>
+      <div className="cc-creator-select__picked">
+        <div className="cc-creator-select__text">
+          <span className="cc-creator-select__name">{picked.name}</span>
+          <span className="cc-creator-select__meta">{creatorMeta(picked)}</span>
         </div>
-        <button
+        <Button
+          variant="secondary"
+          size="sm"
           type="button"
           onClick={() => {
             setPicked(null);
             setSearch("");
             onChange("", null);
           }}
-          style={{
-            border: "1px solid var(--cc-border)",
-            background: "var(--cc-card)",
-            borderRadius: 6,
-            padding: "4px 10px",
-            fontSize: "var(--cc-t-12)",
-            color: "var(--cc-text-muted)",
-            cursor: "pointer",
-          }}
         >
           Change
-        </button>
+        </Button>
       </div>
     );
   }
 
   return (
-    <div>
+    <div className="cc-creator-select">
       <input
+        id={id}
+        className="ui-input ui-input-md"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         placeholder={placeholder}
-        aria-label={placeholder}
-        style={{
-          width: "100%",
-          padding: "10px 12px",
-          borderRadius: 8,
-          border: "1px solid var(--cc-border)",
-          fontSize: "var(--cc-t-14)",
-          color: "var(--cc-text)",
-          background: "var(--cc-card)",
-        }}
+        aria-label={id ? undefined : placeholder}
+        aria-describedby={describedBy}
+        aria-invalid={invalid || undefined}
+        aria-required={ariaRequired || undefined}
+        autoComplete="off"
       />
-      <div
-        style={{
-          marginTop: 8,
-          maxHeight: 240,
-          overflowY: "auto",
-          border: "1px solid var(--cc-border)",
-          borderRadius: 8,
-        }}
-      >
+      <div className="cc-creator-select__list">
         {results.length === 0 ? (
-          <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", padding: "12px" }}>
+          <p className="cc-creator-select__note">
             {isFetching
               ? "Searching…"
-              : debounced
-                ? "No creators match that."
-                : (emptyHint ?? "No creators yet.")}
+              : isError
+                ? "Couldn't load creators. Try again."
+                : "No creators match that."}
           </p>
         ) : (
           results.map((c) => {
@@ -154,42 +166,17 @@ export function CreatorSelect({
                 key={c.id}
                 type="button"
                 disabled={already}
+                className="cc-creator-select__row"
                 onClick={() => {
                   setPicked(c);
                   onChange(c.id, c);
                 }}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  width: "100%",
-                  textAlign: "left",
-                  padding: "8px 12px",
-                  border: "none",
-                  borderBottom: "1px solid var(--cc-border)",
-                  background: "transparent",
-                  cursor: already ? "not-allowed" : "pointer",
-                  opacity: already ? 0.5 : 1,
-                }}
               >
-                <span style={{ flex: 1, minWidth: 0 }}>
-                  <span
-                    style={{
-                      display: "block",
-                      fontSize: "var(--cc-t-14)",
-                      fontWeight: "var(--cc-fw-strong)",
-                      color: "var(--cc-text)",
-                    }}
-                  >
-                    {c.name}
-                  </span>
-                  <span style={{ display: "block", fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
-                    {[c.handle.replace(/^@/, "") && `@${c.handle.replace(/^@/, "")}`, c.platform].filter(Boolean).join(" — ")}
-                  </span>
+                <span className="cc-creator-select__text">
+                  <span className="cc-creator-select__name">{c.name}</span>
+                  <span className="cc-creator-select__meta">{creatorMeta(c)}</span>
                 </span>
-                {already && (
-                  <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>Added</span>
-                )}
+                {already && <span className="cc-creator-select__meta">Added</span>}
               </button>
             );
           })

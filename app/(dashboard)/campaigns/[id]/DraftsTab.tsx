@@ -1,10 +1,10 @@
 "use client";
 
-import React from "react";
 import { useState, useEffect, useCallback } from "react";
-import { Card, Badge, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
-import { Dropdown, Button } from "@/components/ds";
-import { CheckCircle2, XCircle, ExternalLink, FileText, Plus, Check, X, Loader } from "lucide-react";
+import { Card, Badge, EmptyState, Input, Textarea } from "@pratham7711/ui";
+import { Modal } from "@/components/ds/Modal";
+import { Dropdown, Button, Field, Skeleton } from "@/components/ds";
+import { CheckCircle2, XCircle, ExternalLink, FileText, FilePlus2, Plus, Check, X, Loader } from "lucide-react";
 import { toast } from "sonner";
 import { CampaignHeaderActions } from "@/components/campaigns/CampaignHeaderActions";
 import { action } from "@/lib/ui/actions";
@@ -70,16 +70,6 @@ const FILTERS = [
   { key: "APPROVED", label: "Approved", Glyph: Check },
   { key: "DECLINED", label: "Declined", Glyph: X },
 ] as const;
-
-const labelStyle: React.CSSProperties = {
-  display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6,
-};
-
-const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)",
-  fontSize: "var(--cc-t-14)", color: "var(--cc-text)", background: "var(--cc-card)",
-  boxSizing: "border-box",
-};
 
 export default function DraftsTab({
   campaignId,
@@ -211,14 +201,14 @@ export default function DraftsTab({
   if (loading) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {[1, 2, 3].map((i) => <Skeleton key={i} height="76px" borderRadius="12px" />)}
+        {[1, 2, 3].map((i) => <Skeleton key={i} height={76} radius={12} />)}
       </div>
     );
   }
 
   if (error) {
     return (
-      <Card variant="outlined" style={{ padding: 24, textAlign: "center" }}>
+      <Card variant="outlined" style={{ textAlign: "center" }}>
         <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", marginBottom: 12 }}>{error}</p>
         <Button variant="secondary" onClick={() => { setLoading(true); fetchDrafts(); }}>Retry</Button>
       </Card>
@@ -254,7 +244,7 @@ export default function DraftsTab({
           onClick={() => setAdding(true)}
           {...action("add-draft")}
         >
-          Add Draft
+          Add draft
         </Button>
       </CampaignHeaderActions>
 
@@ -349,20 +339,22 @@ export default function DraftsTab({
         <Modal
           open
           onClose={() => setAdding(false)}
-          title="Add Draft"
+          icon={FilePlus2}
+          tone="brand"
+          title="Add draft"
+          description="File the draft a creator sent you. It goes into the review queue to approve or send back."
           size="sm"
+          dismissible={false}
           footer={
             <div className="cc-modal-footer">
-              <Button variant="secondary" onClick={() => setAdding(false)}>Cancel</Button>
-              <Button variant="primary" loading={savingDraft} onClick={handleAddDraft}>Add Draft</Button>
+              <Button variant="secondary" size="sm" onClick={() => setAdding(false)}>Cancel</Button>
+              <Button variant="primary" size="sm" loading={savingDraft} onClick={handleAddDraft}>Add draft</Button>
             </div>
           }
         >
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <div>
-              <label style={labelStyle}>Creator</label>
+          <div className="cc-dialog-stack">
+            <Field label="Creator" required>
               <Dropdown
-                ariaLabel="Creator"
                 size="md"
                 fullWidth
                 align="left"
@@ -374,22 +366,18 @@ export default function DraftsTab({
                   label: creatorNameText(a.creator.name, a.creator.handle),
                 }))}
               />
-            </div>
-            <div>
-              <label htmlFor="new-draft-url" style={labelStyle}>Draft link</label>
-              <input
-                id="new-draft-url"
-                type="url"
-                value={newDraft.draftUrl}
-                onChange={(e) => setNewDraft((f) => ({ ...f, draftUrl: e.target.value }))}
-                placeholder="https://"
-                style={inputStyle}
-              />
-            </div>
-            <div>
-              <label style={labelStyle}>Media type</label>
+            </Field>
+            <Input
+              id="new-draft-url"
+              label="Draft link"
+              type="url"
+              value={newDraft.draftUrl}
+              onChange={(e) => setNewDraft((f) => ({ ...f, draftUrl: e.target.value }))}
+              placeholder="https://"
+              required
+            />
+            <Field label="Media type">
               <Dropdown
-                ariaLabel="Media type"
                 size="md"
                 fullWidth
                 align="left"
@@ -398,18 +386,15 @@ export default function DraftsTab({
                 onChange={(v) => setNewDraft((f) => ({ ...f, draftMediaType: v }))}
                 options={MEDIA_TYPES.map((m) => ({ value: m, label: m.charAt(0) + m.slice(1).toLowerCase() }))}
               />
-            </div>
-            <div>
-              <label htmlFor="new-draft-caption" style={labelStyle}>Caption</label>
-              <textarea
-                id="new-draft-caption"
-                value={newDraft.draftCaption}
-                onChange={(e) => setNewDraft((f) => ({ ...f, draftCaption: e.target.value }))}
-                rows={3}
-                placeholder="Optional — the caption they plan to post with"
-                style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }}
-              />
-            </div>
+            </Field>
+            <Textarea
+              id="new-draft-caption"
+              label="Caption"
+              value={newDraft.draftCaption}
+              onChange={(e) => setNewDraft((f) => ({ ...f, draftCaption: e.target.value }))}
+              rows={3}
+              placeholder="Optional — the caption they plan to post with"
+            />
           </div>
         </Modal>
       )}
@@ -418,27 +403,27 @@ export default function DraftsTab({
         <Modal
           open
           onClose={() => { setDeclineId(null); setDeclineReason(""); }}
+          icon={XCircle}
+          tone="danger"
           title="Request changes"
+          description="The draft moves to Declined, with your note on what to change."
           size="sm"
+          dismissible={false}
           footer={
             <div className="cc-modal-footer">
-              <Button variant="secondary" onClick={() => { setDeclineId(null); setDeclineReason(""); }}>Cancel</Button>
-              <Button variant="danger" onClick={handleDecline}>
+              <Button variant="secondary" size="sm" onClick={() => { setDeclineId(null); setDeclineReason(""); }}>Cancel</Button>
+              <Button variant="danger" size="sm" onClick={handleDecline}>
                 Send back for revision
               </Button>
             </div>
           }
         >
-          <textarea
+          <Textarea
+            label="What to change"
             value={declineReason}
             onChange={(e) => setDeclineReason(e.target.value)}
             rows={3}
             placeholder="What needs to change before this can be approved?"
-            style={{
-              width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)",
-              fontSize: "var(--cc-t-14)", color: "var(--cc-text)", background: "var(--cc-card)",
-              resize: "vertical", fontFamily: "inherit", boxSizing: "border-box",
-            }}
           />
         </Modal>
       )}

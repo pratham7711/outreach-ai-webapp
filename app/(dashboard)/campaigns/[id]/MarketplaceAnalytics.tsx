@@ -1,6 +1,8 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
-import { Card, EmptyState, Skeleton } from "@pratham7711/ui";
+import { Card, EmptyState } from "@pratham7711/ui";
+import { Button, MetricTile, SectionCard, Skeleton, StatusBadge } from "@/components/ds";
+import { chartAxisTick, chartTooltipProps } from "@/components/charts/chartTheme";
 import { AlertTriangle, Users } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar,
@@ -23,12 +25,6 @@ type Analytics = {
   };
   projectedExhaustionDate: string | null;
   totals: { joins: number; submissions: number };
-};
-
-const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
-  PENDING_REVIEW: { label: "Pending", color: "var(--status-warning)", bg: "color-mix(in srgb, var(--status-warning) 12%, transparent)" },
-  APPROVED: { label: "Approved", color: "var(--status-good)", bg: "color-mix(in srgb, var(--status-good) 12%, transparent)" },
-  REJECTED: { label: "Rejected", color: "var(--cc-danger-fg)", bg: "color-mix(in srgb, var(--status-critical) 12%, transparent)" },
 };
 
 function formatNumber(num: number): string {
@@ -79,10 +75,10 @@ export default function MarketplaceAnalytics({
 
   if (loading) {
     return (
-      <Card variant="outlined" style={{ padding: 24 }}>
-        <Skeleton width="180px" height="18px" />
+      <Card variant="outlined">
+        <Skeleton width={180} height={18} />
         <div style={{ marginTop: 16 }}>
-          <Skeleton width="100%" height="240px" borderRadius="12px" />
+          <Skeleton width="100%" height={240} radius="var(--cc-r-card)" />
         </div>
       </Card>
     );
@@ -90,21 +86,15 @@ export default function MarketplaceAnalytics({
 
   if (error || !data) {
     return (
-      <Card variant="outlined" style={{ padding: 32 }}>
+      <Card variant="outlined">
         <EmptyState
           icon={<AlertTriangle size={32} color="var(--cc-text-subtle)" />}
           title="Couldn't load marketplace analytics"
           description="Something went wrong while fetching marketplace analytics."
           action={
-            <button
-              onClick={load}
-              style={{
-                background: "var(--cc-primary)", color: "var(--cc-on-primary)", border: "none",
-                borderRadius: 8, padding: "8px 16px", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", cursor: "pointer",
-              }}
-            >
+            <Button variant="primary" size="sm" onClick={load}>
               Retry
-            </button>
+            </Button>
           }
         />
       </Card>
@@ -126,59 +116,49 @@ export default function MarketplaceAnalytics({
     // UTC named, so the server render and the browser's cannot disagree. See lib/format.
     ? new Date(data.projectedExhaustionDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })
     : null;
+  const accruedText = formatCurrency(budget.accruedMajor, currency);
+  const capText = budget.capMajor != null ? formatCurrency(budget.capMajor, currency) : "\u2014";
+  /* One figure size for the row, set by its longest value. */
+  const tileFit = Math.max(
+    formatNumber(data.totals.joins).length,
+    formatNumber(data.totals.submissions).length,
+    SHOW_MONEY ? Math.max(accruedText.length, capText.length) : 0,
+  );
+  const joinsToggle =
+    data.joinsOverTime.length > 0 ? (
+      <SeriesModeToggle label="Creators joined" value={joinsMode} onChange={setJoinsMode} />
+    ) : undefined;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <style>{`
-        .mkt-an-split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
-        @media (min-width: 1024px) { .mkt-an-split { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); } }
-      `}</style>
-
       {/* Header stat tiles */}
-      <div className="rsp-grid-tiles">
-        <div style={{ padding: 16, borderRadius: 10, background: "var(--cc-card)", border: "1px solid var(--cc-border)" }}>
-          <div style={statLabelStyle}>Creators joined</div>
-          <div style={statValueStyle}>{formatNumber(data.totals.joins)}</div>
-        </div>
-        <div style={{ padding: 16, borderRadius: 10, background: "var(--cc-card)", border: "1px solid var(--cc-border)" }}>
-          <div style={statLabelStyle}>Submissions</div>
-          <div style={statValueStyle}>{formatNumber(data.totals.submissions)}</div>
-        </div>
+      <div className="cc-tiles-balanced">
+        <MetricTile fitTo={tileFit} label="Creators joined" value={formatNumber(data.totals.joins)} />
+        <MetricTile fitTo={tileFit} label="Submissions" value={formatNumber(data.totals.submissions)} />
         {SHOW_MONEY && (
           <>
-            <div style={{ padding: 16, borderRadius: 10, background: "var(--cc-card)", border: "1px solid var(--cc-border)" }}>
-              <div style={statLabelStyle}>Accrued</div>
-              <div style={statValueStyle}>{formatCurrency(budget.accruedMajor, currency)}</div>
-            </div>
-            <div style={{ padding: 16, borderRadius: 10, background: "var(--cc-card)", border: "1px solid var(--cc-border)" }}>
-              <div style={statLabelStyle}>Budget cap</div>
-              <div style={statValueStyle}>{budget.capMajor != null ? formatCurrency(budget.capMajor, currency) : "—"}</div>
-            </div>
+            <MetricTile fitTo={tileFit} label="Accrued" value={accruedText} />
+            <MetricTile fitTo={tileFit} label="Budget cap" value={capText} />
           </>
         )}
       </div>
 
       <div className="mkt-an-split">
         {/* Joins over time chart */}
-        <Card variant="outlined" style={{ padding: 24 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
-            <span className="cc-panel-title" style={{ display: "block" }}>
-              {joinsMode === "daily" ? "Creators joined per day" : "Creators joined over time"}
-            </span>
-            {data.joinsOverTime.length > 0 ? (
-              <SeriesModeToggle label="Creators joined" value={joinsMode} onChange={setJoinsMode} />
-            ) : null}
-          </div>
+        <SectionCard
+          title={joinsMode === "daily" ? "Creators joined per day" : "Creators joined over time"}
+          action={joinsToggle}
+        >
           {data.joinsOverTime.length > 0 && joinsMode === "daily" ? (
             <ChartFrame height={240}>
               <BarChart data={joinDays}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
-                <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 12, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="date" tickFormatter={formatDate} tick={chartAxisTick} axisLine={false} tickLine={false} />
+                <YAxis allowDecimals={false} tick={chartAxisTick} axisLine={false} tickLine={false} />
                 <Tooltip
+                  {...chartTooltipProps}
                   labelFormatter={(l) => formatDate(String(l))}
                   formatter={(v: unknown) => [formatNumber(Number(v ?? 0)), "Joined"]}
-                  contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--popover-foreground)", fontSize: "var(--cc-t-13)"}}
                 />
                 <Bar isAnimationActive={false} dataKey="joins" name="Joined" fill="var(--cc-primary)" radius={[3, 3, 0, 0]} maxBarSize={28} />
               </BarChart>
@@ -193,12 +173,12 @@ export default function MarketplaceAnalytics({
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
-                <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 12, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="date" tickFormatter={formatDate} tick={chartAxisTick} axisLine={false} tickLine={false} />
+                <YAxis allowDecimals={false} tick={chartAxisTick} axisLine={false} tickLine={false} />
                 <Tooltip
+                  {...chartTooltipProps}
                   labelFormatter={(l) => formatDate(String(l))}
-                  formatter={(v: any, name: any) => [formatNumber(Number(v ?? 0)), String(name)]}
-                  contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--popover-foreground)", fontSize: "var(--cc-t-13)"}}
+                  formatter={(v: unknown, name: unknown) => [formatNumber(Number(v ?? 0)), String(name)]}
                 />
                 <Area isAnimationActive={false} type="monotone" dataKey="cumulative" name="Total joined" stroke="var(--cc-primary)" strokeWidth={2} fill="url(#mktJoins)" />
               </AreaChart>
@@ -206,21 +186,15 @@ export default function MarketplaceAnalytics({
           ) : (
             <EmptyState icon={<Users size={32} color="var(--cc-text-subtle)" />} title="No joins yet" description="Creator joins will appear here once they enroll." />
           )}
-        </Card>
+        </SectionCard>
 
         {/* Right column: submissions by status + budget bar */}
-        <Card variant="outlined" style={{ padding: 24 }}>
-          <span className="cc-panel-title" style={{ display: "block", marginBottom: 16 }}>
-            Submissions by status
-          </span>
+        <SectionCard title="Submissions by status">
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
             {data.submissionsByStatus.map((s) => {
-              const meta = STATUS_META[s.status] ?? { label: s.status, color: "var(--cc-text)", bg: "var(--cc-bg)" };
               return (
                 <div key={s.status} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: meta.color, background: meta.bg, padding: "3px 10px", borderRadius: 6 }}>
-                    {meta.label}
-                  </span>
+                  <StatusBadge status={s.status} />
                   <span style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)" }}>{formatNumber(s.count)}</span>
                 </div>
               );
@@ -247,22 +221,9 @@ export default function MarketplaceAnalytics({
             Projected exhaustion:{" "}
             <span style={{ fontWeight: 700, color: "var(--cc-text)" }}>{eta ?? "—"}</span>
           </div>
-        </Card>
+        </SectionCard>
       </div>
     </div>
   );
 }
 
-const statLabelStyle: React.CSSProperties = {
-  fontSize: "var(--cc-t-11)",
-  color: "var(--cc-text-muted)",
-  textTransform: "uppercase",
-  letterSpacing: "0.06em",
-  marginBottom: 4,
-};
-
-const statValueStyle: React.CSSProperties = {
-  fontSize: "var(--cc-t-22)",
-  fontWeight: 700,
-  color: "var(--cc-text)",
-};

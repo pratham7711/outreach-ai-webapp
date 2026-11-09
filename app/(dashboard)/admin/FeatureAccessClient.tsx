@@ -2,12 +2,24 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, ExternalLink, ArrowRight, Settings, Layers } from "lucide-react";
+import { ArrowRight, Settings, Layers } from "lucide-react";
 import Link from "next/link";
-import { Input, Badge, EmptyState, Card, Avatar } from "@pratham7711/ui";
+import { Avatar } from "@pratham7711/ui";
 import ClientFeatureModal from "@/components/modals/ClientFeatureModal";
 import { FEATURES, type FeatureKey } from "@/lib/features";
-import { PageHeader, Dropdown, useConfirm, Button } from "@/components/ds";
+import {
+  PageHeader,
+  Dropdown,
+  useConfirm,
+  Button,
+  StatusTabs,
+  ListToolbar,
+  DataTable,
+  NoResults,
+  SectionCard,
+  StatusBadge,
+  type DataTableColumn,
+} from "@/components/ds";
 import { toast } from "sonner";
 
 const featureKeys = Object.keys(FEATURES) as FeatureKey[];
@@ -126,10 +138,15 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
 
   async function handleBulkClearOverrides() {
     if (selected.size === 0) return;
+    /* Danger, not default: this is not a delete, but it throws away every
+       per-client exception on the selection and there is no undo, so the
+       dialog has to read as a loss rather than a routine change. The warning
+       glyph (not the trash can) keeps it from reading as a delete. */
     const ok = await confirm({
       title: `Clear overrides for ${selected.size} ${selected.size === 1 ? "client" : "clients"}?`,
-      description: `Each selected client falls back to whatever their assigned plan allows. Any per-client exceptions you set are lost. This cannot be undone.`,
+      description: "Each selected client falls back to whatever its assigned plan allows. Any per-client exceptions you set are lost. This can't be undone.",
       confirmLabel: "Clear overrides",
+      tone: "danger",
     });
     if (!ok) return;
     setBulkSaving(true);
@@ -157,368 +174,249 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
   }
 
   const tabs = [
-    { key: "all" as const, label: "All Clients" },
-    { key: "by-plan" as const, label: "By Plan" },
-    { key: "overrides" as const, label: "Overrides Only" },
+    { key: "all" as const, label: "All clients" },
+    { key: "by-plan" as const, label: "By plan" },
+    { key: "overrides" as const, label: "Overrides only" },
   ];
+
+  const planBadge = (client: ClientData) => (
+    <StatusBadge tone={client.planName ? "info" : "neutral"}>{client.planName || "No plan"}</StatusBadge>
+  );
+
+  const clientCell = (client: ClientData) => (
+    <span className="cc-fa-client">
+      <Avatar name={client.name} size="sm" />
+      <span className="cc-dt-truncate">{client.name}</span>
+    </span>
+  );
+
+  const manage = (client: ClientData) => (
+    <Button variant="secondary" size="sm" onClick={() => openModal(client)} aria-label={`Manage ${client.name}`}>
+      Manage
+    </Button>
+  );
+
+  const emptyClients = (description: string) => (
+    <NoResults
+      icon={search ? undefined : <Layers size={32} strokeWidth={1.75} />}
+      title={search ? "No results found" : "No clients yet"}
+      description={search ? undefined : description}
+      onClear={search ? () => setSearch("") : undefined}
+      clearLabel="Clear search"
+    />
+  );
+
+  const allColumns: DataTableColumn<ClientData>[] = [
+    {
+      key: "select",
+      header: "Select",
+      hideHeader: true,
+      width: 48,
+      render: (client) => (
+        <input
+          type="checkbox"
+          className="cc-fa-check"
+          checked={selected.has(client.id)}
+          onChange={() => toggleSelect(client.id)}
+          aria-label={`Select ${client.name}`}
+        />
+      ),
+    },
+    { key: "client", header: "Client", minWidth: 220, primary: true, render: clientCell },
+    { key: "plan", header: "Plan", width: 160, render: planBadge },
+    {
+      key: "features",
+      header: "Features",
+      width: 150,
+      render: (client) => {
+        const enabled = getEnabledCount(client);
+        return (
+          <span className="cc-fa-features">
+            <span className="cc-fa-features__count">
+              {enabled}/{featureKeys.length}
+            </span>
+            <span className="cc-fa-meter" aria-hidden="true">
+              <span className="cc-fa-meter__fill" style={{ width: `${(enabled / featureKeys.length) * 100}%` }} />
+            </span>
+          </span>
+        );
+      },
+    },
+    {
+      key: "overrides",
+      header: "Overrides",
+      width: 130,
+      render: (client) => {
+        const n = getOverrideCount(client);
+        return n > 0 ? <StatusBadge tone="warning">{n} override{n > 1 ? "s" : ""}</StatusBadge> : <span className="cc-fa-muted">None</span>;
+      },
+    },
+    { key: "actions", header: "Actions", hideHeader: true, width: 112, align: "right", render: manage },
+  ];
+
+  const overrideColumns: DataTableColumn<ClientData>[] = [
+    { key: "client", header: "Client", minWidth: 200, primary: true, render: clientCell },
+    { key: "plan", header: "Plan", width: 160, render: planBadge },
+    {
+      key: "features",
+      header: "Overridden features",
+      minWidth: 240,
+      render: (client) => (
+        <span className="cc-fa-overrides">
+          {featureKeys
+            .filter((k) => client.featureOverrides?.[k] !== undefined)
+            .map((key) => {
+              const isOn = client.featureOverrides![key];
+              return (
+                <StatusBadge key={key} tone={isOn ? "success" : "danger"}>
+                  {FEATURES[key].label}: {isOn ? "On" : "Off"}
+                </StatusBadge>
+              );
+            })}
+        </span>
+      ),
+    },
+    { key: "actions", header: "Actions", hideHeader: true, width: 112, align: "right", render: manage },
+  ];
+
+  const planGroups: { id: string; name: string; clients: ClientData[]; onPlan: boolean }[] = [
+    { id: "none", name: "No plan", clients: filtered.filter((c) => !c.planId), onPlan: false },
+    ...plans.map((plan) => ({ id: plan.id, name: plan.name, clients: filtered.filter((c) => c.planId === plan.id), onPlan: true })),
+  ].filter((g) => g.clients.length > 0);
+
+  const allSelected = selected.size === filtered.length && filtered.length > 0;
 
   return (
     <div className="rsp-page page-enter">
       <PageHeader
-        title="Feature Access"
-        subtitle="Manage plan assignments and feature overrides per client"
-        actions={
-          <Badge variant="accent" size="md">
-            {initialClients.length} clients
-          </Badge>
+        title="Feature access"
+        subtitle={`${initialClients.length} ${initialClients.length === 1 ? "client" : "clients"} · plan assignments and feature overrides per client`}
+        tabs={
+          <StatusTabs
+            ariaLabel="Feature access views"
+            tabs={tabs}
+            active={tab}
+            onChange={(key) => { setTab(key as typeof tab); setSelected(new Set()); }}
+          />
         }
       />
 
-      {/* Tabs */}
-      <div role="tablist" className="cc-tabs" data-variant="solid" style={{ marginBottom: 24 }}>
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            role="tab"
-            aria-selected={tab === t.key}
-            onClick={() => { setTab(t.key); setSelected(new Set()); }}
-            className="cc-tab"
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <ListToolbar
+        search={{ value: search, onChange: setSearch, placeholder: "Search clients", ariaLabel: "Search clients by name" }}
+        end={
+          tab === "all" && filtered.length > 0 ? (
+            <label className="cc-fa-select-all">
+              <input type="checkbox" className="cc-fa-check" checked={allSelected} onChange={toggleAll} />
+              Select all
+            </label>
+          ) : null
+        }
+      />
 
-      {/* Search */}
-      <div style={{ marginBottom: 24 }}>
-        <Input
-          placeholder="Search clients..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          iconLeft={<Search size={16} />}
-        />
-      </div>
-
-      {/* Tab: All Clients */}
       {tab === "all" && (
-        <Card variant="outlined" noPadding>
-          {filtered.length === 0 ? (
-            <EmptyState
-              icon={<Search size={32} color="var(--cc-text-subtle)" />}
-              /* "Try adjusting your search" with an empty search box is advice
-                 about a filter nobody set. */
-              title={search ? "No clients found" : "No clients yet"}
-              description={
-                search
-                  ? "Try adjusting your search"
-                  : "Clients you add show up here, with the plan and feature overrides that apply to each."
+        <DataTable
+          caption="Clients"
+          columns={allColumns}
+          rows={filtered}
+          rowKey={(c) => c.id}
+          stickyFirstColumn={false}
+          empty={emptyClients("Clients you add show up here, with the plan and feature overrides that apply to each.")}
+        />
+      )}
+
+      {/* Every group renders nothing when it holds no clients, so an org with
+          no clients, or a search that matches none, needs its own message. */}
+      {tab === "by-plan" && planGroups.length === 0 && (
+        <SectionCard icon={Layers} title="Plans">
+          {emptyClients("Add a client and it appears here, grouped by the plan it is on.")}
+        </SectionCard>
+      )}
+      {tab === "by-plan" && planGroups.length > 0 && (
+        <div className="cc-fa-plans cc-stagger">
+          {planGroups.map((group) => (
+            <SectionCard
+              key={group.id}
+              icon={Layers}
+              title={group.name}
+              description={`${group.clients.length} client${group.clients.length !== 1 ? "s" : ""}`}
+              action={
+                group.onPlan ? (
+                  <Link href="/plans" className="cc-fa-plan-link">
+                    View plans <ArrowRight size={14} aria-hidden="true" />
+                  </Link>
+                ) : undefined
               }
-            />
-          ) : (
-            <div className="rsp-table-wrap">
-            <div style={{ minWidth: 720 }}>
-              {/* Table header */}
-              <div style={{
-                padding: "12px 20px",
-                borderBottom: "1px solid var(--cc-border)",
-                display: "grid",
-                gridTemplateColumns: "32px 1fr 140px 130px 110px 120px",
-                gap: 12,
-                alignItems: "center",
-                fontSize: "var(--cc-t-11)",
-                fontWeight: "var(--cc-fw-strong)",
-                textTransform: "uppercase" as const,
-                letterSpacing: "0.05em",
-                color: "var(--cc-text-muted)",
-              }}>
-                <div>
-                  <input
-                    type="checkbox"
-                    checked={selected.size === filtered.length && filtered.length > 0}
-                    onChange={toggleAll}
-                    aria-label="Select all clients"
-                    style={{ cursor: "pointer", accentColor: "var(--cc-primary)" }}
-                  />
-                </div>
-                <div>Client</div>
-                <div>Plan</div>
-                <div>Features</div>
-                <div>Overrides</div>
-                <div>Actions</div>
-              </div>
-
-              {/* Table rows */}
-              {filtered.map((client) => {
-                const enabledCount = getEnabledCount(client);
-                const overrideCount = getOverrideCount(client);
-                const isSelected = selected.has(client.id);
-                return (
-                  <div
-                    key={client.id}
-                    className="cc-table-row"
-                    style={{
-                      padding: "12px 20px",
-                      borderBottom: "1px solid var(--cc-border)",
-                      display: "grid",
-                      gridTemplateColumns: "32px 1fr 140px 130px 110px 120px",
-                      gap: 12,
-                      alignItems: "center",
-                      background: isSelected ? "var(--cc-row-hover)" : "transparent",
-                      transition: "background 0.1s",
-                    }}
+            >
+              <div className="cc-fa-avatars">
+                {group.clients.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className="cc-fa-avatar-btn"
+                    title={c.name}
+                    aria-label={`Manage ${c.name}`}
+                    onClick={() => openModal(c)}
                   >
-                    <div>
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleSelect(client.id)}
-                        aria-label={`Select ${client.name}`}
-                        style={{ cursor: "pointer", accentColor: "var(--cc-primary)" }}
-                      />
-                    </div>
-
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <Avatar name={client.name} size="sm" />
-                      <span style={{ fontSize: "var(--cc-t-14)", fontWeight: 500, color: "var(--cc-text)" }}>{client.name}</span>
-                    </div>
-
-                    <div>
-                      <Badge variant={client.planName ? "accent" : "neutral"} size="sm">
-                        {client.planName || "No Plan"}
-                      </Badge>
-                    </div>
-
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{enabledCount}/{featureKeys.length}</span>
-                      <div style={{ flex: 1, maxWidth: 60, height: 4, borderRadius: 2, background: "var(--cc-hover-bg)", overflow: "hidden" }}>
-                        <div style={{ width: `${(enabledCount / featureKeys.length) * 100}%`, height: "100%", borderRadius: 2, background: enabledCount > 7 ? "var(--cc-success)" : enabledCount > 4 ? "var(--cc-warning)" : "var(--cc-danger)", transition: "width 0.3s" }} />
-                      </div>
-                    </div>
-
-                    <div>
-                      {overrideCount > 0 && (
-                        <Badge variant="warning" size="sm">
-                          {overrideCount} override{overrideCount > 1 ? "s" : ""}
-                        </Badge>
-                      )}
-                    </div>
-
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <Button variant="ghost" size="sm" onClick={() => openModal(client)}>
-                        Manage
-                      </Button>
-                      <Link
-                        href={`/clients/${client.id}`}
-                        aria-label={`Open ${client.name}`}
-                        title={`Open ${client.name}`}
-                        style={{
-                          padding: "5px 10px", borderRadius: 6, fontSize: "var(--cc-t-12)", fontWeight: 500,
-                          background: "transparent", border: "1px solid var(--cc-border)",
-                          color: "var(--cc-text-muted)", display: "flex", alignItems: "center",
-                          textDecoration: "none",
-                        }}
-                      >
-                        <ExternalLink size={12} aria-hidden="true" />
-                      </Link>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            </div>
-          )}
-        </Card>
-      )}
-
-      {/* Tab: By Plan */}
-      {/* Every group here renders `null` when it holds no clients, so an org
-          with no clients — or a search that matches none — got a blank page
-          with no heading, no message and nothing to click: indistinguishable
-          from the tab being broken. */}
-      {tab === "by-plan" && filtered.length === 0 && (
-        <Card variant="outlined" noPadding>
-          <EmptyState
-            icon={<Layers size={32} color="var(--cc-text-subtle)" />}
-            title={search ? "No clients found" : "No clients yet"}
-            description={
-              search
-                ? "Try adjusting your search"
-                : "Add a client and it appears here, grouped by the plan it is on."
-            }
-          />
-        </Card>
-      )}
-      {tab === "by-plan" && filtered.length > 0 && (
-        <div className="cc-stagger" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 20 }}>
-          {(() => {
-            const noPlanClients = filtered.filter((c) => !c.planId);
-            if (noPlanClients.length === 0) return null;
-            return (
-              <Card variant="outlined" style={{ padding: 20 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-                  <h3 style={{ fontSize: "var(--cc-t-16)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}>No Plan</h3>
-                  <Badge variant="neutral" size="sm">
-                    {noPlanClients.length} client{noPlanClients.length !== 1 ? "s" : ""}
-                  </Badge>
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {noPlanClients.map((c) => (
-                    <div key={c.id} title={c.name} onClick={() => openModal(c)} style={{ cursor: "pointer" }}>
-                      <Avatar name={c.name} size="sm" />
-                    </div>
-                  ))}
-                </div>
-              </Card>
-            );
-          })()}
-
-          {plans.map((plan) => {
-            const clientsOnPlan = filtered.filter((c) => c.planId === plan.id);
-            if (clientsOnPlan.length === 0) return null;
-            return (
-              <Card key={plan.id} variant="outlined" style={{ padding: 20 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-                  <h3 style={{ fontSize: "var(--cc-t-16)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}>{plan.name}</h3>
-                  <Badge variant="accent" size="sm">
-                    {clientsOnPlan.length} client{clientsOnPlan.length !== 1 ? "s" : ""}
-                  </Badge>
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {clientsOnPlan.map((c) => (
-                    <div key={c.id} title={c.name} onClick={() => openModal(c)} style={{ cursor: "pointer" }}>
-                      <Avatar name={c.name} size="sm" />
-                    </div>
-                  ))}
-                </div>
-                <Link href="/plans" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 12, fontSize: "var(--cc-t-12)", color: "var(--cc-primary)", textDecoration: "none" }}>
-                  View all <ArrowRight size={14} />
-                </Link>
-              </Card>
-            );
-          })}
+                    <Avatar name={c.name} size="sm" />
+                  </button>
+                ))}
+              </div>
+            </SectionCard>
+          ))}
         </div>
       )}
 
-      {/* Tab: Overrides Only */}
       {tab === "overrides" && (
-        <Card variant="outlined" noPadding>
-          {clientsWithOverrides.length === 0 ? (
-            <EmptyState
-              icon={<Settings size={32} color="var(--cc-text-subtle)" />}
-              title="No overrides"
-              description="No clients have custom feature overrides"
-            />
-          ) : (
-            <div className="rsp-table-wrap">
-            <div style={{ minWidth: 640 }}>
-              <div style={{
-                padding: "12px 20px", borderBottom: "1px solid var(--cc-border)",
-                display: "grid", gridTemplateColumns: "1fr 140px 1fr 100px", gap: 12,
-                fontSize: "var(--cc-t-11)", fontWeight: "var(--cc-fw-strong)", textTransform: "uppercase" as const, letterSpacing: "0.05em", color: "var(--cc-text-muted)",
-              }}>
-                <div>Client</div>
-                <div>Plan</div>
-                <div>Overridden Features</div>
-                <div>Actions</div>
-              </div>
-              {clientsWithOverrides.map((client) => {
-                const overriddenKeys = featureKeys.filter((k) => client.featureOverrides?.[k] !== undefined);
-                return (
-                  <div key={client.id} className="cc-table-row" style={{
-                    padding: "12px 20px", borderBottom: "1px solid var(--cc-border)",
-                    display: "grid", gridTemplateColumns: "1fr 140px 1fr 100px", gap: 12, alignItems: "center",
-                  }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <Avatar name={client.name} size="sm" />
-                      <span style={{ fontSize: "var(--cc-t-14)", fontWeight: 500, color: "var(--cc-text)" }}>{client.name}</span>
-                    </div>
-                    <div>
-                      <Badge variant={client.planName ? "accent" : "neutral"} size="sm">
-                        {client.planName || "No Plan"}
-                      </Badge>
-                    </div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                      {overriddenKeys.map((key) => {
-                        const isOn = client.featureOverrides![key];
-                        return (
-                          <Badge key={key} variant={isOn ? "success" : "danger"} size="sm">
-                            {FEATURES[key].label}: {isOn ? "ON" : "OFF"}
-                          </Badge>
-                        );
-                      })}
-                    </div>
-                    <div>
-                      <Button variant="ghost" size="sm" onClick={() => openModal(client)}>
-                        Manage
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            </div>
-          )}
-        </Card>
+        <DataTable
+          caption="Clients with feature overrides"
+          columns={overrideColumns}
+          rows={clientsWithOverrides}
+          rowKey={(c) => c.id}
+          stickyFirstColumn={false}
+          empty={
+            search ? (
+              emptyClients("")
+            ) : (
+              <NoResults
+                icon={<Settings size={32} strokeWidth={1.75} />}
+                title="No overrides"
+                description="No client has a custom feature override."
+              />
+            )
+          }
+        />
       )}
 
-      {/* Bulk action floating bar */}
       {selected.size > 0 && (
-        <div style={{
-          position: "fixed",
-          bottom: 24,
-          left: "50%",
-          transform: "translateX(-50%)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexWrap: "wrap",
-          gap: 12,
-          padding: "12px 24px",
-          borderRadius: 12,
-          /* The bar's own ground, not the theme's. Its divider, dropdown fill
-             and ghost button are all translucent white over a dark surface, so a
-             ground that flips to white under .dark takes the whole set with
-             it -- the label, the separator and both controls at once. */
-          background: "var(--cc-overlay-ink)",
-          color: "var(--cc-overlay-ink-text)",
-          boxShadow: "0 8px 32px color-mix(in srgb, var(--cc-shadow-ink) 30%, transparent)",
-          zIndex: 100,
-          fontSize: "var(--cc-t-13)",
-          maxWidth: "calc(100vw - 24px)",
-        }}>
-          <span style={{ fontWeight: "var(--cc-fw-strong)"}}>
+        <div className="cc-fa-bulk" role="region" aria-label="Bulk actions">
+          <span className="cc-fa-bulk__count">
             {selected.size} client{selected.size > 1 ? "s" : ""} selected
           </span>
-          <div className="rsp-hide-mobile" style={{ width: 1, height: 20, background: "color-mix(in srgb, var(--cc-overlay-ink-text) 20%, transparent)" }} />
+          <span className="cc-fa-bulk__rule rsp-hide-mobile" aria-hidden="true" />
           <Dropdown
             ariaLabel="Bulk plan"
             align="left"
             minWidth={130}
+            size="sm"
             value={bulkPlanId}
             onChange={setBulkPlanId}
             options={[
-              { value: "", label: "No Plan" },
+              { value: "", label: "No plan" },
               ...plans.map((p) => ({ value: p.id, label: p.name })),
             ]}
-            triggerStyle={{
-              padding: "6px 10px", borderRadius: 6, fontSize: "var(--cc-t-12)",
-              background: "color-mix(in srgb, var(--cc-overlay-ink-text) 15%, transparent)", border: "1px solid color-mix(in srgb, var(--cc-overlay-ink-text) 20%, transparent)",
-              color: "var(--cc-overlay-ink-text)",
-            }}
           />
           <Button variant="primary" size="sm" loading={bulkSaving} onClick={handleBulkAssign}>
-            Assign Plan
+            Assign plan
           </Button>
           <Button variant="danger" size="sm" loading={bulkSaving} onClick={handleBulkClearOverrides}>
-            Clear Overrides
+            Clear overrides
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())} style={{ color: "color-mix(in srgb, var(--cc-overlay-ink-text) 80%, transparent)" }}>
+          <Button variant="ghost" size="sm" className="cc-fa-bulk__cancel" onClick={() => setSelected(new Set())}>
             Cancel
           </Button>
         </div>
       )}
 
-      {/* Client Feature Modal */}
       {selectedClient && (
         <ClientFeatureModal
           open={showModal}

@@ -3,13 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowDown, ArrowUp, Trash2 } from "lucide-react";
-import { Badge } from "@pratham7711/ui";
 import { toast } from "sonner";
 import { stripAt } from "@/lib/format";
-import { DECISION_BADGE, DECISION_LABELS, type ListItemDecision } from "@/lib/lists/approval";
+import { DECISION_LABELS, type ListItemDecision } from "@/lib/lists/approval";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import MetricFigure from "@/components/creators/MetricFigure";
 import { avgViewsValue, followersValue } from "@/lib/creators/metricValue";
+import { DataTable, MoreMenu, StatusBadge, type DataTableColumn, type StatusTone } from "@/components/ds";
 
 export type RateCardItem = {
   id: string;
@@ -31,7 +31,31 @@ export type RateCardItem = {
   };
 };
 
-const COLUMNS = "56px minmax(180px, 1fr) 96px 92px 80px 120px minmax(140px, 1fr) 150px 40px";
+const DECISION_TONE: Record<ListItemDecision, StatusTone> = {
+  PENDING: "neutral",
+  APPROVED: "success",
+  REJECTED: "danger",
+};
+
+/** The creator cell shared by both list tables: avatar, name, handle. */
+export function ListCreatorCell({ creator, link = false }: { creator: { id: string; name: string; handle: string }; link?: boolean }) {
+  const body = (
+    <>
+      <CreatorAvatar id={creator.id} name={creator.name} size="sm" />
+      <span className="cc-creator-cell-text">
+        <span className="cc-dt-truncate">{creator.name}</span>
+        <span className="cc-dt-sub cc-dt-truncate">@{stripAt(creator.handle)}</span>
+      </span>
+    </>
+  );
+  return link ? (
+    <Link prefetch={false} href={`/creators/${creator.id}`} className="cc-creator-cell cc-dt-primary">
+      {body}
+    </Link>
+  ) : (
+    <span className="cc-creator-cell">{body}</span>
+  );
+}
 
 /**
  * The list's creators as an editable rate card: the agency's quoted rate and
@@ -40,7 +64,7 @@ const COLUMNS = "56px minmax(180px, 1fr) 96px 92px 80px 120px minmax(140px, 1fr)
  *
  * Cells save on blur rather than per keystroke -- a rate is typed digit by
  * digit, and saving each one would be a write per character fighting the
- * cursor. Rows move with up/down buttons, which a keyboard can reach.
+ * cursor. Rows move from the row's ⋯ menu, which a keyboard can reach.
  */
 export default function RateCardTable({
   listId,
@@ -51,7 +75,7 @@ export default function RateCardTable({
   listId: string;
   items: RateCardItem[];
   onChanged: () => void;
-  onRemove: (itemId: string, creatorId: string) => void;
+  onRemove: (itemId: string, creatorId: string, name: string) => void;
 }) {
   const [moving, setMoving] = useState(false);
 
@@ -85,95 +109,120 @@ export default function RateCardTable({
     onChanged();
   }
 
-  return (
-    <div className="rsp-table-wrap">
-      <div style={{ minWidth: 1000 }}>
-        <div style={{ display: "grid", gridTemplateColumns: COLUMNS, gap: 12, padding: "12px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)" }}>
-          {["Order", "Creator", "Followers", "Avg Views", "Eng. rate", "Rate (USD)", "Notes", "Client", ""].map((h, i) => (
-            <span key={`${h}-${i}`} className="cc-microlabel">
-              {h}
+  const columns: DataTableColumn<RateCardItem>[] = [
+    {
+      key: "creator",
+      header: "Creator",
+      minWidth: 220,
+      render: (item) => <ListCreatorCell creator={item.creator} link />,
+    },
+    {
+      key: "followers",
+      header: "Followers",
+      width: 112,
+      align: "right",
+      // followersCount defaults to 0 for a creator nobody has read, and this is
+      // the view a client approves from: "—" with the reason.
+      render: (item) => <MetricFigure value={followersValue(item.creator.followersCount)} />,
+    },
+    {
+      key: "avgViews",
+      header: "Avg. views",
+      width: 112,
+      align: "right",
+      render: (item) => <MetricFigure value={avgViewsValue(item.creator.avgViews)} />,
+    },
+    {
+      key: "eng",
+      header: "Eng. rate",
+      width: 96,
+      align: "right",
+      render: (item) => (item.creator.engagementRate != null ? `${item.creator.engagementRate.toFixed(2)}%` : "—"),
+    },
+    {
+      key: "rate",
+      header: "Rate (USD)",
+      width: 128,
+      align: "right",
+      render: (item) => (
+        <input
+          key={`rate-${item.id}-${item.detail.rate ?? ""}`}
+          className="cc-field cc-ratecard-rate"
+          inputMode="decimal"
+          defaultValue={item.detail.rate ?? ""}
+          placeholder="—"
+          aria-label={`Rate for ${item.creator.name}`}
+          onBlur={(e) => {
+            if (e.currentTarget.value !== String(item.detail.rate ?? "")) void save(item.creator.id, { rate: e.currentTarget.value });
+          }}
+        />
+      ),
+    },
+    {
+      key: "notes",
+      header: "Notes",
+      minWidth: 180,
+      render: (item) => (
+        <input
+          key={`notes-${item.id}-${item.detail.notes ?? ""}`}
+          className="cc-field"
+          defaultValue={item.detail.notes ?? ""}
+          maxLength={2000}
+          placeholder="Add a note"
+          aria-label={`Notes on ${item.creator.name}`}
+          onBlur={(e) => {
+            if (e.currentTarget.value !== (item.detail.notes ?? "")) void save(item.creator.id, { notes: e.currentTarget.value });
+          }}
+        />
+      ),
+    },
+    {
+      key: "client",
+      header: "Client",
+      width: 160,
+      render: (item) => (
+        <>
+          <StatusBadge tone={DECISION_TONE[item.detail.decision]}>{DECISION_LABELS[item.detail.decision]}</StatusBadge>
+          {item.detail.decisionNote && (
+            <span className="cc-dt-sub cc-dt-truncate" title={item.detail.decisionNote}>
+              “{item.detail.decisionNote}”
             </span>
-          ))}
-        </div>
-        <div className="cc-stagger">
-          {items.map((item, i) => (
-            <div
-              key={item.id}
-              className="cc-table-row cc-row-deferred"
-              style={{ display: "grid", gridTemplateColumns: COLUMNS, gap: 12, padding: "12px 24px", alignItems: "center", borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }}
-            >
-              <span style={{ display: "flex", gap: 2 }}>
-                <button type="button" className="cc-icon-btn" aria-label={`Move ${item.creator.name} up`} disabled={moving || i === 0} onClick={() => move(i, -1)}>
-                  <ArrowUp size={14} aria-hidden />
-                </button>
-                <button
-                  type="button"
-                  className="cc-icon-btn"
-                  aria-label={`Move ${item.creator.name} down`}
-                  disabled={moving || i === items.length - 1}
-                  onClick={() => move(i, 1)}
-                >
-                  <ArrowDown size={14} aria-hidden />
-                </button>
-              </span>
-              <Link prefetch={false} href={`/creators/${item.creator.id}`} style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-                <CreatorAvatar id={item.creator.id} name={item.creator.name} size="sm" />
-                <div style={{ minWidth: 0 }}>
-                  <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{item.creator.name}</p>
-                  <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>@{stripAt(item.creator.handle)}</p>
-                </div>
-              </Link>
-              {/* followersCount defaults to 0 for a creator nobody has read, and
-                  this is the view a client approves from: "—" with the reason,
-                  as the list's plain view already shows it. */}
-              <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}><MetricFigure value={followersValue(item.creator.followersCount)} /></span>
-              <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}><MetricFigure value={avgViewsValue(item.creator.avgViews)} /></span>
-              <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
-                {item.creator.engagementRate != null ? `${item.creator.engagementRate.toFixed(2)}%` : "—"}
-              </span>
-              <input
-                key={`rate-${item.id}-${item.detail.rate ?? ""}`}
-                className="cc-field"
-                inputMode="decimal"
-                defaultValue={item.detail.rate ?? ""}
-                placeholder="—"
-                aria-label={`Rate for ${item.creator.name}`}
-                onBlur={(e) => {
-                  if (e.currentTarget.value !== String(item.detail.rate ?? "")) void save(item.creator.id, { rate: e.currentTarget.value });
-                }}
-              />
-              <input
-                key={`notes-${item.id}-${item.detail.notes ?? ""}`}
-                className="cc-field"
-                defaultValue={item.detail.notes ?? ""}
-                maxLength={2000}
-                placeholder="Add a note"
-                aria-label={`Notes on ${item.creator.name}`}
-                onBlur={(e) => {
-                  if (e.currentTarget.value !== (item.detail.notes ?? "")) void save(item.creator.id, { notes: e.currentTarget.value });
-                }}
-              />
-              <span style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
-                <Badge variant={DECISION_BADGE[item.detail.decision]}>{DECISION_LABELS[item.detail.decision]}</Badge>
-                {item.detail.decisionNote && (
-                  <span title={item.detail.decisionNote} style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    “{item.detail.decisionNote}”
-                  </span>
-                )}
-              </span>
-              <button
-                type="button"
-                className="cc-icon-btn"
-                onClick={() => onRemove(item.id, item.creator.id)}
-                aria-label={`Remove ${item.creator.name} from list`}
-                title="Remove from list"
-              >
-                <Trash2 size={14} aria-hidden />
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
+          )}
+        </>
+      ),
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      hideHeader: true,
+      width: 64,
+      render: (item, i) => (
+        <MoreMenu
+          size="sm"
+          label={`More actions for ${item.creator.name}`}
+          items={[
+            { label: "Move up", icon: <ArrowUp size={15} />, onClick: () => move(i, -1), disabled: moving || i === 0 },
+            { label: "Move down", icon: <ArrowDown size={15} />, onClick: () => move(i, 1), disabled: moving || i === items.length - 1 },
+            {
+              label: "Remove from list",
+              icon: <Trash2 size={15} />,
+              onClick: () => onRemove(item.id, item.creator.id, item.creator.name),
+              danger: true,
+              startsGroup: true,
+            },
+          ]}
+        />
+      ),
+    },
+  ];
+
+  return (
+    <DataTable
+      className="cc-actions-table"
+      caption="Rate card: creators on this list, in the order the share link shows them"
+      columns={columns}
+      rows={items}
+      rowKey={(item) => item.id}
+    />
   );
 }

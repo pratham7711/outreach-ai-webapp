@@ -1,11 +1,23 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Card, EmptyState, Input, Modal, Skeleton } from "@pratham7711/ui";
-import { Button, Pagination, useConfirm } from "@/components/ds";
-import { Play, Search, Trash2, User, Users } from "lucide-react";
+import { EmptyState, Input } from "@pratham7711/ui";
+import { Modal, ModalNotice } from "@/components/ds/Modal";
+import {
+  Button,
+  DataTable,
+  Dropdown,
+  ListToolbar,
+  MoreMenu,
+  NoResults,
+  Pagination,
+  Skeleton,
+  useConfirm,
+  type DataTableColumn,
+} from "@/components/ds";
+import { Eye, RefreshCw, Search, SearchX, Trash2, UserPlus, Users } from "lucide-react";
 import { formatDateAbs, formatHandle, timeAgo } from "@/lib/format";
 import { apiDelete, apiFetch, apiPost } from "@/lib/api/client";
 import { CreatorDetailModal, trackedFigures, type TopPost } from "./CreatorDetailModal";
@@ -16,10 +28,12 @@ import { LATEST_TEN_SINCE } from "@/lib/trackers/recentViews";
 import { isUnknownMetric, metricReason } from "@/lib/creators/metricValue";
 import MetricFigure from "@/components/creators/MetricFigure";
 import { AgeLabel } from "@/components/ds/AgeLabel";
+import { EmptyRosterNotice } from "@/components/CreatorSelect";
+import { PeriodControl } from "./PeriodControl";
 
 /**
- * The Creators sub-tab of Trackers, matching the reference's card layout: two
- * bordered figure groups per creator, each a value beside its change.
+ * The Creators sub-tab of Trackers: one table row per tracked creator, each
+ * figure a value over its change and the reading's age.
  *
  * The reference prints "No data yet." in every change cell on the captured page,
  * and so does this on any creator we cannot measure — which is the same words for
@@ -83,7 +97,7 @@ const PERIODS = [
 ];
 
 const SORTS = [
-  { key: "views", label: "Avg. Views" },
+  { key: "views", label: "Avg. views" },
   { key: "change", label: "Change" },
   { key: "posts", label: "Posts" },
   { key: "followers", label: "Followers" },
@@ -146,224 +160,195 @@ function followersReason(c: TrackedCreator, period: string): string {
   return `No readings inside the last ${periodLabel(period).toLowerCase()}, so there is nothing to compare.`;
 }
 
-/** One bordered figure group: icon, a value, and its change. */
-function FigureGroup({
-  icon,
-  label,
-  value,
-  valueTitle,
-  changeNode,
-  changeTitle,
-  age,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: React.ReactNode;
-  valueTitle?: string;
-  /** Left out when no tracked creator has this change yet. */
-  changeNode?: React.ReactNode;
-  changeTitle: string;
-  /** The reading's age under the value (plan A6). */
-  age?: React.ReactNode;
-}) {
+function ChangeValue({ percent, title }: { percent: number; title?: string }) {
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "stretch",
-        border: "1px solid var(--cc-border)",
-        borderRadius: 12,
-        overflow: "hidden",
-        flex: "1 1 260px",
-        minWidth: 240,
-      }}
-    >
-      <div
-        style={{
-          width: 56,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "var(--cc-bg)",
-          borderRight: "1px solid var(--cc-border)",
-          color: "var(--cc-primary)",
-          flexShrink: 0,
-        }}
-      >
-        {icon}
-      </div>
-      <div style={{ display: "flex", flex: 1, minWidth: 0 }}>
-        <div style={{ padding: "10px 16px", minWidth: 0, flex: "1 1 auto" }} title={valueTitle}>
-          <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}>{label}</div>
-          <div
-            style={{
-              fontSize: "var(--cc-t-18)",
-              fontWeight: 700,
-              color: "var(--cc-primary)",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {value}
-          </div>
-          {age}
-        </div>
-        {changeNode !== undefined && (
-          <div style={{ padding: "10px 16px", flex: "0 0 auto" }} title={changeTitle}>
-            <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}>Change</div>
-            {changeNode}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function ChangeValue({ percent }: { percent: number }) {
-  const up = percent >= 0;
-  return (
-    <div style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: up ? "var(--cc-primary)" : "var(--cc-danger-fg)" }}>
-      {up ? "+" : ""}
+    <span className="cc-tracker-change" data-down={percent < 0 ? "" : undefined} title={title || undefined}>
+      {percent >= 0 ? "+" : ""}
       {percent.toFixed(2)}%
-    </div>
+    </span>
   );
 }
 
 function NoData({ title }: { title: string }) {
   return (
-    <div style={{ fontSize: "var(--cc-t-11)", fontWeight: 700, color: "var(--cc-text-subtle)" }} title={title}>
+    <span className="cc-tracker-nodata" title={title}>
       {NO_DATA}
-    </div>
+    </span>
   );
 }
 
-/* One tracked creator. Memoised, with props that hold still while the list's
-   search box is typed in: every keystroke re-rendered all fifty rows and their
-   hundred age labels before the debounced search had even been sent. */
-const TrackerRow = memo(function TrackerRow({
-  c,
+/* The columns, built once per change of what they read: the list's search box
+   re-renders this component on every keystroke, and rebuilding the table then
+   re-rendered all fifty rows and their hundred age labels before the debounced
+   search had even been sent. */
+function creatorColumns({
   period,
   cadenceHours,
   anyFollowersChange,
   anyViewsChange,
   untracking,
+  refreshing,
   onUntrack,
   onOpen,
+  onRefresh,
 }: {
-  c: TrackedCreator;
   period: string;
   cadenceHours: number | null;
   anyFollowersChange: boolean;
   anyViewsChange: boolean;
   untracking: boolean;
+  refreshing: boolean;
   onUntrack: (c: TrackedCreator) => void;
   onOpen: (id: string) => void;
-}) {
-  const v = c.views;
-  const figures = trackedFigures(c);
-  return (
-    <Card variant="outlined" style={{ marginBottom: 12 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flex: "1 1 220px", minWidth: 200 }}>
-          <CreatorAvatar id={c.id} name={c.name} size="lg" />
-          <div
-            style={{ minWidth: 0, cursor: "pointer" }}
-            onClick={() => onOpen(c.id)}
-          >
-            <div
+  onRefresh: (id: string) => void;
+}): DataTableColumn<TrackedCreator>[] {
+  const span = periodLabel(period).toLowerCase();
+  return [
+    {
+      key: "creator",
+      header: "Creator",
+      minWidth: 220,
+      render: (c) => (
+        <div className="cc-creator-cell">
+          <CreatorAvatar id={c.id} name={c.name} size="sm" />
+          <span className="cc-creator-cell-text">
+            <button
+              type="button"
+              className="cc-row-open cc-dt-truncate"
+              onClick={() => onOpen(c.id)}
               title={c.name}
-              style={{
-                fontSize: "var(--cc-t-16)",
-                fontWeight: 700,
-                color: "var(--cc-primary)",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
+              aria-label={`Open details for ${c.name}`}
             >
               {c.name}
-            </div>
-            <div style={{ fontSize: "var(--cc-t-15)", color: "var(--cc-text-muted)" }}>
-              {formatHandle(c.handle)}
-            </div>
-          </div>
+            </button>
+            <span className="cc-dt-sub cc-dt-truncate">{formatHandle(c.handle)}</span>
+          </span>
         </div>
-
-        <FigureGroup
-          icon={<User size={22} />}
-          label="Followers"
-          value={<MetricFigure value={figures.followers} />}
-          valueTitle={metricReason(figures.followers)}
-          changeNode={
-            !anyFollowersChange ? undefined : c.followersChangePercent !== null ? (
-              <ChangeValue percent={c.followersChangePercent} />
-            ) : (
-              <NoData title={followersReason(c, period)} />
-            )
-          }
-          changeTitle={
-            c.followersDelta !== null
-              ? `${c.followersDelta >= 0 ? "+" : ""}${c.followersDelta.toLocaleString()} followers over ${periodLabel(period).toLowerCase()}`
-              : ""
-          }
-          age={
-            isUnknownMetric(figures.followers) ? undefined : c.followersFromReading === false ? (
-              <AgeLabel at={null} field="tracker" source="Creator record" never="not yet read by the tracker" />
-            ) : (
-              <AgeLabel at={c.lastReadAt} field="tracker" ctx={{ cadenceHours }} source="Tracker reading" never="time not recorded" />
-            )
-          }
+      ),
+    },
+    {
+      key: "followers",
+      header: "Followers",
+      width: 216,
+      align: "right",
+      render: (c) => {
+        const followers = trackedFigures(c).followers;
+        return (
+          <>
+            <span className="cc-tracker-figure" title={metricReason(followers)}>
+              <MetricFigure value={followers} />
+            </span>
+            <span className="cc-tracker-sub">
+              {anyFollowersChange ? (
+                c.followersChangePercent !== null ? (
+                  <ChangeValue
+                    percent={c.followersChangePercent}
+                    title={
+                      c.followersDelta !== null
+                        ? `${c.followersDelta >= 0 ? "+" : ""}${c.followersDelta.toLocaleString()} followers over ${span}`
+                        : undefined
+                    }
+                  />
+                ) : (
+                  <NoData title={followersReason(c, period)} />
+                )
+              ) : null}
+              {isUnknownMetric(followers) ? null : c.followersFromReading === false ? (
+                <AgeLabel at={null} field="tracker" source="Creator record" never="not yet read by the tracker" />
+              ) : (
+                <AgeLabel at={c.lastReadAt} field="tracker" ctx={{ cadenceHours }} source="Tracker reading" never="time not recorded" />
+              )}
+            </span>
+          </>
+        );
+      },
+    },
+    {
+      key: "avgViews",
+      header: "Avg. views",
+      width: 176,
+      align: "right",
+      render: (c) => {
+        const v = c.views;
+        const avgViews = trackedFigures(c).avgViews;
+        return (
+          <>
+            <span
+              className="cc-tracker-figure"
+              title={
+                isUnknownMetric(avgViews)
+                  ? viewsReason(c)
+                  : `Average views of their 10 newest posts, pinned posts left out. Measured ${timeAgo(v.measuredAt)}.`
+              }
+            >
+              <MetricFigure value={avgViews} />
+            </span>
+            <span className="cc-tracker-sub">
+              {anyViewsChange ? (
+                v.changePercent !== null ? (
+                  <ChangeValue
+                    percent={v.changePercent}
+                    title={
+                      v.delta !== null
+                        ? `${v.delta >= 0 ? "+" : ""}${Math.round(v.delta).toLocaleString()} average views over ${span}`
+                        : undefined
+                    }
+                  />
+                ) : (
+                  <NoData title={viewsReason(c)} />
+                )
+              ) : null}
+              {isUnknownMetric(avgViews) ? null : (
+                <AgeLabel at={v.measuredAt} field="tracker" ctx={{ cadenceHours }} source="Tracker reading" never="time not recorded" />
+              )}
+            </span>
+          </>
+        );
+      },
+    },
+    {
+      key: "posts",
+      header: "Posts",
+      width: 88,
+      align: "right",
+      render: (c) => (
+        <span title={`${c.metrics.postsInWindow} ${c.metrics.postsInWindow === 1 ? "post" : "posts"} tracked with them over ${span}`}>
+          {c.metrics.postsInWindow.toLocaleString()}
+        </span>
+      ),
+    },
+    {
+      key: "since",
+      header: "Tracked since",
+      width: 132,
+      render: (c) => (c.trackedSince ? formatDateAbs(c.trackedSince) : "—"),
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      hideHeader: true,
+      width: 64,
+      render: (c) => (
+        <MoreMenu
+          size="sm"
+          label={`More actions for ${c.name}`}
+          items={[
+            { label: "Open details", icon: <Eye size={15} />, onClick: () => onOpen(c.id) },
+            { label: "Refresh now", icon: <RefreshCw size={15} />, onClick: () => onRefresh(c.id), disabled: refreshing },
+            {
+              label: "Stop tracking",
+              icon: <Trash2 size={15} />,
+              onClick: () => onUntrack(c),
+              disabled: untracking,
+              danger: true,
+              startsGroup: true,
+            },
+          ]}
         />
-
-        <FigureGroup
-          icon={<Play size={22} />}
-          label="Avg. Views"
-          value={<MetricFigure value={figures.avgViews} />}
-          valueTitle={
-            isUnknownMetric(figures.avgViews)
-              ? viewsReason(c)
-              : `Average views of their 10 newest posts, pinned posts left out. Measured ${timeAgo(v.measuredAt)}.`
-          }
-          changeNode={
-            !anyViewsChange ? undefined : v.changePercent !== null ? (
-              <ChangeValue percent={v.changePercent} />
-            ) : (
-              <NoData title={viewsReason(c)} />
-            )
-          }
-          changeTitle={
-            v.delta !== null
-              ? `${v.delta >= 0 ? "+" : ""}${Math.round(v.delta).toLocaleString()} average views over ${periodLabel(period).toLowerCase()}`
-              : ""
-          }
-          age={
-            isUnknownMetric(figures.avgViews) ? undefined : (
-              <AgeLabel at={v.measuredAt} field="tracker" ctx={{ cadenceHours }} source="Tracker reading" never="time not recorded" />
-            )
-          }
-        />
-
-        <button
-          onClick={() => onUntrack(c)}
-          disabled={untracking}
-          title="Stop tracking this creator"
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            padding: 6,
-            borderRadius: 6,
-            color: "var(--cc-text-muted)",
-            display: "flex",
-            alignItems: "center",
-            flexShrink: 0,
-          }}
-        >
-          <Trash2 size={16} />
-        </button>
-      </div>
-    </Card>
-  );
-});
+      ),
+    },
+  ];
+}
 
 export function CreatorTrackers({
   pickerOpen,
@@ -433,6 +418,9 @@ export function CreatorTrackers({
       }>(`/api/creators?limit=10${search ? `&search=${encodeURIComponent(search)}` : ""}`),
     enabled: pickerOpen,
   });
+  /* Nothing typed and nobody came back: the roster is empty, and a search box
+     over it would only ever answer "no match". */
+  const rosterEmpty = !search && !!candidates && candidates.creators.length === 0;
 
   const trackMutation = useMutation({
     mutationFn: (creatorId: string) =>
@@ -446,7 +434,7 @@ export function CreatorTrackers({
     onError: (error) => toast.error(errorMessage(error, "Could not track that creator")),
   });
 
-  const refreshOneMutation = useMutation({
+  const { mutate: refreshOne, isPending: refreshingOne } = useMutation({
     mutationFn: (creatorId: string) =>
       apiPost<{ snapshots: number; failed: number; skipped: number }>(
         "/api/trackers/creators/refresh",
@@ -493,99 +481,52 @@ export function CreatorTrackers({
      a creator tracked on page 9 is still tracked. */
   const trackedIds = useMemo(() => new Set(creators.map((c) => c.id)), [creators]);
 
-  const controls = (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 16,
-        flexWrap: "wrap",
-        marginBottom: 16,
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>Sort</span>
-        {sorts.map((s) => (
-          <button
-            key={s.key}
-            onClick={() => {
-              setSort(s.key);
-              setPage(1);
-            }}
-            style={{
-              padding: "5px 10px",
-              borderRadius: 8,
-              fontSize: "var(--cc-t-13)",
-              fontWeight: "var(--cc-fw-strong)",
-              cursor: "pointer",
-              border: "1px solid",
-              borderColor: sort === s.key ? "var(--cc-primary)" : "var(--cc-border)",
-              background: "var(--cc-card)",
-              color: sort === s.key ? "var(--cc-primary)" : "var(--cc-text-muted)",
-            }}
-          >
-            {s.label}
-          </button>
-        ))}
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <div style={{ minWidth: 200 }}>
-          <Input
-            value={listSearch}
-            onChange={(e) => setListSearch(e.target.value)}
-            placeholder="Search tracked creators"
-            aria-label="Search tracked creators"
-            iconLeft={<Search size={16} />}
-          />
-        </div>
-        {PERIODS.map((p) => (
-          <button
-            key={p.key}
-            onClick={() => {
-              setPeriod(p.key);
-              setPage(1);
-            }}
-            style={{
-              padding: "7px 14px",
-              borderRadius: 8,
-              fontSize: "var(--cc-t-13)",
-              fontWeight: "var(--cc-fw-strong)",
-              cursor: "pointer",
-              border: "1px solid var(--cc-primary)",
-              background: period === p.key ? "var(--cc-primary)" : "var(--cc-card)",
-              color: period === p.key ? "var(--cc-on-primary)" : "var(--cc-primary)",
-            }}
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
+  /* The React Compiler memoises this component, so the columns and the table
+     hold still while the search box is typed in. */
+  const columns = creatorColumns({
+    period,
+    cadenceHours,
+    anyFollowersChange,
+    anyViewsChange,
+    untracking,
+    refreshing: refreshingOne,
+    onUntrack: untrack,
+    onOpen: setOpenCreator,
+    onRefresh: refreshOne,
+  });
 
-  if (isPending) {
-    return (
-      <div>
-        {controls}
-        {[1, 2, 3].map((i) => (
-          <Card key={i} variant="outlined" style={{ marginBottom: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <Skeleton width={56} height={56} borderRadius="50%" />
-              <div style={{ flex: 1 }}>
-                <Skeleton width={160} height={16} />
-                <div style={{ marginTop: 6 }}>
-                  <Skeleton width={100} height={13} />
-                </div>
-              </div>
-              <Skeleton width={240} height={56} borderRadius="12px" />
-              <Skeleton width={240} height={56} borderRadius="12px" />
-            </div>
-          </Card>
-        ))}
-      </div>
-    );
-  }
+  const firstRun = !isPending && !isError && creators.length === 0 && !q && !listSearch.trim();
+
+  const table = (
+      <DataTable
+        className="cc-actions-table"
+        caption="Tracked creators"
+        columns={columns}
+        rows={creators}
+        rowKey={(c) => c.id}
+        loading={isPending || (isFetching && creators.length > 0)}
+        skeletonRows={4}
+        empty={
+          <NoResults
+            onClear={() => setListSearch("")}
+            clearLabel="Clear search"
+            description={`Nothing you track matches "${q}".`}
+          />
+        }
+        footer={
+          data && data.total > 0 ? (
+            <Pagination
+              page={data.page}
+              totalPages={data.pageCount}
+              total={data.total}
+              pageSize={data.pageSize}
+              loading={isFetching}
+              onPageChange={setPage}
+            />
+          ) : undefined
+        }
+      />
+  );
 
   if (isError) {
     return (
@@ -604,56 +545,52 @@ export function CreatorTrackers({
 
   return (
     <div>
-      {controls}
-
-      {creators.length === 0 && q ? (
-        <EmptyState
-          icon={<Search size={40} />}
-          title="No tracked creators match that search"
-          description={`Nothing you track matches "${q}".`}
-          action={
-            <Button variant="secondary" onClick={() => setListSearch("")}>
-              Clear search
-            </Button>
-          }
-        />
-      ) : creators.length === 0 ? (
+      {firstRun ? (
         <EmptyState
           icon={<Users size={40} />}
           title="No creators tracked yet"
           description="Add a creator to watch their posting cadence and how their average views move week over week."
           action={
             <Button variant="primary" onClick={() => setPickerOpen(true)}>
-              Track Creator
+              Track creator
             </Button>
           }
         />
       ) : (
         <>
-          {creators.map((c) => (
-            <TrackerRow
-              key={c.id}
-              c={c}
-              period={period}
-              cadenceHours={cadenceHours}
-              anyFollowersChange={anyFollowersChange}
-              anyViewsChange={anyViewsChange}
-              untracking={untracking}
-              onUntrack={untrack}
-              onOpen={setOpenCreator}
-            />
-          ))}
-          {data && data.total > data.pageSize && (
-            <Pagination
-              style={{ marginTop: 16 }}
-              page={data.page}
-              totalPages={data.pageCount}
-              total={data.total}
-              pageSize={data.pageSize}
-              loading={isFetching}
-              onPageChange={setPage}
-            />
-          )}
+          <ListToolbar
+            search={{
+              value: listSearch,
+              onChange: setListSearch,
+              placeholder: "Search creators",
+              ariaLabel: "Search tracked creators by name or handle",
+            }}
+            end={
+              <>
+                <PeriodControl
+                  periods={PERIODS}
+                  value={period}
+                  onChange={(key) => {
+                    setPeriod(key);
+                    setPage(1);
+                  }}
+                />
+                <Dropdown
+                  ariaLabel="Sort tracked creators"
+                  size="md"
+                  align="right"
+                  value={sort}
+                  onChange={(key) => {
+                    setSort(key);
+                    setPage(1);
+                  }}
+                  options={sorts.map((o) => ({ value: o.key, label: o.label }))}
+                  minWidth={150}
+                />
+              </>
+            }
+          />
+          {table}
         </>
       )}
 
@@ -661,70 +598,86 @@ export function CreatorTrackers({
         open={Boolean(openCreator)}
         onClose={() => setOpenCreator(null)}
         creator={creators.find((c) => c.id === openCreator) ?? null}
-        onRefresh={(id) => refreshOneMutation.mutate(id)}
-        refreshing={refreshOneMutation.isPending}
+        onRefresh={refreshOne}
+        refreshing={refreshingOne}
       />
 
       <Modal
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
-        title="Track a Creator"
+        icon={UserPlus}
+        title="Track a creator"
+        description={
+          rosterEmpty
+            ? "A tracked creator's followers and average views are read on a schedule."
+            : "Search your roster. A tracked creator's followers and average views are read on a schedule."
+        }
         size="sm"
         footer={
-          <div className="cc-modal-footer" data-gap="0">
-            <Button variant="ghost" onClick={() => setPickerOpen(false)}>
+          <div className="cc-modal-footer">
+            <Button variant="secondary" size="sm" onClick={() => setPickerOpen(false)}>
               Close
             </Button>
           </div>
         }
       >
-        <Input
-          placeholder="Search creators by name or handle"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <div style={{ marginTop: 12, maxHeight: 320, overflowY: "auto" }}>
-          {searching && !candidates ? (
-            <div style={{ padding: 12 }}>
-              <Skeleton width={220} height={14} />
-            </div>
-          ) : (candidates?.creators ?? []).length === 0 ? (
-            <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", padding: "12px 4px" }}>
-              No creators match that.
-            </p>
-          ) : (
-            (candidates?.creators ?? []).map((cand) => {
-              const already = trackedIds.has(cand.id) || Boolean(cand.trackedSince);
-              return (
-                <div
-                  key={cand.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    padding: "8px 4px",
-                    borderBottom: "1px solid var(--cc-border)",
-                  }}
-                >
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>
-                      {cand.name}
-                    </div>
-                    <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{formatHandle(cand.handle)}</div>
+        {rosterEmpty ? (
+          <EmptyRosterNotice />
+        ) : (
+          <div className="cc-dialog-stack">
+            <Input
+              placeholder="Search creators by name or handle"
+              aria-label="Search creators by name or handle"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              iconLeft={<Search size={16} />}
+              autoComplete="off"
+              autoFocus
+            />
+            {searching && !candidates ? (
+              <div className="cc-dialog-options" aria-busy="true" aria-label="Searching creators">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="cc-dialog-option" style={{ cursor: "default" }}>
+                    <Skeleton width={36} height={36} circle />
+                    <span className="cc-dialog-option__text">
+                      <Skeleton width={140} height={14} />
+                      <Skeleton width={90} height={12} />
+                    </span>
                   </div>
-                  <Button
-                    variant={already ? "ghost" : "primary"}
-                    size="sm"
-                    disabled={already || trackMutation.isPending}
-                    onClick={() => trackMutation.mutate(cand.id)}
-                  >
-                    {already ? "Tracked" : "Track"}
-                  </Button>
-                </div>
-              );
-            })
-          )}
-        </div>
+                ))}
+              </div>
+            ) : (candidates?.creators ?? []).length === 0 ? (
+              <ModalNotice icon={SearchX}>No creators match that.</ModalNotice>
+            ) : (
+              /* Ten at most (the request's limit), so the list scrolls inside
+                 itself and the search box above it stays in view. */
+              <div className="cc-dialog-options" style={{ maxHeight: "22rem", overflowY: "auto" }}>
+                {(candidates?.creators ?? []).map((cand) => {
+                  const already = trackedIds.has(cand.id) || Boolean(cand.trackedSince);
+                  return (
+                    <div key={cand.id} className="cc-dialog-option" style={{ cursor: "default" }}>
+                      <CreatorAvatar id={cand.id} name={cand.name} size="sm" />
+                      <span className="cc-dialog-option__text">
+                        <span className="cc-dialog-option__title">{cand.name}</span>
+                        <span className="cc-dialog-option__desc">{formatHandle(cand.handle)}</span>
+                      </span>
+                      <span className="cc-dialog-option__control">
+                        <Button
+                          variant={already ? "ghost" : "primary"}
+                          size="sm"
+                          disabled={already || trackMutation.isPending}
+                          onClick={() => trackMutation.mutate(cand.id)}
+                        >
+                          {already ? "Tracked" : "Track"}
+                        </Button>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
     </div>
   );

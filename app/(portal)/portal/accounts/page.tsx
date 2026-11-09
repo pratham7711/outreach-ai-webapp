@@ -180,8 +180,8 @@ function PlatformCard({
   const followerWord = platform === "youtube" ? "subscribers" : "followers";
 
   return (
-    <Card style={{ padding: 0 }}>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: 16 }}>
+    <Card flush>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "16px var(--cc-card-inset)" }}>
         <PlatformTile platform={toPlatformEnum(platform)} />
         <div style={{ minWidth: 0, flex: 1, minHeight: 40, display: "flex", flexDirection: "column", justifyContent: "center" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
@@ -207,7 +207,7 @@ function PlatformCard({
           {accounts.map((a) => {
             const lapsed = reconnect.has(a.id);
             return (
-              <li key={a.id} style={{ borderTop: "1px solid var(--cc-border)", padding: "12px 16px 12px 68px" }}>
+              <li key={a.id} style={{ borderTop: "1px solid var(--cc-border)", padding: "12px var(--cc-card-inset) 12px calc(var(--cc-card-inset) + 52px)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflowWrap: "anywhere" }}>
@@ -253,7 +253,7 @@ function PlatformCard({
           gap: "8px 16px",
           flexWrap: "wrap",
           borderTop: "1px solid var(--cc-border)",
-          padding: "12px 16px 10px 68px",
+          padding: "12px var(--cc-card-inset) 10px calc(var(--cc-card-inset) + 52px)",
         }}
       >
         {/* A gated platform in production has no credentials behind it: the
@@ -418,7 +418,7 @@ export default function MyAccountsPage() {
       {failed && <LoadFailed what="your accounts" onRetry={load} />}
 
       {connections && !canConnect && (
-        <Card style={{ marginBottom: 16, padding: 20 }}>
+        <Card style={{ marginBottom: 16 }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>Join a campaign to connect</h2>
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)", margin: "6px 0 14px", lineHeight: 1.5, maxWidth: 560 }}>
             A connection is linked to the agency running your campaign, so Connect opens once you are on one. Join an

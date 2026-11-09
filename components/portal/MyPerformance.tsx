@@ -2,8 +2,9 @@
 
 import React from "react";
 import { useEffect, useState } from "react";
-import { Card, Skeleton } from "@pratham7711/ui";
+import { Card } from "@pratham7711/ui";
 import { Button } from "@/components/ds";
+import { Skeleton } from "@/components/ds/Skeleton";
 import { BadgeCheck, ExternalLink } from "lucide-react";
 import { ConnectPrompt } from "./ConnectPrompt";
 
@@ -169,7 +170,7 @@ function PlatformBlock({ block }: { block: PlatformInsights }) {
 
   if (block.needsReconnect) {
     return (
-      <Card variant="outlined" style={{ padding: 20 }}>
+      <Card variant="outlined">
         <div style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 6 }}>
           Reconnect {meta.label}
         </div>
@@ -192,7 +193,7 @@ function PlatformBlock({ block }: { block: PlatformInsights }) {
 
   if (block.sampleSize === 0) {
     return (
-      <Card variant="outlined" style={{ padding: 20 }}>
+      <Card variant="outlined">
         <PlatformHeader block={block} />
         <Bio text={block.bio} />
         <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
@@ -204,7 +205,7 @@ function PlatformBlock({ block }: { block: PlatformInsights }) {
   }
 
   return (
-    <Card variant="outlined" style={{ padding: 20 }}>
+    <Card variant="outlined">
       <PlatformHeader block={block} />
       <Bio text={block.bio} />
 
@@ -317,7 +318,7 @@ export function MyPerformance() {
   }, []);
 
   if (failed) return null;
-  if (!data) return <Skeleton width="100%" height="160px" borderRadius="12px" />;
+  if (!data) return <Skeleton width="100%" height="160px" radius="var(--cc-r-card)" />;
 
   const platforms = data.platforms ?? [];
   if (!data.connected || platforms.length === 0) {

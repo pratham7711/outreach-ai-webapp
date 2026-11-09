@@ -11,12 +11,13 @@ test.describe('Audit Log', () => {
     // Briefly duplicated while the outgoing and incoming trees overlap during
     // the page-enter transition, which trips strict mode.
     await expect(page.getByText('Track changes across your organization').first()).toBeVisible();
-    await expect(page.locator('label').filter({ hasText: 'Action' }).first()).toBeVisible();
-    await expect(page.locator('label').filter({ hasText: 'Entity' }).first()).toBeVisible();
-    await expect(page.locator('label').filter({ hasText: 'Search' }).first()).toBeVisible();
-    await expect(page.getByRole('combobox').first()).toBeVisible();
-    await expect(page.getByRole('combobox').nth(1)).toBeVisible();
-    await expect(page.getByPlaceholder('Search label, email, IP...').first()).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Reset' }).first()).toBeVisible();
+    // One toolbar row: the search, then the two quick filters, each named by
+    // its own aria-label (the old labelled filter card is gone).
+    await expect(page.getByRole('search').getByPlaceholder('Search events')).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Action' })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Entity' })).toBeVisible();
+    // The table keeps its headers whether or not there are events.
+    await expect(page.getByRole('columnheader', { name: 'Time' })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'IP address' })).toBeVisible();
   });
 });

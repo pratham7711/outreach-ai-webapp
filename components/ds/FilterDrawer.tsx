@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { X, SlidersHorizontal, Check } from "lucide-react";
+import { Button } from "./Button";
+import { Field } from "./Field";
+import { Switch } from "./Switch";
+import { FOCUSABLE, useDialogFocus } from "./useDialogFocus";
 
 /**
  * The right-side filter panel for list pages, driven by a spec rather than
@@ -12,6 +16,12 @@ import { X, SlidersHorizontal, Check } from "lucide-react";
  * what `lib/listFilters` parses on the server. Edits collect in a draft and
  * only reach the URL on Apply — a half-built date range should not refetch the
  * table on every keystroke.
+ *
+ * It is a modal layer like a dialog and shares the dialog's focus machinery
+ * (useDialogFocus): focus moves to the first control on open, Tab stays in
+ * the panel, Escape closes it only when it is the top layer, and focus goes
+ * back to the Filters button on close. Apply waits for a change and Clear all
+ * for something to clear.
  */
 
 export type FilterOption = { value: string; label: string; count?: number };
@@ -55,22 +65,27 @@ export function FilterDrawer({
   onApply: (next: FilterValues) => void;
 }) {
   const [draft, setDraft] = useState<FilterValues>(values);
+  const panelRef = useRef<HTMLElement>(null);
+  const titleId = useId();
 
   // Reopening starts from what the URL actually says, discarding a cancelled edit.
   useEffect(() => {
     if (open) setDraft(values);
   }, [open, values]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  const trapTab = useDialogFocus({
+    open,
+    panelRef,
+    onClose,
+    initialFocus: (panel) =>
+      panel.querySelector<HTMLElement>("[autofocus],[data-autofocus]") ??
+      panel.querySelector(".cc-drawer-body")?.querySelector<HTMLElement>(FOCUSABLE),
+  });
 
   const allKeys = useMemo(() => filters.flatMap(keysOf), [filters]);
+  const isSet = (v: FilterValues) => allKeys.some((k) => Boolean(v[k]));
+  const changed = allKeys.some((k) => (draft[k] || undefined) !== (values[k] || undefined));
+  const canClear = isSet(draft) || isSet(values);
 
   const set = (key: string, value: string | undefined) =>
     setDraft((d) => ({ ...d, [key]: value || undefined }));
@@ -107,22 +122,27 @@ export function FilterDrawer({
         data-open={open}
       />
       <aside
+        ref={panelRef}
         role="dialog"
-        aria-label="Filters"
+        aria-modal="true"
+        aria-labelledby={titleId}
         aria-hidden={!open}
+        tabIndex={-1}
         className="cc-drawer"
         data-open={open}
+        onKeyDown={trapTab}
       >
         <header className="cc-drawer-head">
-          <span className="cc-drawer-title">
-            <SlidersHorizontal size={16} /> Filters
-          </span>
+          <h2 id={titleId} className="cc-drawer-title">
+            <SlidersHorizontal size={16} aria-hidden="true" /> Filters
+          </h2>
           <button
+            type="button"
             onClick={onClose}
             aria-label="Close filters"
             className="cc-drawer-close"
           >
-            <X size={18} />
+            <X size={18} aria-hidden="true" />
           </button>
         </header>
 
@@ -131,8 +151,7 @@ export function FilterDrawer({
             if (def.type === "multiSelect") {
               const selected = (draft[def.key] ?? "").split(",").filter(Boolean);
               return (
-                <div key={def.key}>
-                  <span className="cc-field-label">{def.label}</span>
+                <Field key={def.key} label={def.label} group>
                   <div className="cc-filter-list">
                     {def.options.map((opt) => {
                       const on = selected.includes(opt.value);
@@ -142,7 +161,7 @@ export function FilterDrawer({
                             type="checkbox"
                             checked={on}
                             onChange={() => toggleInCsv(def.key, opt.value)}
-                            className="cc-visually-gone"
+                            className="sr-only"
                           />
                           <span aria-hidden className="cc-checkbox" data-on={on}>
                             {on && <Check size={11} strokeWidth={3} />}
@@ -155,14 +174,13 @@ export function FilterDrawer({
                       );
                     })}
                   </div>
-                </div>
+                </Field>
               );
             }
 
             if (def.type === "dateRange") {
               return (
-                <div key={def.fromKey}>
-                  <span className="cc-field-label">{def.label}</span>
+                <Field key={def.fromKey} label={def.label} group>
                   <div className="cc-field-row">
                     <input
                       type="date"
@@ -180,17 +198,13 @@ export function FilterDrawer({
                       aria-label={`${def.label} to`}
                     />
                   </div>
-                </div>
+                </Field>
               );
             }
 
             if (def.type === "numberRange") {
               return (
-                <div key={def.minKey}>
-                  <span className="cc-field-label">
-                    {def.label}
-                    {def.unit ? ` (${def.unit})` : ""}
-                  </span>
+                <Field key={def.minKey} label={`${def.label}${def.unit ? ` (${def.unit})` : ""}`} group>
                   <div className="cc-field-row">
                     <input
                       type="number"
@@ -214,44 +228,39 @@ export function FilterDrawer({
                       aria-label={`Maximum ${def.label}`}
                     />
                   </div>
-                </div>
+                </Field>
               );
             }
 
             return (
-              <div key={def.label}>
-                <span className="cc-field-label">{def.label}</span>
+              <Field key={def.label} label={def.label} group>
                 <div className="cc-filter-list">
                   {def.options.map((opt) => {
                     const on = draft[opt.key] === "1";
                     return (
                       <label key={opt.key} className="cc-filter-option" data-layout="split">
-                        {opt.label}
-                        <input
-                          type="checkbox"
+                        <span className="cc-filter-option-label">{opt.label}</span>
+                        <Switch
                           checked={on}
-                          onChange={() => set(opt.key, on ? undefined : "1")}
-                          className="cc-visually-gone"
+                          aria-label={opt.label}
+                          onChange={(next) => set(opt.key, next ? "1" : undefined)}
                         />
-                        <span aria-hidden className="cc-switch" data-on={on}>
-                          <span className="cc-switch-knob" />
-                        </span>
                       </label>
                     );
                   })}
                 </div>
-              </div>
+              </Field>
             );
           })}
         </div>
 
         <footer className="cc-drawer-foot">
-          <button onClick={clearAll} className="cc-drawer-btn">
+          <Button variant="secondary" size="sm" disabled={!canClear} onClick={clearAll}>
             Clear all
-          </button>
-          <button onClick={apply} className="cc-drawer-btn" data-variant="primary">
+          </Button>
+          <Button variant="primary" size="sm" disabled={!changed} onClick={apply}>
             Apply
-          </button>
+          </Button>
         </footer>
       </aside>
     </>
@@ -262,11 +271,13 @@ export function FilterDrawer({
 export function FilterButton({ count, onClick }: { count: number; onClick: () => void }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       className="cc-filter-btn"
       data-active={count > 0}
+      aria-haspopup="dialog"
     >
-      <SlidersHorizontal size={15} />
+      <SlidersHorizontal size={15} aria-hidden="true" />
       Filters
       {count > 0 && (
         <span className="cc-filter-btn-count">

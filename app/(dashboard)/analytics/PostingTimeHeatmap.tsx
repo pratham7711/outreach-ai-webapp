@@ -120,7 +120,7 @@ export function PostingTimeHeatmap({
               {byDay.map((row, day) => (
                 <div key={day} className="mb-1 flex items-center gap-2">
                   <span
-                    className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+                    className="shrink-0 text-xs font-medium text-muted-foreground"
                     style={{ width: 32 }}
                   >
                     {DAY_LABELS[day]}

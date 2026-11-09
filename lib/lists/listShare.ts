@@ -95,6 +95,27 @@ export async function sharedListMemberIds(share: Pick<SharedList, "listId" | "or
   return new Set(items.map((i) => i.creatorId));
 }
 
+/**
+ * The platforms a shared list's cards have an account on, by the rule
+ * sharedListCreators uses: a creator's linked profiles, or its own platform
+ * when it has none. The Share panel offers a platform chip only for these.
+ */
+export async function sharedListPlatforms(orgId: string, listId: string): Promise<string[]> {
+  const items = await db.creatorListItem.findMany({
+    where: { listId, creator: { orgId, deletedAt: null } },
+    select: { creator: { select: { id: true, platform: true } } },
+  });
+  const ids = items.map((i) => i.creator.id);
+  const links = ids.length
+    ? await db.creatorProfileLink.findMany({ where: { orgId, creatorId: { in: ids } }, select: { creatorId: true, platform: true } })
+    : [];
+  const linked = new Map<string, string[]>();
+  for (const l of links) linked.set(l.creatorId, [...(linked.get(l.creatorId) ?? []), l.platform]);
+  const out = new Set<string>();
+  for (const { creator } of items) for (const p of linked.get(creator.id) ?? [creator.platform]) out.add(p);
+  return [...out];
+}
+
 export async function sharedListCreators(share: SharedList): Promise<SharedCreator[]> {
   const { fields } = share;
   const items = await db.creatorListItem.findMany({

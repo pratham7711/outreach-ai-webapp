@@ -56,7 +56,7 @@ function TodoRow({ item }: { item: HomeTodo }) {
         style={{
           width: 36,
           height: 36,
-          borderRadius: 10,
+          borderRadius: "var(--cc-r-control)",
           flexShrink: 0,
           display: "flex",
           alignItems: "center",
@@ -162,7 +162,7 @@ export default function CreatorHomePage() {
                       justifyContent: "space-between",
                       gap: 10,
                       padding: 14,
-                      borderRadius: 12,
+                      borderRadius: "var(--cc-r-card)",
                       border: "1px solid var(--cc-border)",
                       background: "var(--cc-card)",
                       textDecoration: "none",

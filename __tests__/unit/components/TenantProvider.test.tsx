@@ -121,8 +121,8 @@ describe("TenantProvider", () => {
 
   describe("CSS variable injection", () => {
     // The org's colours must never reach <html> as inline custom properties:
-    // an inline value outranks .light, .dark and .creatorcore, so one brand
-    // colour would repaint all three themes.
+    // an inline value outranks .light and .dark, so one brand colour would
+    // repaint both themes.
     it("does not write the org's colours onto the root", async () => {
       (global.fetch as jest.Mock) = jest.fn().mockResolvedValue({
         ok: true,

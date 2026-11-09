@@ -2,15 +2,16 @@
 
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Layers, Megaphone, Music } from "lucide-react";
+import { Eye, Layers, Megaphone, Music } from "lucide-react";
 import { PostAnalysisTable, type AnalysisPost } from "@/components/posts/PostAnalysisTable";
 import { PostingTimeHeatmap } from "@/app/(dashboard)/analytics/PostingTimeHeatmap";
-import { platformLabel, formatFull, fitFigureSize } from "@/lib/format";
+import { platformLabel, formatFull } from "@/lib/format";
 import { asOfCaption } from "@/lib/dataAge";
 import { imgSrc } from "@/lib/postMedia";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import AttachCampaigns, { type AttachableCampaign } from "./AttachCampaigns";
 import { noun } from "@/lib/ui/noun";
+import { MetricTile, PageHeader, SectionCard, StatusTabs } from "@/components/ds";
 
 type Summary = {
   campaignCount: number;
@@ -60,13 +61,6 @@ export type SongDashboardData = {
   phases: PhaseRow[];
   platformBreakdown: { platform: string; views: number | null; posts: number }[];
   posts: AnalysisPost[];
-};
-
-const card: React.CSSProperties = {
-  background: "var(--cc-card)",
-  border: "1px solid var(--cc-border)",
-  borderRadius: 12,
-  padding: 20,
 };
 
 /** Label · bar · count, the row shape that reads better than a pie once you have
@@ -147,60 +141,52 @@ export default function SongDashboard({
 
   return (
     <div className="rsp-page">
-      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24 }}>
-        <div
-          aria-hidden="true"
-          style={{
-            width: 64, height: 64, borderRadius: 12, flexShrink: 0,
-            background: cover ? `url("${cover}") center/cover` : "var(--cc-bg)",
-            border: "1px solid var(--cc-border)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}
-        >
-          {!cover && <Music size={26} color="var(--cc-text-subtle)" />}
-        </div>
-        <div>
-          <h1 className="cc-page-title" data-mb="tight">
-            {song.title}
-          </h1>
-          <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)" }}>{song.artist}</p>
-        </div>
-      </div>
+      <PageHeader
+        title={song.title}
+        back={{ href: "/songs", label: "Songs" }}
+        leading={
+          <span
+            className="cc-page-thumb cc-song-thumb"
+            aria-hidden="true"
+            style={cover ? { backgroundImage: `url("${cover}")` } : undefined}
+          >
+            {cover ? null : <Music size={18} />}
+          </span>
+        }
+        subtitle={song.artist}
+      />
 
-      {/* Hero: the two numbers you actually open this page for, and the whole
-          card walks through to the posts that produced them. */}
-      <Link
-        href="#posts"
-        style={{
-          ...card,
-          display: "flex", alignItems: "center", gap: 32, flexWrap: "wrap",
-          marginBottom: 20, textDecoration: "none",
-          background: "linear-gradient(135deg, color-mix(in srgb, var(--cc-primary) 8%, transparent) 0%, var(--cc-card) 100%)",
-        }}
-      >
-        <HeroStat
-          value={summary.totalViews === null ? "—" : formatFull(summary.totalViews)}
+      {/* The two numbers you open this page for. */}
+      <div className="cc-tiles-balanced cc-song-tiles">
+        <MetricTile
+          icon={Eye}
           label="Total views"
-          sub={`across ${summary.postCount} ${noun(summary.postCount, "post")}`}
-          note={viewsNote}
-          valueTitle={summary.totalViews === null && summary.postCount > 0 ? "None of this song's posts has a view count read yet" : undefined}
+          value={
+            <span
+              title={summary.totalViews === null && summary.postCount > 0 ? "None of this song's posts has a view count read yet" : undefined}
+            >
+              {summary.totalViews === null ? "—" : formatFull(summary.totalViews)}
+            </span>
+          }
+          footer={
+            <>
+              across {summary.postCount} {noun(summary.postCount, "post")}
+              {viewsNote ? <span data-views-asof className="cc-song-tile-note">{viewsNote}</span> : null}
+            </>
+          }
         />
-        <span aria-hidden="true" style={{ width: 1, height: 48, background: "var(--cc-border)" }} />
-        <HeroStat
-          value={String(summary.campaignCount)}
+        <MetricTile
+          icon={Megaphone}
           label="Campaigns"
-          sub={summary.phaseCount > 0 ? `${summary.activeCampaignCount} active · ${summary.phaseCount} phases` : `${summary.activeCampaignCount} active`}
+          value={String(summary.campaignCount)}
+          footer={summary.phaseCount > 0 ? `${summary.activeCampaignCount} active · ${summary.phaseCount} phases` : `${summary.activeCampaignCount} active`}
         />
-        <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4, fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-primary)" }}>
-          View posts <ArrowRight size={14} aria-hidden="true" />
-        </span>
-      </Link>
+      </div>
 
       {/* Nothing in the app writes phases yet, so the phase card shows only when
           one exists; until then the platform card has the row to itself. */}
-      <div className={phases.length > 0 ? "grid grid-cols-1 lg:grid-cols-2" : "grid grid-cols-1"} style={{ gap: 20, marginBottom: 20 }}>
-        <div style={card}>
-          <h2 style={{ fontSize: "var(--cc-t-13)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 16 }}>Views by platform</h2>
+      <div className={`cc-song-grid${phases.length > 0 ? " cc-song-grid-2" : ""}`}>
+        <SectionCard title="Views by platform">
           {platformBreakdown.length === 0 ? (
             <Empty>No posts yet.</Empty>
           ) : (
@@ -217,11 +203,10 @@ export default function SongDashboard({
               ))}
             </div>
           )}
-        </div>
+        </SectionCard>
 
         {phases.length > 0 && (
-          <div style={card}>
-            <h2 style={{ fontSize: "var(--cc-t-13)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 16 }}>Views by phase</h2>
+          <SectionCard title="Views by phase">
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {phases.map((p, i) => (
                 <DistributionRow
@@ -234,12 +219,11 @@ export default function SongDashboard({
                 />
               ))}
             </div>
-          </div>
+          </SectionCard>
         )}
       </div>
 
-      <div style={{ ...card, marginBottom: 20 }}>
-        <h2 style={{ fontSize: "var(--cc-t-13)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 16 }}>Campaigns</h2>
+      <SectionCard title="Campaigns" className="cc-song-section">
         <div style={{ marginBottom: 16 }}>
           <AttachCampaigns songId={song.id} campaigns={attachable} />
         </div>
@@ -277,13 +261,21 @@ export default function SongDashboard({
             ))}
           </div>
         )}
-      </div>
+      </SectionCard>
 
-      <div id="posts" style={card}>
-        <div style={{ display: "flex", gap: 4, marginBottom: 20 }}>
-          <TabButton active={tab === "posts"} onClick={() => setTab("posts")}>All posts</TabButton>
-          <TabButton active={tab === "timing"} onClick={() => setTab("timing")}>When to post</TabButton>
-        </div>
+      <SectionCard id="posts" title="Posts">
+        <StatusTabs
+          ariaLabel="Posts view"
+          idBase="song-posts"
+          tabs={[
+            { key: "posts", label: "All posts" },
+            { key: "timing", label: "When to post" },
+          ]}
+          active={tab}
+          onChange={(key) => setTab(key as typeof tab)}
+          style={{ marginBottom: 20 }}
+        />
+        <div role="tabpanel" id="song-posts-panel" aria-labelledby={`song-posts-tab-${tab}`}>
         {tab === "posts" ? (
           <PostAnalysisTable
             posts={posts}
@@ -300,51 +292,9 @@ export default function SongDashboard({
             platform="ALL"
           />
         )}
-      </div>
+        </div>
+      </SectionCard>
     </div>
-  );
-}
-
-function HeroStat({
-  value,
-  label,
-  sub,
-  note,
-  valueTitle,
-}: {
-  value: string;
-  label: string;
-  sub: string;
-  /** When the figure was read and what it covers ("as of … · views known for 4 of 5 videos"). */
-  note?: string | null;
-  valueTitle?: string;
-}) {
-  return (
-    <div>
-      <p title={valueTitle ?? value} style={{ fontSize: fitFigureSize(value, 36), fontWeight: 700, color: "var(--cc-text)", lineHeight: 1, fontVariantNumeric: "tabular-nums", marginBottom: 6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-        {value}
-      </p>
-      <p style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{label}</p>
-      <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{sub}</p>
-      {note && <p data-views-asof style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{note}</p>}
-    </div>
-  );
-}
-
-function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        background: active ? "var(--cc-primary)" : "transparent",
-        color: active ? "var(--cc-on-primary)" : "var(--cc-text-muted)",
-        border: active ? "none" : "1px solid var(--cc-border)",
-        borderRadius: 8, padding: "7px 14px", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", cursor: "pointer",
-      }}
-    >
-      {children}
-    </button>
   );
 }
 

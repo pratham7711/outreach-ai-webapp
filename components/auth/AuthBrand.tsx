@@ -9,14 +9,11 @@ export const AUTH_BACKDROP =
 /** The product mark and name, as the landing page's header draws them. */
 export function AuthBrand() {
   return (
-    <Link
-      href="/"
-      style={{ display: "inline-flex", alignItems: "center", gap: 10, color: "var(--cc-text)", textDecoration: "none" }}
-    >
+    <Link href="/" className="cc-auth-brand">
       <span className="lp-brand-mark" aria-hidden>
         {BRAND.short}
       </span>
-      <span style={{ fontWeight: 700, fontSize: 18, letterSpacing: "-0.01em" }}>{BRAND.name}</span>
+      <span className="cc-auth-brand__name">{BRAND.name}</span>
     </Link>
   );
 }
@@ -26,15 +23,13 @@ const PLATFORMS = ["TIKTOK", "INSTAGRAM", "FACEBOOK", "YOUTUBE"];
 /** The platforms a creator can connect, as marks with the landing page's line. */
 export function AuthPlatforms() {
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-      <div style={{ display: "flex", gap: 8 }}>
+    <div className="cc-auth-platforms">
+      <div className="cc-auth-platforms__marks">
         {PLATFORMS.map((p) => (
           <PlatformTile key={p} platform={p} size={30} />
         ))}
       </div>
-      <p style={{ margin: 0, fontSize: 12, color: "var(--cc-landing-muted)" }}>
-        Creators connect TikTok, Instagram, Facebook and YouTube
-      </p>
+      <p className="cc-auth-platforms__line">Creators connect TikTok, Instagram, Facebook and YouTube</p>
     </div>
   );
 }

@@ -1,15 +1,11 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getOrgEntitlements, hasOrgFeature } from "@/lib/entitlements";
 import { AUDIT_LOG_FEATURE } from "@/lib/featureKeys";
-import { Badge, Card, EmptyState } from "@pratham7711/ui";
-import { Lock } from "lucide-react";
 import AuditLogClient from "./AuditLogClient";
-import { PageHeader } from "@/components/ds";
-
-const PAGE_SIZE = 20;
+import { FeatureState, PageHeader } from "@/components/ds";
+import { AUDIT_LOG_PAGE_SIZE as PAGE_SIZE } from "./columns";
 
 export default async function AuditLogPage() {
   const session = await auth();
@@ -24,46 +20,13 @@ export default async function AuditLogPage() {
   if (!auditLogEnabled) {
     return (
       <div className="rsp-page page-enter">
-        <PageHeader title="Audit Log" subtitle="Track changes across your organization" />
+        <PageHeader title="Audit log" subtitle="Track changes across your organization" />
 
-        <Card variant="outlined" noPadding>
-          <div style={{ padding: 24 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-              <Badge variant="warning" size="sm">
-                Disabled
-              </Badge>
-              <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
-                Audit logging is currently turned off for this workspace
-              </span>
-            </div>
-
-            <EmptyState
-              icon={<Lock size={32} color="var(--cc-text-subtle)" />}
-              title="Audit log is turned off"
-              description="Enable audit logging in Billing to start capturing workspace changes and viewing them here."
-              action={
-                <Link
-                  href="/settings/billing"
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: "10px 16px",
-                    borderRadius: 10,
-                    background: "var(--cc-primary)",
-                    color: "var(--cc-on-primary)",
-                    fontSize: "var(--cc-t-14)",
-                    fontWeight: "var(--cc-fw-strong)",
-                    textDecoration: "none",
-                    boxShadow: "0 8px 18px color-mix(in srgb, var(--cc-primary) 18%, transparent)",
-                  }}
-                >
-                  Open Billing
-                </Link>
-              }
-            />
-          </div>
-        </Card>
+        <FeatureState
+          kind="locked"
+          title="Audit log is turned off"
+          body="Audit logging is off for this workspace, so changes are not being recorded. Ask a workspace owner to turn it on."
+        />
       </div>
     );
   }

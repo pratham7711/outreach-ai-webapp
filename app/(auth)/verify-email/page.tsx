@@ -5,52 +5,13 @@ import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { ArrowLeft, CheckCircle2, MailWarning, MailCheck } from "lucide-react";
 import Link from "next/link";
-import { BRAND } from "@/lib/brand";
 import { Input } from "@pratham7711/ui";
 import { Button } from "@/components/ds";
+import { Field } from "@/components/ds/Field";
+import { AuthFrame } from "@/components/auth/AuthShell";
 
 function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        minHeight: "100dvh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "0 16px",
-        background: "var(--cc-bg)",
-      }}
-    >
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        style={{ width: "100%", maxWidth: 400 }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center", marginBottom: 40 }}>
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="10" stroke="var(--cc-primary)" strokeWidth="2.5" />
-            <circle cx="12" cy="12" r="5.5" stroke="var(--cc-primary)" strokeWidth="2" />
-            <circle cx="12" cy="12" r="2" fill="var(--cc-primary)" />
-          </svg>
-          <span style={{ fontWeight: 800, fontSize: 20, color: "var(--cc-text)", letterSpacing: "-0.5px" }}>
-            {BRAND.name}
-          </span>
-        </div>
-        <div
-          style={{
-            background: "var(--cc-card)",
-            border: "1px solid var(--cc-border)",
-            borderRadius: 24,
-            boxShadow: "var(--ui-shadow-lg)",
-            padding: 40,
-          }}
-        >
-          {children}
-        </div>
-      </motion.div>
-    </div>
-  );
+  return <AuthFrame>{children}</AuthFrame>;
 }
 
 function BackToSignIn({ muted }: { muted?: boolean }) {
@@ -86,7 +47,7 @@ function Badge({ tone, children }: { tone: "ok" | "warn"; children: React.ReactN
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        margin: "0 auto 16px",
+        margin: "0 0 16px",
       }}
     >
       {children}
@@ -163,8 +124,8 @@ function VerifyEmail() {
 
   if (state.kind === "working") {
     return (
-      <div style={{ textAlign: "center", padding: "16px 0" }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--cc-text)", marginBottom: 8 }}>
+      <div className="cc-auth__state">
+        <h1 className="cc-auth__title">
           Confirming your email…
         </h1>
         <p style={{ fontSize: 14, color: "var(--cc-text-muted)", margin: 0 }}>One moment.</p>
@@ -174,11 +135,11 @@ function VerifyEmail() {
 
   if (state.kind === "done") {
     return (
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} style={{ textAlign: "center", padding: "16px 0" }}>
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="cc-auth__state">
         <Badge tone="ok">
           <CheckCircle2 size={24} color="var(--cc-primary)" strokeWidth={2} />
         </Badge>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--cc-text)", marginBottom: 8 }}>
+        <h1 className="cc-auth__title">
           {state.already ? "Already confirmed" : "Email confirmed"}
         </h1>
         <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 32 }}>
@@ -208,10 +169,10 @@ function VerifyEmail() {
       <Badge tone="warn">
         <MailWarning size={24} color="var(--cc-warning-solid)" strokeWidth={2} />
       </Badge>
-      <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4, textAlign: "center" }}>
+      <h1 className="cc-auth__title">
         {heading}
       </h1>
-      <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 24, textAlign: "center" }}>{blurb}</p>
+      <p className="cc-auth__sub">{blurb}</p>
 
       {resent ? (
         <div style={{ textAlign: "center" }}>
@@ -226,14 +187,14 @@ function VerifyEmail() {
         </div>
       ) : (
         <form onSubmit={resend} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <Input
-            label="Email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@company.com"
-            required
-          />
+          <Field label="Email" required>
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@company.com"
+            />
+          </Field>
           <Button type="submit" variant="primary" fullWidth disabled={resending}>
             {resending ? "Sending…" : "Send a new link"}
           </Button>

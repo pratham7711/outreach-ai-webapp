@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Badge, Modal } from "@pratham7711/ui";
+import { Badge, Input } from "@pratham7711/ui";
+import { AlertCircle, CheckCircle2, ExternalLink, Info, ScanEye, Undo2 } from "lucide-react";
+import { Modal, ModalNotice, ModalOption, ModalOptionList, ModalSection } from "@/components/ds/Modal";
 import { Button } from "@/components/ds";
 import { toast } from "sonner";
 import { viewCheckCards, viewCheckSeverity, type ViewCheckFlag } from "@/lib/fraud/flagCopy";
@@ -125,93 +127,129 @@ export function ViewCheckDialog({
     }
   };
 
+  const reviewFooter = (
+    <>
+      <Button variant="secondary" size="sm" onClick={onClose}>Close</Button>
+      <Button variant="primary" size="sm" loading={saving} disabled={!flags || flags.length === 0} onClick={markReviewed}>
+        Mark reviewed
+      </Button>
+    </>
+  );
+
   return (
     <Modal
       open={true}
       onClose={onClose}
+      icon={ScanEye}
+      tone="warning"
       title="Check this post's views"
+      description={<>{creatorName}&rsquo;s post tripped a view check. This is a reason to look, not a finding.</>}
       size="md"
       footer={
-        <div className="cc-modal-footer" style={{ flexWrap: "wrap" }}>
-          {excluding ? (
-            <>
-              <Button variant="secondary" disabled={saving} onClick={() => setExcluding(false)}>Back</Button>
-              <Button variant="primary" loading={saving} disabled={!reason.trim() || !flags} onClick={exclude} data-testid="view-check-exclude-confirm">
-                Exclude post
-              </Button>
-            </>
-          ) : (
-            <>
-              {onExcluded && (
-                <Button variant="secondary" disabled={saving || !flags} onClick={() => setExcluding(true)} style={{ color: "var(--cc-danger)" }}>
-                  Exclude from totals
-                </Button>
-              )}
-              <Button variant="secondary" onClick={onClose}>Close</Button>
-              <Button variant="primary" loading={saving} disabled={!flags || flags.length === 0} onClick={markReviewed}>
-                Mark reviewed
-              </Button>
-            </>
-          )}
-        </div>
+        excluding ? (
+          <div className="cc-modal-footer" data-layout="split">
+            <Button variant="secondary" size="sm" disabled={saving} onClick={() => setExcluding(false)}>Back</Button>
+            <Button variant="danger" size="sm" loading={saving} disabled={!reason.trim() || !flags} onClick={exclude} data-testid="view-check-exclude-confirm">
+              Exclude post
+            </Button>
+          </div>
+        ) : onExcluded ? (
+          <div className="cc-modal-footer" data-layout="split">
+            <Button variant="ghost" size="sm" className="cc-btn-danger-ghost" disabled={saving || !flags} onClick={() => setExcluding(true)}>
+              Exclude from totals
+            </Button>
+            <div style={{ display: "flex", gap: "var(--cc-sp-6)" }}>{reviewFooter}</div>
+          </div>
+        ) : (
+          <div className="cc-modal-footer">{reviewFooter}</div>
+        )
       }
     >
-      <div data-testid="view-check-dialog" style={{ display: "flex", flexDirection: "column", gap: 14, fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>
-        <p style={{ margin: 0, color: "var(--cc-text-muted)", lineHeight: 1.5 }}>
-          {creatorName}&rsquo;s post tripped a view check. This is a reason to look, not a finding: open the post, compare
-          its comments with its views, and mark it reviewed if it looks right.
-          {marketplace ? " Until then it is held back from auto-approval." : ""}
-        </p>
-        {/* In the body, beside the step it belongs to: in the footer it
-            pushed the buttons past a phone's width once Exclude was on. */}
-        <a href={postUrl} target="_blank" rel="noopener noreferrer" style={{ alignSelf: "flex-start", fontSize: "var(--cc-t-14)", fontWeight: 600, color: "var(--cc-primary)" }}>
-          Open the post ↗
-        </a>
-        {failed && <p style={{ margin: 0, color: "var(--cc-danger)" }}>Couldn&rsquo;t load the details. Close and try again.</p>}
-        {!failed && flags === null && <p style={{ margin: 0, color: "var(--cc-text-muted)" }}>Loading…</p>}
-        {flags?.length === 0 && <p style={{ margin: 0, color: "var(--cc-text-muted)" }}>Nothing open on this post any more.</p>}
-        {flags && viewCheckCards(flags).map((c) => {
-          const sev = viewCheckSeverity(c.severity);
-          return (
-            <div key={c.key} style={{ border: "1px solid var(--cc-border)", borderRadius: 10, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 6 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-                <strong style={{ fontWeight: 600 }}>{c.title}</strong>
-                <Badge variant={sev.tone}>{sev.label}</Badge>
-              </div>
-              <span style={{ color: "var(--cc-text-muted)", lineHeight: 1.5 }}>{c.detail}</span>
-            </div>
-          );
-        })}
-        {excluding && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <label htmlFor="view-check-reason" style={{ fontWeight: 600 }}>Why are you excluding it?</label>
-            <input
-              id="view-check-reason"
-              autoFocus
-              value={reason}
-              maxLength={REASON_MAX}
-              onChange={(e) => setReason(e.target.value)}
-              /* Enter is the confirm button, as in any one-field form; not
-                 mid-composition (an IME's Enter picks a candidate). */
-              onKeyDown={(e) => {
-                if (e.key !== "Enter" || e.nativeEvent.isComposing || saving || !reason.trim() || !flags) return;
-                e.preventDefault();
-                void exclude();
-              }}
-              placeholder="e.g. Views bought; engagement doesn't match"
-              style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid var(--cc-border)", background: "var(--cc-card)", color: "var(--cc-text)", fontSize: "var(--cc-t-14)", fontFamily: "inherit" }}
-            />
-            <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", lineHeight: 1.5 }}>
-              The post leaves this campaign&rsquo;s totals and moves to Removed with this reason. Restore it there to undo.
-            </span>
-          </div>
+      <div data-testid="view-check-dialog" className="cc-dialog-stack">
+        <ModalOptionList>
+          {/* In the body, beside the step it belongs to: in the footer it
+              pushed the buttons past a phone's width once Exclude was on. */}
+          <ModalOption
+            as="div"
+            icon={ExternalLink}
+            title={
+              <a href={postUrl} target="_blank" rel="noopener noreferrer" style={{ fontWeight: 600, color: "var(--cc-primary)" }}>
+                Open the post ↗
+              </a>
+            }
+            description="Compare its comments with its views."
+          />
+          <ModalOption
+            as="div"
+            icon={CheckCircle2}
+            title="Mark it reviewed if it looks right"
+            description={marketplace ? "Until then it is held back from auto-approval." : undefined}
+          />
+        </ModalOptionList>
+
+        {failed && (
+          <ModalNotice tone="danger" icon={AlertCircle}>
+            Couldn&rsquo;t load the details. Close and try again.
+          </ModalNotice>
         )}
-        {elsewhere > 0 && (
-          <p data-testid="view-check-elsewhere" style={{ margin: 0, fontSize: "var(--cc-t-13)", color: "var(--cc-text)" }}>
-            This creator also has an unreviewed view check on {elsewhere} other {noun(elsewhere, "campaign")}.
-          </p>
+        {!failed && flags === null && <p className="cc-dialog-section__desc" style={{ margin: 0 }}>Loading…</p>}
+        {flags?.length === 0 && (
+          <ModalNotice tone="neutral" icon={Info}>
+            Nothing open on this post any more.
+          </ModalNotice>
         )}
       </div>
+
+      {flags && flags.length > 0 && (
+        <ModalSection title="Why it was flagged">
+          <ModalOptionList>
+            {viewCheckCards(flags).map((c) => {
+              const sev = viewCheckSeverity(c.severity);
+              return (
+                <ModalOption
+                  key={c.key}
+                  as="div"
+                  title={c.title}
+                  description={c.detail}
+                  control={<Badge variant={sev.tone}>{sev.label}</Badge>}
+                />
+              );
+            })}
+          </ModalOptionList>
+        </ModalSection>
+      )}
+
+      {excluding && (
+        <ModalSection>
+          <Input
+            id="view-check-reason"
+            label="Why are you excluding it?"
+            autoFocus
+            value={reason}
+            maxLength={REASON_MAX}
+            onChange={(e) => setReason(e.target.value)}
+            /* Enter is the confirm button, as in any one-field form; not
+               mid-composition (an IME's Enter picks a candidate). */
+            onKeyDown={(e) => {
+              if (e.key !== "Enter" || e.nativeEvent.isComposing || saving || !reason.trim() || !flags) return;
+              e.preventDefault();
+              void exclude();
+            }}
+            placeholder="e.g. Views bought; engagement doesn't match"
+          />
+          <ModalNotice tone="warning" icon={Undo2}>
+            The post leaves this campaign&rsquo;s totals and moves to Removed with this reason. Restore it there to undo.
+          </ModalNotice>
+        </ModalSection>
+      )}
+
+      {elsewhere > 0 && (
+        <div className="cc-dialog-after" data-testid="view-check-elsewhere">
+          <ModalNotice tone="info" icon={Info}>
+            This creator also has an unreviewed view check on {elsewhere} other {noun(elsewhere, "campaign")}.
+          </ModalNotice>
+        </div>
+      )}
     </Modal>
   );
 }

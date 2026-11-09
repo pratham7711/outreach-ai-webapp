@@ -1,52 +1,93 @@
 "use client";
 
-import { createContext, useContext, useMemo, useState, useEffect, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { RAIL_COOKIE, RAIL_COLLAPSED } from "@/lib/railCookie";
 
 /**
- * The rail has one state.
+ * The rail's state: whether the mobile drawer is open, and whether the desktop
+ * rail is collapsed to its icons.
  *
- * It used to have two, and the collapsed one was a liability rather than a
- * feature: it hid every label, left the campaign rail drawing empty pills once
- * that rail stopped carrying icons, and persisted itself to localStorage, so a
- * single stray click left the app broken on the next visit with no obvious way
- * back. Mobile still opens and closes the drawer -- that is `mobileOpen`, a
- * different thing from a desktop width toggle.
+ * Collapsing was removed once (bdd2f63) for three reasons, each answered here:
+ * the campaign rail then had no icons, so collapsed rows were empty pills -- it
+ * has an icon on every section now; the state lived in localStorage, so the
+ * server painted the wide rail and the page jumped on hydration -- it is a
+ * cookie now, read by the dashboard layout, so the first paint is already
+ * right; and a stray click left the rail collapsed with no obvious way back --
+ * the toggle is now a labelled control that never leaves the rail's edge, with
+ * a tooltip on every icon while collapsed.
  */
 type SidebarContextType = {
   mobileOpen: boolean;
   ready: boolean;
+  collapsed: boolean;
   setMobileOpen: (open: boolean) => void;
+  setCollapsed: (collapsed: boolean) => void;
+  toggleCollapsed: () => void;
 };
 
 const SidebarContext = createContext<SidebarContextType>({
   mobileOpen: false,
   ready: false,
+  collapsed: false,
   setMobileOpen: () => {},
+  setCollapsed: () => {},
+  toggleCollapsed: () => {},
 });
 
 export function useSidebar() {
   return useContext(SidebarContext);
 }
 
-export function SidebarProvider({ children }: { children: ReactNode }) {
+const isTyping = (el: EventTarget | null) => {
+  if (!(el instanceof HTMLElement)) return false;
+  return el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
+};
+
+export function SidebarProvider({
+  children,
+  initialCollapsed = false,
+}: {
+  children: ReactNode;
+  /** From the rail cookie, read on the server so the first paint is the right width. */
+  initialCollapsed?: boolean;
+}) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [ready, setReady] = useState(false);
+  const [collapsed, setCollapsedState] = useState(initialCollapsed);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => setReady(true));
     return () => cancelAnimationFrame(frame);
   }, []);
 
-  /* A fresh object literal here hands every consumer a new context value on
-     each render of this provider, which is the one thing a context provider
-     must not do: the provider sits above the whole dashboard, so that is a
-     re-render of every component that calls useSidebar, for a value that has
-     not changed. setMobileOpen is already stable (useState's setter). */
-  const value = useMemo(() => ({ mobileOpen, ready, setMobileOpen }), [mobileOpen, ready]);
+  const setCollapsed = useCallback((next: boolean) => {
+    setCollapsedState(next);
+    document.cookie = next
+      ? `${RAIL_COOKIE}=${RAIL_COLLAPSED}; path=/; max-age=31536000; samesite=lax`
+      : `${RAIL_COOKIE}=; path=/; max-age=0; samesite=lax`;
+  }, []);
 
-  return (
-    <SidebarContext.Provider value={value}>
-      {children}
-    </SidebarContext.Provider>
+  const toggleCollapsed = useCallback(() => setCollapsed(!collapsed), [collapsed, setCollapsed]);
+
+  /* Cmd+\ / Ctrl+\, the shortcut editors use for the same thing. Not while
+     typing: a backslash in a search box is a backslash. */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "\\" || !(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
+      if (isTyping(e.target)) return;
+      e.preventDefault();
+      toggleCollapsed();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [toggleCollapsed]);
+
+  /* A fresh object literal here would hand every consumer a new context value
+     on each render of this provider, which sits above the whole dashboard. */
+  const value = useMemo(
+    () => ({ mobileOpen, ready, collapsed, setMobileOpen, setCollapsed, toggleCollapsed }),
+    [mobileOpen, ready, collapsed, setCollapsed, toggleCollapsed],
   );
+
+  return <SidebarContext.Provider value={value}>{children}</SidebarContext.Provider>;
 }

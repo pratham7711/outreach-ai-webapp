@@ -1,8 +1,9 @@
 "use client";
 
-import { Modal, Badge } from "@pratham7711/ui";
+import { Badge } from "@pratham7711/ui";
+import { Modal } from "@/components/ds/Modal";
 import { Button } from "@/components/ds";
-import { ArrowRight, CheckCircle2, ExternalLink } from "lucide-react";
+import { ArrowRight, Banknote, CheckCircle2, ExternalLink } from "lucide-react";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import { formatHandle, platformLabel } from "@/lib/format";
 
@@ -70,7 +71,31 @@ export default function PayoutDetailModal({
   );
 
   return (
-    <Modal open onClose={onClose} title="Payout Details" size="md">
+    <Modal
+      open
+      onClose={onClose}
+      icon={Banknote}
+      tone="neutral"
+      title="Payout Details"
+      description="Status, payment details and the next step for this payout."
+      size="md"
+      footer={
+        actions.length > 0 ? (
+          <div className="cc-modal-footer">
+            {actions.map((a) => (
+              <Button
+                key={a.status}
+                variant={a.variant === "success" ? "primary" : a.variant === "danger" ? "danger" : "primary"}
+                size="sm"
+                onClick={() => onStatusChange(payout.id, a.status)}
+              >
+                {a.label}
+              </Button>
+            ))}
+          </div>
+        ) : undefined
+      }
+    >
       {/* Creator header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, padding: "12px 16px", background: "var(--cc-bg)", borderRadius: 10 }}>
         <CreatorAvatar id={payout.creator.id} name={payout.creator.name} size="md" />
@@ -96,7 +121,7 @@ export default function PayoutDetailModal({
       </div>
 
       {/* Status Timeline */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 24, justifyContent: "center" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "center" }}>
         {["PENDING", "PROCESSING", "SUCCESS"].map((s, i) => {
           const isActive = s === payout.status;
           const isPast = ["PENDING", "PROCESSING", "SUCCESS"].indexOf(payout.status) > i;
@@ -118,22 +143,6 @@ export default function PayoutDetailModal({
           );
         })}
       </div>
-
-      {/* Actions */}
-      {actions.length > 0 && (
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          {actions.map((a) => (
-            <Button
-              key={a.status}
-              variant={a.variant === "success" ? "primary" : a.variant === "danger" ? "danger" : "primary"}
-              size="sm"
-              onClick={() => onStatusChange(payout.id, a.status)}
-            >
-              {a.label}
-            </Button>
-          ))}
-        </div>
-      )}
     </Modal>
   );
 }

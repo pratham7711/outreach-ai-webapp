@@ -7,8 +7,10 @@
  * blocklist only ever knows the attacks somebody already thought of.
  */
 import { emitThemeCss } from "@/lib/sdui/theme/emit";
-import { canonicalise, TOKEN_NAMES } from "@/lib/sdui/theme/contract";
-import file from "@/lib/sdui/defaults/creatorcore.theme.json";
+import { canonicalise, storedThemeSchema, TOKEN_NAMES } from "@/lib/sdui/theme/contract";
+import { resolveOrgTheme } from "@/lib/sdui/theme/resolve";
+
+jest.mock("@/lib/db", () => ({ db: {} }));
 
 const HOSTILE = [
   "#fff}</style><script>alert(1)</script>",
@@ -29,9 +31,9 @@ describe("theme token contract", () => {
   it("never emits a character that could end or open a declaration", () => {
     for (const token of TOKEN_NAMES) {
       for (const value of HOSTILE) {
-        const { css } = emitThemeCss({ creatorcore: { [token]: value } });
+        const { css } = emitThemeCss({ light: { [token]: value } });
         // The only legal braces are the ones emit.ts writes around the block.
-        const inner = css.replace(/^:root\.creatorcore\{/, "").replace(/\}$/, "");
+        const inner = css.replace(/^:root\.light\{/, "").replace(/\}$/, "");
         expect(inner).not.toMatch(/[<>{};]\s*[a-zA-Z@]/);
         expect(inner.toLowerCase()).not.toContain("url(");
         expect(inner.toLowerCase()).not.toContain("@import");
@@ -44,7 +46,7 @@ describe("theme token contract", () => {
 
   it("drops any token name that is not in the contract", () => {
     const { css, rejected } = emitThemeCss({
-      creatorcore: { "--evil": "#000", "--cc-primary ": "#000", content: "x" },
+      light: { "--evil": "#000", "--cc-primary ": "#000", content: "x" },
     });
     expect(css).toBe("");
     expect(rejected).toHaveLength(3);
@@ -68,41 +70,42 @@ describe("theme token contract", () => {
 
   it("emits breakpoint layers ascending, so the wider one wins on source order", () => {
     const { css } = emitThemeCss({}, [
-      { minWidth: 1280, modes: { creatorcore: { "--cc-rail-card-w": "16%" } } },
-      { minWidth: 1024, modes: { creatorcore: { "--cc-rail-card-w": "15%" } } },
+      { minWidth: 1280, modes: { light: { "--cc-rail-card-w": "16%" } } },
+      { minWidth: 1024, modes: { light: { "--cc-rail-card-w": "15%" } } },
     ]);
     expect(css.indexOf("min-width:1024px")).toBeLessThan(css.indexOf("min-width:1280px"));
   });
 
-  it("keeps the measured CreatorCore shell in the checked-in default", () => {
-    // These four ratios are the parity result, not preferences: rail 15.00%,
-    // inset 0.625%, reserved 15.31%, gutter 3.40% reproduce CreatorCore's
-    // 240/216px rail and 291/262px content origin at 1600 and 1440 alike.
-    // If someone edits them, that is a parity regression and this says so.
-    const shell = file.responsive.find((r: { minWidth: number }) => r.minWidth === 1024);
-    /* Asserted rather than optional-chained: if the 1024 layer is gone, that is
-       the regression this test exists to catch, and `shell?.modes` would report
-       it as an unhelpful "undefined is not an object". */
-    expect(shell).toBeDefined();
-    expect(shell!.modes.creatorcore).toMatchObject({
-      "--cc-rail-card-w": "15%",
-      "--cc-rail-inset-x": "0.625%",
-      "--cc-sidebar-w": "15.31%",
-      "--cc-page-pad-inline": "3.4%",
+  describe("a row saved while the CreatorCore theme existed", () => {
+    const legacy = {
+      version: 3,
+      modes: {
+        light: { "--cc-text": "#111111" },
+        creatorcore: { "--cc-sidebar-w": "15.31%", "--cc-action-h": "40px" },
+      },
+      responsive: [
+        {
+          minWidth: 1024,
+          modes: { dark: { "--cc-rail-card-w": "15%" }, creatorcore: { "--cc-rail-card-w": "15%" } },
+        },
+      ],
+    };
+
+    it("still parses, with the creatorcore mode stripped and the rest kept", () => {
+      const parsed = storedThemeSchema.safeParse(legacy);
+      expect(parsed.success).toBe(true);
+      expect(parsed.data!.version).toBe(3);
+      expect(parsed.data!.modes).toEqual({ light: { "--cc-text": "#111111" } });
+      expect(parsed.data!.responsive).toEqual([{ minWidth: 1024, modes: { dark: { "--cc-rail-card-w": "15%" } } }]);
     });
-    /* The action button is a ladder, not one value, and the ladder is the
-       parity result: 40px square below 768, their 11.25rem/2.5rem from 768,
-       the zoom-frozen 180px/40px from 1024, and the ratio again from 1600.
-       Each rung mirrors a media query in globals.css (~1837, 1880, 1897,
-       1926); asserting only the base used to let three of the four drift. */
-    expect(file.modes.creatorcore["--cc-action-min-w"]).toBe("40px");
-    expect(file.modes.creatorcore["--cc-action-h"]).toBe("40px");
 
-    const rung = (minWidth: number) =>
-      file.responsive.find((r: { minWidth: number }) => r.minWidth === minWidth)?.modes.creatorcore;
-
-    expect(rung(768)).toMatchObject({ "--cc-action-min-w": "11.25rem", "--cc-action-h": "2.5rem" });
-    expect(rung(1024)).toMatchObject({ "--cc-action-min-w": "180px", "--cc-action-h": "40px" });
-    expect(rung(1600)).toMatchObject({ "--cc-action-min-w": "11.25vw", "--cc-action-h": "2.5vw" });
+    it("resolves without degrading and emits no .creatorcore CSS", async () => {
+      const theme = await resolveOrgTheme("org-legacy", { theme: legacy });
+      expect(theme.degraded).toBe(false);
+      expect(theme.version).toBe(3);
+      expect(theme.rejected).toEqual([]);
+      expect(theme.css).not.toContain("creatorcore");
+      expect(theme.css).toBe(":root.light{--cc-text:#111111}@media (min-width:1024px){:root.dark{--cc-rail-card-w:15%}}");
+    });
   });
 });

@@ -1,6 +1,8 @@
 "use client";
-import { Modal, Badge } from "@pratham7711/ui";
-import { Music, RefreshCw } from "lucide-react";
+import { Badge } from "@pratham7711/ui";
+import { Modal, ModalNotice } from "@/components/ds/Modal";
+import { Button } from "@/components/ds/Button";
+import { AlertTriangle, Music, RefreshCw } from "lucide-react";
 import { formatDateAbs, timeAgo, formatFull } from "@/lib/format";
 import type { ChartGranularity } from "@/lib/trackers/granularity";
 import { AudioUsesChart, VelocityChart, type SeriesPoint } from "./SoundCharts";
@@ -57,9 +59,13 @@ export function SoundDetailModal({
   if (!sound) return null;
   const stale = sound.health !== "live";
 
+  /* The header is the sound itself -- its artwork, name and artist, with the
+     refresh action and read state beside them -- so it stays in the body
+     rather than becoming the dialog's text title, and names the dialog by
+     aria-label instead. */
   return (
-    <Modal open={open} onClose={onClose} title="" size="lg">
-      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
+    <Modal open={open} onClose={onClose} aria-label={`${sound.title} — sound details`} size="lg">
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 24, flexWrap: "wrap" }}>
         <div
           style={{
             width: 52, height: 52, borderRadius: 12, flexShrink: 0,
@@ -73,32 +79,30 @@ export function SoundDetailModal({
             <Music size={22} style={{ color: "var(--cc-primary)" }} />
           )}
         </div>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: "var(--cc-t-20)", fontWeight: 700, color: "var(--cc-text)" }}>{sound.title}</div>
+        <div style={{ minWidth: 0, flex: "1 1 200px" }}>
+          <div tabIndex={-1} data-autofocus style={{ outline: "none", fontSize: "var(--cc-t-20)", fontWeight: 700, color: "var(--cc-text)", overflowWrap: "anywhere" }}>{sound.title}</div>
           <div style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
             {sound.artist || "Unknown artist"}
           </div>
         </div>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
           {onRefresh ? (
-            <button
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => onRefresh(sound.id)}
               disabled={refreshing}
               title="Read this sound from TikTok now"
-              style={{
-                display: "flex", alignItems: "center", gap: 6,
-                padding: "6px 12px", borderRadius: 8, fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)",
-                border: "1px solid var(--cc-border)", background: "var(--cc-card)",
-                color: "var(--cc-text)", cursor: refreshing ? "default" : "pointer",
-                opacity: refreshing ? 0.6 : 1,
-              }}
+              iconLeft={
+                <RefreshCw
+                  size={14}
+                  aria-hidden="true"
+                  style={{ animation: refreshing ? "cc-spin 1s linear infinite" : undefined }}
+                />
+              }
             >
-              <RefreshCw
-                size={14}
-                style={{ animation: refreshing ? "cc-spin 1s linear infinite" : undefined }}
-              />
               {refreshing ? "Refreshing…" : "Refresh Data"}
-            </button>
+            </Button>
           ) : null}
           {stale ? (
             <Badge variant="warning" size="sm">
@@ -111,19 +115,11 @@ export function SoundDetailModal({
       </div>
 
       {stale && sound.lastReadAt ? (
-        <div
-          role="status"
-          style={{
-            borderLeft: "3px solid var(--cc-warning)",
-            background: "var(--cc-card)",
-            padding: "10px 14px",
-            marginBottom: 18,
-            fontSize: "var(--cc-t-13)",
-            color: "var(--cc-text)",
-          }}
-        >
-          Readings stopped {timeAgo(sound.lastReadAt)} ({formatDateAbs(sound.lastReadAt)}). The
-          figures below are the last known values, not current ones.
+        <div role="status" style={{ marginBottom: 20 }}>
+          <ModalNotice tone="warning" icon={AlertTriangle} title={`Readings stopped ${timeAgo(sound.lastReadAt)}`}>
+            Last read {formatDateAbs(sound.lastReadAt)}. The figures below are the last known values, not
+            current ones.
+          </ModalNotice>
         </div>
       ) : null}
 
@@ -198,11 +194,12 @@ export function SoundDetailModal({
         </section>
       </div>
 
-      <div style={{ marginTop: 14, fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
-        Tracked since {formatDateAbs(sound.trackedSince)} · {sound.series.length} points ·{" "}
-        {sound.chartGranularity} granularity
-        {sound.lastReadAt ? <> · last read {timeAgo(sound.lastReadAt)}</> : null}
-      </div>
+      <p className="cc-dialog-meta" style={{ marginTop: 16 }}>
+        <span>Tracked since {formatDateAbs(sound.trackedSince)}</span>
+        <span>{sound.series.length} points</span>
+        <span>{sound.chartGranularity} granularity</span>
+        {sound.lastReadAt ? <span>last read {timeAgo(sound.lastReadAt)}</span> : null}
+      </p>
     </Modal>
   );
 }

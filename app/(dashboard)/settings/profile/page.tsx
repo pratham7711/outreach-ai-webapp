@@ -1,10 +1,12 @@
 "use client";
-import { useState, useEffect } from "react";
-import { Card, Input, Skeleton } from "@pratham7711/ui";
-import { Building2, Type, Globe, Save } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Input } from "@pratham7711/ui";
+import { Building2 } from "lucide-react";
+import { toast } from "sonner";
 import { formatDateAbs } from "@/lib/format";
 import { PLATFORM_DEFAULT_BRANDING } from "@/lib/brandingDefaults";
-import { PageHeader, Dropdown, Button } from "@/components/ds";
+import { useDirty } from "@/lib/useDirty";
+import { PageHeader, Dropdown, LoadError, Field, FieldRow, SettingsForm, Skeleton } from "@/components/ds";
 
 type OrgProfile = {
   id: string;
@@ -22,88 +24,109 @@ type OrgProfile = {
   canManageSettings?: boolean;
 };
 
+/* What this form edits, as the inputs hold it. The snapshot of it taken on
+   load (and after each save) is what Cancel restores and what "dirty" is
+   measured against. */
+type ProfileForm = {
+  name: string;
+  brandName: string;
+  timezone: string;
+  currency: string;
+  logoUrl: string;
+  faviconUrl: string;
+  fontFamily: string;
+};
+
 const CURRENCIES = ["USD", "EUR", "GBP", "INR"];
 const TIMEZONES = ["UTC", "Asia/Kolkata", "America/New_York", "America/Los_Angeles", "Europe/London", "Europe/Paris", "Asia/Tokyo", "Asia/Singapore", "Australia/Sydney"];
+const DEFAULT_FONT = PLATFORM_DEFAULT_BRANDING.fontFamily;
 
-function SectionHeader({ icon: Icon, title, description }: { icon: React.ElementType; title: string; description: string }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-      <div style={{ width: 40, height: 40, borderRadius: 10, background: "var(--cc-primary-light)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-        <Icon size={18} color="var(--cc-primary)" />
-      </div>
-      <div>
-        <h2 style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>{title}</h2>
-        <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>{description}</p>
-      </div>
-    </div>
-  );
-}
+const toForm = (o: OrgProfile): ProfileForm => ({
+  name: o.name,
+  brandName: o.brandName ?? "",
+  timezone: o.timezone,
+  currency: o.currency,
+  logoUrl: o.logoUrl ?? "",
+  faviconUrl: o.faviconUrl ?? "",
+  fontFamily: o.fontFamily,
+});
 
-function FormRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="settings-form-row" style={{ display: "grid", gap: 8, alignItems: "start", paddingBottom: 16, borderBottom: "1px solid var(--cc-border)" }}>
-      <label style={{ fontSize: "var(--cc-t-13)", fontWeight: 500, color: "var(--cc-text)" }}>{label}</label>
-      <div style={{ minWidth: 0 }}>{children}</div>
-    </div>
-  );
-}
+const EMPTY: ProfileForm = {
+  name: "",
+  brandName: "",
+  timezone: "UTC",
+  currency: "USD",
+  logoUrl: "",
+  faviconUrl: "",
+  fontFamily: DEFAULT_FONT,
+};
+
+const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export default function OrgProfilePage() {
   const [org, setOrg] = useState<OrgProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   /* settings:manage, decided by /api/org rather than guessed here. PATCH
      refuses without it, so an editable form for a member who cannot save is a
      promise the API will not keep. */
   const [canManage, setCanManage] = useState(false);
 
-  // Form state
-  const [name, setName] = useState("");
-  const [brandName, setBrandName] = useState("");
-  const [timezone, setTimezone] = useState("UTC");
-  const [currency, setCurrency] = useState("USD");
-  const [logoUrl, setLogoUrl] = useState("");
-  const [faviconUrl, setFaviconUrl] = useState("");
-  const [fontFamily, setFontFamily] = useState<string>(PLATFORM_DEFAULT_BRANDING.fontFamily);
-  const isDefaultFont = fontFamily === PLATFORM_DEFAULT_BRANDING.fontFamily;
+  const [saved, setSaved] = useState<ProfileForm | null>(null);
+  const [form, setForm] = useState<ProfileForm>(EMPTY);
+  const dirty = useDirty(saved, form);
+  const set = <K extends keyof ProfileForm>(key: K, value: ProfileForm[K]) => {
+    setForm((f) => ({ ...f, [key]: value }));
+    setSaveError(null);
+  };
 
+  /* The logo preview hides itself for the URL that failed to load, and comes
+     back as soon as the URL changes. */
+  const [brokenLogo, setBrokenLogo] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
+    setLoadFailed(false);
     fetch("/api/org")
-      .then(r => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(String(r.status));
+        return r.json();
+      })
       .then((data: OrgProfile) => {
+        const loaded = toForm(data);
         setOrg(data);
         setCanManage(data.canManageSettings === true);
-        setName(data.name);
-        setBrandName(data.brandName ?? "");
-        setTimezone(data.timezone);
-        setCurrency(data.currency);
-        setLogoUrl(data.logoUrl ?? "");
-        setFaviconUrl(data.faviconUrl ?? "");
-        setFontFamily(data.fontFamily);
+        setSaved(loaded);
+        setForm(loaded);
       })
-      .catch(() => setError("Failed to load profile"))
+      .catch(() => setLoadFailed(true))
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(load, [load]);
+
+  const nameError = saved && !form.name.trim() ? "Enter the organization's name." : undefined;
+  const isDefaultFont = form.fontFamily === DEFAULT_FONT;
+
   const save = async () => {
-    if (!canManage) return;
+    if (!canManage || !dirty || nameError) return;
+    const sent = form;
     setSaving(true);
-    setError(null);
+    setSaveError(null);
     try {
       const res = await fetch("/api/org", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: name || undefined,
-          brandName: brandName || null,
-          timezone,
-          currency,
-          logoUrl: logoUrl || null,
-          faviconUrl: faviconUrl || null,
-          fontFamily,
+          name: sent.name,
+          brandName: sent.brandName || null,
+          timezone: sent.timezone,
+          currency: sent.currency,
+          logoUrl: sent.logoUrl || null,
+          faviconUrl: sent.faviconUrl || null,
+          fontFamily: sent.fontFamily,
           /* Bank details, the custom domain and the three brand colours left
              this form in October 2026 (nothing reads any of them now -- the
              themes own the app's colours). Not sending them is what keeps the
@@ -111,164 +134,160 @@ export default function OrgProfilePage() {
         }),
       });
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error ?? "Save failed");
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "The profile couldn't be saved. Try again.");
       }
-      setToast("Profile saved");
-      setTimeout(() => setToast(null), 3000);
-    } catch (e: any) {
-      setError(e.message);
+      setSaved(sent);
+      toast.success("Profile saved");
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "The profile couldn't be saved. Try again.");
     } finally {
       setSaving(false);
     }
   };
 
+  const readOnly = !canManage;
+
   return (
     <div className="rsp-page page-enter">
-      <style>{`@media(min-width:768px){.settings-form-row{grid-template-columns:200px 1fr;gap:16px}.settings-form-row>label{padding-top:8px}}`}</style>
-      {/* Toast */}
-      {toast && (
-        <div style={{
-          position: "fixed", top: 20, right: 20, zIndex: 9999,
-          background: "var(--cc-success)", color: "var(--cc-on-primary)", padding: "10px 18px",
-          borderRadius: 8, fontSize: "var(--cc-t-14)", fontWeight: 500,
-          boxShadow: "0 4px 12px color-mix(in srgb, var(--cc-shadow-ink) 15%, transparent)",
-        }}>
-          {toast}
-        </div>
-      )}
-
       <PageHeader
-        title="Organization Profile"
+        title="Profile"
         subtitle={
           canManage
-            ? "Manage your workspace settings and branding"
+            ? "Your organization's name, regional defaults and branding."
             : "Your workspace settings. Only an owner or admin can change them."
-        }
-        actions={
-          canManage ? (
-            <Button variant="primary" onClick={save} disabled={saving || loading}>
-              <Save size={14} style={{ marginRight: 6 }} />
-              {saving ? "Saving…" : "Save Changes"}
-            </Button>
-          ) : null
         }
       />
 
-      {error && (
-        <div style={{ background: "color-mix(in srgb, var(--cc-danger) 14%, transparent)", border: "1px solid color-mix(in srgb, var(--cc-danger) 30%, transparent)", borderRadius: 8, padding: "12px 16px", marginBottom: 20, fontSize: "var(--cc-t-13)", color: "var(--cc-danger-ink)" }}>
-          {error}
-        </div>
-      )}
-
       {loading ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <Skeleton width="100%" height="200px" borderRadius="12px" />
-          <Skeleton width="100%" height="200px" borderRadius="12px" />
-          <Skeleton width="100%" height="200px" borderRadius="12px" />
-        </div>
+        <Skeleton width="100%" height={560} radius="var(--cc-r-card)" />
+      ) : loadFailed || !org ? (
+        <LoadError title="Couldn't load the profile" onRetry={load} />
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-
-          {/* General */}
-          <Card variant="outlined" style={{ padding: 24 }}>
-            <SectionHeader icon={Building2} title="General" description="Basic organization details" />
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <FormRow label="Organization Name">
-                <Input value={name} onChange={e => setName(e.target.value)} placeholder="Acme Inc." disabled={!canManage} />
-              </FormRow>
-              <FormRow label="Brand Name">
-                <Input value={brandName} onChange={e => setBrandName(e.target.value)} placeholder="Optional display name" disabled={!canManage} />
-              </FormRow>
-              <FormRow label="Subdomain">
-                <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 8 }}>
-                  <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", background: "var(--cc-bg)", border: "1px solid var(--cc-border)", borderRadius: 6, padding: "7px 12px" }}>
-                    {org?.subdomain ?? "—"}
-                  </span>
-                  <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>Read-only</span>
-                </div>
-              </FormRow>
-              <FormRow label="Timezone">
-                <Dropdown
-                  ariaLabel="Timezone"
-                  align="left"
-                  fullWidth
-                  value={timezone}
-                  onChange={setTimezone}
-                  disabled={!canManage}
-                  options={TIMEZONES.map(tz => ({ value: tz, label: tz }))}
-                />
-              </FormRow>
-              <FormRow label="Default Currency">
-                <Dropdown
-                  ariaLabel="Default currency"
-                  align="left"
-                  fullWidth
-                  value={currency}
-                  onChange={setCurrency}
-                  disabled={!canManage}
-                  options={CURRENCIES.map(c => ({ value: c, label: c }))}
-                />
-              </FormRow>
-              <FormRow label="Current Plan">
-                <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 6 }}>
-                  <span style={{ fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", padding: "3px 10px", borderRadius: 12, background: "var(--cc-primary-light)", color: "var(--cc-primary)", textTransform: "capitalize" }}>
-                    {org?.plan ?? "starter"}
-                  </span>
-                  {org?.planExpiresAt && (
-                    <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
-                      Expires {formatDateAbs(org.planExpiresAt)}
-                    </span>
+        <SettingsForm
+          icon={Building2}
+          title="Workspace"
+          description="Name, regional defaults and branding"
+          dirty={dirty}
+          saving={saving}
+          invalid={Boolean(nameError)}
+          readOnly={readOnly}
+          onSubmit={save}
+          onCancel={() => {
+            if (saved) setForm(saved);
+            setSaveError(null);
+          }}
+          status={saveError ? <span className="cc-form-error" role="alert">{saveError}</span> : null}
+        >
+          <Field label="Organization name" required error={nameError}>
+            <Input
+              value={form.name}
+              onChange={(e) => set("name", e.target.value)}
+              placeholder="Acme Inc."
+              maxLength={100}
+              disabled={readOnly}
+            />
+          </Field>
+          <Field label="Brand name">
+            <Input
+              value={form.brandName}
+              onChange={(e) => set("brandName", e.target.value)}
+              placeholder="Optional display name"
+              maxLength={100}
+              disabled={readOnly}
+            />
+          </Field>
+          <FieldRow>
+            <Field label="Subdomain">
+              <Input value={org.subdomain} readOnly />
+            </Field>
+            <Field
+              label="Plan"
+              helper={org.planExpiresAt ? `Expires ${formatDateAbs(org.planExpiresAt)}` : undefined}
+            >
+              <Input value={titleCase(org.plan ?? "starter")} readOnly />
+            </Field>
+          </FieldRow>
+          <FieldRow>
+            <Field label="Timezone">
+              <Dropdown
+                align="left"
+                fullWidth
+                value={form.timezone}
+                onChange={(v) => set("timezone", v)}
+                disabled={readOnly}
+                options={TIMEZONES.map((tz) => ({ value: tz, label: tz }))}
+              />
+            </Field>
+            <Field label="Default currency">
+              <Dropdown
+                align="left"
+                fullWidth
+                value={form.currency}
+                onChange={(v) => set("currency", v)}
+                disabled={readOnly}
+                options={CURRENCIES.map((c) => ({ value: c, label: c }))}
+              />
+            </Field>
+          </FieldRow>
+          <Field label="Logo URL">
+            <Input
+              inputMode="url"
+              value={form.logoUrl}
+              onChange={(e) => set("logoUrl", e.target.value)}
+              placeholder="https://..."
+              disabled={readOnly}
+              iconRight={
+                form.logoUrl && brokenLogo !== form.logoUrl ? (
+                  <img
+                    src={form.logoUrl}
+                    alt=""
+                    className="cc-field-preview"
+                    onError={() => setBrokenLogo(form.logoUrl)}
+                  />
+                ) : undefined
+              }
+            />
+          </Field>
+          <Field label="Favicon URL">
+            <Input
+              inputMode="url"
+              value={form.faviconUrl}
+              onChange={(e) => set("faviconUrl", e.target.value)}
+              placeholder="https://..."
+              disabled={readOnly}
+            />
+          </Field>
+          <Field
+            label="Font family"
+            helper={
+              isDefaultFont ? (
+                "Using the default font."
+              ) : (
+                <>
+                  The default is {DEFAULT_FONT}.{" "}
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      className="cc-form-help__action"
+                      onClick={() => set("fontFamily", DEFAULT_FONT)}
+                    >
+                      Use the default
+                    </button>
                   )}
-                </div>
-              </FormRow>
-            </div>
-          </Card>
-
-          {/* Domain & Assets */}
-          <Card variant="outlined" style={{ padding: 24 }}>
-            <SectionHeader icon={Globe} title="Domain & Assets" description="Logo and favicon" />
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <FormRow label="Logo URL">
-                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                  <Input value={logoUrl} onChange={e => setLogoUrl(e.target.value)} placeholder="https://..." style={{ flex: 1 }} disabled={!canManage} />
-                  {logoUrl && <img src={logoUrl} alt="Logo preview" style={{ width: 40, height: 40, borderRadius: 8, objectFit: "cover", border: "1px solid var(--cc-border)" }} onError={e => (e.currentTarget.style.display = "none")} />}
-                </div>
-              </FormRow>
-              <FormRow label="Favicon URL">
-                <Input value={faviconUrl} onChange={e => setFaviconUrl(e.target.value)} placeholder="https://..." disabled={!canManage} />
-              </FormRow>
-            </div>
-          </Card>
-
-          {/* Branding */}
-          <Card variant="outlined" style={{ padding: 24 }}>
-            <SectionHeader icon={Type} title="Branding" description="The typeface your workspace uses" />
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <FormRow label="Font Family">
-                <Input value={fontFamily} onChange={e => setFontFamily(e.target.value)} placeholder="Inter" disabled={!canManage} />
-              </FormRow>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", borderTop: "1px solid var(--cc-border)", paddingTop: 16 }}>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  type="button"
-                  disabled={isDefaultFont || !canManage}
-                  onClick={() => setFontFamily(PLATFORM_DEFAULT_BRANDING.fontFamily)}
-                >
-                  Reset to default
-                </Button>
-                <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
-                  {isDefaultFont
-                    ? "Using the default font."
-                    : "Restores the default font. Save to apply."}
-                </span>
-              </div>
-            </div>
-          </Card>
-
-
-        </div>
+                </>
+              )
+            }
+          >
+            <Input
+              value={form.fontFamily}
+              onChange={(e) => set("fontFamily", e.target.value)}
+              placeholder={DEFAULT_FONT}
+              maxLength={100}
+              disabled={readOnly}
+            />
+          </Field>
+        </SettingsForm>
       )}
     </div>
   );

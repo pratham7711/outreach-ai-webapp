@@ -20,7 +20,7 @@ export function CampaignRow({ c }: { c: JoinedCampaign }) {
       style={{
         display: "block",
         padding: 14,
-        borderRadius: 12,
+        borderRadius: "var(--cc-r-card)",
         border: "1px solid var(--cc-border)",
         background: "var(--cc-card)",
         textDecoration: "none",

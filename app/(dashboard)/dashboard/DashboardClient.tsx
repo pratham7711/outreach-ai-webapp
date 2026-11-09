@@ -2,20 +2,11 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { Activity, BarChart3, Clock, Download } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { OverviewSection } from "./sections/OverviewSection";
 import { PerformanceSection } from "./sections/PerformanceSection";
 import { ActivitySection } from "./sections/ActivitySection";
 import type { ActivityEvent, Campaign, PerformanceData } from "./types";
-import { PageHeader } from "@/components/ds";
+import { PageHeader, Button as DsButton, Dropdown, LoadError, StatusTabs } from "@/components/ds";
 import { action } from "@/lib/ui/actions";
 
 const DATE_PRESETS = [
@@ -65,6 +56,7 @@ export default function DashboardClient(props: Props) {
   const [loadError, setLoadError] = useState(false);
   const [activeDays, setActiveDays] = useState(180);
   const [granularity, setGranularity] = useState<"daily" | "weekly" | "monthly">("monthly");
+  const [section, setSection] = useState<"overview" | "performance" | "activity">("overview");
 
   const rangeParams = useCallback(() => {
     const to = new Date();
@@ -122,88 +114,63 @@ export default function DashboardClient(props: Props) {
         }
         actions={
           <>
-          <div
-            role="group"
-            aria-label="Date range"
-            className="flex flex-wrap gap-1 rounded-lg bg-muted p-[3px]"
-          >
-            {DATE_PRESETS.map((p) => {
-              const active = activeDays === p.days;
-              return (
+            {/* A segmented control at the header's one control height: the
+                range, the granularity and Export read as one cluster of
+                36px, 14px controls rather than three kinds at 28px. */}
+            <div role="group" aria-label="Date range" className="cc-segmented">
+              {DATE_PRESETS.map((p) => (
                 <button
                   key={p.label}
                   type="button"
+                  className="cc-segmented-btn"
                   onClick={() => setActiveDays(p.days)}
-                  aria-pressed={active}
-                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-                    active
-                      ? "bg-card text-primary shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
+                  aria-pressed={activeDays === p.days}
                 >
                   {p.label}
                 </button>
-              );
-            })}
-          </div>
-
-          <Select
-            value={granularity}
-            onValueChange={(v) => setGranularity(v as typeof granularity)}
-          >
-            <SelectTrigger size="sm" className="w-[112px]" aria-label="Chart granularity">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {GRANULARITIES.map((g) => (
-                <SelectItem key={g.value} value={g.value}>
-                  {g.label}
-                </SelectItem>
               ))}
-            </SelectContent>
-          </Select>
-
-          <Button variant="outline" size="sm" onClick={() => handleExport("campaigns")} {...action("export-csv")}>
-            <Download aria-hidden="true" className="size-3.5" />
-            Export CSV
-          </Button>
+            </div>
+            <Dropdown
+              value={granularity}
+              onChange={(v) => setGranularity(v as typeof granularity)}
+              options={GRANULARITIES.map((g) => ({ value: g.value, label: g.label }))}
+              ariaLabel="Chart granularity"
+              size="md"
+              minWidth={120}
+            />
+            <DsButton variant="secondary" iconLeft={<Download size={16} aria-hidden="true" />} onClick={() => handleExport("campaigns")} {...action("export-csv")}>
+              Export CSV
+            </DsButton>
           </>
+        }
+        tabs={
+          <StatusTabs
+            ariaLabel="Dashboard sections"
+            idBase="dashboard"
+            tabs={[
+              { key: "overview", label: "Overview", icon: <BarChart3 size={16} aria-hidden="true" /> },
+              ...(hasPerformance ? [{ key: "performance", label: "Performance", icon: <Activity size={16} aria-hidden="true" /> }] : []),
+              { key: "activity", label: "Activity", icon: <Clock size={16} aria-hidden="true" /> },
+            ]}
+            active={section}
+            onChange={(key) => setSection(key as typeof section)}
+          />
         }
       />
 
       {loadError && (
-        <div
-          role="alert"
-          className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3"
-        >
-          <span className="text-sm text-foreground">
-            Couldn&apos;t load your totals. The figures below are unavailable, not zero.
-          </span>
-          <Button variant="outline" size="sm" onClick={fetchFinancials}>
-            Retry
-          </Button>
+        <div className="mb-6">
+          <LoadError
+            title="Couldn't load your totals"
+            description="The figures below are unavailable, not zero."
+            onRetry={fetchFinancials}
+            retrying={loading}
+          />
         </div>
       )}
 
-      <Tabs defaultValue="overview" className="gap-6">
-        <TabsList variant="line">
-          <TabsTrigger value="overview">
-            <BarChart3 aria-hidden="true" />
-            Overview
-          </TabsTrigger>
-          {hasPerformance && (
-            <TabsTrigger value="performance">
-              <Activity aria-hidden="true" />
-              Performance
-            </TabsTrigger>
-          )}
-          <TabsTrigger value="activity">
-            <Clock aria-hidden="true" />
-            Activity
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview">
+      <div role="tabpanel" id="dashboard-panel" aria-labelledby={`dashboard-tab-${section}`}>
+        {section === "overview" && (
           <OverviewSection
             financials={financials}
             loading={loading}
@@ -211,23 +178,21 @@ export default function DashboardClient(props: Props) {
             fallbackCampaignCount={props.campaignCount}
             fallbackCreatorCount={props.creatorCount}
           />
-        </TabsContent>
-
-        {hasPerformance && (
-          <TabsContent value="performance">
-            <PerformanceSection
-              financials={financials}
-              loading={loading}
-              widgets={widgets}
-              onExportCreators={() => handleExport("creators")}
-            />
-          </TabsContent>
         )}
 
-        <TabsContent value="activity">
+        {hasPerformance && section === "performance" && (
+          <PerformanceSection
+            financials={financials}
+            loading={loading}
+            widgets={widgets}
+            onExportCreators={() => handleExport("creators")}
+          />
+        )}
+
+        {section === "activity" && (
           <ActivitySection recentCampaigns={props.recentCampaigns} recentEvents={props.recentEvents} />
-        </TabsContent>
-      </Tabs>
+        )}
+      </div>
     </div>
   );
 }

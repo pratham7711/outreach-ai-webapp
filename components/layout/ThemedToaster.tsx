@@ -8,7 +8,8 @@ import { Toaster, type ToasterProps } from "sonner";
  *
  * Left alone it paints its light palette everywhere, so under Dark every toast
  * was a pale pink slab with red error text on a near-black page.
- * CreatorCore is a light theme, so anything but a resolved "dark" is light.
+ * Anything but a resolved "dark" is light, including the undefined that
+ * next-themes reports before it mounts.
  */
 export function ThemedToaster(props: ToasterProps) {
   const { resolvedTheme } = useTheme();

@@ -1,10 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Search, RefreshCw, Filter, Download, Receipt } from "lucide-react";
-import { PageHeader, Dropdown, Pagination, LoadError } from "@/components/ds";
-import { Card, EmptyState, LoadingSpinner } from "@pratham7711/ui";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Download, History, X } from "lucide-react";
+import {
+  DataTable,
+  Dropdown,
+  ListToolbar,
+  LoadError,
+  NoResults,
+  PageHeader,
+  Pagination,
+  type DataTableColumn,
+} from "@/components/ds";
+import { enumLabel } from "@/lib/ui/enumLabel";
 import { action as uiAction } from "@/lib/ui/actions";
+import { AUDIT_LOG_PAGE_SIZES, AUDIT_LOG_WIDTHS } from "./columns";
 
 type AuditLogItem = {
   id: string;
@@ -21,7 +31,7 @@ type AuditLogItem = {
   createdAt: string;
 };
 
-type Pagination = {
+type PageInfo = {
   page: number;
   pageSize: number;
   total: number;
@@ -30,7 +40,7 @@ type Pagination = {
 
 type ApiResponse = {
   logs: AuditLogItem[];
-  pagination: Pagination;
+  pagination: PageInfo;
 };
 
 function formatDate(value: string) {
@@ -43,40 +53,122 @@ function formatDate(value: string) {
   });
 }
 
-function labelValue(label?: string | null, fallback?: string | null) {
-  return label?.trim() || fallback?.trim() || "—";
+/** "activation.create" -> "Activation create"; "CampaignDeposit" -> "Campaign deposit". */
+function readable(key: string) {
+  return enumLabel(key.replace(/([a-z])([A-Z])/g, "$1_$2").replace(/[.]/g, "_"));
 }
 
+const SEARCH_DELAY_MS = 250;
+
+const COLUMNS: DataTableColumn<AuditLogItem>[] = [
+  {
+    key: "time",
+    header: "Time",
+    width: AUDIT_LOG_WIDTHS.time,
+    render: (log) => formatDate(log.createdAt),
+  },
+  {
+    key: "action",
+    header: "Action",
+    width: AUDIT_LOG_WIDTHS.action,
+    truncate: (log) => log.action,
+    render: (log) => readable(log.action),
+  },
+  {
+    key: "entity",
+    header: "Entity",
+    minWidth: 200,
+    render: (log) => (
+      <>
+        <span className="cc-dt-truncate" title={log.entityLabel?.trim() || log.entityId || undefined}>
+          {log.entityLabel?.trim() || log.entityId?.trim() || "—"}
+        </span>
+        <span className="cc-dt-sub">{readable(log.entityType)}</span>
+      </>
+    ),
+  },
+  {
+    key: "actor",
+    header: "Actor",
+    width: AUDIT_LOG_WIDTHS.actor,
+    render: (log) => (
+      <>
+        <span className="cc-dt-truncate" title={log.actorEmail ?? undefined}>
+          {log.actorEmail?.trim() || enumLabel(log.actorType)}
+        </span>
+        {log.actorEmail?.trim() ? <span className="cc-dt-sub">{enumLabel(log.actorType)}</span> : null}
+      </>
+    ),
+  },
+  {
+    key: "ip",
+    header: "IP address",
+    width: AUDIT_LOG_WIDTHS.ip,
+    render: (log) => log.ipAddress ?? "—",
+  },
+];
+
+/**
+ * The audit log: the reference listing for the shared primitives -- ListToolbar
+ * (search + quick filters), DataTable (headers stay, the empty state sits under
+ * them), Pagination in the table foot, NoResults for a search that matched
+ * nothing, skeleton rows while the first page of a new query loads.
+ */
 export default function AuditLogClient({
   initialLogs,
   initialPagination,
 }: {
   initialLogs: AuditLogItem[];
-  initialPagination: Pagination;
+  initialPagination: PageInfo;
 }) {
   const [logs, setLogs] = useState<AuditLogItem[]>(initialLogs);
-  const [pagination, setPagination] = useState<Pagination>(initialPagination);
+  const [pagination, setPagination] = useState<PageInfo>(initialPagination);
   const [loading, setLoading] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   /** Bumped by Try again; the fetch effect reads it so a retry re-runs the same query. */
   const [reloadKey, setReloadKey] = useState(0);
   const [action, setAction] = useState("");
   const [entityType, setEntityType] = useState("");
+  const [search, setSearch] = useState("");
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(initialPagination.pageSize);
 
-  const filters = useMemo(
-    () => ({
-      action: action.trim(),
-      entityType: entityType.trim(),
-      q: q.trim(),
-      page,
-      pageSize: initialPagination.pageSize,
-    }),
-    [action, entityType, q, page, initialPagination.pageSize]
+  /* The filter options are every value seen so far, not only the ones on the
+     current page: derived from `logs` alone, picking an action shrank the
+     Entity list to that action's entities and the other actions vanished. */
+  const [seen, setSeen] = useState(() => ({
+    actions: new Set(initialLogs.map((l) => l.action)),
+    entities: new Set(initialLogs.map((l) => l.entityType)),
+  }));
+
+  /* Typing waits a beat before it queries, so a word is one request rather
+     than one per keystroke. Clearing is immediate. */
+  useEffect(() => {
+    if (search.trim() === q) return;
+    const t = window.setTimeout(() => {
+      setQ(search.trim());
+      setPage(1);
+    }, search.trim() ? SEARCH_DELAY_MS : 0);
+    return () => window.clearTimeout(t);
+  }, [search, q]);
+
+  const query = useMemo(
+    () => ({ action, entityType, q, page, pageSize }),
+    [action, entityType, q, page, pageSize],
   );
 
+  /* The server already rendered page one with no filters; fetching it again on
+     mount only flashed the table. Compared by value rather than with a
+     "first run" flag, which dev's double-run effects would spend on the first
+     pass. Once anything has been fetched, coming back to page one fetches. */
+  const fetched = useRef(false);
+
   useEffect(() => {
+    const isServerPage =
+      !query.action && !query.entityType && !query.q && query.page === 1 && query.pageSize === initialPagination.pageSize;
+    if (!fetched.current && reloadKey === 0 && isServerPage) return;
+    fetched.current = true;
     const controller = new AbortController();
     let cancelled = false;
 
@@ -85,32 +177,45 @@ export default function AuditLogClient({
       setLoadFailed(false);
       try {
         const params = new URLSearchParams();
-        params.set("page", String(filters.page));
-        params.set("pageSize", String(filters.pageSize));
-        if (filters.action) params.set("action", filters.action);
-        if (filters.entityType) params.set("entityType", filters.entityType);
-        if (filters.q) params.set("q", filters.q);
+        params.set("page", String(query.page));
+        params.set("pageSize", String(query.pageSize));
+        if (query.action) params.set("action", query.action);
+        if (query.entityType) params.set("entityType", query.entityType);
+        if (query.q) params.set("q", query.q);
 
-        const res = await fetch(`/api/audit-logs?${params.toString()}`, {
-          signal: controller.signal,
-        });
-        /* This used to be a bare `return`, which left the previous (or empty)
-           logs on screen under the "No audit events" empty state -- an org
-           being told nothing had happened, when in fact nothing had been read.
-           An audit log is the one surface where that distinction matters most. */
+        const res = await fetch(`/api/audit-logs?${params.toString()}`, { signal: controller.signal });
+        /* A failed read is shown as a failure, never as an empty log: an org
+           told nothing happened, when nothing was read, is the one mistake an
+           audit log cannot make. */
         if (!res.ok) {
-          if (!cancelled) { setLogs([]); setLoadFailed(true); }
+          if (!cancelled) {
+            setLogs([]);
+            setLoadFailed(true);
+          }
           return;
         }
 
         const data = (await res.json()) as ApiResponse;
         if (cancelled) return;
-        setLogs(data.logs ?? []);
+        const next = data.logs ?? [];
+        setLogs(next);
         setPagination(data.pagination ?? initialPagination);
+        setSeen((prev) => {
+          const actions = new Set(prev.actions);
+          const entities = new Set(prev.entities);
+          next.forEach((l) => {
+            actions.add(l.action);
+            entities.add(l.entityType);
+          });
+          return actions.size === prev.actions.size && entities.size === prev.entities.size ? prev : { actions, entities };
+        });
       } catch (error) {
         if (!controller.signal.aborted) {
           console.error("Failed to load audit logs:", error);
-          if (!cancelled) { setLogs([]); setLoadFailed(true); }
+          if (!cancelled) {
+            setLogs([]);
+            setLoadFailed(true);
+          }
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -122,193 +227,117 @@ export default function AuditLogClient({
       cancelled = true;
       controller.abort();
     };
-  }, [filters, initialPagination, reloadKey]);
+  }, [query, initialPagination, reloadKey]);
 
+  const filtered = !!(action || entityType || q);
+  const clearFilters = () => {
+    setAction("");
+    setEntityType("");
+    setSearch("");
+    setQ("");
+    setPage(1);
+  };
 
-  const actions = Array.from(new Set(logs.map((log) => log.action))).sort();
-  const entityTypes = Array.from(new Set(logs.map((log) => log.entityType))).sort();
+  const actionOptions = [
+    { value: "", label: "All actions" },
+    ...[...seen.actions].sort().map((a) => ({ value: a, label: readable(a) })),
+  ];
+  const entityOptions = [
+    { value: "", label: "All entities" },
+    ...[...seen.entities].sort().map((e) => ({ value: e, label: readable(e) })),
+  ];
+
+  const csvParams = new URLSearchParams(
+    Object.fromEntries([["action", action], ["entityType", entityType], ["q", q]].filter(([, v]) => v)),
+  ).toString();
 
   return (
     <div className="rsp-page page-enter">
-      <style>{`.audit-filters{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}@media(min-width:768px){.audit-filters{grid-template-columns:1.2fr 1fr 1.4fr auto}}`}</style>
       <PageHeader
-        title="Audit Log"
+        title="Audit log"
         subtitle="Track changes across your organization"
         actions={
-          <>
-          <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", display: "flex", alignItems: "center", gap: 6 }}>
-            <Filter size={14} />
-            {pagination.total} events
-          </span>
           <a
-            href={`/api/audit-logs/csv?${new URLSearchParams(
-              Object.fromEntries(
-                [
-                  ["action", action],
-                  ["entityType", entityType],
-                  ["q", q],
-                ].filter(([, v]) => v) as [string, string][]
-              )
-            ).toString()}`}
+            href={`/api/audit-logs/csv${csvParams ? `?${csvParams}` : ""}`}
             download="audit-log.csv"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              height: 36,
-              padding: "0 14px",
-              borderRadius: 10,
-              border: "1px solid var(--cc-border)",
-              background: "var(--cc-card)",
-              color: "var(--cc-text)",
-              fontSize: "var(--cc-t-13)",
-              fontWeight: 500,
-              textDecoration: "none",
-              cursor: "pointer",
-            }}
-           {...uiAction("export-csv")}>
-            <Download size={14} />
+            className="ui-btn ui-btn-secondary ui-btn-md"
+            data-cc-slot="secondary"
+            {...uiAction("export-csv")}
+          >
+            <Download size={16} aria-hidden="true" />
             Export CSV
           </a>
-          </>
         }
       />
 
-      <Card variant="outlined" noPadding>
-        <div className="audit-filters" style={{ padding: 16, borderBottom: "1px solid var(--cc-border)" }}>
-          <div>
-            <label className="cc-microlabel" style={{ display: "block", marginBottom: 6 }}>Action</label>
+      <ListToolbar
+        search={{ value: search, onChange: setSearch, placeholder: "Search events", ariaLabel: "Search events by label, email or IP" }}
+        end={
+          <>
             <Dropdown
               ariaLabel="Action"
-              align="left"
-              fullWidth
+              size="md"
+              align="right"
               value={action}
               onChange={(v) => {
                 setPage(1);
                 setAction(v);
               }}
-              options={[
-                { value: "", label: "All actions" },
-                ...actions.map((item) => ({ value: item, label: item })),
-              ]}
+              options={actionOptions}
             />
-          </div>
-          <div>
-            <label className="cc-microlabel" style={{ display: "block", marginBottom: 6 }}>Entity</label>
             <Dropdown
               ariaLabel="Entity"
-              align="left"
-              fullWidth
+              size="md"
+              align="right"
               value={entityType}
               onChange={(v) => {
                 setPage(1);
                 setEntityType(v);
               }}
-              options={[
-                { value: "", label: "All entities" },
-                ...entityTypes.map((item) => ({ value: item, label: item })),
-              ]}
+              options={entityOptions}
             />
-          </div>
-          <div>
-            <label className="cc-microlabel" style={{ display: "block", marginBottom: 6 }}>Search</label>
-            <div style={{ position: "relative" }}>
-              <Search size={15} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--cc-text-subtle)" }} />
-              <input
-                value={q}
-                onChange={(e) => {
-                  setPage(1);
-                  setQ(e.target.value);
-                }}
-                placeholder="Search label, email, IP..."
-                style={{ width: "100%", height: 38, borderRadius: 10, border: "1px solid var(--cc-border)", background: "var(--cc-card)", color: "var(--cc-text)", padding: "0 12px 0 34px" }}
+            {/* With nothing matched, the empty state under the table carries
+                this button; one is enough. */}
+            {filtered && logs.length > 0 ? (
+              <button type="button" className="ui-btn ui-btn-ghost ui-btn-md" onClick={clearFilters}>
+                <X size={16} aria-hidden="true" />
+                Clear filters
+              </button>
+            ) : null}
+          </>
+        }
+      />
+
+      {loadFailed ? (
+        <LoadError
+          title="We couldn't load the audit log"
+          description="These events were not read, which is not the same as no events having happened."
+          onRetry={() => setReloadKey((k) => k + 1)}
+        />
+      ) : (
+        <DataTable
+          caption="Audit events"
+          columns={COLUMNS}
+          rows={logs}
+          rowKey={(log) => log.id}
+          loading={loading}
+          skeletonRows={Math.min(pageSize, 10)}
+          empty={
+            filtered ? (
+              <NoResults
+                title="No events match"
+                description="Nothing in the audit log matches this search and these filters."
+                onClear={clearFilters}
               />
-            </div>
-          </div>
-          <div style={{ display: "flex", alignItems: "end" }}>
-            {/* Disabled with no filter set: it had nothing to reset and still
-                looked like it would do something. */}
-            <button
-              type="button"
-              disabled={!action && !entityType && !q}
-              onClick={() => {
-                setAction("");
-                setEntityType("");
-                setQ("");
-                setPage(1);
-              }}
-              style={{ height: 38, borderRadius: 10, border: "1px solid var(--cc-border)", background: "transparent", color: "var(--cc-text-muted)", padding: "0 14px", cursor: !action && !entityType && !q ? "default" : "pointer", opacity: !action && !entityType && !q ? 0.5 : 1, display: "flex", alignItems: "center", gap: 6 }}
-            >
-              <RefreshCw size={14} />
-              Reset
-            </button>
-          </div>
-        </div>
-
-        {loading ? (
-          <div style={{ display: "flex", justifyContent: "center", padding: 40 }}>
-            <LoadingSpinner size={24} />
-          </div>
-        ) : loadFailed ? (
-          <div style={{ padding: 24 }}>
-            <LoadError
-              title="We couldn't load the audit log"
-              description="These events were not read, which is not the same as no events having happened."
-              onRetry={() => setReloadKey((k) => k + 1)}
-            />
-          </div>
-        ) : logs.length === 0 ? (
-          <div style={{ padding: 24 }}>
-            <EmptyState
-              icon={<Receipt size={32} color="var(--cc-text-subtle)" />}
-              title="No audit events"
-              description="Changes made in this organization will appear here."
-            />
-          </div>
-        ) : (
-          <>
-            <div className="rsp-table-wrap">
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "var(--cc-t-14)", minWidth: 720 }}>
-                <thead>
-                  <tr style={{ background: "var(--cc-hover-bg)" }}>
-                    {["Time", "Action", "Entity", "Actor", "IP"].map((heading) => (
-                      <th
-                        key={heading}
-                        className="cc-microlabel" style={{ padding: "12px 16px", textAlign: "left" }}
-                      >
-                        {heading}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {logs.map((log) => (
-                    <tr key={log.id} style={{ borderTop: "1px solid var(--cc-border)" }}>
-                      <td style={{ padding: "12px 16px", whiteSpace: "nowrap", color: "var(--cc-text-muted)" }}>
-                        {formatDate(log.createdAt)}
-                      </td>
-                      <td style={{ padding: "12px 16px", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>
-                        {log.action}
-                      </td>
-                      <td style={{ padding: "12px 16px", color: "var(--cc-text-muted)" }}>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                          <span style={{ color: "var(--cc-text)", fontWeight: 500 }}>{log.entityType}</span>
-                          <span>{labelValue(log.entityLabel, log.entityId)}</span>
-                        </div>
-                      </td>
-                      <td style={{ padding: "12px 16px", color: "var(--cc-text-muted)" }}>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                          <span style={{ color: "var(--cc-text)", fontWeight: 500 }}>{labelValue(log.actorEmail, log.actorType)}</span>
-                          <span>{log.actorType}</span>
-                        </div>
-                      </td>
-                      <td style={{ padding: "12px 16px", color: "var(--cc-text-muted)" }}>{log.ipAddress ?? "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
+            ) : (
+              <NoResults
+                icon={<History size={32} strokeWidth={1.75} />}
+                title="No events yet"
+                description="Changes made in this organization will appear here."
+              />
+            )
+          }
+          footer={
             <Pagination
               page={pagination.page}
               totalPages={pagination.totalPages}
@@ -316,11 +345,15 @@ export default function AuditLogClient({
               pageSize={pagination.pageSize}
               loading={loading}
               onPageChange={setPage}
-              style={{ padding: 16, borderTop: "1px solid var(--cc-border)" }}
+              pageSizeOptions={AUDIT_LOG_PAGE_SIZES}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setPage(1);
+              }}
             />
-          </>
-        )}
-      </Card>
+          }
+        />
+      )}
     </div>
   );
 }

@@ -3,24 +3,35 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Plus, Zap } from "lucide-react";
-import { PieChart, Pie, Cell } from "recharts";
-import { EmptyState, Card, Modal } from "@pratham7711/ui";
-import { PageHeader, MetricTile, EntityPicker, Button } from "@/components/ds";
-import type { PickerOption } from "@/components/ds";
+import { ListChecks, Plus, XCircle, Zap } from "lucide-react";
+import { EmptyState } from "@pratham7711/ui";
+import { Modal } from "@/components/ds/Modal";
+import {
+  Button,
+  DataTable,
+  Dropdown,
+  EntityPicker,
+  Field,
+  MetricTile,
+  MoreMenu,
+  PageHeader,
+  SectionCard,
+  StatusBadge,
+  type DataTableColumn,
+  type PickerOption,
+} from "@/components/ds";
 import { toast } from "sonner";
-import { stripAt } from "@/lib/format";
+import { formatFull, stripAt } from "@/lib/format";
+import { enumLabel } from "@/lib/ui/enumLabel";
 import {
   ACTIVATION_QUEUES,
   ACTIVATION_STAGE_COUNTERS,
-  ACTIVATION_STATUS_COLOR,
-  ACTIVATION_STATUS_LABEL,
   groupByQueue,
   countByStatuses,
   namedStatusReachable,
 } from "@/lib/activationQueues";
-import { Dropdown } from "@/components/ds";
 import DeliverablesModal from "./DeliverablesModal";
+import { ACTIVATIONS_WIDTHS } from "./columns";
 import { action } from "@/lib/ui/actions";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
@@ -38,15 +49,23 @@ type Activation = {
   campaign: { id: string; title: string };
 };
 
-const NEXT_STATUS: Record<string, { label: string; status: string }[]> = {
-  AWAITING_DRAFT: [{ label: "Submit Draft", status: "DRAFT_SUBMITTED" }],
+/* The forward step from each state. A row shows it as its one labelled
+   button; the backward or destructive steps (Decline) go in the row's menu. */
+const NEXT_STATUS: Record<string, { label: string; status: string; danger?: boolean }[]> = {
+  AWAITING_DRAFT: [{ label: "Submit draft", status: "DRAFT_SUBMITTED" }],
   DRAFT_SUBMITTED: [{ label: "Review", status: "AWAITING_APPROVAL" }],
-  AWAITING_APPROVAL: [{ label: "Approve", status: "APPROVED" }, { label: "Decline", status: "DECLINED" }],
-  APPROVED: [{ label: "Start Posting", status: "POSTING" }],
-  POSTING: [{ label: "Mark Posted", status: "POSTED" }],
-  POSTED: [{ label: "Mark as Complete", status: "COMPLETE" }],
+  AWAITING_APPROVAL: [{ label: "Approve", status: "APPROVED" }, { label: "Decline draft", status: "DECLINED", danger: true }],
+  APPROVED: [{ label: "Start posting", status: "POSTING" }],
+  POSTING: [{ label: "Mark posted", status: "POSTED" }],
+  POSTED: [{ label: "Mark as complete", status: "COMPLETE" }],
   DECLINED: [{ label: "Re-open", status: "AWAITING_DRAFT" }],
 };
+
+/** The queue and stage names are written in Title Case where they are defined;
+ *  every label on this screen reads in sentence case. */
+function sentence(label: string): string {
+  return label.charAt(0) + label.slice(1).toLowerCase();
+}
 
 function relative(iso: string): string {
   const then = new Date(iso).getTime();
@@ -61,12 +80,6 @@ function relative(iso: string): string {
   const months = Math.floor(days / 30);
   return months < 12 ? `${months}mo ago` : `${Math.floor(months / 12)}y ago`;
 }
-
-// Creator · Last Status Change · Campaign · Status & Actions, as the reference
-// has it. The second column is 140 rather than 120 because that is what the
-// column's own NAME needs -- at 120 "Last Status Change" wraps to two lines in
-// every theme, which is a worse header than the 20px is worth.
-const QUEUE_GRID = "minmax(200px, 1.4fr) 140px minmax(160px, 1fr) minmax(220px, auto)";
 
 function QueueSection({
   label,
@@ -85,149 +98,124 @@ function QueueSection({
   onNamedStatusChange: (id: string, statusDefId: string | null) => void;
   onManageDeliverables: (id: string, creatorName: string) => void;
 }) {
-  return (
-    <div>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-        <span style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)" }}>
-          {label} ({items.length})
+  const columns: DataTableColumn<Activation>[] = [
+    {
+      key: "creator",
+      header: "Creator",
+      minWidth: 200,
+      render: (a) => (
+        <span style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+          <CreatorAvatar id={a.creator.id} name={a.creator.name} size="sm" />
+          <span style={{ minWidth: 0 }}>
+            <span className="cc-dt-truncate" style={{ fontWeight: "var(--cc-fw-medium)" }} title={a.creator.name}>
+              {a.creator.name}
+            </span>
+            <span className="cc-dt-sub cc-dt-truncate">@{stripAt(a.creator.handle)}</span>
+          </span>
         </span>
-        <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{hint}</span>
-      </div>
+      ),
+    },
+    {
+      key: "campaign",
+      header: "Campaign",
+      minWidth: 160,
+      render: (a) => (
+        <Link prefetch={false} href={`/campaigns/${a.campaign.id}`} title={a.campaign.title} className="cc-dt-primary cc-dt-truncate">
+          {a.campaign.title}
+        </Link>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      width: statusDefs.length > 0 ? ACTIVATIONS_WIDTHS.statusNamed : ACTIVATIONS_WIDTHS.status,
+      render: (a) => (
+        <span style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          {/* The org's own name for this state wins over the enum
+              label, which is what makes "Invited" visible at all. */}
+          <StatusBadge status={a.status}>{a.statusDefName ?? enumLabel(a.status)}</StatusBadge>
+          {statusDefs.length > 0 && (
+            <Dropdown
+              ariaLabel={`Named status for ${a.creator.name}`}
+              size="sm"
+              value={a.statusDefId ?? ""}
+              placeholder="Set status"
+              align="left"
+              minWidth={140}
+              onChange={(v) => onNamedStatusChange(a.id, v === "" ? null : v)}
+              options={[
+                { value: "", label: "No named status" },
+                // Only what the state machine allows from here: a
+                // dropdown whose options 400 is worse than none.
+                ...statusDefs
+                  .filter((d) => namedStatusReachable(a.status, d.bucket))
+                  .map((d) => ({ value: d.id, label: d.name })),
+              ]}
+            />
+          )}
+        </span>
+      ),
+    },
+    {
+      /* updatedAt moves on any edit, notes and posted URL included, so this
+         says "updated" rather than claiming a status change. */
+      key: "updated",
+      header: "Last updated",
+      width: ACTIVATIONS_WIDTHS.updated,
+      render: (a) => <span style={{ color: "var(--cc-text-muted)" }}>{relative(a.updatedAt)}</span>,
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      hideHeader: true,
+      width: ACTIVATIONS_WIDTHS.actions,
+      align: "right",
+      render: (a) => {
+        const steps = NEXT_STATUS[a.status] ?? [];
+        const main = steps.find((s) => !s.danger);
+        const rest = steps.filter((s) => s !== main);
+        return (
+          <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
+            {main ? (
+              <Button variant="secondary" size="sm" onClick={() => onStatusChange(a.id, main.status)}>
+                {main.label}
+              </Button>
+            ) : null}
+            <MoreMenu
+              size="sm"
+              label={`More actions for ${a.creator.name}`}
+              items={[
+                { label: "Manage deliverables", icon: <ListChecks size={16} aria-hidden="true" />, onClick: () => onManageDeliverables(a.id, a.creator.name) },
+                ...rest.map((s) => ({
+                  label: s.label,
+                  danger: s.danger,
+                  icon: s.danger ? <XCircle size={16} aria-hidden="true" /> : undefined,
+                  onClick: () => onStatusChange(a.id, s.status),
+                })),
+              ]}
+            />
+          </span>
+        );
+      },
+    },
+  ];
 
+  const title = `${sentence(label)} (${items.length})`;
+
+  return (
+    <SectionCard title={title} description={hint} padded={items.length === 0}>
       {items.length === 0 ? (
-        <Card variant="outlined" style={{ padding: 16 }}>
-          <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>Nothing in this queue.</span>
-        </Card>
+        <p style={{ margin: 0, fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)" }}>Nothing in this queue.</p>
       ) : (
-        <Card variant="outlined" style={{ padding: 0, overflow: "hidden" }}>
-          <div style={{ overflowX: "auto" }}>
-            {/* 200 + 140 + 160 + 220 of tracks, 36 of gaps and 32 of padding
-                is a 788px floor -- 760 was the figure before column 2 widened
-                to 140, and at 768 the "Status & Actions" cell painted 12px past
-                the card rather than scrolling. MEASURED 2026-09-15. */}
-            <div style={{ minWidth: 800 }}>
-              {/* A class, not inline styles: MEASURED 2026-09-14, their header
-                  row is 14px/400 in their brand indigo and ours was an 11px/700
-                  uppercase blue-grey -- and an inline style is the one
-                  thing a theme cannot outrank. The labels are written in
-                  sentence case and uppercased by the base rule, so off-theme
-                  renders exactly the caps it always did. */}
-              <div className="cc-queue-head" style={{ gridTemplateColumns: QUEUE_GRID }}>
-                <span>Creator</span>
-                <span>Last Status Change</span>
-                <span>Campaign</span>
-                <span>Status &amp; Actions</span>
-              </div>
-
-              {items.map((a) => {
-                const actions = NEXT_STATUS[a.status] ?? [];
-                return (
-                  <div
-                    key={a.id}
-                    /* The parity harness addresses the content list through this
-                       marker. MEASURED 2026-09-14: their /dashboard?tab=Activations
-                       resolved `list.rows` and ours did not, because these rows
-                       carry no class at all -- the comparison was silently skipped
-                       rather than reported, the same blind spot that hid the
-                       campaign header actions. */
-                    data-region="list-row"
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: QUEUE_GRID,
-                      gap: 12,
-                      padding: "12px 16px",
-                      borderBottom: "1px solid var(--cc-border)",
-                      alignItems: "center",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                      <CreatorAvatar id={a.creator.id} name={a.creator.name} size="sm" />
-                      <div style={{ minWidth: 0 }}>
-                        <div title={a.creator.name} style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {a.creator.name}
-                        </div>
-                        <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}>@{stripAt(a.creator.handle)}</div>
-                      </div>
-                    </div>
-
-                    <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{relative(a.updatedAt)}</span>
-
-                    <Link
-                      prefetch={false}
-                      href={`/campaigns/${a.campaign.id}`}
-                      title={a.campaign.title}
-                      style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text)", textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                    >
-                      {a.campaign.title}
-                    </Link>
-
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
-                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: ACTIVATION_STATUS_COLOR[a.status] ?? "var(--cc-text-subtle)" }} />
-                        {/* The org's own name for this state wins over the enum
-                            label, which is what makes "Invited" visible at all. */}
-                        {a.statusDefName ?? ACTIVATION_STATUS_LABEL[a.status] ?? a.status}
-                      </span>
-                      {statusDefs.length > 0 && (
-                        <Dropdown
-                          ariaLabel={`Named status for ${a.creator.name}`}
-                          value={a.statusDefId ?? ""}
-                          placeholder="Set status"
-                          align="left"
-                          minWidth={150}
-                          onChange={(v) => onNamedStatusChange(a.id, v === "" ? null : v)}
-                          options={[
-                            { value: "", label: "No named status" },
-                            // Only what the state machine allows from here: a
-                            // dropdown whose options 400 is worse than none.
-                            ...statusDefs
-                              .filter((d) => namedStatusReachable(a.status, d.bucket))
-                              .map((d) => ({ value: d.id, label: d.name })),
-                          ]}
-                        />
-                      )}
-                      <button
-                        onClick={() => onManageDeliverables(a.id, a.creator.name)}
-                        style={{
-                          padding: "5px 10px",
-                          borderRadius: 6,
-                          fontSize: "var(--cc-t-12)",
-                          fontWeight: "var(--cc-fw-strong)",
-                          border: "1px solid var(--cc-border)",
-                          background: "var(--cc-card)",
-                          color: "var(--cc-text)",
-                          cursor: "pointer",
-                        }}
-                      >
-                        Manage Deliverables
-                      </button>
-                      {actions.map((act) => (
-                        <button
-                          key={act.status}
-                          onClick={() => onStatusChange(a.id, act.status)}
-                          style={{
-                            padding: "5px 10px",
-                            borderRadius: 6,
-                            fontSize: "var(--cc-t-12)",
-                            fontWeight: "var(--cc-fw-strong)",
-                            border: "1px solid var(--cc-border)",
-                            background: "var(--cc-card)",
-                            color: act.status === "DECLINED" ? "var(--cc-danger)" : "var(--cc-primary)",
-                            cursor: "pointer",
-                          }}
-                        >
-                          {act.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </Card>
+        <DataTable
+          bare
+          caption={sentence(label)}
+          columns={columns}
+          rows={items}
+          rowKey={(a) => a.id}
+        />
       )}
-    </div>
+    </SectionCard>
   );
 }
 
@@ -245,30 +233,6 @@ export default function ActivationsClient({ activations, stats, statusDefs }: {
 
   const { groups, ungrouped } = groupByQueue(activations);
 
-  /* The Overview donut. One slice per stage counter plus everything terminal,
-     so the ring adds up to the number printed in the middle of it. The fills
-     are theme tokens rather than literals -- the chart is only rendered in the
-     theme that has a card to put it in, but the tokens still carry the palette. */
-  const donut = [
-    ...ACTIVATION_STAGE_COUNTERS.map((c, i) => ({
-      name: c.label,
-      value: countByStatuses(activations, c.statuses),
-      fill: `var(--cc-act-slice-${i + 1})`,
-    })),
-    {
-      name: "Settled",
-      value: Math.max(
-        0,
-        stats.total -
-          ACTIVATION_STAGE_COUNTERS.reduce(
-            (n, c) => n + countByStatuses(activations, c.statuses),
-            0,
-          ),
-      ),
-      fill: "var(--cc-act-slice-5)",
-    },
-  ].filter((d) => d.value > 0);
-
   const handleStatusChange = async (id: string, status: string) => {
     try {
       const res = await fetch(`/api/activations/${id}`, {
@@ -277,7 +241,7 @@ export default function ActivationsClient({ activations, stats, statusDefs }: {
         body: JSON.stringify({ status }),
       });
       if (res.ok) {
-        toast.success(`Moved to ${ACTIVATION_STATUS_LABEL[status]}`);
+        toast.success(`Moved to ${enumLabel(status).toLowerCase()}`);
         router.refresh();
       } else {
         const err = await res.json();
@@ -338,7 +302,7 @@ export default function ActivationsClient({ activations, stats, statusDefs }: {
            short form on both sides. */
         title="Creator Activations"
         subtitle="Track creator deliverables and posts"
-        actions={<Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowCreate(true)} {...action("add-activation")}>Add Activation</Button>}
+        actions={<Button variant="primary" iconLeft={<Plus size={16} aria-hidden="true" />} onClick={() => setShowCreate(true)} {...action("add-activation")}>Add activation</Button>}
       />
 
       {/* Seven counters, every one of them 0, stacked above "No activations
@@ -347,74 +311,31 @@ export default function ActivationsClient({ activations, stats, statusDefs }: {
           count, so the tiles wait for the first row. /songs does the same with
           its search box. */}
       {activations.length > 0 && (
-        <div className="cc-act-dash">
-          {/* Stats */}
-          <div className="rsp-grid-tiles cc-act-tiles">
-            <MetricTile metric="activationsTotal" value={String(stats.total)} />
-            <MetricTile metric="activationsActive" value={String(stats.active)} />
-            <MetricTile metric="activationsComplete" value={String(countByStatuses(activations, ["COMPLETE"]))} />
+        <>
+          <div className="cc-tiles-balanced" style={{ marginBottom: 12 }}>
+            <MetricTile metric="activationsTotal" value={formatFull(stats.total)} />
+            <MetricTile metric="activationsActive" value={formatFull(stats.active)} />
+            <MetricTile metric="activationsComplete" value={formatFull(countByStatuses(activations, ["COMPLETE"]))} />
           </div>
 
-          {/* The reference's four stage counters: what is waiting, and on whom. These
-              are counts of work outstanding, so Complete and Posted are in none of
-              them — a total that included terminal rows would not be actionable.
-
-              MEASURED 2026-09-14, activations census, desktop-1600: theirs is a
-              2x2 grid of 220x120 tiles inside an `In-progress deliverables` card
-              at 580..1070, with the figure above the label. Ours is a single row
-              with the label above the figure, which is what base still renders --
-              the grid, the card and the swap are all creatorcore-only. */}
-          <div className="cc-act-deliverables">
-            <span className="cc-act-card-title">In-progress deliverables</span>
-            <div className="cc-stage-grid">
-              {ACTIVATION_STAGE_COUNTERS.map((c) => (
-                <div key={c.label} className="cc-stage-tile">
-                  <span className="cc-stage-label">{c.label}</span>
-                  <span className="cc-stage-count">
-                    {countByStatuses(activations, c.statuses)}
-                  </span>
-                </div>
-              ))}
-            </div>
+          {/* The four stage counters: what is waiting, and on whom. These are
+              counts of work outstanding, so Complete and Posted are in none of
+              them -- a total that included terminal rows would not be
+              actionable. Same tile as the row above, so the page has one KPI
+              look instead of two. */}
+          <div className="cc-tiles-balanced" style={{ marginBottom: 24 }}>
+            {ACTIVATION_STAGE_COUNTERS.map((c) => (
+              <MetricTile key={c.label} label={sentence(c.label)} value={formatFull(countByStatuses(activations, c.statuses))} />
+            ))}
           </div>
-
-          {/* Their Overview card: a 250x250 donut at 290,159.5 with the total in
-              the middle. Hidden at base, where this page has never had a chart. */}
-          <div className="cc-act-overview">
-            <span className="cc-act-card-title">Overview</span>
-            <div className="cc-act-donut">
-              <PieChart width={250} height={250}>
-                <Pie
-                  data={donut}
-                  dataKey="value"
-                  cx={125}
-                  cy={125}
-                  innerRadius={78}
-                  outerRadius={125}
-                  startAngle={90}
-                  endAngle={-270}
-                  stroke="none"
-                  isAnimationActive={false}
-                >
-                  {donut.map((d) => (
-                    <Cell key={d.name} fill={d.fill} />
-                  ))}
-                </Pie>
-              </PieChart>
-              <div className="cc-act-donut-centre">
-                <span className="cc-act-donut-value">{stats.total}</span>
-                <span className="cc-act-donut-label">Activations</span>
-              </div>
-            </div>
-          </div>
-        </div>
+        </>
       )}
 
       {activations.length === 0 ? (
         <EmptyState
           icon={<Zap size={32} color="var(--cc-text-subtle)" />} title="No activations yet"
           description="Activations will appear here once creators are assigned to campaigns."
-          action={<Button variant="primary" iconLeft={<Plus size={16} />} onClick={() => setShowCreate(true)}>Add Activation</Button>}
+          action={<Button variant="primary" iconLeft={<Plus size={16} aria-hidden="true" />} onClick={() => setShowCreate(true)}>Add activation</Button>}
         />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -460,39 +381,46 @@ export default function ActivationsClient({ activations, stats, statusDefs }: {
 
       {/* Create Modal */}
       {showCreate && (
-        <Modal open onClose={() => setShowCreate(false)} title="Add Activation" size="md"
+        <Modal
+          open
+          onClose={() => setShowCreate(false)}
+          icon={Zap}
+          tone="brand"
+          title="Add activation"
+          description="Pair a creator with a campaign to track their deliverables and posts."
+          size="md"
+          dismissible={false}
           footer={
             <div className="cc-modal-footer">
-              <Button variant="secondary" onClick={() => setShowCreate(false)}>Cancel</Button>
-              <Button variant="primary" loading={creating} onClick={handleCreate}>Create</Button>
+              <Button variant="secondary" size="sm" onClick={() => setShowCreate(false)}>Cancel</Button>
+              {/* An add form waits for its required fields. */}
+              <Button variant="primary" size="sm" loading={creating} disabled={!campaign || !creator} onClick={handleCreate}>Create</Button>
             </div>
           }
         >
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div>
-              <label htmlFor="act-campaign" style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Campaign *</label>
+          <div className="cc-dialog-stack">
+            <Field label="Campaign" required>
               <EntityPicker
                 id="act-campaign"
                 endpoint="/api/campaigns"
-                placeholder="Search campaigns…"
+                placeholder="Search campaigns"
                 extract={(json) => json.campaigns.map((c: any) => ({ id: c.id, label: c.title }))}
                 value={campaign}
                 onChange={setCampaign}
               />
-            </div>
-            <div>
-              <label htmlFor="act-creator" style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Creator *</label>
+            </Field>
+            <Field label="Creator" required>
               <EntityPicker
                 id="act-creator"
                 endpoint="/api/creators"
-                placeholder="Search creators…"
+                placeholder="Search creators"
                 extract={(json) =>
                   json.creators.map((c: any) => ({ id: c.id, label: c.name, hint: `@${stripAt(c.handle)}` }))
                 }
                 value={creator}
                 onChange={setCreator}
               />
-            </div>
+            </Field>
           </div>
         </Modal>
       )}

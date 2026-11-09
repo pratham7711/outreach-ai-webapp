@@ -3,18 +3,18 @@
  *
  *   node scripts/layout/type-ladder.mjs [--write]
  *
- * WHY THIS EXISTS. The creatorcore theme could not reach the type on its own
- * pages. A census of 23 paired surfaces at desktop-1600 measured their body
+ * WHY THIS EXISTS. The former CreatorCore theme could not reach the type on its
+ * own pages. A census of 23 paired surfaces at desktop-1600 measured their body
  * copy at 15px/400 against ours at 13px/400, and their section headings at
- * 18px/700 against ours at 15px/700 -- and re-pointing every --cc-fs-* token
- * in the theme moved the measured divergence by 0.001, because the pages do not
+ * 18px/700 against ours at 15px/700 -- and re-pointing every --cc-fs-* token in
+ * the theme moved the measured divergence by 0.001, because the pages do not
  * read those tokens. 1,552 inline fontSize literals and 783 fontWeight literals
  * do the work instead, and an inline style is the one thing a theme cannot
  * outrank.
  *
  * The ladder is named for the size each rung has in OUR themes -- --cc-t-13 is
- * 13px in light and dark. It is not a promise about creatorcore, where that
- * rung resolves to 15px. Naming by role would be better and is not available:
+ * 13px in light and dark. It was not a promise about the former CreatorCore
+ * theme, where that rung resolved to 15px. Naming by role would be better and is not available:
  * a mechanical pass over 1,449 call sites can read the size and cannot read the
  * intent, so the name states the one thing that was actually measured.
  *

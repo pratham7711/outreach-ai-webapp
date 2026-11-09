@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Card, Badge, Input, Modal, EmptyState, Skeleton, Tag } from "@pratham7711/ui";
-import { Button } from "@/components/ds";
+import { Card, Input, EmptyState, Tag } from "@pratham7711/ui";
+import { Modal, ModalNotice } from "@/components/ds/Modal";
+import { Button, Skeleton, StatusBadge, type StatusTone } from "@/components/ds";
 import { toast } from "sonner";
-import { Handshake, AlertTriangle } from "lucide-react";
+import { Handshake, AlertTriangle, Info } from "lucide-react";
 
 type Offer = {
   id: string;
@@ -22,11 +23,11 @@ type Offer = {
   createdAt: string;
 };
 
-const STATUS_BADGE: Record<string, "warning" | "success" | "danger" | "accent" | "neutral"> = {
+const STATUS_TONE: Record<string, StatusTone> = {
   PENDING: "warning",
   ACCEPTED: "success",
   REJECTED: "danger",
-  COUNTERED: "accent",
+  COUNTERED: "info",
 };
 
 function formatCurrency(n: number, currency = "USD") {
@@ -130,7 +131,7 @@ export default function PortalOffersClient() {
         <Skeleton width="200px" height="32px" />
         <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 24 }}>
           {[1, 2, 3].map((i) => (
-            <Skeleton key={i} height="120px" borderRadius="12px" />
+            <Skeleton key={i} height="120px" radius="var(--cc-r-card)" />
           ))}
         </div>
       </div>
@@ -147,7 +148,7 @@ export default function PortalOffersClient() {
       </div>
 
       {error ? (
-        <Card variant="outlined" style={{ padding: 24 }}>
+        <Card variant="outlined">
           <EmptyState icon={<AlertTriangle size={32} color="var(--cc-text-subtle)" />} title="Couldn't load offers" description={error} />
           <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
             <Button variant="secondary" onClick={fetchOffers}>
@@ -156,7 +157,7 @@ export default function PortalOffersClient() {
           </div>
         </Card>
       ) : offers.length === 0 ? (
-        <Card variant="outlined" style={{ padding: 24 }}>
+        <Card variant="outlined">
           <EmptyState icon={<Handshake size={32} color="var(--cc-text-subtle)" />} title="No offers yet" description="Brand offers will show up here when they reach out." />
         </Card>
       ) : (
@@ -168,7 +169,7 @@ export default function PortalOffersClient() {
             const awaitingBrand = offer.aiRound >= 1 || offer.status === "COUNTERED" || offer.finalRate != null;
             const actionable = canAct && offer.aiRound < 1;
             return (
-              <Card key={offer.id} data-offer-id={offer.id} variant="solid" style={{ padding: 20 }}>
+              <Card key={offer.id} data-offer-id={offer.id} variant="solid">
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12, gap: 8, flexWrap: "wrap" }}>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
@@ -177,7 +178,7 @@ export default function PortalOffersClient() {
                     </div>
                     <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>from {offer.orgName}</span>
                   </div>
-                  <Badge variant={STATUS_BADGE[offer.status] ?? "neutral"}>{offer.status}</Badge>
+                  <StatusBadge status={offer.status} tone={STATUS_TONE[offer.status] ?? "neutral"} dot />
                 </div>
 
                 <div style={{ display: "flex", gap: 24, marginBottom: 16, flexWrap: "wrap" }}>
@@ -251,12 +252,17 @@ export default function PortalOffersClient() {
             setCounterFor(null);
             setCounterRate("");
           }}
+          icon={Handshake}
+          tone="brand"
           title="Counter Offer"
+          description={`Countering ${counterFor.orgName}'s offer of ${formatCurrency(counterFor.offeredRate, counterFor.currency)}.`}
           size="sm"
+          dismissible={false}
           footer={
             <div className="cc-modal-footer">
               <Button
                 variant="secondary"
+                size="sm"
                 onClick={() => {
                   setCounterFor(null);
                   setCounterRate("");
@@ -264,17 +270,16 @@ export default function PortalOffersClient() {
               >
                 Cancel
               </Button>
-              <Button variant="primary" loading={submitting} onClick={handleCounter} disabled={!counterRate}>
+              <Button variant="primary" size="sm" loading={submitting} onClick={handleCounter} disabled={!counterRate}>
                 Send Counter
               </Button>
             </div>
           }
         >
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <p style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
-              Countering {counterFor.orgName}&apos;s offer of {formatCurrency(counterFor.offeredRate, counterFor.currency)}. You
-              get one counter — the brand may respond with a negotiated rate before deciding.
-            </p>
+          <div className="cc-dialog-stack">
+            <ModalNotice tone="info" icon={Info}>
+              You get one counter — the brand may respond with a negotiated rate before deciding.
+            </ModalNotice>
             <Input
               label="Your rate"
               type="number"

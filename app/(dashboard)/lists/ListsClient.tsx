@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Users, Search, ClipboardList, Star } from "lucide-react";
-import { Card, EmptyState, Input, Avatar, Modal, Badge } from "@pratham7711/ui";
-import { PageHeader, Button, StatusTabs } from "@/components/ds";
-import { LIST_STATUS_BADGE, LIST_STATUS_LABELS, type DecisionCounts, type ListStatus } from "@/lib/lists/approval";
+import { Plus, Users, ClipboardList, Star, ListPlus } from "lucide-react";
+import { Card, EmptyState, Input } from "@pratham7711/ui";
+import { Modal } from "@/components/ds/Modal";
+import { PageHeader, Button, Field, ListToolbar, NoResults, StatusBadge, StatusTabs } from "@/components/ds";
+import { LIST_STATUS_LABELS, type DecisionCounts, type ListStatus } from "@/lib/lists/approval";
+import { LIST_TONE } from "@/components/lists/listTone";
 import { formatDateAbs } from "@/lib/format";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -33,16 +35,6 @@ const STATUS_FILTERS: { key: "ALL" | ListStatus; label: string }[] = [
   { key: "ARCHIVED", label: LIST_STATUS_LABELS.ARCHIVED },
 ];
 
-/* Chart-series tokens, not the semantic status ramp: these are arbitrary list
-   accents, and the raw hexes were fixed to the old purple theme. */
-const ACCENT_COLORS = [
-  "var(--cc-primary)",
-  "var(--chart-2)",
-  "var(--chart-3)",
-  "var(--chart-4)",
-  "var(--chart-5)",
-];
-
 export default function ListsClient({ lists, review = false }: { lists: List[]; review?: boolean }) {
   const router = useRouter();
   const [search, setSearch] = useState("");
@@ -53,10 +45,15 @@ export default function ListsClient({ lists, review = false }: { lists: List[]; 
   const [creating, setCreating] = useState(false);
 
   const isFavorite = (l: List) => favorites[l.id] ?? Boolean(l.isFavorite);
+  const isFiltered = search.trim() !== "" || status !== "ALL";
+  const clearFilters = () => {
+    setSearch("");
+    setStatus("ALL");
+  };
   // "All" leaves archived lists out; they have their own tab. Favourites pin to
   // the top, otherwise the server's newest-first order stands.
   const filtered = lists
-    .filter(l => l.name.toLowerCase().includes(search.toLowerCase()))
+    .filter(l => l.name.toLowerCase().includes(search.trim().toLowerCase()))
     .filter(l => !review || (status === "ALL" ? l.status !== "ARCHIVED" : l.status === status))
     .sort((a, b) => (review ? Number(isFavorite(b)) - Number(isFavorite(a)) : 0));
 
@@ -95,110 +92,121 @@ export default function ListsClient({ lists, review = false }: { lists: List[]; 
   };
 
   return (
-    <div className="rsp-page cc-caption-flush">
+    <div className="rsp-page">
       <PageHeader
         title="Lists"
         subtitle="Organize creators into curated lists"
-        caption={`${filtered.length} List${filtered.length !== 1 ? "s" : ""}`}
-        actions={<Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowCreate(true)} {...action("new-list")}>New List</Button>}
+        actions={<Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowCreate(true)} {...action("new-list")}>New list</Button>}
+        /* Only when the lists span more than one status: with every list a
+           Draft, "Draft" was "All" under another name. A filter already chosen
+           keeps the strip, so it can be cleared. */
+        tabs={
+          review && (status !== "ALL" || new Set(lists.map((l) => l.status)).size > 1) ? (
+            <StatusTabs
+              ariaLabel="Filter by list status"
+              tabs={STATUS_FILTERS.map((t) => ({
+                ...t,
+                count: t.key === "ALL" ? lists.length : lists.filter((l) => l.status === t.key).length,
+              }))}
+              active={status}
+              onChange={(k) => setStatus(k as "ALL" | ListStatus)}
+            />
+          ) : undefined
+        }
       />
 
-      <div style={{ marginBottom: review ? 16 : 24 }}>
-        <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search Lists" iconLeft={<Search size={16} />} />
-      </div>
+      <ListToolbar
+        search={{ value: search, onChange: setSearch, placeholder: "Search lists", ariaLabel: "Search lists by name" }}
+      />
 
-      {/* Only when the lists span more than one status: with every list a
-          Draft, "Draft" was "All" under another name. A filter already chosen
-          keeps the strip, so it can be cleared. */}
-      {review && (status !== "ALL" || new Set(lists.map((l) => l.status)).size > 1) && (
-        <div style={{ marginBottom: 24 }}>
-          <StatusTabs
-            variant="pill"
-            ariaLabel="Filter by list status"
-            tabs={STATUS_FILTERS.map((t) => ({
-              ...t,
-              ...(t.key !== "ALL" && { badgeVariant: LIST_STATUS_BADGE[t.key], count: lists.filter((l) => l.status === t.key).length }),
-            }))}
-            active={status}
-            onChange={(k) => setStatus(k as "ALL" | ListStatus)}
+      {lists.length === 0 ? (
+        <EmptyState icon={<ClipboardList size={32} color="var(--cc-text-subtle)" />} title="No lists yet" description="Create your first list to organize creators"
+          action={<Button variant="primary" iconLeft={<Plus size={16} />} onClick={() => setShowCreate(true)}>New list</Button>}
+        />
+      ) : filtered.length === 0 ? (
+        <div className="cc-dt-card">
+          <NoResults
+            title={isFiltered ? undefined : "No active lists"}
+            onClear={isFiltered ? clearFilters : undefined}
+            description={
+              isFiltered
+                ? "No list matches this search or status. Clear the filters to see every list."
+                : "Every list here is archived. Open the Archived tab to see them."
+            }
           />
         </div>
-      )}
-
-      {filtered.length === 0 && lists.length === 0 ? (
-        <EmptyState icon={<ClipboardList size={32} color="var(--cc-text-subtle)" />} title="No lists yet" description="Create your first list to organize creators"
-          action={<Button variant="primary" iconLeft={<Plus size={16} />} onClick={() => setShowCreate(true)}>New List</Button>}
-        />
       ) : (
         <div className="cc-stagger rsp-grid-3">
-          {filtered.map((list, i) => (
-            <div key={list.id} style={{ position: "relative" }}>
-            <Link prefetch={false} href={`/lists/${list.id}`} style={{ textDecoration: "none" }}>
-              <Card variant="outlined" noPadding clickable>
-                <div style={{ height: 4, background: ACCENT_COLORS[i % ACCENT_COLORS.length] }} />
-                <div style={{ padding: 20 }}>
-                  <h3 className="cc-panel-title" style={{ marginBottom: 8, paddingRight: review ? 32 : 0 }}>{list.name}</h3>
+          {filtered.map((list) => (
+            <div key={list.id} className="cc-list-card">
+              <Link prefetch={false} href={`/lists/${list.id}`} className="cc-list-card-link">
+                <Card variant="outlined" clickable>
+                  <h3 className="cc-panel-title cc-list-card-title" data-starrable={review ? "" : undefined}>{list.name}</h3>
                   {list.status && (
-                    <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 8, fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
-                      <Badge variant={LIST_STATUS_BADGE[list.status]}>{LIST_STATUS_LABELS[list.status]}</Badge>
+                    <div className="cc-list-card-status">
+                      <StatusBadge tone={LIST_TONE[list.status]}>{LIST_STATUS_LABELS[list.status]}</StatusBadge>
                       {list.counts && list.counts.total - list.counts.pending > 0 && (
                         <span>{list.counts.approved} approved · {list.counts.rejected} declined</span>
                       )}
                     </div>
                   )}
-                  {list.description && <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginBottom: 8 }}>{list.description}</p>}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
-                    <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Users size={13} /> {list._count.items} {noun(list._count.items, "creator")}</span>
+                  {list.description && <p className="cc-list-card-desc">{list.description}</p>}
+                  <div className="cc-list-card-foot">
+                    <span><Users size={14} aria-hidden /> {list._count.items} {noun(list._count.items, "creator")}</span>
                     <span>{formatDateAbs(list.createdAt)}</span>
                   </div>
-                </div>
-              </Card>
-            </Link>
-            {review && (
-              <button
-                type="button"
-                className="cc-icon-btn cc-star"
-                aria-pressed={isFavorite(list)}
-                aria-label={isFavorite(list) ? `Unstar ${list.name}` : `Star ${list.name}`}
-                onClick={() => toggleFavorite(list)}
-                style={{ position: "absolute", top: 14, right: 12 }}
-              >
-                <Star size={16} aria-hidden />
-              </button>
-            )}
+                </Card>
+              </Link>
+              {review && (
+                <button
+                  type="button"
+                  className="cc-icon-btn cc-star cc-list-card-star"
+                  aria-pressed={isFavorite(list)}
+                  aria-label={isFavorite(list) ? `Unstar ${list.name}` : `Star ${list.name}`}
+                  onClick={() => toggleFavorite(list)}
+                >
+                  <Star size={16} aria-hidden />
+                </button>
+              )}
             </div>
           ))}
-
-          <div onClick={() => setShowCreate(true)} style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 0", borderRadius: 12, cursor: "pointer", border: "2px dashed var(--cc-border)", minHeight: 180 }}>
-            <div style={{ width: 48, height: 48, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--cc-bg)", marginBottom: 12 }}>
-              <Plus size={20} style={{ color: "var(--cc-text-muted)" }} />
-            </div>
-            <p style={{ fontSize: "var(--cc-t-14)", fontWeight: 500, color: "var(--cc-text-muted)", margin: 0 }}>Create a new list</p>
-          </div>
         </div>
       )}
 
       {showCreate && (
-        <Modal open onClose={() => setShowCreate(false)} title="Create New List" size="md"
+        <Modal
+          open
+          onClose={() => setShowCreate(false)}
+          icon={ListPlus}
+          title="New list"
+          description="Organize creators into a curated list you can share with a brand."
+          size="md"
+          dismissible={false}
           footer={
             <div className="cc-modal-footer">
-              <Button variant="secondary" onClick={() => setShowCreate(false)}>Cancel</Button>
-              <Button variant="primary" loading={creating} onClick={handleCreate}>Create List</Button>
+              <Button variant="secondary" size="sm" onClick={() => setShowCreate(false)}>Cancel</Button>
+              <Button variant="primary" size="sm" loading={creating} disabled={!createForm.name.trim()} iconLeft={<Plus size={16} aria-hidden="true" />} onClick={handleCreate}>Create list</Button>
             </div>
           }
         >
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <Input label="List Name *" value={createForm.name} onChange={e => setCreateForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. TikTok Creators Q2" />
-            <div>
-              <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Description</label>
+          <form
+            className="cc-dialog-stack"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!creating && createForm.name.trim()) handleCreate();
+            }}
+          >
+            <Input label="List name" required value={createForm.name} onChange={e => setCreateForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. TikTok Creators Q2" />
+            <Field label="Description" id="new-list-description">
               <textarea
+                className="ui-textarea"
                 value={createForm.description}
                 onChange={e => setCreateForm(f => ({ ...f, description: e.target.value }))}
-                rows={3} placeholder="Optional description..."
-                style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: "var(--cc-t-14)", color: "var(--cc-text)", resize: "vertical", fontFamily: "inherit" }}
+                rows={3}
+                placeholder="What this list is for"
               />
-            </div>
-          </div>
+            </Field>
+          </form>
         </Modal>
       )}
     </div>

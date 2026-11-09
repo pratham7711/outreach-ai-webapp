@@ -51,15 +51,16 @@ export function useTableSort<T>(rows: T[], accessors: SortAccessors<T>, initial:
   return { sorted, sort, toggle };
 }
 
-const thBase: React.CSSProperties = {
-  fontSize: "var(--cc-t-11)",
-  fontWeight: 700,
-  textTransform: "uppercase",
-  letterSpacing: "0.06em",
-  color: "var(--cc-text-subtle)",
-  padding: "12px 24px",
-};
-
+/**
+ * A column header, sortable when given a `sortKey`.
+ *
+ * Styled by class, not inline, so the header DataTable draws and the headers
+ * of the tables that still hand-roll their rows are one rule: the microlabel
+ * (11px, 600, uppercase, tracked), single line. Inside a DataTable the cell
+ * takes the table's 16px inset and its 40px row; elsewhere it keeps the 24px
+ * those tables' body cells still use, so their columns stay lined up until
+ * they move over. `padX` still overrides both.
+ */
 export function SortableTh({
   label,
   sortKey,
@@ -67,6 +68,7 @@ export function SortableTh({
   onToggle,
   align = "left",
   padX,
+  hideLabel = false,
 }: {
   label: string;
   /** Omit to render a plain, non-sortable header. */
@@ -75,46 +77,39 @@ export function SortableTh({
   onToggle?: (key: string) => void;
   align?: "left" | "right";
   /** Horizontal cell padding, for a table that has to give width back (the
-   *  roster fits a 1440 window only at 12). Defaults to the house 24. */
+   *  roster fits a 1440 window only at 12). */
   padX?: number;
+  /** Keep the label for screen readers only, e.g. over a row-actions column. */
+  hideLabel?: boolean;
 }) {
   const active = !!sortKey && sort?.key === sortKey;
-  const style: React.CSSProperties = {
-    ...thBase,
-    textAlign: align,
-    ...(padX === undefined ? null : { paddingLeft: padX, paddingRight: padX }),
-  };
+  const style: React.CSSProperties | undefined =
+    padX === undefined ? undefined : { paddingLeft: padX, paddingRight: padX };
+  const text = hideLabel ? <span className="sr-only">{label}</span> : label;
 
-  if (!sortKey || !onToggle) return <th style={style}>{label}</th>;
+  if (!sortKey || !onToggle) {
+    return (
+      <th scope="col" className="cc-th" data-align={align} style={style}>
+        {text}
+      </th>
+    );
+  }
 
   const Icon = active ? (sort!.dir === "asc" ? ArrowUp : ArrowDown) : ChevronsUpDown;
 
   return (
-    <th style={style} aria-sort={active ? (sort!.dir === "asc" ? "ascending" : "descending") : "none"}>
-      <button
-        type="button"
-        onClick={() => onToggle(sortKey)}
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
-          flexDirection: align === "right" ? "row-reverse" : "row",
-          background: "none",
-          border: "none",
-          /* A 25px target around 17px of text, without making the header row
-             any taller: the negative margin hands the padding back. WCAG 2.5.8
-             asks for 24; the bare label was the whole target before. */
-          padding: "4px 0",
-          margin: "-4px 0",
-          font: "inherit",
-          letterSpacing: "inherit",
-          textTransform: "inherit",
-          cursor: "pointer",
-          color: active ? "var(--cc-text)" : "inherit",
-        }}
-      >
-        {label}
-        <Icon size={13} aria-hidden="true" style={{ opacity: active ? 1 : 0.45 }} />
+    <th
+      scope="col"
+      className="cc-th"
+      data-align={align}
+      style={style}
+      aria-sort={active ? (sort!.dir === "asc" ? "ascending" : "descending") : "none"}
+    >
+      {/* A 24px target around the 11px label, without making the header row
+          taller: .cc-th-sort hands its padding back with a negative margin. */}
+      <button type="button" className="cc-th-sort" data-active={active || undefined} onClick={() => onToggle(sortKey)}>
+        {text}
+        <Icon size={13} aria-hidden="true" />
       </button>
     </th>
   );

@@ -68,7 +68,7 @@ export const PORTAL_PAGES = [
 ];
 const PORTAL = argv.includes("--portal");
 const pages = arg("pages") ? arg("pages").split(",") : PORTAL ? PORTAL_PAGES : PAGES;
-const THEMES = ["creatorcore", "light", "dark"];
+const THEMES = ["light", "dark"];
 const WIDTHS = [
   { name: "1440", width: 1440, height: 900 },
   { name: "390", width: 390, height: 844 },
@@ -190,7 +190,7 @@ async function main() {
             await page.goto(BASE + p, { waitUntil: "domcontentloaded" });
             await page.evaluate((t) => {
               localStorage.setItem("theme", t);
-              document.documentElement.classList.remove("light", "dark", "creatorcore");
+              document.documentElement.classList.remove("light", "dark");
               if (t !== "light") document.documentElement.classList.add(t);
             }, theme);
             const res = await page.reload({ waitUntil: "domcontentloaded" });

@@ -14,9 +14,9 @@ export function formatPercent(rate: number): string {
 }
 
 export const RANGE_PRESETS = [
-  { key: "7d", label: "7d" },
-  { key: "30d", label: "30d" },
-  { key: "90d", label: "90d" },
+  { key: "7d", label: "7D" },
+  { key: "30d", label: "30D" },
+  { key: "90d", label: "90D" },
   { key: "all", label: "All" },
 ];
 

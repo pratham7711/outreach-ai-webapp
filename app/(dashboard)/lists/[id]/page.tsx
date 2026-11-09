@@ -1,20 +1,18 @@
 "use client";
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, Users, ClipboardList, Share2, Copy, DollarSign, Archive } from "lucide-react";
-import Link from "next/link";
-import { Card, Badge, EmptyState, Skeleton, Input } from "@pratham7711/ui";
+import { Trash2, Users, ClipboardList, Share2, Copy, DollarSign, Archive, ArchiveRestore, Download } from "lucide-react";
+import { EmptyState } from "@pratham7711/ui";
 import { NotFoundState } from "@/components/errors/NotFoundState";
 import { toast } from "sonner";
-import { stripAt, formatDateAbs, formatFull } from "@/lib/format";
-import { useConfirm, Button, PageHeader } from "@/components/ds";
+import { formatDateAbs, formatFull } from "@/lib/format";
+import { useConfirm, Button, DataTable, MoreMenu, PageHeader, PlatformTag, StatusBadge, type DataTableColumn } from "@/components/ds";
+import { DataTableSkeleton, PageHeaderSkeleton } from "@/components/ui/PageSkeleton";
 import AddCreatorsDropdown from "@/components/lists/AddCreatorsDropdown";
 import ListSharePanel from "@/components/lists/ListSharePanel";
-import ExportMenu from "@/components/creators/ExportMenu";
-import CreatorAvatar from "@/components/creators/CreatorAvatar";
-import RateCardTable, { type RateCardItem } from "@/components/lists/RateCardTable";
+import RateCardTable, { ListCreatorCell, type RateCardItem } from "@/components/lists/RateCardTable";
 import DuplicateListDialog from "@/components/lists/DuplicateListDialog";
-import { LIST_STATUS_BADGE, LIST_STATUS_LABELS, type DecisionCounts, type ListStatus } from "@/lib/lists/approval";
+import { LIST_STATUS_LABELS, type DecisionCounts, type ListStatus } from "@/lib/lists/approval";
 import MetricFigure from "@/components/creators/MetricFigure";
 import { avgViewsValue, followersValue } from "@/lib/creators/metricValue";
 import { noun } from "@/lib/ui/noun";
@@ -42,6 +40,50 @@ function formatNumber(n: number) {
   return formatFull(n);
 }
 
+function plainColumns(onRemove: (itemId: string, creatorId: string, name: string) => void): DataTableColumn<CreatorItem>[] {
+  return [
+    { key: "creator", header: "Creator", minWidth: 220, render: (item) => <ListCreatorCell creator={item.creator} /> },
+    { key: "platform", header: "Platform", width: 136, render: (item) => <PlatformTag platform={item.creator.platform} /> },
+    {
+      key: "followers",
+      header: "Followers",
+      width: 120,
+      align: "right",
+      /* "—" with the reason, never 0 or blank: followersCount defaults to 0
+         for a creator nobody has read. */
+      render: (item) => <MetricFigure value={followersValue(item.creator.followersCount)} format={formatNumber} />,
+    },
+    {
+      key: "avgViews",
+      header: "Avg. views",
+      width: 120,
+      align: "right",
+      render: (item) => <MetricFigure value={avgViewsValue(item.creator.avgViews)} format={formatNumber} />,
+    },
+    { key: "added", header: "Added", width: 128, render: (item) => formatDateAbs(item.addedAt) },
+    {
+      key: "actions",
+      header: "Actions",
+      hideHeader: true,
+      width: 64,
+      render: (item) => (
+        <MoreMenu
+          size="sm"
+          label={`More actions for ${item.creator.name}`}
+          items={[
+            {
+              label: "Remove from list",
+              icon: <Trash2 size={15} />,
+              onClick: () => onRemove(item.id, item.creator.id, item.creator.name),
+              danger: true,
+            },
+          ]}
+        />
+      ),
+    },
+  ];
+}
+
 export default function ListDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
@@ -65,11 +107,11 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
 
   useEffect(() => { fetchList(); }, [id]);
 
-  const handleRemoveCreator = async (itemId: string, creatorId: string) => {
+  const handleRemoveCreator = async (_itemId: string, creatorId: string, name: string) => {
     const ok = await confirm({
-      title: "Remove this creator from the list?",
-      description: "The creator stays in your roster — only their place on this list is removed.",
-      confirmLabel: "Remove",
+      verb: "remove",
+      subject: name,
+      description: "They stay in your roster. Only their place on this list goes.",
     });
     if (!ok) return;
     try {
@@ -112,10 +154,11 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
 
   const handleDeleteList = async () => {
     if (deleting) return;
+    if (!list) return;
     const ok = await confirm({
-      title: "Delete this entire list?",
-      description:
-        "The list and its ordering are deleted permanently. The creators on it stay in your roster. This cannot be undone.",
+      verb: "delete",
+      subject: list.name,
+      description: "The list and its order are deleted. The creators on it stay in your roster. This can't be undone.",
       confirmLabel: "Delete list",
     });
     if (!ok) return;
@@ -135,10 +178,9 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
   };
 
   if (loading) return (
-    <div className="rsp-page" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      <Skeleton width="120px" height="16px" />
-      <Skeleton width="300px" height="32px" />
-      <Skeleton width="100%" height="400px" borderRadius="12px" />
+    <div className="rsp-page">
+      <PageHeaderSkeleton />
+      <DataTableSkeleton columns={[{}, { width: 112 }, { width: 112 }, { width: 128 }, { width: 64 }]} />
     </div>
   );
 
@@ -155,58 +197,37 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
 
   return (
     <div className="rsp-page">
-      {/* No in-page trail: the top bar already reads Lists > <name>. */}
-
-      {/* Header */}
       <PageHeader
         title={list.name}
+        back={{ href: "/lists", label: "Lists" }}
         subtitle={list.description || undefined}
+        badges={
+          list.approval ? (
+            /* "Awaiting client" is waiting on someone, which is the warning
+               hue; the stored SHARED is not one of the shared status words. */
+            <StatusBadge status={list.approval.status} tone={list.approval.status === "SHARED" ? "warning" : undefined} dot>
+              {LIST_STATUS_LABELS[list.approval.status]}
+            </StatusBadge>
+          ) : undefined
+        }
         meta={
-          <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, marginTop: 8, fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
-            <Users size={14} /> {list._count.items} {noun(list._count.items, "creator")}
+          <>
+            <span>
+              <Users size={14} aria-hidden="true" />
+              {list._count.items} {noun(list._count.items, "creator")}
+            </span>
             {list.approval && (
               <>
-                <Badge variant={LIST_STATUS_BADGE[list.approval.status]}>{LIST_STATUS_LABELS[list.approval.status]}</Badge>
-                <span style={{ whiteSpace: "nowrap" }}>
-                  {list.approval.counts.approved} approved · {list.approval.counts.rejected} declined · {list.approval.counts.pending} pending
-                </span>
+                <span>{list.approval.counts.approved} approved</span>
+                <span>{list.approval.counts.rejected} declined</span>
+                <span>{list.approval.counts.pending} pending</span>
               </>
             )}
-          </div>
+          </>
         }
         actions={
-          /* Seven tools, not the reference's two-button header: "tool" keeps the
-             secondaries out of CreatorCore's 180x40 action-slot box, so they stay
-             the same size="sm" as Delete and Export beside them. */
           <>
-            <Button variant="danger" size="sm" iconLeft={<Trash2 size={14} />} onClick={handleDeleteList} disabled={deleting}>
-              {deleting ? "Deleting…" : "Delete List"}
-            </Button>
-            {list._count.items > 0 && (
-              <ExportMenu
-                align="down"
-                items={[
-                  { label: "Excel (.xlsx)", href: `/api/lists/${list.id}/export?format=xlsx` },
-                  { label: "CSV", href: `/api/lists/${list.id}/export?format=csv` },
-                ]}
-              />
-            )}
-            {list.approval && (
-              <Button variant="secondary" data-cc-slot="tool" size="sm" iconLeft={<Archive size={14} />} onClick={() => handleArchive(!list.approval!.archived)}>
-                {list.approval.archived ? "Restore" : "Archive"}
-              </Button>
-            )}
-            {list.approval && list.items.length > 0 && (
-              <Button variant="secondary" data-cc-slot="tool" size="sm" iconLeft={<DollarSign size={14} />} onClick={handleImportRates} loading={importing}>
-                Import rates
-              </Button>
-            )}
-            {list.approval && list.items.length > 0 && (
-              <Button variant="secondary" data-cc-slot="tool" size="sm" iconLeft={<Copy size={14} />} onClick={() => setDuplicating(true)}>
-                Duplicate
-              </Button>
-            )}
-            <Button variant="secondary" data-cc-slot="tool" size="sm" iconLeft={<Share2 size={14} />} onClick={() => setSharing(true)}>
+            <Button variant="secondary" iconLeft={<Share2 size={16} />} onClick={() => setSharing(true)}>
               Share
             </Button>
             <AddCreatorsDropdown
@@ -214,64 +235,53 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
               onList={list.items.map((item) => item.creator.id)}
               onAdded={() => fetchList()}
             />
+            <MoreMenu
+              label="More list actions"
+              items={[
+                ...(list._count.items > 0
+                  ? [
+                      { label: "Export as Excel (.xlsx)", icon: <Download size={15} />, href: `/api/lists/${list.id}/export?format=xlsx`, download: true },
+                      { label: "Export as CSV", icon: <Download size={15} />, href: `/api/lists/${list.id}/export?format=csv`, download: true },
+                    ]
+                  : []),
+                ...(list.approval && list.items.length > 0
+                  ? [
+                      { label: importing ? "Importing rates…" : "Import rates", icon: <DollarSign size={15} />, onClick: handleImportRates, disabled: importing, startsGroup: true },
+                      { label: "Duplicate list", icon: <Copy size={15} />, onClick: () => setDuplicating(true) },
+                    ]
+                  : []),
+                ...(list.approval
+                  ? [
+                      list.approval.archived
+                        ? { label: "Restore list", icon: <ArchiveRestore size={15} />, onClick: () => handleArchive(false) }
+                        : { label: "Archive list", icon: <Archive size={15} />, onClick: () => handleArchive(true) },
+                    ]
+                  : []),
+                { label: deleting ? "Deleting…" : "Delete list", icon: <Trash2 size={15} />, onClick: handleDeleteList, disabled: deleting, danger: true },
+              ]}
+            />
           </>
         }
       />
 
-      {/* Creators table */}
       {list.items.length === 0 ? (
-        <EmptyState icon={<Users size={32} color="var(--cc-text-subtle)" />} title="No creators in this list" description="Use Add Creators above to pick several from your roster at once." />
+        <EmptyState icon={<Users size={32} color="var(--cc-text-subtle)" />} title="No creators in this list" description="Use Add creators above to pick several from your roster at once." />
       ) : list.approval ? (
-        <Card variant="solid" noPadding>
-          <RateCardTable
-            listId={list.id}
-            items={list.items as unknown as RateCardItem[]}
-            onChanged={() => fetchList(true)}
-            onRemove={handleRemoveCreator}
-          />
-        </Card>
+        <RateCardTable
+          listId={list.id}
+          items={list.items as unknown as RateCardItem[]}
+          onChanged={() => fetchList(true)}
+          onRemove={handleRemoveCreator}
+        />
       ) : (
-        <Card variant="solid" noPadding>
-          <div className="rsp-table-wrap">
-          <div style={{ minWidth: 640 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 120px 100px 100px 100px 60px", gap: 12, padding: "12px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)" }}>
-            {["Creator", "Platform", "Followers", "Avg Views", "Added", ""].map(h => (
-              <span key={h} className="cc-microlabel">{h}</span>
-            ))}
-          </div>
-          <div className="cc-stagger">
-            {list.items.map((item, i) => (
-              <div
-                key={item.id}
-                style={{ display: "grid", gridTemplateColumns: "1fr 120px 100px 100px 100px 60px", gap: 12, padding: "14px 24px", alignItems: "center", borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }}
-                className="cc-table-row"
-              >
-                <Link prefetch={false} href={`/creators/${item.creator.id}`} style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 12 }}>
-                  <CreatorAvatar id={item.creator.id} name={item.creator.name} size="sm" />
-                  <div>
-                    <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{item.creator.name}</p>
-                    <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>@{stripAt(item.creator.handle)}</p>
-                  </div>
-                </Link>
-                <Badge variant="neutral">{item.creator.platform}</Badge>
-                {/* "—" with the reason, never 0 or blank (plan A1): followersCount
-                    defaults to 0 for a creator nobody has read. */}
-                <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}><MetricFigure value={followersValue(item.creator.followersCount)} format={formatNumber} /></span>
-                <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}><MetricFigure value={avgViewsValue(item.creator.avgViews)} format={formatNumber} /></span>
-                <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{formatDateAbs(item.addedAt)}</span>
-                <button
-                  onClick={() => handleRemoveCreator(item.id, item.creator.id)}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)", padding: 4 }}
-                  title="Remove from list"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-          </div>
-          </div>
-        </Card>
+        <DataTable
+          className="cc-actions-table"
+          caption="Creators on this list"
+          columns={plainColumns(handleRemoveCreator)}
+          rows={list.items}
+          rowKey={(item) => item.id}
+          rowHref={(item) => `/creators/${item.creator.id}`}
+        />
       )}
 
       {sharing && <ListSharePanel listId={list.id} listName={list.name} onClose={() => setSharing(false)} />}

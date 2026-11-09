@@ -33,8 +33,8 @@ export default function CampaignRailNav({ campaignId }: { campaignId: string }) 
 
   const back = (
     <NavLink href={listHref} className="cc-nav-item sidebar-link">
-      <ArrowLeft size={17} style={{ flexShrink: 0 }} aria-hidden="true" />
-      <span style={{ whiteSpace: "nowrap", overflow: "hidden" }}>All campaigns</span>
+      <ArrowLeft size={16} style={{ flexShrink: 0 }} aria-hidden="true" />
+      <span className="cc-nav-label" style={{ whiteSpace: "nowrap", overflow: "hidden" }}>All campaigns</span>
     </NavLink>
   );
   if (missing) return back;
@@ -43,7 +43,7 @@ export default function CampaignRailNav({ campaignId }: { campaignId: string }) 
     <>
       {back}
 
-      <div style={{ height: 1, background: "var(--cc-border)", margin: "8px 8px" }} />
+      <div className="cc-rail-divider" />
 
       {/* The campaign's own name, so the rail says which campaign these
           sections belong to. Truncated rather than wrapped: titles here run to
@@ -77,30 +77,16 @@ export default function CampaignRailNav({ campaignId }: { campaignId: string }) 
             className={`cc-nav-item sidebar-link ${activeSection ? "active btn-press" : ""}`}
             aria-current={activeSection ? "page" : undefined}
           >
-            <section.icon size={17} style={{ flexShrink: 0 }} aria-hidden="true" />
-            <span style={{ whiteSpace: "nowrap", overflow: "hidden" }}>{section.label}</span>
+            <section.icon size={16} style={{ flexShrink: 0 }} aria-hidden="true" />
+            <span className="cc-nav-label" style={{ whiteSpace: "nowrap", overflow: "hidden" }}>{section.label}</span>
             {/* A zero is not shown at all. "Posts 0" is the same information as
                 no badge, and ten of them read as clutter on a new campaign. */}
             {count ? (
-              <span
-                style={{
-                  marginLeft: "auto",
-                  background: activeSection ? "var(--cc-primary)" : "var(--cc-bg)",
-                  color: activeSection ? "var(--primary-foreground)" : "var(--cc-text-muted)",
-                  fontSize: "var(--cc-t-10)",
-                  fontWeight: 700,
-                  /* The badge inherits the row's 20px line-height while setting
-                     10px text, so its box measured 20+2+2 = 24px -- taller than
-                     the 20px label, which made it the tallest flex item and grew
-                     the whole row from 40px to 44px. MEASURED: only the two rows
-                     carrying counts were 44px, so the rail's pitch alternated
-                     48/52 against CreatorCore's uniform 50. A 10px badge does
-                     not need a 20px line box. */
-                  lineHeight: 1,
-                  padding: "2px 7px",
-                  borderRadius: 999,
-                }}
-              >
+              /* The badge inherits the row's 20px line-height while setting
+                 10px text, so it is given line-height 1 in its class: at 20 it
+                 was the tallest flex item and grew counted rows from 40px to
+                 44px, which made the rail's pitch alternate. */
+              <span className="cc-nav-count" data-active={activeSection || undefined}>
                 {count}
               </span>
             ) : null}

@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryProvider } from "@/components/providers/QueryProvider";
 import { BRAND } from "@/lib/brand";
+import { THEME_MIGRATION_SCRIPT } from "@/lib/themeStorage";
 
 const satoshi = localFont({
   src: [
@@ -32,8 +33,12 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${satoshi.variable} ${lexend.variable}`} suppressHydrationWarning>
+      <head>
+        {/* Before next-themes' own script in <body>: see lib/themeStorage.ts. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_MIGRATION_SCRIPT }} />
+      </head>
       <body suppressHydrationWarning>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange themes={["light", "dark", "creatorcore"]}>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange themes={["light", "dark"]}>
           <QueryProvider>
             <TooltipProvider delay={150}>{children}</TooltipProvider>
           </QueryProvider>

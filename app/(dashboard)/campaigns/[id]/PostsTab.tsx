@@ -3,9 +3,33 @@
 import React from "react";
 import Link from "next/link";
 import { useState, useEffect, useMemo, useCallback, useDeferredValue, useRef } from "react";
-import { Card, Badge, Input, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
-import { Dropdown, StatusTabs, Pagination, Button } from "@/components/ds";
-import { Grid3X3, List, Plus, Check, X, TrendingUp, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Flag, Video, AlertTriangle, RefreshCw, Info, Radio, ExternalLink } from "lucide-react";
+import { Card, Badge, EmptyState, Textarea } from "@pratham7711/ui";
+import { Modal } from "@/components/ds/Modal";
+import {
+  Dropdown,
+  StatusTabs,
+  Pagination,
+  Button,
+  Banner,
+  LoadError,
+  ListToolbar,
+  DataTable,
+  NoResults,
+  ViewToggle,
+  StatusBadge,
+  PlatformTag,
+  MetricTile,
+  MoreMenu,
+  FilterDrawer,
+  FilterButton,
+  Skeleton,
+  type DataTableColumn,
+  type FilterDef,
+  type FilterValues,
+} from "@/components/ds";
+import { TileGridSkeleton, ListToolbarSkeleton } from "@/components/ui/PageSkeleton";
+import type { MetricKey } from "@/lib/metric-definitions";
+import { Grid3X3, List, ListPlus, Plus, Check, X, XCircle, TrendingUp, BarChart3, Flag, Video, AlertTriangle, RefreshCw, Info, Radio, ExternalLink, MoreHorizontal } from "lucide-react";
 import { stripAt, formatDateAbs, formatFull } from "@/lib/format";
 import type { ComplianceFlag } from "@/lib/compliance/postCompliance";
 import PostMedia from "@/components/PostMedia";
@@ -15,10 +39,9 @@ import { postAgeContext, postMeasuredAt, postStatus } from "@/lib/posts/postStat
 import { viewsAsOf } from "@/lib/posts/fieldFreshness";
 import PostStatusChip from "@/components/posts/PostStatusChip";
 import { AgeLabel } from "@/components/ds/AgeLabel";
-import { breakableFigure } from "@/components/ds/BreakableFigure";
 import { enumLabel } from "@/lib/ui/enumLabel";
 import PostGridCard from "@/components/posts/PostGridCard";
-import { STATUS_BADGE, engRatePct, trackingLabel } from "@/lib/posts/postDisplay";
+import { engRatePct, trackingLabel } from "@/lib/posts/postDisplay";
 import { summariseRefresh, type RefreshResult } from "@/lib/refreshSummary";
 import { toast } from "sonner";
 import { CampaignHeaderActions } from "@/components/campaigns/CampaignHeaderActions";
@@ -50,7 +73,6 @@ import { removePostsUndoHint, restorePostsSummary } from "@/lib/posts/bulkAction
 import PostActionMenu, { type PostMenuItem } from "@/components/posts/PostActionMenu";
 import { PlatformGlyph } from "@/components/ui/PlatformGlyph";
 import { platformFromHost, detectPlatformFromUrl, platformLabel } from "@/lib/platforms/registry";
-import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import CreatorName from "@/components/creators/CreatorName";
 import { creatorNameText } from "@/lib/creators/creatorName";
 import { UNKNOWN_CREATOR_LABEL, isUnattributedCreator, unknownCreatorReason } from "@/lib/posts/unattributedName";
@@ -112,12 +134,10 @@ type MarketplaceCtx = {
 };
 
 const STATUS_TABS = [
-  { key: "ALL", label: "All", bg: "var(--cc-neutral-bg)", color: "var(--cc-status-neutral-ink)" },
-  /* --cc-warning, not --cc-warning-ink: this label sits on the page, not on a
-     chip's fixed cream ground, so its amber has to follow the theme. */
-  { key: "PENDING_REVIEW", label: "Pending Review", bg: "var(--cc-warning-bg)", color: "var(--cc-warning)" },
-  { key: "APPROVED", label: "Approved", bg: "var(--cc-success-bg)", color: "var(--cc-success)" },
-  { key: "REJECTED", label: "Rejected", bg: "var(--cc-danger-bg)", color: "var(--cc-danger)" },
+  { key: "ALL", label: "All" },
+  { key: "PENDING_REVIEW", label: "Pending review" },
+  { key: "APPROVED", label: "Approved" },
+  { key: "REJECTED", label: "Rejected" },
 ];
 
 /* Not a review status: the posts taken out of the campaign with Remove from
@@ -265,6 +285,25 @@ type RefreshRunState = {
 };
 
 const PAGE_SIZE = 25;
+const PAGE_SIZE_OPTIONS = [10, 25, 50];
+
+/* What the Filters drawer holds: the filters an operator sets now and then.
+   Platform and type stay in the toolbar, where they are used most. */
+const DRAWER_FILTERS: FilterDef[] = [
+  { type: "numberRange", label: "Views", minKey: "minViews", maxKey: "maxViews" },
+  { type: "dateRange", label: "Posted", fromKey: "postedFrom", toKey: "postedTo" },
+  {
+    type: "multiSelect",
+    key: "tracking",
+    label: "Tracking",
+    options: [
+      { value: "TRACKED", label: "Tracked" },
+      { value: "UNTRACKED", label: "Not tracked" },
+    ],
+  },
+];
+
+type KpiTile = { key: string; metric?: MetricKey; label?: string; what?: string; how?: string; value: string };
 
 // Whether the post is still live on the platform, independent of approval.
 // CreatorCore surfaces this prominently (Unavailable = removed at source), and
@@ -277,21 +316,10 @@ const PAGE_SIZE = 25;
 const FETCH_STATE_LABEL: Record<string, string> = {
   ERROR: "Fetch error",
 };
-const FETCH_STATE_BADGE: Record<string, "danger" | "warning"> = {
-  ERROR: "warning",
-};
-
 const COMPLIANCE_LABEL: Record<string, string> = {
   POSTED_AFTER_DEADLINE: "Late",
   SYNC_DEAD_LETTERED: "Unreachable",
   SYNC_FAILING: "Sync failing",
-};
-
-const PLATFORM_BADGE: Record<string, "accent" | "success" | "warning" | "danger" | "neutral"> = {
-  TIKTOK: "neutral",
-  INSTAGRAM: "danger",
-  YOUTUBE: "warning",
-  TWITTER: "accent",
 };
 
 type SortKey =
@@ -305,43 +333,6 @@ type SortKey =
   | "engRate"
   | "delta";
 type SortDir = "asc" | "desc";
-
-/* Declared here rather than inside PostsTab: a component written in a render
-   body is a new type on every render, so React tore down and rebuilt every
-   list header each time the tab re-rendered -- on each keystroke, for one. */
-function SortHeader({
-  label,
-  sk,
-  align = "left",
-  sortKey,
-  sortDir,
-  onSort,
-}: {
-  label: string;
-  sk: SortKey;
-  align?: "left" | "right";
-  sortKey: SortKey;
-  sortDir: SortDir;
-  onSort: (key: SortKey) => void;
-}) {
-  const active = sortKey === sk;
-  return (
-    <button
-      type="button"
-      onClick={() => onSort(sk)}
-      className="cc-microlabel"
-      data-active={active || undefined}
-      style={{ display: "flex", alignItems: "center", gap: 4, justifyContent: align === "right" ? "flex-end" : "flex-start", background: "none", border: "none", padding: 0, cursor: "pointer" }}
-    >
-      {label}
-      {active ? (sortDir === "asc" ? <ArrowUp size={11} /> : <ArrowDown size={11} />) : <ArrowUpDown size={11} />}
-    </button>
-  );
-}
-
-function PlainHeader({ label }: { label: string }) {
-  return <span className="cc-microlabel">{label}</span>;
-}
 
 function formatNumber(num: number): string {
   return formatFull(num);
@@ -359,36 +350,6 @@ function deltaViews(post: PostData): number | null {
   return views - previous.viewsCount;
 }
 
-/* Keyed rather than positional: the engagement columns are dropped whenever no
-   post in the campaign has been fetched, and a fixed template would leave their
-   tracks behind as dead space. */
-/* Sized to fit the 1110px card a 1440 window gives this tab. MEASURED
-   2026-10-13: the old ladder summed to a 1446px row, so the card scrolled and
-   Status was cut off at the edge on every desktop. Status now carries the
-   last-read age under its badge rather than a column of its own, the badges
-   are sentence case ("Pending review", not "PENDING REVIEW"), and the gaps are
-   8. Narrower windows still scroll inside the card. */
-const CREATOR_MIN_PX = 150;
-const COL_WIDTHS = {
-  select: "28px",
-  creator: `minmax(${CREATOR_MIN_PX}px, 1.6fr)`,
-  platform: "80px", // the "Instagram" badge is 78
-  posted: "80px",
-  views: "96px", // "1,822,665,537" in bold is 86
-  likes: "76px",
-  comments: "92px", // the "COMMENTS" sort header with its icon
-  shares: "68px",
-  saves: "64px",
-  downloads: "92px",
-  engRate: "64px",
-  delta: "112px",
-  status: "116px", // the "Pending review" badge is 112
-  actions: "100px", // three 30px controls a line; approve and reject wrap under
-} as const;
-
-const COL_GAP = 8;
-const LIST_PAD_X = 16;
-
 /* The same ladder the post page offers, so the two controls cannot disagree
    about what a tracking window may be. 30 is the default because it is also
    the maximum: the shorter windows are for a launch you only care about this
@@ -400,19 +361,6 @@ const BULK_TTL_DEFAULT = 30;
    rather than a second piece of state, so there is exactly one answer to "is
    the reject dialog open". No post id can collide with it. */
 const BULK_REJECT = "__bulk__";
-
-function gridTemplate(cols: readonly (keyof typeof COL_WIDTHS)[]) {
-  const widths = cols.map((c) => COL_WIDTHS[c]);
-  // The creator column is the flexible one; everything else is a fixed px track.
-  const fixed = widths
-    .filter((w) => w.endsWith("px") && !w.startsWith("minmax"))
-    .reduce((sum, w) => sum + parseInt(w, 10), 0);
-  return {
-    gridTemplateColumns: widths.join(" "),
-    // The rows are border-box, so their side padding is part of the minimum.
-    minWidth: fixed + CREATOR_MIN_PX + COL_GAP * (cols.length - 1) + 2 * LIST_PAD_X,
-  };
-}
 
 function earnedMinorForPost(
   views: number,
@@ -502,6 +450,9 @@ export default function PostsTab({
   const [sortKey, setSortKey] = useState<SortKey>("views");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
+  const [maxViews, setMaxViews] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [showAddPost, setShowAddPost] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
@@ -617,7 +568,7 @@ export default function PostsTab({
   useEffect(() => { fetchPostsRef.current = fetchPosts; }, [fetchPosts]);
 
   useEffect(() => { fetchPosts(); }, [fetchPosts]);
-  useEffect(() => { setPage(1); }, [statusFilter, platformFilter, mediaTypeFilter, minViews, creatorSearch, postedFrom, postedTo, sortKey, sortDir]);
+  useEffect(() => { setPage(1); }, [statusFilter, platformFilter, mediaTypeFilter, minViews, maxViews, creatorSearch, postedFrom, postedTo, sortKey, sortDir]);
 
   /* Pure URL parsing, so it runs as the operator types with no request behind
      it. The server re-derives all of this from the same function -- this copy
@@ -1071,7 +1022,22 @@ export default function PostsTab({
   const confirm = useConfirm();
   const removePosts = async (ids: string[]) => {
     if (ids.length === 0) return;
-    if (!(await confirm({ ...removeConfirmText(ids.length), tone: "danger" }))) return;
+    const text = removeConfirmText(ids.length);
+    const one = ids.length === 1 ? posts.find((p) => p.id === ids[0]) : undefined;
+    /* A soft remove, so the dialog keeps the sentence about getting it back
+       rather than the default "can't be undone". */
+    const ok = await confirm(
+      one
+        ? {
+            verb: "remove",
+            subject: `${isUnattributedCreator(one.creator) ? "Unattributed" : creatorNameText(one.creator.name, one.creator.handle)}'s ${platformLabel(one.platform)} post`,
+            description: text.description,
+            confirmLabel: "Remove post",
+            tone: "danger",
+          }
+        : { ...text, verb: "remove", tone: "danger" }
+    );
+    if (!ok) return;
     setBulkBusy(true);
     try {
       const res = await fetch(`/api/campaigns/${campaignId}/posts`, {
@@ -1355,9 +1321,11 @@ export default function PostsTab({
      Everything else here is a click, which cannot outrun a render anyway. */
   const deferredCreatorSearch = useDeferredValue(creatorSearch);
   const deferredMinViews = useDeferredValue(minViews);
+  const deferredMaxViews = useDeferredValue(maxViews);
 
   const filteredSorted = useMemo(() => {
     const minV = parseInt(deferredMinViews, 10);
+    const maxV = parseInt(deferredMaxViews, 10);
     const search = deferredCreatorSearch.trim().toLowerCase();
     // Inclusive on both ends: "to" is the end of that day, not midnight at its start.
     const fromMs = postedFrom ? new Date(`${postedFrom}T00:00:00`).getTime() : null;
@@ -1379,6 +1347,7 @@ export default function PostsTab({
       if (platformFilter !== "ALL" && p.platform !== platformFilter) return false;
       if (mediaTypeFilter !== "ALL" && p.mediaType !== mediaTypeFilter) return false;
       if (Number.isFinite(minV) && p.viewsCount < minV) return false;
+      if (Number.isFinite(maxV) && p.viewsCount > maxV) return false;
       if (search) {
         const hay = `${p.creator.name} ${p.creator.handle}`.toLowerCase();
         if (!hay.includes(search)) return false;
@@ -1423,7 +1392,7 @@ export default function PostsTab({
       return sortDir === "asc" ? diff : -diff;
     });
     return keyed.map(([, p]) => p);
-  }, [posts, postsAreRemoved, statusFilter, trackingFilter, checkOnly, platformFilter, mediaTypeFilter, deferredMinViews, deferredCreatorSearch, postedFrom, postedTo, sortKey, sortDir]);
+  }, [posts, postsAreRemoved, statusFilter, trackingFilter, checkOnly, platformFilter, mediaTypeFilter, deferredMinViews, deferredMaxViews, deferredCreatorSearch, postedFrom, postedTo, sortKey, sortDir]);
 
   const anyDelta = useMemo(() => posts.some((p) => (p.snapshots?.length ?? 0) >= 2), [posts]);
   /* Imported posts carried view counts only, so likes, comments and engagement
@@ -1450,28 +1419,6 @@ export default function PostsTab({
     [posts]
   );
   const anyEngRate = useMemo(() => posts.some((p) => engRatePct(p) !== null), [posts]);
-  const listCols = useMemo(
-    () =>
-      [
-        "select",
-        "creator",
-        "platform",
-        "posted",
-        "views",
-        ...(anyLikes ? (["likes"] as const) : []),
-        ...(anyComments ? (["comments"] as const) : []),
-        ...(anyShares ? (["shares"] as const) : []),
-        ...(anySaves ? (["saves"] as const) : []),
-        ...(anyDownloads ? (["downloads"] as const) : []),
-        ...(anyEngRate ? (["engRate"] as const) : []),
-        ...(anyDelta ? (["delta"] as const) : []),
-        "status",
-        "actions",
-      ] as const,
-    [anyLikes, anyComments, anyShares, anySaves, anyDownloads, anyEngRate, anyDelta]
-  );
-  const listGrid = useMemo(() => gridTemplate(listCols), [listCols]);
-
   /* Over the filtered set, so the row answers for what is on screen. */
   const kpis = useMemo(() => summarizePostMetrics(filteredSorted), [filteredSorted]);
   /* When the strip's figures were read, and how many posts its views cover --
@@ -1490,32 +1437,45 @@ export default function PostsTab({
     [filteredSorted, viewsKnown]
   );
 
-  const kpiChips: { label: string; value: string }[] = useMemo(() => {
-    const chips: { label: string; value: string }[] = [
-      { label: "Total Posts", value: kpis.posts.toLocaleString() },
+  /* The same nine figures the strip always carried, as tiles. Labels come
+     from lib/metric-definitions where one exists; the two without one say
+     what they add up here. */
+  const kpiTiles: KpiTile[] = useMemo(() => {
+    const tiles: KpiTile[] = [
+      { key: "posts", metric: "totalPosts", value: kpis.posts.toLocaleString() },
       // A dash, not 0, when no post in view has a view count at all.
-      { label: "Total Views", value: viewsKnown === 0 && kpis.posts > 0 ? "\u2014" : formatNumber(kpis.views) },
+      { key: "views", metric: "totalViews", value: viewsKnown === 0 && kpis.posts > 0 ? "\u2014" : formatNumber(kpis.views) },
     ];
-    const pct = (v: number | null) => (v === null ? null : `${v.toFixed(2)}%`);
-    const add = (label: string, value: string | null) => {
-      if (value !== null) chips.push({ label, value });
-    };
-    /* Their wording, verbatim, on both rate chips -- the first spells
-       "Average" and the second abbreviates it, and matching that is what makes
-       the two strips read as the same row. */
-    add("Average Post Eng Rate", pct(kpis.avgPostRate));
-    add("Avg. Campaign Eng Rate", pct(kpis.campaignRate));
-    add("Total Engagement", kpis.engagement === null ? null : formatNumber(kpis.engagement));
-    add("Total Likes", kpis.likes === null ? null : formatNumber(kpis.likes));
-    add("Total Comments", kpis.comments === null ? null : formatNumber(kpis.comments));
-    add("Total Shares", kpis.shares === null ? null : formatNumber(kpis.shares));
-    /* Saves and downloads behind the same gates as their columns. The sums
-       count the 0 every unfetched row holds, so these chips printed "0" on
-       campaigns whose list view hid both columns as never measured. */
-    add("Total Saves", !anySaves || kpis.saves === null ? null : formatNumber(kpis.saves));
-    add("Total Downloads", !anyDownloads || kpis.downloads === null ? null : formatNumber(kpis.downloads));
-    return chips;
+    const pct = (v: number) => `${v.toFixed(2)}%`;
+    if (kpis.avgPostRate !== null)
+      tiles.push({
+        key: "avgPostRate",
+        label: "Avg. post engagement",
+        what: "The engagement rate of a typical post in view: each post counts the same, however many views it had.",
+        how: "Likes plus comments plus shares plus saves over views, for each measured post, then averaged across those posts.",
+        value: pct(kpis.avgPostRate),
+      });
+    if (kpis.campaignRate !== null)
+      tiles.push({ key: "campaignRate", metric: "engagementRate", label: "Campaign engagement rate", value: pct(kpis.campaignRate) });
+    if (kpis.engagement !== null)
+      tiles.push({
+        key: "engagement",
+        label: "Total engagement",
+        what: "Every deliberate interaction with the posts in view.",
+        how: "Adds up likes, comments, shares and saves across the measured posts in view.",
+        value: formatNumber(kpis.engagement),
+      });
+    if (kpis.likes !== null) tiles.push({ key: "likes", metric: "totalLikes", value: formatNumber(kpis.likes) });
+    if (kpis.comments !== null) tiles.push({ key: "comments", metric: "totalComments", value: formatNumber(kpis.comments) });
+    if (kpis.shares !== null) tiles.push({ key: "shares", metric: "totalShares", value: formatNumber(kpis.shares) });
+    /* Saves and downloads behind the same gates as their columns: the sums
+       count the 0 every unfetched row holds. */
+    if (anySaves && kpis.saves !== null) tiles.push({ key: "saves", metric: "totalSaves", value: formatNumber(kpis.saves) });
+    if (anyDownloads && kpis.downloads !== null) tiles.push({ key: "downloads", metric: "totalDownloads", value: formatNumber(kpis.downloads) });
+    return tiles;
   }, [kpis, anySaves, anyDownloads, viewsKnown]);
+  /* One figure size for the whole block: the longest value decides it. */
+  const kpiFit = kpiTiles.reduce((n, t) => Math.max(n, t.value.length), 0);
 
   const accruedMinor = useMemo(() => {
     if (!marketplace) return 0;
@@ -1531,10 +1491,10 @@ export default function PostsTab({
   const capMinor = marketplace?.budgetCapMinor ?? null;
   const capFraction = capMinor && capMinor > 0 ? Math.min(1, accruedMinor / capMinor) : null;
   const capReached = capMinor != null && capMinor > 0 && accruedMinor >= capMinor;
-  const totalPages = Math.max(1, Math.ceil(filteredSorted.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filteredSorted.length / pageSize));
   const pageRows = useMemo(
-    () => filteredSorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
-    [filteredSorted, page]
+    () => filteredSorted.slice((page - 1) * pageSize, page * pageSize),
+    [filteredSorted, page, pageSize]
   );
 
   /* Every bulk action reads THIS, never selectedIds directly. The set can hold
@@ -1566,8 +1526,20 @@ export default function PostsTab({
      than in the tile so one menu serves the grid and the list, and so the tile
      stays a pure function of its post -- opening a menu must not re-render the
      other twenty-four. Both callbacks are stable for the same reason. */
-  const [menu, setMenu] = useState<{ postId: string; x: number; y: number } | null>(null);
+  const [menu, setMenu] = useState<{
+    postId: string;
+    x: number;
+    y: number;
+    align?: "start" | "end";
+    anchor?: HTMLElement | null;
+  } | null>(null);
   const openMenu = useCallback((postId: string, x: number, y: number) => setMenu({ postId, x, y }), []);
+  /* From a row's ⋯ button: under it, right edges aligned, and focus goes back
+     to the button when the menu closes from the keyboard. */
+  const openMenuFrom = useCallback((postId: string, el: HTMLElement) => {
+    const r = el.getBoundingClientRect();
+    setMenu({ postId, x: r.right, y: r.bottom + 4, align: "end", anchor: el });
+  }, []);
   const closeMenu = useCallback(() => setMenu(null), []);
   /* Stable for the same reason as openMenu: the grid tiles are memoised. */
   const openViewCheck = useCallback((postId: string) => setViewCheckPostId(postId), []);
@@ -1634,60 +1606,44 @@ export default function PostsTab({
     }
   };
 
+  const drawerCount =
+    (minViews || maxViews ? 1 : 0) + (postedFrom || postedTo ? 1 : 0) + (trackingFilter !== "ALL" ? 1 : 0);
+  /* Memoised: the drawer resets its draft whenever this object changes. */
+  const drawerValues = useMemo<FilterValues>(
+    () => ({
+      minViews: minViews || undefined,
+      maxViews: maxViews || undefined,
+      postedFrom: postedFrom || undefined,
+      postedTo: postedTo || undefined,
+      tracking: trackingFilter === "ALL" ? undefined : trackingFilter,
+    }),
+    [minViews, maxViews, postedFrom, postedTo, trackingFilter]
+  );
+  const applyDrawer = useCallback((next: FilterValues) => {
+    setMinViews(next.minViews ?? "");
+    setMaxViews(next.maxViews ?? "");
+    setPostedFrom(next.postedFrom ?? "");
+    setPostedTo(next.postedTo ?? "");
+    // Both ticked is the same list as neither.
+    const t = (next.tracking ?? "").split(",").filter(Boolean);
+    setTrackingFilter(t.length === 1 ? (t[0] as "TRACKED" | "UNTRACKED") : "ALL");
+  }, []);
+
   if (loading) {
-    /* Two grey bars, 48px and 200px, used to stand in for a status tab row, a
-       filter toolbar and a grid of 9:16 posters. Nothing lined up, so the whole
-       tab jumped the moment the posts arrived -- the skeleton was measuring a
-       layout that does not exist. This mirrors the real one: same tab pills,
-       same toolbar height, same grid track and gap, same card aspect and
-       radius, so the placeholders sit exactly where the posts land. */
+    /* Shaped like what loads: the tile block, the one-row toolbar, then the
+       poster grid at its real track and gap, so nothing jumps on arrival. */
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        {/* The KPI chip strip. It was missing entirely, and it is 59px tall, so
-            the grid below sat exactly that much too high and everything dropped
-            when the numbers arrived. The chips only render once there is at
-            least one post, so on a genuinely empty campaign this row reserves
-            space that never fills -- the wrong guess in the rare direction
-            rather than in the usual one. */}
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {Array.from({ length: 7 }).map((_, i) => (
-            <Skeleton key={i} width="112px" height="59px" borderRadius="8px" />
-          ))}
-        </div>
-        {/* The same nine controls at their real widths, in the same order, so
-            the toolbar wraps onto the same number of rows it will once it is
-            interactive. Five stand-ins on one row left the grid 116px too high
-            and the whole tab dropped when the posts arrived. */}
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          {[140, 110, 140, 140, 150, 140, 130, 110, 96].map((w, i) => (
-            <Skeleton key={i} width={`${w}px`} height="36px" borderRadius="8px" />
-          ))}
-          <div style={{ flex: 1, minWidth: 0 }} />
-          <Skeleton width="130px" height="36px" borderRadius="8px" />
-          <Skeleton width="72px" height="36px" borderRadius="8px" />
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 18 }}>
+      <div className="cc-poststab" aria-busy="true">
+        <TileGridSkeleton count={9} />
+        <ListToolbarSkeleton filters={5} />
+        <div className="cc-poststab-grid" aria-hidden="true">
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} style={{ aspectRatio: "9 / 16", borderRadius: 20, overflow: "hidden" }}>
-              <Skeleton width="100%" height="100%" borderRadius="20px" />
-            </div>
+            <Skeleton key={i} className="cc-poststab-grid-skel" width="100%" height="auto" radius="var(--cc-r-card)" />
           ))}
         </div>
       </div>
     );
   }
-
-  const selectStyle = {
-    padding: "8px 12px",
-    borderRadius: 8,
-    border: "1px solid var(--cc-border)",
-    fontSize: "var(--cc-t-13)",
-    color: "var(--cc-text)",
-    background: "var(--cc-card)",
-    outline: "none",
-  };
-
-  const sortProps = { sortKey, sortDir, onSort: toggleSort };
 
   /* What the right-clicked post may have done to it.
    *
@@ -1720,7 +1676,7 @@ export default function PostsTab({
           {
             kind: "action" as const,
             label: menuOnSelection ? `Restore ${selectedOnPage.length} posts to campaign` : "Restore to campaign",
-            icon: <RotateCcw size={14} />,
+            icon: <RotateCcw size={16} />,
             disabled: bulkBusy,
             onSelect: () => restorePosts(menuOnSelection ? selectedOnPage : [menuPost.id]),
           },
@@ -1731,7 +1687,7 @@ export default function PostsTab({
                 {
                   kind: "link" as const,
                   label: "Open on platform",
-                  icon: <ExternalLink size={14} />,
+                  icon: <ExternalLink size={16} />,
                   href: menuPost.postUrl,
                   external: true,
                 },
@@ -1751,7 +1707,8 @@ export default function PostsTab({
               {
                 kind: "action" as const,
                 label: `Track for ${bulkTtlDays} day${bulkTtlDays === 1 ? "" : "s"}`,
-                icon: <Radio size={14} />,
+                icon: <Radio size={16} />,
+                disabled: !menuOnSelection && trackingBusyId === menuPost.id,
                 onSelect: () =>
                   menuOnSelection ? runBulkAction("track") : handleToggleTracking(menuPost.id, true),
               },
@@ -1762,7 +1719,8 @@ export default function PostsTab({
               {
                 kind: "action" as const,
                 label: "Stop tracking",
-                icon: <Radio size={14} />,
+                icon: <Radio size={16} />,
+                disabled: !menuOnSelection && trackingBusyId === menuPost.id,
                 onSelect: () =>
                   menuOnSelection ? runBulkAction("untrack") : handleToggleTracking(menuPost.id, false),
               },
@@ -1774,13 +1732,13 @@ export default function PostsTab({
               {
                 kind: "action" as const,
                 label: "Approve",
-                icon: <Check size={14} />,
+                icon: <Check size={16} />,
                 onSelect: () => (menuOnSelection ? runBulkAction("approve") : handleApprove(menuPost.id)),
               },
               {
                 kind: "action" as const,
                 label: "Reject…",
-                icon: <X size={14} />,
+                icon: <X size={16} />,
                 danger: true,
                 onSelect: () => setShowRejectModal(menuOnSelection ? BULK_REJECT : menuPost.id),
               },
@@ -1793,44 +1751,357 @@ export default function PostsTab({
               {
                 kind: "action" as const,
                 label: "Sync now",
-                icon: <TrendingUp size={14} />,
+                icon: <TrendingUp size={16} />,
                 disabled: syncingId === menuPost.id,
                 onSelect: () => handleSyncNow(menuPost.id),
               },
               {
                 kind: "link" as const,
                 label: "View analytics",
-                icon: <BarChart3 size={14} />,
+                icon: <BarChart3 size={16} />,
                 href: `/campaigns/${campaignId}/posts/${menuPost.id}`,
               },
               {
                 kind: "link" as const,
                 label: "Open on platform",
-                icon: <ExternalLink size={14} />,
+                icon: <ExternalLink size={16} />,
                 href: menuPost.postUrl,
                 external: true,
               },
+              /* Was a button on marketplace rows only; the row's actions live
+                 in this menu now. */
+              ...(marketplace && !menuPost.hasOpenFraudFlag && menuPost.status !== "REJECTED"
+                ? [
+                    {
+                      kind: "action" as const,
+                      label: "Flag as suspicious",
+                      icon: <Flag size={16} />,
+                      disabled: flaggingId === menuPost.id,
+                      onSelect: () => handleFlagSuspicious(menuPost.id),
+                    },
+                  ]
+                : []),
             ]),
         { kind: "sep" as const },
         {
           kind: "action" as const,
           label: menuOnSelection ? `Remove ${selectedOnPage.length} posts from campaign…` : "Remove from campaign…",
-          icon: <Trash2 size={14} />,
+          icon: <Trash2 size={16} />,
           danger: true,
           disabled: bulkBusy,
           onSelect: () => removePosts(menuOnSelection ? selectedOnPage : [menuPost.id]),
         },
       ];
 
+  /* Any filter that narrows the list. With one set, an empty list means
+     "nothing matches" and offers the way back; with none, it means "nothing
+     yet". */
+  const narrowed =
+    Boolean(creatorSearch.trim()) ||
+    platformFilter !== "ALL" ||
+    mediaTypeFilter !== "ALL" ||
+    drawerCount > 0 ||
+    checkOnly;
+  const clearFilters = () => {
+    setCreatorSearch("");
+    setPlatformFilter("ALL");
+    setMediaTypeFilter("ALL");
+    setMinViews("");
+    setMaxViews("");
+    setPostedFrom("");
+    setPostedTo("");
+    setTrackingFilter("ALL");
+    setCheckOnly(false);
+  };
+  const firstRun = posts.length === 0 && !narrowed && statusFilter === "ALL";
+  const emptyResult =
+    statusFilter === REMOVED_FILTER && !narrowed ? (
+      <NoResults
+        icon={<RotateCcw size={32} strokeWidth={1.75} />}
+        title="No removed posts"
+        description="Posts you remove from this campaign wait here, so you can restore them."
+      />
+    ) : narrowed ? (
+      <NoResults onClear={clearFilters} />
+    ) : (
+      <NoResults
+        icon={<Video size={32} strokeWidth={1.75} />}
+        title={statusFilter === "PENDING_REVIEW" ? "No posts pending review" : `No ${enumLabel(statusFilter).toLowerCase()} posts`}
+        description="Posts move here as they are reviewed."
+      />
+    );
+
+  const pager = (
+    <Pagination
+      page={page}
+      totalPages={totalPages}
+      onPageChange={setPage}
+      total={filteredSorted.length}
+      pageSize={pageSize}
+      pageSizeOptions={PAGE_SIZE_OPTIONS}
+      onPageSizeChange={(size) => {
+        setPageSize(size);
+        setPage(1);
+      }}
+    />
+  );
+
+  /* The list. Columns a campaign has no reading for stay hidden, exactly as
+     before; the change in views since the previous reading rides under the
+     views figure instead of taking a column of its own, and is still a sort
+     key in the toolbar. */
+  const listColumns: DataTableColumn<PostData>[] = [
+    {
+      key: "creator",
+      header: "Creator",
+      minWidth: 208,
+      render: (post) => {
+        const unknown = isUnattributedCreator(post.creator);
+        return (
+          <div className="cc-poststab-creator" data-post-id={post.id}>
+            <input
+              type="checkbox"
+              className="cc-poststab-pick"
+              checked={selectedIds.has(post.id)}
+              onChange={() => toggleSelect(post.id)}
+              aria-label={`Select post by ${unknown ? UNKNOWN_CREATOR_LABEL.toLowerCase() : post.creator.name}`}
+            />
+            <PostMedia
+              platform={post.platform}
+              platformPostId={post.platformPostId}
+              postUrl={post.postUrl}
+              thumbnailUrl={post.thumbnailUrl}
+              caption={post.caption}
+              width={40}
+              height={40}
+            />
+            <span className="cc-poststab-creator-name">
+              {unknown ? (
+                <UnknownCreator
+                  platform={post.platform}
+                  notPublic={isPostNotPublic(post)}
+                  ageLimitPossible={mayBeAgeLimited(post)}
+                />
+              ) : (
+                /* Out to the platform, like the thumbnail beside it. The post's
+                   own page is in the row's ⋯ menu (View analytics). */
+                <a href={post.postUrl} target="_blank" rel="noopener noreferrer" className="cc-poststab-creator-link">
+                  <CreatorName name={post.creator.name} handle={post.creator.handle} />
+                </a>
+              )}
+            </span>
+            <PlatformTag platform={post.platform} hideLabel className="cc-poststab-platform" />
+          </div>
+        );
+      },
+    },
+    {
+      key: "posted",
+      header: "Posted",
+      width: 104,
+      sortKey: "posted",
+      render: (post) => <span className="cc-poststab-muted">{formatDateAbs(post.postedAt)}</span>,
+    },
+    {
+      key: "views",
+      header: "Views",
+      width: 104,
+      align: "right",
+      sortKey: "views",
+      render: (post) => {
+        /* Per field: a read without views stamps lastSyncedAt too, and a 0
+           here would be ours, not the platform's. */
+        const views = fieldMetricValue(post.viewsCount, post.lastSyncedAt, post.platformMetrics, "views");
+        const note = views === null ? null : viewsAsOf(post);
+        const dv = anyDelta ? deltaViews(post) : null;
+        return (
+          <span title={note?.title}>
+            {views === null ? "" : formatNumber(views)}
+            {dv !== null && (
+              <span className="cc-dt-sub" title="Change since the reading before">
+                {`${dv >= 0 ? "+" : ""}${formatNumber(dv)}`}
+              </span>
+            )}
+            {note && <span className="cc-dt-sub cc-poststab-wrap">{note.short}</span>}
+          </span>
+        );
+      },
+    },
+    ...(anyLikes
+      ? [{
+          key: "likes", header: "Likes", width: 88, align: "right" as const, sortKey: "likes",
+          render: (post: PostData) => {
+            const v = fieldMetricValue(post.likesCount, post.lastSyncedAt, post.platformMetrics, "likes");
+            return v === null ? "" : formatNumber(v);
+          },
+        }]
+      : []),
+    ...(anyComments
+      ? [{
+          key: "comments", header: "Comments", width: 108, align: "right" as const, sortKey: "comments",
+          render: (post: PostData) => {
+            const v = fieldMetricValue(post.commentsCount, post.lastSyncedAt, post.platformMetrics, "comments");
+            return v === null ? "" : formatNumber(v);
+          },
+        }]
+      : []),
+    ...(anyShares
+      ? [{
+          key: "shares", header: "Shares", width: 92, align: "right" as const, sortKey: "shares",
+          render: (post: PostData) => {
+            const v = fieldMetricValue(post.sharesCount, post.lastSyncedAt, post.platformMetrics, "shares", post.platform);
+            return v === null ? <span title={sharesUnknownReason(post.platform).title}>{"—"}</span> : formatNumber(v);
+          },
+        }]
+      : []),
+    ...(anySaves
+      ? [{
+          key: "saves", header: "Saves", width: 84, align: "right" as const, sortKey: "saves",
+          render: (post: PostData) => {
+            const v = unwrittenMetricValue(post.savesCount);
+            return v === null ? "" : formatNumber(v);
+          },
+        }]
+      : []),
+    ...(anyDownloads
+      ? [{
+          key: "downloads", header: "Downloads", width: 112, align: "right" as const, sortKey: "downloads",
+          render: (post: PostData) => {
+            const v = unwrittenMetricValue(post.downloadsCount);
+            return v === null ? "" : formatNumber(v);
+          },
+        }]
+      : []),
+    ...(anyEngRate
+      ? [{
+          key: "engRate", header: "Eng %", width: 84, align: "right" as const, sortKey: "engRate",
+          render: (post: PostData) => {
+            const er = engRatePct(post);
+            return er === null ? "" : `${er.toFixed(2)}%`;
+          },
+        }]
+      : []),
+    {
+      key: "status",
+      header: "Status",
+      width: 148,
+      render: (post) => {
+        /* One resolver for live / hidden / deleted / unverified, shared with
+           the grid card, the post page and the exports. */
+        const status = postStatus(post);
+        const measured = postMeasuredAt(post);
+        return (
+          <div className="cc-poststab-status">
+            <StatusBadge status={post.status} />
+            <span className="cc-poststab-status-line">
+              <PostStatusChip status={status} compact showLive />
+              {/* The counters' age, with a Stale chip once a tracked post has
+                  missed two of its reads (lib/dataAge). */}
+              <AgeLabel
+                at={measured.at}
+                field="post"
+                ctx={postAgeContext(post, status)}
+                source={measured.source}
+                never="Never read"
+              />
+            </span>
+            {post.trackingEnabled === true && (
+              <span
+                className="cc-poststab-status-line"
+                title={trackingLabel(true, post.trackingExpiresAt ?? null, post.trackingSource)}
+              >
+                <Radio size={12} aria-hidden="true" />
+                Tracked
+              </span>
+            )}
+            {post.fetchState && FETCH_STATE_LABEL[post.fetchState] && (
+              <StatusBadge tone="warning">{FETCH_STATE_LABEL[post.fetchState]}</StatusBadge>
+            )}
+            {post.hasOpenFraudFlag && (
+              <button
+                type="button"
+                className="cc-viewcheck-chip"
+                onClick={() => openViewCheck(post.id)}
+                title="Why this post was flagged, and how to clear it"
+              >
+                <AlertTriangle size={12} aria-hidden="true" /> Check views
+              </button>
+            )}
+            {(post.complianceFlags ?? []).map((f) => (
+              <StatusBadge key={f.code} tone={f.severity === "error" ? "danger" : "warning"} title={f.message}>
+                {COMPLIANCE_LABEL[f.code]}
+              </StatusBadge>
+            ))}
+            <PostAnnotationChips annotation={annotations[post.id]} removed={postsAreRemoved} nowMs={loadedAtMs} />
+            {marketplace && post.status === "PENDING_REVIEW" && !post.hasOpenFraudFlag && (
+              <span className="cc-poststab-status-line">
+                Auto-approves in {timeRemaining(post.createdAt, marketplace.autoApproveHours)}
+              </span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      hideHeader: true,
+      width: postsAreRemoved ? 132 : 96,
+      render: (post) =>
+        postsAreRemoved ? (
+          /* A removed post is only restored from here; reading, tracking or
+             approving it would act on a post the campaign no longer counts. */
+          <Button
+            variant="secondary"
+            size="sm"
+            iconLeft={<RotateCcw size={16} />}
+            onClick={() => restorePosts([post.id])}
+            disabled={bulkBusy}
+          >
+            Restore
+          </Button>
+        ) : (
+          <div className="cc-poststab-rowactions">
+          <Link
+            href={`/campaigns/${campaignId}/posts/${post.id}`}
+            className="cc-more-btn cc-more-btn--inline"
+            aria-label={`View analytics for the post by ${isUnattributedCreator(post.creator) ? UNKNOWN_CREATOR_LABEL.toLowerCase() : post.creator.name}`}
+            title="View analytics"
+          >
+            <BarChart3 size={16} aria-hidden="true" />
+          </Link>
+          <button
+            type="button"
+            className="cc-more-btn cc-more-btn--inline"
+            aria-haspopup="menu"
+            aria-expanded={menu?.postId === post.id}
+            aria-label={`Actions for the post by ${isUnattributedCreator(post.creator) ? UNKNOWN_CREATOR_LABEL.toLowerCase() : post.creator.name}`}
+            title="More actions"
+            onClick={(e) => (menu?.postId === post.id ? closeMenu() : openMenuFrom(post.id, e.currentTarget))}
+          >
+            <MoreHorizontal size={16} aria-hidden="true" />
+          </button>
+          </div>
+        ),
+    },
+  ];
+
+  /* Right-click anywhere on a row opens the same menu, as it does on a tile. */
+  const onListContextMenu = (e: React.MouseEvent<HTMLDivElement>) => {
+    const id = (e.target as Element).closest("tr")?.querySelector<HTMLElement>("[data-post-id]")?.dataset.postId;
+    if (!id) return;
+    e.preventDefault();
+    openMenu(id, e.clientX, e.clientY);
+  };
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <style>{".posts-min-views { display: none; } @media (min-width: 768px) { .posts-min-views { display: block; } }"}</style>
+    <div className="cc-poststab">
       {marketplace && (
-        <Card variant="outlined" style={{ padding: 16 }}>
+        <Card variant="outlined">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: SHOW_MONEY && capMinor ? 12 : 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: "var(--cc-t-13)", fontWeight: 700, color: "var(--cc-text)" }}>{SHOW_MONEY ? "Marketplace budget" : "Marketplace"}</span>
-              {SHOW_MONEY && capReached && <Badge variant="danger" style={{ fontSize: "var(--cc-t-11)"}}>Cap reached</Badge>}
+              <span style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{SHOW_MONEY ? "Marketplace budget" : "Marketplace"}</span>
+              {SHOW_MONEY && capReached && <StatusBadge tone="danger">Cap reached</StatusBadge>}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
               <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
@@ -1861,247 +2132,157 @@ export default function PostsTab({
           )}
         </Card>
       )}
-      {/* The status pills alone above the strip -- MEASURED, their filter row is
-          two pills 32px tall at 293,134 and the strip follows at 180. The
-          search-and-date cluster stays under the strip: carried up here it
-          wrapped to a second line and pushed the strip 49px past theirs. */}
       {/* Only when the posts are actually in more than one review state. With
-          manual approval as the default, every post sits in Pending Review
-          until someone approves it, and four pills that all filter to the same
+          manual approval as the default, every post sits in Pending review
+          until someone approves it, and four tabs that all filter to the same
           list are a control for nothing. Kept while a status is picked, so the
-          way back to All never disappears. */}
-      {/* Removed joins them whenever the campaign has removed posts -- the way
-          back to a post taken out by mistake -- without bringing back the
-          three review pills when every post shares one status. */}
+          way back to All never disappears. Removed joins them whenever the
+          campaign has removed posts -- the way back to a post taken out by
+          mistake. */}
       {(statusFilter !== "ALL" || mixedStatuses || removedCount > 0) && (
-        <div className="cc-poststab-filter" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <StatusTabs
-            variant="pill"
-            ariaLabel="Filter posts by status"
-            tabs={[
-              ...(mixedStatuses || (statusFilter !== "ALL" && statusFilter !== REMOVED_FILTER) ? STATUS_TABS : STATUS_TABS.slice(0, 1)),
-              ...(removedCount > 0 || statusFilter === REMOVED_FILTER
-                ? [{ key: REMOVED_FILTER, label: "Removed", count: removedCount, bg: "var(--cc-neutral-bg)", color: "var(--cc-text-muted)" }]
-                : []),
-            ]}
-            active={statusFilter}
-            onChange={setStatusFilter}
-          />
-        </div>
+        <StatusTabs
+          ariaLabel="Filter posts by status"
+          tabs={[
+            ...(mixedStatuses || (statusFilter !== "ALL" && statusFilter !== REMOVED_FILTER) ? STATUS_TABS : STATUS_TABS.slice(0, 1)),
+            ...(removedCount > 0 || statusFilter === REMOVED_FILTER
+              ? [{ key: REMOVED_FILTER, label: "Removed", count: removedCount }]
+              : []),
+          ]}
+          active={statusFilter}
+          onChange={setStatusFilter}
+        />
       )}
       {!postsAreRemoved && statusFilter !== REMOVED_FILTER && (viewCheckCount > 0 || checkOnly) && (
-        /* Clipster puts suspicious posts in front of the team rather than in a
-           menu. One line, only when there is something to check, with the way
-           back always on it. */
-        <div
-          data-testid="view-check-strip"
+        /* Suspicious posts are put in front of the team rather than in a menu:
+           one line, only when there is something to check, with the way back
+           always on it. */
+        <Banner
+          tone="warning"
           role="status"
-          style={{
-            display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
-            padding: "10px 14px", borderRadius: 10,
-            border: "1px solid color-mix(in srgb, var(--cc-warning) 35%, var(--cc-border))",
-            background: "color-mix(in srgb, var(--cc-warning) 8%, var(--cc-card))",
-            fontSize: "var(--cc-t-13)", color: "var(--cc-text)",
-          }}
+          action={
+            <Button size="sm" variant="secondary" aria-pressed={checkOnly} onClick={() => setCheckOnly((v) => !v)}>
+              {checkOnly ? "Show all posts" : "Show only these"}
+            </Button>
+          }
         >
-          <AlertTriangle size={15} color="var(--cc-warning)" aria-hidden="true" />
-          <span style={{ flex: "1 1 220px", minWidth: 0 }}>
-            {viewCheckCount === 0
-              ? "No posts need a view check now."
-              : `${viewCheckCount} ${noun(viewCheckCount, "post")} ${viewCheckCount === 1 ? "needs" : "need"} a view check: views that jumped, or views with almost no engagement.`}
-          </span>
-          <Button size="sm" variant="secondary" aria-pressed={checkOnly} onClick={() => setCheckOnly((v) => !v)}>
-            {checkOnly ? "Show all posts" : "Show only these"}
-          </Button>
-        </div>
+          {viewCheckCount === 0
+            ? "No posts need a view check now."
+            : `${viewCheckCount} ${noun(viewCheckCount, "post")} ${viewCheckCount === 1 ? "needs" : "need"} a view check: views that jumped, or views with almost no engagement.`}
+        </Banner>
       )}
       {statusFilter === REMOVED_FILTER && (
-        <p data-removed-note style={{ margin: 0, fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
+        <Banner tone="info">
           Removed posts don&rsquo;t count toward this campaign&rsquo;s totals and aren&rsquo;t synced. Restore one to put it and its views back.
-        </p>
+        </Banner>
       )}
       {!error && posts.length > 0 && !postsAreRemoved && statusFilter !== REMOVED_FILTER && (
-        /* Classes, not inline styles: every number that was here is now a
-           --cc-kpi-* token, because an inline style is the one thing a theme
-           cannot outrank and the census measured all seven of them off their
-           strip. Base values reproduce exactly what this JSX painted.
-
-           BELOW the filter row, not above it. MEASURED 2026-09-14 at
-           desktop-1600: their Posts tab opens with a two-pill filter at
-           293,134 99x32 and only then the strip at 180 -- ours led with the
-           strip and put the pills under it, so the whole page ran a row out of
-           step with theirs. */
-        <>
-        <div className="cc-kpi-strip">
-          {kpiChips.map((chip) => (
-            <div key={chip.label} className="cc-kpi-chip">
-              <span className="cc-kpi-chip-label">{chip.label}</span>
-              <span className="cc-kpi-chip-value" title={chip.value}>{breakableFigure(chip.value)}</span>
-            </div>
-          ))}
-        </div>
-        {kpiAsOf && (
-          <p
-            data-kpi-asof
-            style={{ margin: "6px 0 0", fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}
-          >
-            {kpiAsOf}
-          </p>
-        )}
-        </>
+        /* Over the filtered set, so the tiles answer for what is on screen. */
+        <section className="cc-poststab-summary" aria-label="Totals for the posts in view">
+          <div className="cc-tiles-balanced cc-poststab-kpis">
+            {kpiTiles.map((tile) => (
+              <MetricTile
+                key={tile.key}
+                metric={tile.metric}
+                label={tile.label}
+                what={tile.what}
+                how={tile.how}
+                value={tile.value}
+                fitTo={kpiFit}
+              />
+            ))}
+          </div>
+          {kpiAsOf && (
+            <p data-kpi-asof className="cc-poststab-asof">
+              {kpiAsOf}
+            </p>
+          )}
+        </section>
       )}
-      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-        <div className="cc-posts-filters">
-          <input
-            type="search"
-            value={creatorSearch}
-            onChange={(e) => setCreatorSearch(e.target.value)}
-            placeholder="Search creator..."
-            aria-label="Search creator"
-            className="cc-posts-filter-search"
-            style={selectStyle}
-          />
-          <input
-            type="number"
-            min={0}
-            value={minViews}
-            onChange={(e) => setMinViews(e.target.value)}
-            placeholder="Min views"
-            aria-label="Minimum views filter"
-            className="posts-min-views cc-posts-filter-min"
-            style={selectStyle}
-          />
-          {/* The caption shows on a phone only, where iOS paints an empty date
-              input as a blank box. */}
-          <label className="cc-posts-filter-date">
-            <span className="cc-posts-filter-date-cap" aria-hidden="true">Posted from</span>
-            <input
-              type="date"
-              value={postedFrom}
-              max={postedTo || undefined}
-              onChange={(e) => setPostedFrom(e.target.value)}
-              aria-label="Posted on or after"
-              style={selectStyle}
+      <ListToolbar
+        search={{
+          value: creatorSearch,
+          onChange: setCreatorSearch,
+          placeholder: "Search creators",
+          ariaLabel: "Search posts by creator name or handle",
+        }}
+        end={
+          <>
+            <Dropdown
+              ariaLabel="Filter by platform"
+              size="md"
+              align="right"
+              minWidth={152}
+              value={platformFilter}
+              onChange={setPlatformFilter}
+              options={PLATFORM_FILTERS.map((p) => ({ value: p, label: p === "ALL" ? "All platforms" : platformLabel(p) }))}
             />
-          </label>
-          <label className="cc-posts-filter-date">
-            <span className="cc-posts-filter-date-cap" aria-hidden="true">Posted to</span>
-            <input
-              type="date"
-              value={postedTo}
-              min={postedFrom || undefined}
-              onChange={(e) => setPostedTo(e.target.value)}
-              aria-label="Posted on or before"
-              style={selectStyle}
+            <Dropdown
+              ariaLabel="Filter by post type"
+              size="md"
+              align="right"
+              minWidth={128}
+              value={mediaTypeFilter}
+              onChange={setMediaTypeFilter}
+              options={MEDIA_TYPE_FILTERS.map((m) => ({ value: m, label: m === "ALL" ? "All types" : enumLabel(m) }))}
             />
-          </label>
-          <Dropdown
-            ariaLabel="Filter by platform"
-            align="left"
-            minWidth={150}
-            value={platformFilter}
-            onChange={setPlatformFilter}
-            options={PLATFORM_FILTERS.map((p) => ({ value: p, label: p === "ALL" ? "All Platforms" : p }))}
-          />
-          <Dropdown
-            ariaLabel="Filter by media type"
-            align="left"
-            minWidth={140}
-            value={mediaTypeFilter}
-            onChange={setMediaTypeFilter}
-            options={MEDIA_TYPE_FILTERS.map((m) => ({ value: m, label: m === "ALL" ? "All Types" : m }))}
-          />
-          {/* Tracking is a state a post is in, so it belongs beside the other
-              states you can filter on. It is also the cheapest way to answer
-              "what am I actually recording a series for", which nothing on this
-              page could answer before. */}
-          <Dropdown
-            ariaLabel="Filter by tracking"
-            align="left"
-            minWidth={150}
-            value={trackingFilter}
-            onChange={(v) => setTrackingFilter(v as "ALL" | "TRACKED" | "UNTRACKED")}
-            options={[
-              { value: "ALL", label: "Tracked & not" },
-              { value: "TRACKED", label: "Tracked only" },
-              { value: "UNTRACKED", label: "Not tracked" },
-            ]}
-          />
+            {/* Sorting works in both views, grid included: the same state the
+                list headers drive, so changing either moves both. */}
+            <Dropdown
+              ariaLabel="Sort posts by"
+              size="md"
+              align="right"
+              minWidth={128}
+              value={sortKey}
+              onChange={(v) => setSortKey(v as SortKey)}
+              options={sortFields.map((f) => ({ value: f.key, label: f.label }))}
+            />
+            <Dropdown
+              ariaLabel="Sort direction"
+              size="md"
+              align="right"
+              minWidth={112}
+              value={sortDir}
+              onChange={(v) => setSortDir(v as SortDir)}
+              /* Posted is a date and the rest are counts, so the words differ. */
+              options={
+                sortKey === "posted"
+                  ? [
+                      { value: "desc", label: "Newest" },
+                      { value: "asc", label: "Oldest" },
+                    ]
+                  : [
+                      { value: "desc", label: "Highest" },
+                      { value: "asc", label: "Lowest" },
+                    ]
+              }
+            />
+            <FilterButton count={drawerCount} onClick={() => setFiltersOpen(true)} />
+            <ViewToggle
+              ariaLabel="Posts view"
+              value={viewMode}
+              onChange={setViewMode}
+              options={[
+                { value: "grid", label: "Grid view", icon: Grid3X3 },
+                { value: "list", label: "List view", icon: List },
+              ]}
+            />
+          </>
+        }
+      />
+      <FilterDrawer
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        filters={DRAWER_FILTERS}
+        values={drawerValues}
+        onApply={applyDrawer}
+      />
 
-          {/* Sorting used to live entirely in the list headers, and grid is the
-              default view, so the view most people see could not be sorted at
-              all. Same state as the headers: changing either moves both. */}
-          <span className="cc-posts-filter-tools">
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <ArrowUpDown size={15} aria-hidden="true" style={{ color: "var(--cc-text-muted)" }} />
-              <Dropdown
-                ariaLabel="Sort posts by"
-                align="left"
-                minWidth={130}
-                value={sortKey}
-                onChange={(v) => setSortKey(v as SortKey)}
-                options={sortFields.map((f) => ({ value: f.key, label: f.label }))}
-              />
-              <Dropdown
-                ariaLabel="Sort direction"
-                align="left"
-                minWidth={110}
-                value={sortDir}
-                onChange={(v) => setSortDir(v as SortDir)}
-                /* Posted is a date and the rest are counts, so the words differ. */
-                options={
-                  sortKey === "posted"
-                    ? [
-                        { value: "desc", label: "Newest" },
-                        { value: "asc", label: "Oldest" },
-                      ]
-                    : [
-                        { value: "desc", label: "Highest" },
-                        { value: "asc", label: "Lowest" },
-                      ]
-                }
-              />
-            </span>
-            <div style={{ display: "flex", border: "1px solid var(--cc-border)", borderRadius: 8, overflow: "hidden" }}>
-              <button onClick={() => setViewMode("list")} aria-label="List view" aria-pressed={viewMode === "list"} style={{ padding: "6px 10px", background: viewMode === "list" ? "var(--cc-bg)" : "var(--cc-card)", border: "none", cursor: "pointer" }}>
-                <List size={16} color={viewMode === "list" ? "var(--cc-primary)" : "var(--cc-text-muted)"} />
-              </button>
-              <button onClick={() => setViewMode("grid")} aria-label="Grid view" aria-pressed={viewMode === "grid"} style={{ padding: "6px 10px", background: viewMode === "grid" ? "var(--cc-bg)" : "var(--cc-card)", border: "none", cursor: "pointer" }}>
-                <Grid3X3 size={16} color={viewMode === "grid" ? "var(--cc-primary)" : "var(--cc-text-muted)"} />
-              </button>
-            </div>
-          </span>
-
-        </div>
-      </div>
-
-
-
-      {/* Refresh Data and Add Posts paint in the campaign header, not here.
-          MEASURED at desktop-1600: theirs sit on the header card's right edge
-          (Add Posts x=1332 y=42.5 w=200 h=45, Refresh Data immediately left of
-          it), while ours sat in the section body under the filter row. Their
-          order is Share Campaign / Refresh Data / Add <thing>, so the refresh
-          goes first here too. */}
+      {/* Refresh Data and Add Posts paint in the campaign header, not here. */}
       <CampaignHeaderActions>
-        {/* The label must NOT change while loading. components/ds/Button keeps
-            the children as the button's sizing element and lays the spinner
-            over them, so swapping in "Refreshing 12 of 58" made the button
-            grow -- and grow again on every progress tick as the digits
-            widened, which reads as a loader swelling on the screen. Progress
-            belongs in the note card below, where its width costs nothing.
-
-            The glyph goes through `iconLeft` rather than into the children,
-            even though the reference paints it on the RIGHT: the library
-            renders that prop as its own .ui-btn-icon element, which is what
-            the theme's `order` rule moves. Hand-building the row here would
-            have put the icon on the right in all three themes instead of the
-            one that asked for it. */}
-        {/* Not `loading`: the ds Button lays its spinner over the children
-            and hides them, so the button read as two icons and no words for
-            the whole run. A fixed "Refreshing…" beside the turning glyph is
-            nearly the width of "Refresh Data" and does not change per tick;
-            the count stays in the note card below. */}
+        {/* The label must NOT change while loading: the button would grow on
+            every progress tick as the digits widened. Progress belongs in the
+            note below, where its width costs nothing. Not `loading` either --
+            that hides the children behind a spinner. */}
         <Button
           variant="secondary"
           iconLeft={<RefreshCw size={16} style={{ animation: refreshingAll ? "cc-spin 1s linear infinite" : undefined }} />}
@@ -2109,436 +2290,149 @@ export default function PostsTab({
           aria-busy={refreshingAll}
           disabled={posts.length === 0 || refreshingAll}
         >
-          {refreshingAll ? "Refreshing\u2026" : "Refresh Data"}
+          {refreshingAll ? "Refreshing…" : "Refresh data"}
         </Button>
 
         <Button variant="primary" iconLeft={<Plus size={16} />} onClick={openAddPost} {...action("add-posts")}>
-          Add Posts
+          Add posts
         </Button>
       </CampaignHeaderActions>
 
       {error && (
-        <Card variant="outlined" style={{ padding: 16 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{error}</span>
-            <Button variant="secondary" onClick={fetchPosts}>Retry</Button>
-          </div>
-        </Card>
+        <LoadError
+          title="Posts didn't load"
+          description="Nothing here was read, which is not the same as the campaign having no posts."
+          onRetry={fetchPosts}
+        />
       )}
 
       {(refreshNote || (refreshingAll && refreshProgress)) && (
-        <Card variant="outlined" style={{ padding: 12 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
-              {refreshingAll && refreshProgress
-                ? `Refreshing ${refreshProgress.completed} of ${refreshProgress.total}\u2026`
-                : refreshNote}
-            </span>
-            {/* No dismiss while a run is in flight: the card is live progress
-                at that point, and closing it would only make it reappear on the
-                next tick. */}
-            {!refreshingAll && (
+        <Banner
+          tone="info"
+          role="status"
+          icon={<RefreshCw size={18} />}
+          action={
+            /* No dismiss while a run is in flight: the note is live progress
+               then, and closing it would only make it reappear on the next tick. */
+            refreshingAll ? undefined : (
               <button
+                type="button"
+                className="cc-more-btn cc-more-btn--inline"
                 onClick={() => setRefreshNote(null)}
                 aria-label="Dismiss refresh summary"
-                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)", display: "flex" }}
+                title="Dismiss"
               >
-                <X size={14} />
+                <X size={16} aria-hidden="true" />
               </button>
-            )}
-          </div>
-        </Card>
+            )
+          }
+        >
+          {refreshingAll && refreshProgress
+            ? `Refreshing ${refreshProgress.completed} of ${refreshProgress.total}…`
+            : refreshNote}
+        </Banner>
       )}
 
-      {/* The bar only exists while something is selected, and it is sticky
-          because the selection is made by scrolling: a control that scrolls
-          away with the rows would be reachable only by scrolling back to it.
-          Above the list rather than below it, so it never covers the last row
-          of a full page. */}
+      {/* Only while something is selected, and sticky, because the selection
+          is made by scrolling. Above the list rather than below it, so it never
+          covers the last row of a full page. */}
       {selectedOnPage.length > 0 && (
-        <div
-          role="region"
-          aria-label="Bulk actions"
-          style={{
-            position: "sticky",
-            top: 8,
-            zIndex: 20,
-            display: "flex",
-            flexWrap: "wrap",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-            padding: "10px 16px",
-            borderRadius: 12,
-            border: "1px solid var(--cc-primary)",
-            background: "var(--cc-card)",
-            boxShadow: "0 6px 20px color-mix(in srgb, var(--cc-shadow-ink) 12%, transparent)",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-            <span style={{ fontSize: "var(--cc-t-13)", fontWeight: 700, color: "var(--cc-text)" }}>
-              {selectedOnPage.length} selected
-            </span>
-            <button
-              type="button"
-              onClick={clearSelection}
-              disabled={bulkBusy}
-              style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", textDecoration: "underline" }}
-            >
+        <div role="region" aria-label="Bulk actions" className="cc-poststab-bulk">
+          <div className="cc-poststab-bulk-start">
+            {/* Indeterminate is a DOM property, not an attribute: a
+                half-selected page that renders as empty is a lie about what
+                clicking it will do. */}
+            <input
+              type="checkbox"
+              className="cc-poststab-pick"
+              checked={allOnPageSelected}
+              ref={(el) => {
+                if (el) el.indeterminate = someOnPageSelected;
+              }}
+              onChange={toggleSelectAllOnPage}
+              aria-label={allOnPageSelected ? "Deselect all posts on this page" : "Select all posts on this page"}
+              title={allOnPageSelected ? "Deselect all on this page" : "Select all on this page"}
+            />
+            <span className="cc-poststab-bulk-count">{selectedOnPage.length} selected</span>
+            <Button variant="ghost" size="sm" onClick={clearSelection} disabled={bulkBusy}>
               Clear
-            </button>
+            </Button>
           </div>
-
-          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+          <div className="cc-poststab-bulk-end">
             {/* Under Removed the selection can only be restored. */}
             {postsAreRemoved ? (
-            <Button variant="primary" onClick={() => restorePosts(selectedOnPage)} loading={bulkBusy} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <RotateCcw size={14} aria-hidden="true" />Restore
-            </Button>
-            ) : (<>
-            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
-              <span>Track for</span>
-              <select
-                value={bulkTtlDays}
-                onChange={(e) => setBulkTtlDays(Number(e.target.value))}
-                disabled={bulkBusy}
-                aria-label="Tracking window for the selection"
-                style={{ ...selectStyle, width: 96 }}
-              >
-                {BULK_TTL_CHOICES.map((d) => (
-                  <option key={d} value={d}>
-                    {d} day{d === 1 ? "" : "s"}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <Button variant="primary" onClick={() => runBulkAction("track")} loading={bulkBusy} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <Radio size={14} aria-hidden="true" />Track
-            </Button>
-            <Button variant="secondary" onClick={() => runBulkAction("untrack")} loading={bulkBusy}>
-              Untrack
-            </Button>
-            <Button variant="secondary" onClick={() => runBulkAction("approve")} loading={bulkBusy}>
-              Approve
-            </Button>
-            {/* Rejection needs a reason, so this opens the dialog the
-                single-post path already uses rather than acting immediately. */}
-            <Button variant="secondary" onClick={() => setShowRejectModal(BULK_REJECT)} loading={bulkBusy}>
-              Reject
-            </Button>
-            <Button variant="secondary" onClick={() => removePosts(selectedOnPage)} loading={bulkBusy} style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--cc-danger)" }}>
-              <Trash2 size={14} aria-hidden="true" />Remove
-            </Button>
-            </>)}
+              <Button variant="primary" size="sm" iconLeft={<RotateCcw size={16} />} onClick={() => restorePosts(selectedOnPage)} loading={bulkBusy}>
+                Restore
+              </Button>
+            ) : (
+              <>
+                <span className="cc-poststab-bulk-label" id="posts-bulk-ttl">Track for</span>
+                <Dropdown
+                  ariaLabel="Tracking window for the selection"
+                  size="sm"
+                  align="right"
+                  minWidth={104}
+                  value={String(bulkTtlDays)}
+                  onChange={(v) => setBulkTtlDays(Number(v))}
+                  disabled={bulkBusy}
+                  options={BULK_TTL_CHOICES.map((d) => ({ value: String(d), label: `${d} ${noun(d, "day")}` }))}
+                />
+                <Button variant="primary" size="sm" iconLeft={<Radio size={16} />} onClick={() => runBulkAction("track")} loading={bulkBusy}>
+                  Track
+                </Button>
+                <Button variant="secondary" size="sm" iconLeft={<Check size={16} />} onClick={() => runBulkAction("approve")} loading={bulkBusy}>
+                  Approve
+                </Button>
+                <MoreMenu
+                  label="More actions for the selected posts"
+                  size="sm"
+                  items={[
+                    { label: "Stop tracking", icon: <Radio size={16} />, disabled: bulkBusy, onClick: () => runBulkAction("untrack") },
+                    /* Rejection needs a reason, so this opens the dialog the
+                       single-post path already uses. */
+                    { label: "Reject…", icon: <X size={16} />, danger: true, disabled: bulkBusy, onClick: () => setShowRejectModal(BULK_REJECT) },
+                    { label: "Remove from campaign…", icon: <Trash2 size={16} />, danger: true, disabled: bulkBusy, onClick: () => removePosts(selectedOnPage) },
+                  ]}
+                />
+              </>
+            )}
           </div>
         </div>
       )}
 
-      {!error && filteredSorted.length === 0 ? (
+      {error ? null : firstRun ? (
         <EmptyState
-          icon={<Video size={32} color="var(--cc-text-subtle)" />}
-          title={statusFilter === REMOVED_FILTER && posts.length === 0 ? "No removed posts" : posts.length === 0 ? "No posts yet" : "No posts match your filters"}
-          description={statusFilter === REMOVED_FILTER && posts.length === 0 ? "Posts you remove from this campaign wait here, so you can restore them." : posts.length === 0 ? "Submit post URLs to track performance and manage approvals." : "Adjust the filters or search to see more posts."}
+          icon={<Video size={32} strokeWidth={1.75} />}
+          title="No posts yet"
+          description="Add post links to track their performance and manage approvals."
+          action={
+            <Button variant="secondary" iconLeft={<Plus size={16} />} onClick={openAddPost}>
+              Add posts
+            </Button>
+          }
         />
-      ) : !error && viewMode === "list" ? (
+      ) : viewMode === "list" ? (
+        <div onContextMenu={onListContextMenu}>
+          <DataTable
+            caption="Posts in this campaign"
+            className="cc-poststab-table"
+            columns={listColumns}
+            rows={pageRows}
+            rowKey={(post) => post.id}
+            sort={{ key: sortKey, dir: sortDir }}
+            onSort={(key) => toggleSort(key as SortKey)}
+            empty={emptyResult}
+            footer={filteredSorted.length > 0 ? pager : undefined}
+          />
+        </div>
+      ) : filteredSorted.length === 0 ? (
+        <div className="cc-poststab-noresults">{emptyResult}</div>
+      ) : (
         <>
-          <Card variant="solid" noPadding style={{ overflowX: "auto", maxWidth: "100%" }}>
-            <div style={{
-              display: "grid", ...listGrid,
-              gap: COL_GAP, padding: `12px ${LIST_PAD_X}px`, borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)", alignItems: "center",
-            }}>
-              {/* Indeterminate is set through the DOM node because React has
-                  no prop for it -- it is a property, not an attribute, and a
-                  half-selected page that renders as empty is a lie about what
-                  clicking it will do. */}
-              <input
-                type="checkbox"
-                checked={allOnPageSelected}
-                ref={(el) => {
-                  if (el) el.indeterminate = someOnPageSelected;
-                }}
-                onChange={toggleSelectAllOnPage}
-                aria-label={allOnPageSelected ? "Deselect all posts on this page" : "Select all posts on this page"}
-                title={allOnPageSelected ? "Deselect all on this page" : "Select all on this page"}
-                style={{ width: 15, height: 15, accentColor: "var(--cc-primary)", cursor: "pointer", margin: 0 }}
-              />
-              <PlainHeader label="Creator" />
-              <PlainHeader label="Platform" />
-              <SortHeader label="Posted" sk="posted" {...sortProps} />
-              <SortHeader label="Views" sk="views" align="right" {...sortProps} />
-              {anyLikes && <SortHeader label="Likes" sk="likes" align="right" {...sortProps} />}
-              {anyComments && <SortHeader label="Comments" sk="comments" align="right" {...sortProps} />}
-              {anyShares && <SortHeader label="Shares" sk="shares" align="right" {...sortProps} />}
-              {anySaves && <SortHeader label="Saves" sk="saves" align="right" {...sortProps} />}
-              {anyDownloads && <SortHeader label="Downloads" sk="downloads" align="right" {...sortProps} />}
-              {anyEngRate && <SortHeader label="Eng %" sk="engRate" align="right" {...sortProps} />}
-              {anyDelta && <SortHeader label="Δ Views" sk="delta" align="right" {...sortProps} />}
-              <PlainHeader label="Status" />
-              <PlainHeader label="Actions" />
-            </div>
-            {pageRows.map((post, i) => {
-              const er = engRatePct(post);
-              const dv = deltaViews(post);
-              /* One resolver for live / hidden / deleted / unverified, shared
-                 with the grid card, the post page and the exports. */
-              const status = postStatus(post);
-              const measured = postMeasuredAt(post);
-              /* Per field, like the three below it. Views was the one counter
-                 still asking only "was this row ever synced", and that answer
-                 is wrong for Instagram: a post read without a Meta credential
-                 comes back with comments and nothing else, stamps
-                 lastSyncedAt, and every row then printed a confident 0 views.
-                 MEASURED on production 2026-09-16: 149 Instagram posts synced
-                 in 24h, not one of them carrying a view count, all showing 0. */
-              const views = fieldMetricValue(post.viewsCount, post.lastSyncedAt, post.platformMetrics, "views");
-              /* The row's Last Synced is the latest read; when that read did
-                 not return views, the figure carries its own date. */
-              const viewsNote = views === null ? null : viewsAsOf(post);
-              // Per field: Instagram reports no shares, so a 0 there is ours, not theirs.
-              const likes = fieldMetricValue(post.likesCount, post.lastSyncedAt, post.platformMetrics, "likes");
-              const comments = fieldMetricValue(post.commentsCount, post.lastSyncedAt, post.platformMetrics, "comments");
-              const shares = fieldMetricValue(post.sharesCount, post.lastSyncedAt, post.platformMetrics, "shares", post.platform);
-              // A sync stamp cannot vouch for a zero in these two -- most rows carry one
-              // with no saves or downloads reading behind it. See unwrittenMetricValue.
-              const saves = unwrittenMetricValue(post.savesCount);
-              const downloads = unwrittenMetricValue(post.downloadsCount);
-              /* The canonical rate (engRatePct), the one the post page, the
-                 share link and the exports print -- to the same 2 places. */
-              const erShown = er;
-              return (
-                <div
-                  key={post.id}
-                  className="cc-postrow"
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    openMenu(post.id, e.clientX, e.clientY);
-                  }}
-                  style={{
-                    display: "grid",
-                    ...listGrid,
-                    gap: COL_GAP, padding: `14px ${LIST_PAD_X}px`, alignItems: "center",
-                    borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
-                  }}
-                >
-                  {/* Same reveal as the grid: a checkbox on every row of a long
-                      table is a column of noise until somebody is actually
-                      selecting. The header's own box stays visible, so there is
-                      always one to find. */}
-                  <span className="cc-rowpick" data-on={selectedIds.has(post.id) || selectedIds.size > 0 ? "1" : "0"} style={{ display: "flex" }}>
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.has(post.id)}
-                      onChange={() => toggleSelect(post.id)}
-                      aria-label={`Select post by ${isUnattributedCreator(post.creator) ? UNKNOWN_CREATOR_LABEL.toLowerCase() : post.creator.name}`}
-                      style={{ width: 15, height: 15, accentColor: "var(--cc-primary)", cursor: "pointer", margin: 0 }}
-                    />
-                  </span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-                    <PostMedia
-                      platform={post.platform}
-                      platformPostId={post.platformPostId}
-                      postUrl={post.postUrl}
-                      thumbnailUrl={post.thumbnailUrl}
-                      caption={post.caption}
-                    />
-                    {/* Out to the platform, not in to our own detail page. Clicking a
-                        post means "let me see the post"; the thumbnail beside this
-                        already behaved that way (PostMedia opens postUrl), so the two
-                        halves of one row used to go to two different places. The
-                        detail page — tracking and bot signals — is still reached
-                        from the Performance tab's post table. */}
-                    {isUnattributedCreator(post.creator) ? (
-                      <UnknownCreator
-                        platform={post.platform}
-                        notPublic={isPostNotPublic(post)}
-                        ageLimitPossible={mayBeAgeLimited(post)}
-                      />
-                    ) : (
-                      <a href={post.postUrl} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", minWidth: 0 }}>
-                        <CreatorAvatar id={post.creator.id} name={post.creator.name} size="sm" />
-                        <CreatorName name={post.creator.name} handle={post.creator.handle} />
-                      </a>
-                    )}
-                  </div>
-                  <Badge variant={PLATFORM_BADGE[post.platform] ?? "neutral"} style={{ fontSize: "var(--cc-t-11)"}}>{platformLabel(post.platform)}</Badge>
-                  <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{formatDateAbs(post.postedAt)}</span>
-                  <span
-                    title={viewsNote?.title}
-                    style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", textAlign: "right" }}
-                  >
-                    {views === null ? "" : formatNumber(views)}
-                    {viewsNote && (
-                      <span style={{ display: "block", fontSize: "var(--cc-t-11)", fontWeight: 400, color: "var(--cc-text-muted)", whiteSpace: "nowrap" }}>
-                        {viewsNote.short}
-                      </span>
-                    )}
-                  </span>
-                  {anyLikes && (
-                    <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", textAlign: "right" }}>
-                      {likes === null ? "" : formatNumber(likes)}
-                    </span>
-                  )}
-                  {anyComments && (
-                    <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", textAlign: "right" }}>
-                      {comments === null ? "" : formatNumber(comments)}
-                    </span>
-                  )}
-                  {anyShares && (
-                    <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", textAlign: "right" }}>
-                      {shares === null ? (
-                        <span title={sharesUnknownReason(post.platform).title}>{"\u2014"}</span>
-                      ) : (
-                        formatNumber(shares)
-                      )}
-                    </span>
-                  )}
-                  {anySaves && (
-                    <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", textAlign: "right" }}>
-                      {saves === null ? "" : formatNumber(saves)}
-                    </span>
-                  )}
-                  {anyDownloads && (
-                    <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", textAlign: "right" }}>
-                      {downloads === null ? "" : formatNumber(downloads)}
-                    </span>
-                  )}
-                  {anyEngRate && (
-                    <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-primary)", textAlign: "right" }}>
-                      {erShown === null ? "" : `${erShown.toFixed(2)}%`}
-                    </span>
-                  )}
-                  {anyDelta && (
-                    <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", textAlign: "right", color: dv === null ? "var(--cc-text-subtle)" : dv >= 0 ? "var(--cc-success)" : "var(--cc-danger)" }}>
-                      {dv === null ? "" : `${dv >= 0 ? "+" : ""}${formatNumber(dv)}`}
-                    </span>
-                  )}
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
-                    <Badge variant={STATUS_BADGE[post.status] ?? "neutral"}>{enumLabel(post.status)}</Badge>
-                    {/* The counters in this row stay exactly as stored: the post
-                        is gone, the reach it earned while it was up is not. */}
-                    <PostStatusChip status={status} compact showLive />
-                    {post.fetchState && FETCH_STATE_LABEL[post.fetchState] && (
-                      <Badge variant={FETCH_STATE_BADGE[post.fetchState]} style={{ fontSize: "var(--cc-t-10)"}}>
-                        {FETCH_STATE_LABEL[post.fetchState]}
-                      </Badge>
-                    )}
-                    {post.hasOpenFraudFlag && (
-                      <button
-                        type="button"
-                        className="cc-viewcheck-chip"
-                        onClick={() => openViewCheck(post.id)}
-                        title="Why this post was flagged, and how to clear it"
-                      >
-                        <AlertTriangle size={12} aria-hidden="true" /> Check views
-                      </button>
-                    )}
-                    {(post.complianceFlags ?? []).map((f) => (
-                      <Badge key={f.code} variant={f.severity === "error" ? "danger" : "warning"} title={f.message} style={{ fontSize: "var(--cc-t-10)", display: "inline-flex", alignItems: "center", gap: 4 }}>
-                        <AlertTriangle size={12} color={f.severity === "error" ? "var(--cc-danger)" : "var(--cc-warning)"} /> {COMPLIANCE_LABEL[f.code]}
-                      </Badge>
-                    ))}
-                    <PostAnnotationChips annotation={annotations[post.id]} removed={postsAreRemoved} nowMs={loadedAtMs} />
-                    {marketplace && post.status === "PENDING_REVIEW" && !post.hasOpenFraudFlag && (
-                      <span style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}>
-                        auto in {timeRemaining(post.createdAt, marketplace.autoApproveHours)}
-                      </span>
-                    )}
-                  {/* The counters' age, with a Stale chip once a tracked post
-                      has missed two of its reads (lib/dataAge). Inside the
-                      Status cell now, so the list fits a 1440 window. */}
-                  <AgeLabel
-                    at={measured.at}
-                    field="post"
-                    ctx={postAgeContext(post, status)}
-                    source={measured.source}
-                    never="Never read"
-                    style={{ fontSize: "var(--cc-t-12)", whiteSpace: "normal", flexWrap: "wrap" }}
-                  />
-                  </div>
-                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                    {/* A removed post is only restored from here; reading,
-                        tracking or approving it would act on a post the
-                        campaign no longer counts. */}
-                    {postsAreRemoved ? (
-                    <button onClick={() => restorePosts([post.id])} disabled={bulkBusy} aria-label="Restore this post to the campaign" title="Restore to campaign" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-border)", background: "var(--cc-card)", color: "var(--cc-text-muted)", cursor: bulkBusy ? "wait" : "pointer", fontSize: "var(--cc-t-12)", display: "flex", alignItems: "center", gap: 4 }}>
-                      <RotateCcw size={12} />Restore
-                    </button>
-                    ) : (<>
-                    {/* Tracking, first and stateful. It used to be reachable only
-                        by opening the post's own page, which is why almost
-                        nothing on this platform is tracked: the control was two
-                        clicks and one guess away from the list where posts are
-                        actually worked on. */}
-                    <button
-                      onClick={() => handleToggleTracking(post.id, post.trackingEnabled !== true)}
-                      disabled={trackingBusyId === post.id}
-                      aria-label={post.trackingEnabled ? "Stop tracking this post" : "Track this post"}
-                      aria-pressed={post.trackingEnabled === true}
-                      title={trackingLabel(post.trackingEnabled === true, post.trackingExpiresAt ?? null, post.trackingSource)}
-                      style={{
-                        padding: "4px 8px",
-                        borderRadius: 6,
-                        border: `1px solid ${post.trackingEnabled ? "var(--cc-primary)" : "var(--cc-border)"}`,
-                        background: post.trackingEnabled
-                          ? "color-mix(in srgb, var(--cc-primary) 14%, transparent)"
-                          : "var(--cc-card)",
-                        color: post.trackingEnabled ? "var(--cc-primary)" : "var(--cc-text-muted)",
-                        cursor: trackingBusyId === post.id ? "wait" : "pointer",
-                        fontSize: "var(--cc-t-12)",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 2,
-                        opacity: trackingBusyId === post.id ? 0.6 : 1,
-                      }}
-                    >
-                      <Radio size={12} />
-                    </button>
-                    {/* The only way into our own post page now that the row itself
-                        goes out to the platform. Tracking and bot signals live
-                        there and nothing else in a campaign links to it. */}
-                    <Link href={`/campaigns/${campaignId}/posts/${post.id}`} aria-label="View post analytics" title="View post analytics" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-border)", background: "var(--cc-card)", color: "var(--cc-text-muted)", fontSize: "var(--cc-t-12)", display: "flex", alignItems: "center", gap: 2, textDecoration: "none" }}>
-                      <BarChart3 size={12} />
-                    </Link>
-                    <button onClick={() => handleSyncNow(post.id)} disabled={syncingId === post.id} aria-label="Sync post metrics now" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-border)", background: "var(--cc-card)", color: "var(--cc-text-muted)", cursor: syncingId === post.id ? "wait" : "pointer", fontSize: "var(--cc-t-12)", display: "flex", alignItems: "center", gap: 2, opacity: syncingId === post.id ? 0.6 : 1 }}>
-                      <TrendingUp size={12} />
-                    </button>
-                    {(postApprovalMode === "MANUAL" || marketplace) && post.status === "PENDING_REVIEW" && (
-                      <>
-                        <button onClick={() => handleApprove(post.id)} aria-label="Approve post" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-success)", background: "color-mix(in srgb, var(--cc-success) 14%, transparent)", color: "var(--cc-success)", cursor: "pointer", fontSize: "var(--cc-t-12)", display: "flex", alignItems: "center", gap: 2 }}>
-                          <Check size={12} />
-                        </button>
-                        <button onClick={() => setShowRejectModal(post.id)} aria-label="Reject post" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-danger)", background: "color-mix(in srgb, var(--cc-danger) 14%, transparent)", color: "var(--cc-danger-ink)", cursor: "pointer", fontSize: "var(--cc-t-12)", display: "flex", alignItems: "center", gap: 2 }}>
-                          <X size={12} />
-                        </button>
-                      </>
-                    )}
-                    {marketplace && !post.hasOpenFraudFlag && post.status !== "REJECTED" && (
-                      <button onClick={() => handleFlagSuspicious(post.id)} disabled={flaggingId === post.id} aria-label="Flag post as suspicious" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-warning)", background: "color-mix(in srgb, var(--cc-warning) 14%, transparent)", color: "var(--cc-warning)", cursor: flaggingId === post.id ? "wait" : "pointer", fontSize: "var(--cc-t-12)", display: "flex", alignItems: "center", gap: 2, opacity: flaggingId === post.id ? 0.6 : 1 }}>
-                        <Flag size={12} />
-                      </button>
-                    )}
-                    </>)}
-                  </div>
-                </div>
-              );
-            })}
-          </Card>
-          {filteredSorted.length > PAGE_SIZE && (
-            <Pagination
-              page={page}
-              totalPages={totalPages}
-              onPageChange={setPage}
-              total={filteredSorted.length}
-              pageSize={PAGE_SIZE}
-            />
-          )}
-        </>
-      ) : !error ? (
-        <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 18 }}>
-            {/* One memoised component per tile, not 140 lines of inline JSX.
-                See PostGridCard: the tab holds twenty-odd pieces of state and
-                every one of them used to re-render all 25 tiles. */}
+          <div className="cc-poststab-grid">
+            {/* One memoised component per tile. See PostGridCard: the tab holds
+                twenty-odd pieces of state and every one of them used to
+                re-render all 25 tiles. */}
             {pageRows.map((post) => (
               <PostGridCard
                 key={post.id}
@@ -2555,17 +2449,9 @@ export default function PostsTab({
               />
             ))}
           </div>
-          {filteredSorted.length > PAGE_SIZE && (
-            <Pagination
-              page={page}
-              totalPages={totalPages}
-              onPageChange={setPage}
-              total={filteredSorted.length}
-              pageSize={PAGE_SIZE}
-            />
-          )}
+          {pager}
         </>
-      ) : null}
+      )}
 
       {viewCheckPost && (
         <ViewCheckDialog
@@ -2597,8 +2483,12 @@ export default function PostsTab({
              button counts the ones that will be sent, so a paste with one bad
              link read "Add 4 Posts" over "Submit 3 Posts" (walkthrough A1#25);
              the button and the skipped line beside it carry the numbers. */
-          title={addRows.length > 1 ? "Add Posts" : "Add Post"}
-          size="lg"
+          title="Add posts"
+          icon={ListPlus}
+          tone="brand"
+          description="Paste post links, one or a whole batch. Who posted each one is detected for you."
+          size="md"
+          dismissible={false}
           footer={
             <div className="cc-modal-footer" data-align="center">
               {/* What the button is leaving behind. Without this the count on the
@@ -2612,20 +2502,20 @@ export default function PostsTab({
                     : `${addSkipped.length} links are being skipped — their reasons are on the rows.`}
                 </span>
               )}
-              <Button variant="secondary" onClick={() => setShowAddPost(false)}>Cancel</Button>
-              <Button variant="primary" loading={submitting} onClick={handleAddPosts} disabled={!addReady}>
+              <Button variant="secondary" size="sm" onClick={() => setShowAddPost(false)}>Cancel</Button>
+              <Button variant="primary" size="sm" loading={submitting} onClick={handleAddPosts} disabled={!addReady}>
                 {/* Counts the rows that will actually be sent, so a paste of
                     three with two skipped reads "Submit 1 Post". */}
                 {addRows.length > 1
-                  ? `Submit ${addSubmittable.length} Post${addSubmittable.length === 1 ? "" : "s"}`
-                  : "Submit Post"}
+                  ? `Add ${addSubmittable.length} ${noun(addSubmittable.length, "post")}`
+                  : "Add post"}
               </Button>
             </div>
           }
         >
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div>
-              <label htmlFor="add-post-urls" style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>
+          <div className="cc-dialog-stack">
+            <div className="ui-input-root">
+              <label htmlFor="add-post-urls" className="ui-input-label">
                 Post links
               </label>
               {/* A box that behaves like an input and holds each identified
@@ -2961,39 +2851,43 @@ export default function PostsTab({
       )}
 
       {showRejectModal && (
-        <Modal open={true} onClose={() => { setShowRejectModal(null); setRejectionReason(""); }} title={showRejectModal === BULK_REJECT ? `Reject ${selectedOnPage.length} Post${selectedOnPage.length === 1 ? "" : "s"}` : "Reject Post"} size="sm" footer={
-          <div className="cc-modal-footer">
-            <Button variant="secondary" onClick={() => { setShowRejectModal(null); setRejectionReason(""); }}>Cancel</Button>
-            {/* The count is in the button too, not only the title: this is the
-                irreversible half of the dialog and it should say how many rows
-                it is about to change. */}
-            <Button variant="primary" onClick={handleReject} loading={bulkBusy} style={{ background: "var(--cc-danger-solid)" }}>
-              {showRejectModal === BULK_REJECT ? `Reject ${selectedOnPage.length} Post${selectedOnPage.length === 1 ? "" : "s"}` : "Reject Post"}
-            </Button>
-          </div>
-        }>
-          <div>
-            {showRejectModal === BULK_REJECT && (
-              <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: "0 0 10px" }}>
-                The same reason is stored on every post in the selection, and each
-                creator sees it on their own post.
-              </p>
-            )}
-            <label htmlFor="reject-reason" style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Reason (optional)</label>
-            <textarea
-              id="reject-reason"
-              value={rejectionReason}
-              onChange={(e) => setRejectionReason(e.target.value)}
-              placeholder="Why is this post being rejected?"
-              rows={3}
-              style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: "var(--cc-t-14)", color: "var(--cc-text)", outline: "none", resize: "vertical" }}
-            />
-          </div>
+        <Modal
+          open={true}
+          onClose={() => { setShowRejectModal(null); setRejectionReason(""); }}
+          icon={XCircle}
+          tone="danger"
+          title={showRejectModal === BULK_REJECT ? `Reject ${selectedOnPage.length} ${noun(selectedOnPage.length, "post")}` : "Reject post"}
+          description={
+            showRejectModal === BULK_REJECT
+              ? "The same reason is stored on every selected post, and each creator sees it on their own post."
+              : "The post is marked Rejected, with your reason stored on it."
+          }
+          size="sm"
+          footer={
+            <div className="cc-modal-footer">
+              <Button variant="secondary" size="sm" onClick={() => { setShowRejectModal(null); setRejectionReason(""); }}>Cancel</Button>
+              {/* The count is in the button too, not only the title: this is the
+                  irreversible half of the dialog and it should say how many rows
+                  it is about to change. */}
+              <Button variant="danger" size="sm" onClick={handleReject} loading={bulkBusy}>
+                {showRejectModal === BULK_REJECT ? `Reject ${selectedOnPage.length} ${noun(selectedOnPage.length, "post")}` : "Reject post"}
+              </Button>
+            </div>
+          }
+        >
+          <Textarea
+            id="reject-reason"
+            label="Reason"
+            value={rejectionReason}
+            onChange={(e) => setRejectionReason(e.target.value)}
+            placeholder="Why is this post being rejected?"
+            rows={3}
+          />
         </Modal>
       )}
 
       {menu && menuItems.length > 0 && (
-        <PostActionMenu x={menu.x} y={menu.y} items={menuItems} onClose={closeMenu} />
+        <PostActionMenu x={menu.x} y={menu.y} align={menu.align} anchor={menu.anchor} items={menuItems} onClose={closeMenu} />
       )}
     </div>
   );

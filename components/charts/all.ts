@@ -10,11 +10,10 @@
  * because a visitor who follows a share link never loads a dashboard page, so it
  * would carry the dashboard's chart code for nothing.
  */
-export { ViewsOverTimeArea, PlatformBreakdownPie, ViewsByCampaignBar } from "@/app/(dashboard)/dashboard/DashboardCharts";
+export { ViewsOverTimeArea, ViewsByCampaignBar } from "@/app/(dashboard)/dashboard/DashboardCharts";
 
 export {
   MonthlyTrendArea,
-  PlatformBreakdownBar,
   CampaignComparisonLine,
 } from "@/app/(dashboard)/analytics/AnalyticsCharts";
 

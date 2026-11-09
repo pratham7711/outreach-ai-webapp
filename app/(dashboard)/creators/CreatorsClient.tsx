@@ -1,11 +1,24 @@
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, LayoutGrid, List as ListIcon, Users, Upload, X, Globe2, ChevronRight, AlertTriangle } from "lucide-react";
-import { Badge, Card, Input, EmptyState } from "@pratham7711/ui";
-import { PageHeader, StatusTabs, Pagination, FilterDrawer, FilterButton, SortableTh, Button, Dropdown } from "@/components/ds";
+import { useRouter } from "next/navigation";
+import { Plus, LayoutGrid, List as ListIcon, Users, Upload, X, Globe2, ChevronRight } from "lucide-react";
+import { Card, EmptyState } from "@pratham7711/ui";
+import {
+  Banner,
+  Button,
+  Dropdown,
+  FilterButton,
+  FilterDrawer,
+  ListToolbar,
+  NoResults,
+  PageHeader,
+  Pagination,
+  SortableTh,
+  StatusTabs,
+  ViewToggle,
+} from "@/components/ds";
 import type { FilterDef, FilterValues } from "@/components/ds";
-import { Loader2, Search } from "lucide-react";
 import AddCreatorModal from "@/components/modals/AddCreatorModal";
 import ImportCreatorsModal from "@/components/creators/ImportCreatorsModal";
 import Link from "next/link";
@@ -18,14 +31,14 @@ import { action } from "@/lib/ui/actions";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import { creatorNameParts } from "@/lib/creators/creatorName";
 import PlatformChips, { type PlatformChipLink } from "@/components/creators/PlatformChips";
-import RosterActions, { type RosterSelection } from "@/components/creators/RosterActions";
+import RosterActions, { RosterMenu, type RosterSelection } from "@/components/creators/RosterActions";
 import { TrackAllButton } from "@/components/creators/TrackCreators";
 import { profileUrl, type ImportPlatform } from "@/lib/creators/importParse";
 import { handleIssueSummary } from "@/lib/creators/handleCheck";
 import { isUnknownMetric, type MetricValue } from "@/lib/creators/metricValue";
 import type { FigureTimeDto } from "@/lib/creators/figureTime";
 import { AgeLabel } from "@/components/ds/AgeLabel";
-import { TIME_NOT_RECORDED } from "@/lib/dataAge";
+import { TIME_NOT_RECORDED, formatAsOf, isStale } from "@/lib/dataAge";
 import MetricFigure from "@/components/creators/MetricFigure";
 
 type Creator = {
@@ -62,7 +75,7 @@ type CountryOption = { name: string; n: number };
  * it -- the reason is in the tooltip. Nothing under an
  * unknown figure: its "—" already says why, on hover.
  */
-function FigureAge({ value, time }: { value: MetricValue; time: FigureTimeDto | undefined }) {
+function FigureAge({ value, time, end = false }: { value: MetricValue; time: FigureTimeDto | undefined; end?: boolean }) {
   if (!time || isUnknownMetric(value)) return null;
   return (
     <AgeLabel
@@ -70,7 +83,7 @@ function FigureAge({ value, time }: { value: MetricValue; time: FigureTimeDto | 
       field={time.field}
       source={time.at ? time.source : time.missing}
       never={TIME_NOT_RECORDED}
-      style={{ display: "flex", maxWidth: "100%", overflow: "hidden", marginTop: 2 }}
+      style={{ display: "flex", justifyContent: end ? "flex-end" : undefined, maxWidth: "100%", overflow: "hidden", marginTop: 2 }}
     />
   );
 }
@@ -230,71 +243,103 @@ const CreatorCard = memo(function CreatorCard({
   );
 });
 
-/* 12 a side, not the house 24. MEASURED 2026-10-13: at 24 the roster table
-   was 1264px inside the 1110px card a 1440 window leaves it, so it scrolled
-   sideways on every desktop; nine columns of 24px padding were 432px of it.
-   The card still scrolls the table (never the page) below that width. */
-const ROSTER_PAD_X = 12;
-const ROSTER_CELL_PAD = `14px ${ROSTER_PAD_X}px`;
+/* Where each column sits. The table fills its card at 1440 with 12px cell
+   insets (.cc-roster-dt): at the house 16 the nine columns overflowed it.
+   Creator has no width of its own and takes what is left. */
+const COL = {
+  check: 44,
+  accounts: 116,
+  tags: 150,
+  followers: 120,
+  avgViews: 112,
+  audience: 96,
+  price: 92,
+  campaigns: 112,
+  posts: 84,
+} as const;
+
+/** The figure's age for its tooltip: when it was read and by what. */
+function ageTitle(time: FigureTimeDto | undefined): string | undefined {
+  if (!time) return undefined;
+  return time.at ? `Read ${formatAsOf(time.at)} · ${time.source}` : `${TIME_NOT_RECORDED} · ${time.missing}`;
+}
+
+/** Elements in a row that act on their own; a click on one is not a click on the row. */
+const ROW_STOP = "a, button, input, label, [role='menuitem']";
 
 const CreatorRow = memo(function CreatorRow({
   c,
   on,
   onToggle,
+  onOpen,
   optionalStats,
   hasAudience,
   hasPrice,
+  now,
 }: {
   c: Creator;
   on: boolean;
   onToggle: (id: string) => void;
+  onOpen: (e: React.MouseEvent<HTMLTableRowElement>, href: string) => void;
   optionalStats: OptionalStat[];
   hasAudience: boolean;
   hasPrice: boolean;
+  now: Date;
 }) {
+  const href = `/creators/${c.id}`;
+  const { name, handle } = creatorNameParts(c.name, c.handle);
   return (
-    <tr className="cc-table-row" data-selected={on || undefined} style={{ borderTop: "1px solid var(--cc-border)" }}>
+    <tr data-href={href} data-selected={on || undefined} onClick={(e) => onOpen(e, href)}>
       <td className="cc-roster-td-check">
         <label className="cc-roster-check-hit">
           <input type="checkbox" checked={on} onChange={() => onToggle(c.id)} aria-label={`Select ${c.name}`} />
         </label>
       </td>
-      <td style={{ padding: ROSTER_CELL_PAD }}>
-        <Link prefetch={false} href={`/creators/${c.id}`} style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 12 }}>
+      <td>
+        <div className="cc-roster-dt-id">
           <CreatorAvatar id={c.id} name={c.name} size="sm" version={c.avatarVersion} />
-          <div>
-            <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{creatorNameParts(c.name, c.handle).name}</p>
-            {creatorNameParts(c.name, c.handle).handle && <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{creatorNameParts(c.name, c.handle).handle}</p>}
-          </div>
-        </Link>
+          <span style={{ minWidth: 0 }}>
+            <Link prefetch={false} href={href} className="cc-dt-primary cc-dt-truncate" title={c.name}>
+              {name}
+            </Link>
+            {handle && <span className="cc-dt-sub cc-dt-truncate">{handle}</span>}
+          </span>
+        </div>
       </td>
-      <td style={{ padding: ROSTER_CELL_PAD }}>
+      <td>
         <PlatformChips links={accountsOf(c)} max={3} compact />
       </td>
-      <td style={{ padding: ROSTER_CELL_PAD }}>
-        {c.tags.length ? <TagList tags={c.tags} max={2} /> : <span style={{ color: "var(--cc-text-muted)" }}>—</span>}
-      </td>
+      <td>{c.tags.length ? <TagList tags={c.tags} max={2} /> : <span className="cc-roster-dt-none">—</span>}</td>
+      {/* The figure's age is in its tooltip; the cell says it only when the
+          figure is stale. "time not recorded" under every row was the same
+          sentence eighteen times. */}
       {optionalStats.map((stat) => {
         const value = stat.read(c);
+        const time = stat.at(c);
+        const stale = !isUnknownMetric(value) && !!time?.at && isStale(time.at, time.field, undefined, now);
         return (
-          <td key={stat.key} style={{ padding: ROSTER_CELL_PAD, fontSize: "var(--cc-t-14)", fontWeight: 500, color: isUnknownMetric(value) ? "var(--cc-text-muted)" : "var(--cc-text)" }}>
-            <MetricFigure value={value} format={formatNumber} />
-            <FigureAge value={value} time={stat.at(c)} />
+          <td key={stat.key} data-align="right" data-unknown={isUnknownMetric(value) || undefined}>
+            <span title={isUnknownMetric(value) ? undefined : ageTitle(time)}>
+              <MetricFigure value={value} format={formatNumber} />
+            </span>
+            {stale && <FigureAge value={value} time={time} end />}
           </td>
         );
       })}
       {hasAudience && (
-        <td className="cc-roster-td-text" title={c.audienceCountry ?? undefined}>
-          {c.audienceCountry ?? "—"}
+        <td>
+          <span className="cc-dt-truncate" title={c.audienceCountry ?? undefined}>
+            {c.audienceCountry ?? "—"}
+          </span>
         </td>
       )}
       {hasPrice && (
-        <td style={{ padding: ROSTER_CELL_PAD, fontSize: "var(--cc-t-14)", fontWeight: 500, color: c.rate ? "var(--cc-text)" : "var(--cc-text-muted)" }}>
+        <td data-align="right" data-unknown={!c.rate || undefined}>
           {c.rate ? formatFullCurrency(c.rate) : "—"}
         </td>
       )}
-      <td style={{ padding: ROSTER_CELL_PAD, fontSize: "var(--cc-t-14)", fontWeight: 500, color: "var(--cc-text)" }}>{c.campaignCount}</td>
-      <td style={{ padding: ROSTER_CELL_PAD, fontSize: "var(--cc-t-14)", fontWeight: 500, color: "var(--cc-text)" }}>{c._count.posts}</td>
+      <td data-align="right">{formatFull(c.campaignCount)}</td>
+      <td data-align="right">{formatFull(c._count.posts)}</td>
     </tr>
   );
 });
@@ -336,8 +381,12 @@ export default function CreatorsClient({
   audienceCountryOptions: CountryOption[];
   countryOptions: CountryOption[];
 }) {
+  const router = useRouter();
   const [search, setSearch] = useState(q);
   const [view, setView] = useState<"grid" | "table">("grid");
+  /* One clock per render of the page, so every row's "is it stale" is
+     measured against the same moment and the memoised rows can skip. */
+  const [now] = useState(() => new Date());
   const [showModal, setShowModal] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
@@ -383,7 +432,6 @@ export default function CreatorsClient({
   const shownPlatform =
     shown.platform === null ? "All" : typeof shown.platform === "string" ? shown.platform : platform;
   const shownPage = shown.page === null ? 1 : Number(shown.page ?? page);
-  const searching = pending && (shown.q ?? "") !== q;
   /* The grid has no column headers to click, so it had no way to sort at all.
      The same orders the table offers, as one menu that serves both views.
      Followers puts the unread creators last in both directions (the server
@@ -567,6 +615,21 @@ export default function CreatorsClient({
     setPicked(new Set());
     setAllMatching(false);
   };
+  /* The whole row opens the creator, as its pointer says; the name is the
+     real link, for keyboards and a middle click. The checkbox, the account
+     chips and the tags keep their own clicks. */
+  const openRow = useCallback(
+    (e: React.MouseEvent<HTMLTableRowElement>, href: string) => {
+      if (e.defaultPrevented || (e.target as Element).closest(ROW_STOP)) return;
+      if (window.getSelection()?.toString()) return;
+      if (e.metaKey || e.ctrlKey || e.shiftKey) {
+        window.open(href, "_blank", "noopener");
+        return;
+      }
+      router.push(href);
+    },
+    [router],
+  );
   const selection: RosterSelection = allMatching
     ? { mode: "all" }
     : picked.size
@@ -607,16 +670,43 @@ export default function CreatorsClient({
     return { optionalStats, cardStats };
   }, [hasFollowers, hasAvgViews, hasPrice]);
 
+  /* The table's floor: the fixed columns plus 200px for the name, below
+     which the card scrolls the table rather than squeezing it. */
+  const tableMin =
+    COL.check + 200 + COL.accounts + COL.tags +
+    optionalStats.reduce((sum, stat) => sum + (stat.key === "followers" ? COL.followers : COL.avgViews), 0) +
+    (hasAudience ? COL.audience : 0) + (hasPrice ? COL.price : 0) + COL.campaigns + COL.posts;
+  const columnCount = 6 + optionalStats.length + (hasAudience ? 1 : 0) + (hasPrice ? 1 : 0);
+  const pager =
+    total > 0 ? (
+      <Pagination
+        page={shownPage}
+        totalPages={totalPages}
+        total={total}
+        pageSize={CREATORS_PAGE_SIZE}
+        loading={pending}
+        onPageChange={(p) => push({ page: p === 1 ? null : p })}
+      />
+    ) : null;
+
   return (
     <div className="rsp-page">
       <PageHeader
         title="Creator Roster"
         subtitle="Every creator your agency works with, in one place"
-        /* `total` is the database count for the CURRENT filters, not the rows
-           on screen. It used to be `filtered.length`, which is one page -- so a
-           1,832-creator roster captioned itself "24 Creators", 24 being the page
-           size, and said "24 Creators" again on every page after it. */
-        caption={`${total} Creator${total !== 1 ? "s" : ""}`}
+        /* The platform tabs close the header band, above the toolbar; each
+           tab's count says how many creators it holds. */
+        tabs={
+          <StatusTabs
+            ariaLabel="Filter creators by platform"
+            tabs={PLATFORM_TABS.map((t) => ({
+              ...t,
+              count: platformCounts[t.key] ?? 0,
+            }))}
+            active={shownPlatform}
+            onChange={(key) => push({ platform: key === "All" ? null : key, page: null })}
+          />
+        }
         actions={
           <>
             {/* The whole roster whatever the filters say -- "all" is the
@@ -632,59 +722,50 @@ export default function CreatorsClient({
         }
       />
 
-      {/* Filters */}
-      <div className="cc-roster-toolbar">
-        <div className="cc-roster-search">
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search Creators"
-            iconLeft={searching ? <Loader2 size={16} className="motion-safe:animate-spin" aria-hidden="true" /> : <Search size={16} />}
-          />
-        </div>
-        <FilterButton count={filterCount} onClick={() => setShowFilters(true)} />
-        <Dropdown
-          ariaLabel="Sort creators"
-          /* From `shown`, like the tabs and the pager, so the picked order
-             shows at once rather than when the server's page lands. */
-          value={`${typeof shown.sort === "string" ? shown.sort : sort.key}:${typeof shown.dir === "string" ? shown.dir : sort.dir}`}
-          onChange={(v) => {
-            const [key, dir] = v.split(":");
-            push({ sort: key, dir, page: null });
-          }}
-          options={sortOptions}
-          minWidth={170}
-        />
-        <div style={{ display: "flex", alignItems: "center", gap: 4, background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 10, padding: 4 }}>
-          <Button variant={view === "grid" ? "primary" : "ghost"} size="sm" onClick={() => setView("grid")} aria-label="Grid view">
-            <LayoutGrid size={16} />
-          </Button>
-          <Button variant={view === "table" ? "primary" : "ghost"} size="sm" onClick={() => setView("table")} aria-label="Table view">
-            <ListIcon size={16} />
-          </Button>
-        </div>
-      </div>
-
-      <StatusTabs
-        ariaLabel="Filter creators by platform"
-        style={{ marginBottom: 24 }}
-        tabs={PLATFORM_TABS.map((t) => ({
-          ...t,
-          count: platformCounts[t.key] ?? 0,
-        }))}
-        active={shownPlatform}
-        onChange={(key) => push({ platform: key === "All" ? null : key, page: null })}
-      />
-
       {handleIssueText && !filterValues.handleIssues && (
-        <div className="cc-roster-notice" role="note">
-          <AlertTriangle size={16} aria-hidden className="cc-roster-notice-icon" />
-          <span>{handleIssueText}</span>
-          <button type="button" onClick={() => push({ handleIssues: "1", page: null })}>
-            Review {handleIssues.gone + handleIssues.unreadable === 1 ? "it" : "them"}
-          </button>
-        </div>
+        <Banner
+          tone="warning"
+          action={
+            <Button variant="secondary" size="sm" onClick={() => push({ handleIssues: "1", page: null })}>
+              Review {handleIssues.gone + handleIssues.unreadable === 1 ? "it" : "them"}
+            </Button>
+          }
+        >
+          {handleIssueText}
+        </Banner>
       )}
+
+      <ListToolbar
+        search={{ value: search, onChange: setSearch, placeholder: "Search creators", ariaLabel: "Search creators by name or handle" }}
+        end={
+          <>
+            <Dropdown
+              ariaLabel="Sort creators"
+              size="md"
+              align="right"
+              /* From `shown`, like the tabs and the pager, so the picked order
+                 shows at once rather than when the server's page lands. */
+              value={`${typeof shown.sort === "string" ? shown.sort : sort.key}:${typeof shown.dir === "string" ? shown.dir : sort.dir}`}
+              onChange={(v) => {
+                const [key, dir] = v.split(":");
+                push({ sort: key, dir, page: null });
+              }}
+              options={sortOptions}
+              minWidth={170}
+            />
+            <FilterButton count={filterCount} onClick={() => setShowFilters(true)} />
+            <ViewToggle
+              value={view}
+              onChange={setView}
+              options={[
+                { value: "grid", label: "Grid view", icon: LayoutGrid },
+                { value: "table", label: "Table view", icon: ListIcon },
+              ]}
+            />
+            <RosterMenu total={total} query={query} suggestedName={suggestedName} tagOptions={tagOptions} />
+          </>
+        }
+      />
 
       {active.length > 0 && (
         <div className="cc-roster-active" aria-label="Filters in use">
@@ -730,120 +811,132 @@ export default function CreatorsClient({
       )}
 
       <div {...pendingListProps(pending)}>
-      {filtered.length === 0 ? (
+      {filtered.length === 0 && !anyFilter ? (
         <EmptyState
           icon={<Users size={32} color="var(--cc-text-subtle)" />}
-          title={anyFilter ? "No creators match those filters" : "No creators yet"}
-          description={
-            anyFilter
-              ? "Try a different search term, platform or filter."
-              : "Add creators to your roster to get started."
-          }
+          title="No creators yet"
+          description="Add creators to your roster to get started."
           action={
-            anyFilter ? (
-              <Button variant="secondary" onClick={clearEverything}>
-                Clear filters
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
+              <Button variant="primary" iconLeft={<Upload size={16} />} onClick={() => setShowImport(true)}>
+                Import your creator sign-ups
               </Button>
-            ) : (
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
-                <Button variant="primary" iconLeft={<Upload size={15} />} onClick={() => setShowImport(true)}>
-                  Import your creator sign-ups
-                </Button>
-                <Button variant="secondary" iconLeft={<Plus size={15} />} onClick={() => setShowModal(true)}>
-                  Add a creator
-                </Button>
-              </div>
-            )
+              <Button variant="secondary" iconLeft={<Plus size={16} />} onClick={() => setShowModal(true)}>
+                Add a creator
+              </Button>
+            </div>
           }
         />
       ) : view === "grid" ? (
-        <div className="cc-stagger cc-roster-grid">
-          {filtered.map((creator) => (
-            <CreatorCard
-              key={creator.id}
-              creator={creator}
-              on={allMatching || picked.has(creator.id)}
-              onToggle={toggle}
-              cardStats={cardStats}
-            />
-          ))}
-        </div>
-      ) : (
-        <Card variant="solid" noPadding>
-          <div className="rsp-table-wrap">
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ background: "var(--cc-hover-bg)" }}>
-                <th className="cc-roster-th-check">
-                  <label className="cc-roster-check-hit">
-                    <input
-                      type="checkbox"
-                      checked={allMatching || allOnPage}
-                      ref={(el) => {
-                        if (el) el.indeterminate = !allMatching && pickedOnPage > 0 && !allOnPage;
-                      }}
-                      onChange={togglePage}
-                      aria-label="Select every creator on this page"
-                    />
-                  </label>
-                </th>
-                <SortableTh label="Creator" sortKey="name" sort={sort} onToggle={toggleSort} padX={ROSTER_PAD_X} />
-                <SortableTh label="Accounts" padX={ROSTER_PAD_X} />
-                <SortableTh label="Tags" padX={ROSTER_PAD_X} />
-                {/* Followers sorts with the unknown zeros pinned last either way
-                    (lib/creators/rosterSort). Avg. Views still cannot be ordered
-                    truthfully: it is measured from posts after this page was
-                    fetched. See CREATOR_SORT_KEYS. */}
-                {optionalStats.map((stat) => (
-                  <SortableTh
-                    key={stat.key}
-                    label={stat.label}
-                    sortKey={stat.key === "followers" ? "followers" : undefined}
-                    sort={sort}
-                    onToggle={toggleSort}
-                    padX={ROSTER_PAD_X}
-                  />
-                ))}
-                {hasAudience && <SortableTh label="Audience" padX={ROSTER_PAD_X} />}
-                {hasPrice && <SortableTh label="Price" sortKey="price" sort={sort} onToggle={toggleSort} padX={ROSTER_PAD_X} />}
-                <SortableTh label="Campaigns" padX={ROSTER_PAD_X} />
-                <SortableTh label="Posts" sortKey="posts" sort={sort} onToggle={toggleSort} padX={ROSTER_PAD_X} />
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((c) => (
-                <CreatorRow
-                  key={c.id}
-                  c={c}
-                  on={allMatching || picked.has(c.id)}
+        <>
+          {filtered.length === 0 ? (
+            <div className="cc-dt-card">
+              <NoResults onClear={clearEverything} />
+            </div>
+          ) : (
+            <div className="cc-stagger cc-roster-grid">
+              {filtered.map((creator) => (
+                <CreatorCard
+                  key={creator.id}
+                  creator={creator}
+                  on={allMatching || picked.has(creator.id)}
                   onToggle={toggle}
-                  optionalStats={optionalStats}
-                  hasAudience={hasAudience}
-                  hasPrice={hasPrice}
+                  cardStats={cardStats}
                 />
               ))}
-            </tbody>
-          </table>
+            </div>
+          )}
+          {pager ? <div className="cc-roster-grid-pager">{pager}</div> : null}
+        </>
+      ) : (
+        <div className="cc-dt-card">
+          <div className="cc-dt-scroll">
+            <table className="cc-dt cc-roster-dt" style={{ minWidth: tableMin }}>
+              <caption className="sr-only">Creators</caption>
+              <colgroup>
+                <col style={{ width: COL.check }} />
+                <col />
+                <col style={{ width: COL.accounts }} />
+                <col style={{ width: COL.tags }} />
+                {optionalStats.map((stat) => (
+                  <col key={stat.key} style={{ width: stat.key === "followers" ? COL.followers : COL.avgViews }} />
+                ))}
+                {hasAudience && <col style={{ width: COL.audience }} />}
+                {hasPrice && <col style={{ width: COL.price }} />}
+                <col style={{ width: COL.campaigns }} />
+                <col style={{ width: COL.posts }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th scope="col" className="cc-th cc-roster-th-check">
+                    <label className="cc-roster-check-hit">
+                      <input
+                        type="checkbox"
+                        checked={allMatching || allOnPage}
+                        disabled={pageIds.length === 0}
+                        ref={(el) => {
+                          if (el) el.indeterminate = !allMatching && pickedOnPage > 0 && !allOnPage;
+                        }}
+                        onChange={togglePage}
+                        aria-label="Select every creator on this page"
+                      />
+                    </label>
+                  </th>
+                  <SortableTh label="Creator" sortKey="name" sort={sort} onToggle={toggleSort} />
+                  <SortableTh label="Accounts" />
+                  <SortableTh label="Tags" />
+                  {/* Followers sorts with the unknown zeros pinned last either way
+                      (lib/creators/rosterSort). Avg. Views still cannot be ordered
+                      truthfully: it is measured from posts after this page was
+                      fetched. See CREATOR_SORT_KEYS. */}
+                  {optionalStats.map((stat) => (
+                    <SortableTh
+                      key={stat.key}
+                      label={stat.label}
+                      align="right"
+                      sortKey={stat.key === "followers" ? "followers" : undefined}
+                      sort={sort}
+                      onToggle={toggleSort}
+                    />
+                  ))}
+                  {hasAudience && <SortableTh label="Audience" />}
+                  {hasPrice && <SortableTh label="Price" align="right" sortKey="price" sort={sort} onToggle={toggleSort} />}
+                  <SortableTh label="Campaigns" align="right" />
+                  <SortableTh label="Posts" align="right" sortKey="posts" sort={sort} onToggle={toggleSort} />
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr className="cc-dt-empty">
+                    <td colSpan={columnCount}>
+                      <NoResults onClear={clearEverything} />
+                    </td>
+                  </tr>
+                ) : (
+                  filtered.map((c) => (
+                    <CreatorRow
+                      key={c.id}
+                      c={c}
+                      on={allMatching || picked.has(c.id)}
+                      onToggle={toggle}
+                      onOpen={openRow}
+                      optionalStats={optionalStats}
+                      hasAudience={hasAudience}
+                      hasPrice={hasPrice}
+                      now={now}
+                    />
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
-        </Card>
+          {pager ? <div className="cc-dt-foot">{pager}</div> : null}
+        </div>
       )}
       </div>
 
-      {total > CREATORS_PAGE_SIZE && (
-        <Pagination
-          style={{ marginTop: 24 }}
-          page={shownPage}
-          totalPages={totalPages}
-          total={total}
-          pageSize={CREATORS_PAGE_SIZE}
-          loading={pending}
-          onPageChange={(p) => push({ page: p === 1 ? null : p })}
-        />
-      )}
-
       <RosterActions
         total={total}
-        filtered={anyFilter}
         selection={selection}
         query={query}
         suggestedName={suggestedName}

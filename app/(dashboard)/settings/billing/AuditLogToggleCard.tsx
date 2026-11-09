@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertCircle, ShieldCheck, ShieldOff } from "lucide-react";
-import { Alert, Badge, Card, LoadingSpinner, Toggle } from "@pratham7711/ui";
+import { ShieldCheck, ShieldOff } from "lucide-react";
+import { Banner } from "@/components/ds/Banner";
+import { SectionCard } from "@/components/ds/SectionCard";
+import { StatusBadge } from "@/components/ds/StatusBadge";
+import { Switch } from "@/components/ds/Switch";
 
 type AuditLogToggleCardProps = {
   initialEnabled: boolean;
@@ -90,95 +93,47 @@ export default function AuditLogToggleCard({ initialEnabled, planName, canManage
   const isBusy = loading || saving;
 
   return (
-    <Card variant="outlined" noPadding>
-      <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 20, flexWrap: "wrap" }}>
-          <div style={{ minWidth: 0, flex: "1 1 240px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
-              <div
-                style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 12,
-                  background: "var(--cc-primary-light)",
-                  color: "var(--cc-primary)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                }}
-              >
-                <ShieldCheck size={18} />
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <h2 style={{ fontSize: "var(--cc-t-18)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
-                  Audit log recording
-                </h2>
-                <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", margin: 0, lineHeight: 1.5 }}>
-                  Turn workspace audit logging on or off for this organization.
-                </p>
-              </div>
-            </div>
-
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <Badge variant={enabled ? "success" : "warning"} size="sm">
-                {enabled ? "On" : "Off"}
-              </Badge>
-              <Badge variant="neutral" size="sm">
-                Plan: {formatLabel(planName)}
-              </Badge>
-              {isBusy && (
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
-                  <LoadingSpinner size={14} />
-                  {loading ? "Syncing current setting" : "Saving change"}
-                </span>
-              )}
-            </div>
+    <SectionCard
+      icon={ShieldCheck}
+      title="Audit log recording"
+      description="Turn workspace audit logging on or off for this organization."
+      className="cc-audit-toggle"
+    >
+      <div className="cc-pref-row">
+        <div className="cc-pref-row-text">
+          <div className="cc-pref-row-title" id="cc-audit-toggle-label">
+            Record audit events
           </div>
-
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8, flexShrink: 0 }}>
-            <Toggle
-              checked={enabled}
-              onChange={handleToggle}
-              size="md"
-              disabled={isBusy || !canManage}
-              label="Record audit events"
-              className="cc-toggle-named"
-            />
-            <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", textAlign: "right" }}>
-              {enabled ? "Audit events are being recorded" : "Audit events are currently paused"}
-            </span>
-            {!canManage && (
-              <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", textAlign: "right", maxWidth: 220 }}>
-                Only owners and admins can change this.
-              </span>
-            )}
+          <div className="cc-pref-row-desc">
+            {isBusy
+              ? loading
+                ? "Syncing current setting…"
+                : "Saving change…"
+              : enabled
+                ? "Audit events are being recorded."
+                : "Audit events are currently paused."}
           </div>
+          {!canManage ? <div className="cc-pref-row-desc">Only owners and admins can change this.</div> : null}
         </div>
-
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "12px 14px",
-            borderRadius: 12,
-            background: "var(--cc-bg)",
-            border: "1px solid var(--cc-border)",
-          }}
-        >
-          <ShieldOff size={16} style={{ color: "var(--cc-text-muted)", flexShrink: 0 }} />
-          <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", lineHeight: 1.5 }}>
-            When disabled, new audit events are not written and the audit log view will be blocked until re-enabled.
-          </span>
-        </div>
-
-        {error && (
-          <Alert variant="danger" title="Audit log update failed" icon={<AlertCircle size={16} />}>
-            {error}
-          </Alert>
-        )}
+        <Switch
+          checked={enabled}
+          onChange={handleToggle}
+          disabled={isBusy || !canManage}
+          aria-labelledby="cc-audit-toggle-label"
+        />
       </div>
-    </Card>
+      <div className="cc-audit-toggle__meta">
+        <StatusBadge tone={enabled ? "success" : "warning"}>{enabled ? "On" : "Off"}</StatusBadge>
+        <StatusBadge tone="neutral">Plan: {formatLabel(planName)}</StatusBadge>
+      </div>
+      <Banner tone="info" placement="inline" icon={<ShieldOff />}>
+        When disabled, new audit events are not written and the audit log view is blocked until it is turned back on.
+      </Banner>
+      {error ? (
+        <Banner tone="danger" placement="inline" role="alert" title="Audit log update failed.">
+          {error}
+        </Banner>
+      ) : null}
+    </SectionCard>
   );
 }

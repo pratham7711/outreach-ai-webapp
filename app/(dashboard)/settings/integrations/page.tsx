@@ -15,7 +15,10 @@ export default async function IntegrationsPage() {
 
   return (
     <div className="rsp-page page-enter">
-      <PageHeader title="Integrations Settings" />
+      <PageHeader
+        title="Integrations"
+        subtitle="Accounts and channels this workspace connects to. Only owners and admins see this page."
+      />
       <div className="cc-settings-groups">
         <InstagramAccountCard />
         <IntegrationsClient />
