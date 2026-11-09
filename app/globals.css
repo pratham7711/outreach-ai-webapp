@@ -1459,6 +1459,7 @@
      #0CA30C measures 3.54:1 there on a card. Lighter, as Light's is darker. */
   --ui-success: #4CC94C;
   --ui-success-dim: rgba(12, 163, 12, 0.22);
+  --cc-success-fg: var(--ui-success);
   --ui-warning-dim: rgba(250, 178, 25, 0.22);
   --ui-danger-dim: rgba(208, 59, 59, 0.22);
   --ui-neutral-dim: rgba(255, 255, 255, 0.08);

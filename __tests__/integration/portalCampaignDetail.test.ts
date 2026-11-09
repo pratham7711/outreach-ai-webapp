@@ -13,7 +13,7 @@ jest.mock("@/lib/db", () => ({
   db: {
     campaign: { findUnique: jest.fn() },
     creator: { findFirst: jest.fn(), findMany: jest.fn(), findUnique: jest.fn() },
-    activation: { findFirst: jest.fn() },
+    activation: { findFirst: jest.fn(), count: jest.fn().mockResolvedValue(0) },
     post: { findMany: jest.fn(), count: jest.fn() },
     campaignRules: { findFirst: jest.fn() },
     postAnnotation: { findMany: jest.fn() },

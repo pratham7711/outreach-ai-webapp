@@ -14,9 +14,9 @@ test.describe('Lists', () => {
     // No seed data for lists — expect either empty state or some content
     const main = page.locator('main');
     await expect(main).toBeVisible({ timeout: 15000 });
-    // Page should have either list items or an empty state message
-    const hasContent = await page.getByText(/no lists|create|add/i).first().isVisible().catch(() => false);
-    const hasLists = await page.locator('table, [class*="card"]').first().isVisible().catch(() => false);
-    expect(hasContent || hasLists).toBeTruthy();
+    // Either the empty state or at least one list card.
+    await expect(
+      main.getByText(/no lists yet|no active lists/i).or(main.locator('.cc-list-card')).first(),
+    ).toBeVisible({ timeout: 15000 });
   });
 });
