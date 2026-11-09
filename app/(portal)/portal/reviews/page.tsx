@@ -150,7 +150,7 @@ export default function PortalReviewsPage() {
               <span
                 key={h}
                 style={{
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: 700,
                   textTransform: "uppercase",
                   letterSpacing: "0.06em",

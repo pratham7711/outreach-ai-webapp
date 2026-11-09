@@ -6,6 +6,8 @@ import { parseRatePerThousand, earnedMinorForPost } from "@/lib/marketplace/earn
 import { isPortalCampaignActionable } from "@/lib/marketplace/portalVisibility";
 import { isCampaignIdKey, resolvePortalAccess } from "@/lib/portal/campaignAccess";
 import { campaignDates } from "@/lib/portal/campaignDates";
+import { readSongSounds } from "@/lib/songs/songSounds";
+import { soundUrl } from "@/lib/platforms/tiktokSound";
 import { fieldMetricValue } from "@/lib/metricDisplay";
 import { boostCodesAllowed, loadCampaignRules, scheduledUntil } from "@/lib/campaigns/rules";
 import { ruleChecksFor } from "@/lib/portal/ruleChecks";
@@ -25,6 +27,7 @@ const CAMPAIGN_SELECT = {
   minPayoutMinor: true,
   submissionDeadline: true,
   marketplaceVisibility: true,
+  songId: true,
   deletedAt: true,
   org: { select: { name: true, logoUrl: true } },
   brief: { select: { content: true } },
@@ -137,10 +140,28 @@ export async function GET(
     /* The agency's checklist and submission rules (lib/campaigns/rules). A
        launch date still ahead holds the campaign closed to posts: whoever can
        already see it reads the brief, and submitting opens on that date. */
-    const [rules, boostCodes] = await Promise.all([
+    /* The release's sounds are what a music campaign's creators post with, so
+       the campaign screen links straight to them; the creator count is the
+       only figure about other creators the screen shows (no names). */
+    const [rules, boostCodes, songSounds, creatorCount] = await Promise.all([
       loadCampaignRules(campaign.id, campaign.orgId),
       boostCodesAllowed(campaign.id, campaign.orgId),
+      readSongSounds(campaign.orgId, campaign.songId),
+      db.activation.count({ where: { campaignId: campaign.id, deletedAt: null } }),
     ]);
+    const sounds = [songSounds.tiktok, songSounds.instagram].flatMap((snd) =>
+      snd
+        ? [{
+            platform: snd.platform,
+            title: snd.title,
+            artist: snd.artist,
+            url:
+              snd.platform === "INSTAGRAM"
+                ? `https://www.instagram.com/reels/audio/${encodeURIComponent(snd.tiktokSoundId)}/`
+                : soundUrl(snd.tiktokSoundId),
+          }]
+        : [],
+    );
     const opensAt = scheduledUntil(rules, Date.now());
     let ruleChecks: Awaited<ReturnType<typeof ruleChecksFor>> = [];
     let ruleChecksPlatform: string | null = null;
@@ -195,13 +216,22 @@ export async function GET(
         minPayoutMinor: campaign.minPayoutMinor,
         submissionDeadline: campaign.submissionDeadline,
         deadlinePassed,
+        /* A closed campaign takes no posts, so a post date on it is a
+           deadline nobody can meet: it read "Your post is due · in 2 days"
+           beside "This campaign isn't taking new posts". */
         dates: campaignDates({
           deliverableDueDate: activation?.deliverableDueDate ?? null,
           submissionDeadline: campaign.submissionDeadline,
           phases: campaign.phases,
-        }),
+        }).filter((d) => isPortalCampaignActionable(campaign.status) || (d.kind !== "post_due" && d.kind !== "submissions_close")),
         orgName: campaign.org.name,
         orgLogoUrl: campaign.org.logoUrl,
+        sounds,
+        creatorCount,
+        maxPostsPerAccount: rules?.maxPostsPerAccount ?? null,
+        minFollowers: rules?.minFollowers ?? null,
+        requiredHashtags: rules?.requiredHashtags ?? [],
+        requiredMentions: rules?.requiredMentions ?? [],
       },
       joined: !!activation,
       draft: activation

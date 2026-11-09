@@ -263,6 +263,7 @@ export default function CampaignRulesCard({
 
   return (
     <SectionCard
+      className={!draft && empty ? "cc-campaign-card-unset" : undefined}
       id="campaign-rules-card"
       title="Creator checklist & rules"
       action={
@@ -277,7 +278,7 @@ export default function CampaignRulesCard({
       {!draft ? (
         empty ? (
           <p className="cc-campaign-card-note">
-            Nothing set. Add what creators should and shouldn&apos;t do, example posts, the rules a submission must meet, a launch date or a view goal.
+            Nothing set yet.
           </p>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>

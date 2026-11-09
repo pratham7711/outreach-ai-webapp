@@ -1156,7 +1156,7 @@ function InstagramProfile({ data }: { data: Extract<ProfileResponse, { platform:
       {p.media.length ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(96px, 1fr))", gap: 6 }}>
           {p.media.map((m) => (
-            <a key={m.id} href={m.permalink ?? undefined} target="_blank" rel="noreferrer" style={{ textDecoration: "none", color: "var(--cc-text-muted)", fontSize: 11 }}>
+            <a key={m.id} href={m.permalink ?? undefined} target="_blank" rel="noreferrer" style={{ textDecoration: "none", color: "var(--cc-text-muted)", fontSize: 12 }}>
               {m.thumbnailUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={m.thumbnailUrl} alt="" style={{ width: "100%", aspectRatio: "1", objectFit: "cover", borderRadius: 6 }} />

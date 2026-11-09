@@ -19,9 +19,22 @@ describe("breakableFigure", () => {
   });
 
   it("is what MetricTile renders, so a narrow tile wraps rather than ellipsising", () => {
-    const { container } = render(<MetricTile label="Average engagement" value="2,400,000" />);
-    expect(container.textContent).toContain("2,400,000");
+    const { container } = render(<MetricTile label="Budget" value="$2,400,000" />);
+    expect(container.textContent).toContain("$2,400,000");
     expect(container.querySelectorAll("wbr")).toHaveLength(2);
     expect(container.querySelector(".truncate, .text-ellipsis")).toBeNull();
+  });
+});
+
+describe("MetricTile counts", () => {
+  it("shows a large count compact, with the exact figure as its tooltip", () => {
+    const { container } = render(<MetricTile label="Total views" value="15,302,857" />);
+    const fig = container.querySelector(".cc-metric-value");
+    expect(fig?.textContent).toBe("15.3M");
+    expect(fig?.getAttribute("title")).toBe("15,302,857");
+  });
+  it("leaves a count under 10,000 as it is", () => {
+    const { container } = render(<MetricTile label="Posts" value="9,999" />);
+    expect(container.querySelector(".cc-metric-value")?.textContent).toBe("9,999");
   });
 });

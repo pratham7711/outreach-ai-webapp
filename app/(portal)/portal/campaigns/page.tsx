@@ -203,7 +203,7 @@ function CampaignsScreen() {
   const openNotJoined = (open ?? []).filter((c) => !joinedIds.has(encodeURIComponent(c.slug)));
 
   return (
-    <Screen title="Campaigns" subtitle="The ones you're on, the ones you're invited to, and open ones anyone can join.">
+    <Screen title="Campaigns">
       <Tabs active={active} counts={{ joined: mine?.joined.length, invited: mine?.invited.length }} />
 
       <div role="tabpanel" aria-label={TABS.find((t) => t.key === active)?.label}>
@@ -286,7 +286,6 @@ function CampaignsScreen() {
               (openNotJoined.length === 0 ? (
                 <EmptyState
                   title="No open campaigns right now"
-                  body="New ones appear here as agencies publish them. Your joined campaigns are under Joined."
                   action={{ label: "See your campaigns", href: "/portal/campaigns?tab=joined" }}
                 />
               ) : (

@@ -130,7 +130,7 @@ export function IntegrationsClient() {
       <SectionCard
         icon={Plug}
         title="Connectors"
-        description="Connect with Slack to receive updates and notifications directly in your selected channel."
+        description="Post updates to a Slack channel"
       >
         {/* One row per connector, the reference's shape for this page. MEASURED
             2026-09-14 at desktop-1600: their card is 291,104 1293x142 with the
@@ -235,7 +235,7 @@ export function IntegrationsClient() {
         <SectionCard
           icon={BellRing}
           title="Events"
-          description="Org-wide: these post to the channel, not to anyone's email. Each switch saves as you flip it."
+          description="For the whole team. Saves as you flip."
         >
           <button
             type="button"

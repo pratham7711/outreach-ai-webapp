@@ -28,7 +28,7 @@ const CAMPAIGN_COLUMNS: DataTableColumn<Campaign>[] = [
       </>
     ),
   },
-  { key: "status", header: "Status", width: 140, render: (c) => <StatusBadge status={c.status} /> },
+  { key: "status", header: "Status", width: 140, phone: true, render: (c) => <StatusBadge status={c.status} /> },
   {
     key: "updated",
     header: "Last updated",

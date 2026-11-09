@@ -414,17 +414,11 @@ export default function TeamClient({
       <PageHeader
         title="Team"
         subtitle={
-          <>
-            Manage your team and invite new members
-            {seatText ? (
-              <>
-                {" · "}
-                <span className={seatsFull ? "cc-team-seats-full" : undefined} title={seatTitle}>
-                  {seatText}
-                </span>
-              </>
-            ) : null}
-          </>
+          seatText ? (
+            <span className={seatsFull ? "cc-team-seats-full" : undefined} title={seatTitle}>
+              {seatText}
+            </span>
+          ) : undefined
         }
         actions={
           canManage ? (

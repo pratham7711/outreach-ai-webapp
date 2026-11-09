@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
-import { MailWarning } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { MailWarning, X } from "lucide-react";
 import { Banner } from "@/components/ds/Banner";
-import { Button } from "@/components/ds/Button";
 
 /**
  * The only in-app route back to a confirmation mail that was missed.
@@ -13,8 +12,23 @@ import { Button } from "@/components/ds/Button";
  * product. The address is passed in from the server rather than typed, so this
  * cannot be used to aim mail at anybody else.
  */
+const DISMISSED_KEY = "cc-verify-banner-dismissed";
+
 export function VerifyEmailBanner({ email }: { email: string }) {
   const [state, setState] = useState<"idle" | "sending" | "sent" | "unavailable">("idle");
+  /* One line, closable for the rest of the browser session: it sat on every
+     page at 40px, 115px on a phone. It comes back on the next visit until the
+     address is confirmed. */
+  const [dismissed, setDismissed] = useState(false);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sessionStorage is client-only
+    if (sessionStorage.getItem(DISMISSED_KEY) === email) setDismissed(true);
+  }, [email]);
+  const dismiss = () => {
+    sessionStorage.setItem(DISMISSED_KEY, email);
+    setDismissed(true);
+  };
+  if (dismissed) return null;
 
   async function resend() {
     setState("sending");
@@ -45,13 +59,20 @@ export function VerifyEmailBanner({ email }: { email: string }) {
         ) : state === "unavailable" ? (
           <span className="cc-banner-title">Could not send right now. Try again shortly.</span>
         ) : (
-          <Button variant="secondary" size="sm" onClick={resend} disabled={state === "sending"}>
-            {state === "sending" ? "Sending…" : "Resend the link"}
-          </Button>
+          <span className="cc-verify-banner-actions">
+            <button type="button" className="cc-verify-banner-link" onClick={resend} disabled={state === "sending"}>
+              {state === "sending" ? "Sending…" : "Resend link"}
+            </button>
+            <button type="button" className="cc-verify-banner-close" onClick={dismiss} aria-label="Hide until next visit">
+              <X size={14} aria-hidden="true" />
+            </button>
+          </span>
         )
       }
+      className="cc-verify-banner"
     >
-      Confirm <strong>{email}</strong> so we know this address reaches you.
+      Confirm <strong className="cc-verify-banner-email">{email}</strong>
+      <span className="cc-verify-banner-tail"> so we know this address reaches you.</span>
     </Banner>
   );
 }

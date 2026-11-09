@@ -33,7 +33,7 @@ function TodoRow({ item }: { item: HomeTodo }) {
   const Icon = TODO_ICON[item.kind];
   const detail =
     item.kind === "connect"
-      ? "So your posts report their own numbers."
+      ? null
       : item.kind === "post_due"
         ? `${item.campaignTitle}${item.dueAt ? ` · due ${formatDay(item.dueAt)} (${relativeDay(item.dueAt)})` : ""}`
         : `${item.campaignTitle} · “${item.feedback}”`;
@@ -69,18 +69,20 @@ function TodoRow({ item }: { item: HomeTodo }) {
       </span>
       <span style={{ flex: 1, minWidth: 0 }}>
         <span style={{ display: "block", fontSize: 15, fontWeight: 600, color: "var(--cc-text)" }}>{item.title}</span>
-        <span
-          style={{
-            display: "block",
-            fontSize: 13,
-            color: "var(--cc-text-muted)",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {detail}
-        </span>
+        {detail && (
+          <span
+            style={{
+              display: "block",
+              fontSize: 13,
+              color: "var(--cc-text-muted)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {detail}
+          </span>
+        )}
       </span>
       <ChevronRight size={18} aria-hidden="true" style={{ color: "var(--cc-text-muted)", flexShrink: 0 }} />
     </Link>
@@ -120,7 +122,7 @@ export default function CreatorHomePage() {
   const firstName = data?.name?.split(/\s+/)[0];
 
   return (
-    <Screen title={firstName ? `Hi, ${firstName}` : "Home"} subtitle="What needs doing, then your campaigns.">
+    <Screen title={firstName ? `Hi, ${firstName}` : "Home"}>
       {failed && <LoadFailed what="your home screen" onRetry={load} />}
       {!data && !failed && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>

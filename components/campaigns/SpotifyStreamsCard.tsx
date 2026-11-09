@@ -3,7 +3,8 @@ import React from "react";
 import { Card } from "@pratham7711/ui";
 import { ResponsiveContainer, BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine, ReferenceArea } from "recharts";
 import { Disc3 } from "lucide-react";
-import { formatCompact, formatFull, fitFigureSize } from "@/lib/format";
+import { formatFull, fitFigureSize } from "@/lib/format";
+import { useAxisFigure } from "@/components/ds/ExactFigures";
 import type { CampaignStreams } from "@/lib/songs/streams";
 import { SeriesModeToggle } from "@/components/charts/SeriesModeToggle";
 import { fillUtcDays, rangeStartDay, type ChartRange, type SeriesMode } from "@/lib/charts/seriesMode";
@@ -100,7 +101,7 @@ function launchMarks(days: readonly { day: string }[], launch: CampaignLaunch | 
       x={launch.day}
       stroke={ink}
       strokeDasharray="4 3"
-      label={{ value: launchLabel(launch), position: "insideTopLeft", fontSize: 11, fill: ink }}
+      label={{ value: launchLabel(launch), position: "insideTopLeft", fontSize: 12, fill: ink }}
     />,
   ];
 }
@@ -123,6 +124,7 @@ function withMissedDays(daily: CampaignStreams["daily"]): { day: string; streams
 }
 
 function DailyBars({ daily, report, launch }: { daily: CampaignStreams["daily"]; report: boolean; launch?: CampaignLaunch | null }) {
+  const axisFigure = useAxisFigure();
   const tick = { fontSize: report ? 14 : 11, fill: report ? "var(--spr-audio-axis)" : "var(--cc-text-muted)" };
   const days = withMissedDays(daily);
   return (
@@ -134,9 +136,9 @@ function DailyBars({ daily, report, launch }: { daily: CampaignStreams["daily"];
           tick={tick}
           tickLine={false}
           axisLine={false}
-          width={report ? 56 : undefined}
+          width={report ? 56 : "auto"}
           allowDecimals={false}
-          tickFormatter={(v) => formatCompact(Number(v))}
+          tickFormatter={(v) => axisFigure(Number(v))}
         />
         <Tooltip
           formatter={(v: unknown) => [v === null || v === undefined ? "Not read" : formatFull(Number(v)), "Streams"]}
@@ -161,6 +163,7 @@ function DailyBars({ daily, report, launch }: { daily: CampaignStreams["daily"];
  * campaign's share of it.
  */
 function TotalLine({ plays, report, launch }: { plays: CampaignStreams["plays"]; report: boolean; launch?: CampaignLaunch | null }) {
+  const axisFigure = useAxisFigure();
   const tick = { fontSize: report ? 14 : 11, fill: report ? "var(--spr-audio-axis)" : "var(--cc-text-muted)" };
   const days = fillUtcDays<{ day: string; count: number | null }>(plays, (p) => p.day, (day) => ({ day, count: null }));
   return (
@@ -172,9 +175,9 @@ function TotalLine({ plays, report, launch }: { plays: CampaignStreams["plays"];
           tick={tick}
           tickLine={false}
           axisLine={false}
-          width={report ? 56 : undefined}
+          width={report ? 56 : "auto"}
           domain={["auto", "auto"]}
-          tickFormatter={(v) => formatCompact(Number(v))}
+          tickFormatter={(v) => axisFigure(Number(v))}
         />
         <Tooltip
           formatter={(v: unknown) => [v === null || v === undefined ? "Not read" : formatFull(Number(v)), "Total plays"]}

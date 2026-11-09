@@ -52,6 +52,9 @@ export default function DashboardClient(props: Props) {
   const hasPerformance = PERFORMANCE_WIDGETS.some((w) => widgets.includes(w));
 
   const [financials, setFinancials] = useState<PerformanceData | null>(null);
+  /* The same figures for the window of equal length just before, for the
+     tiles' change pills. Its failure only drops the pills. */
+  const [previous, setPrevious] = useState<PerformanceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [activeDays, setActiveDays] = useState(180);
@@ -68,12 +71,17 @@ export default function DashboardClient(props: Props) {
   const fetchFinancials = useCallback(async () => {
     setLoading(true);
     const { from, to } = rangeParams();
+    const prevFrom = new Date(new Date(from).getTime() - activeDays * 86_400_000).toISOString();
+    const prevReq = fetch(`/api/dashboard/financials?${new URLSearchParams({ from: prevFrom, to: from, granularity })}`)
+      .then((r) => (r.ok ? (r.json() as Promise<PerformanceData>) : null))
+      .catch(() => null);
     try {
       const res = await fetch(
         `/api/dashboard/financials?${new URLSearchParams({ from, to, granularity })}`
       );
       if (!res.ok) throw new Error(String(res.status));
       setFinancials(await res.json());
+      setPrevious(await prevReq);
       setLoadError(false);
     } catch {
       // Without this branch a failed request left `financials` null silently, and
@@ -84,7 +92,7 @@ export default function DashboardClient(props: Props) {
     } finally {
       setLoading(false);
     }
-  }, [rangeParams, granularity]);
+  }, [rangeParams, granularity, activeDays]);
 
   useEffect(() => {
     fetchFinancials();
@@ -101,17 +109,11 @@ export default function DashboardClient(props: Props) {
     [rangeParams]
   );
 
-  const activePreset = DATE_PRESETS.find((p) => p.days === activeDays);
 
   return (
     <div className="cc-page-content rsp-page">
       <PageHeader
         title="Dashboard"
-        subtitle={
-          activePreset
-            ? `Your totals for the last ${activePreset.label.replace("D", " days").replace("M", " months").replace("Y", " year")}.`
-            : "Your totals at a glance."
-        }
         actions={
           <>
             {/* A segmented control at the header's one control height: the
@@ -138,7 +140,7 @@ export default function DashboardClient(props: Props) {
               size="md"
               minWidth={120}
             />
-            <DsButton variant="secondary" iconLeft={<Download size={16} aria-hidden="true" />} onClick={() => handleExport("campaigns")} {...action("export-csv")}>
+            <DsButton variant="secondary" iconLeft={<Download size={16} aria-hidden="true" />} onClick={() => handleExport("campaigns")} className="cc-phone-hide" {...action("export-csv")}>
               Export CSV
             </DsButton>
           </>
@@ -173,6 +175,8 @@ export default function DashboardClient(props: Props) {
         {section === "overview" && (
           <OverviewSection
             financials={financials}
+            previous={previous}
+            periodDays={activeDays}
             loading={loading}
             widgets={widgets}
             fallbackCampaignCount={props.campaignCount}

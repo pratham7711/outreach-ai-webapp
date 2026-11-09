@@ -13,7 +13,7 @@ import { TrendingUp, AlertTriangle, BarChart3, PieChart as PieChartIcon, Trophy,
 import { CampaignHeaderActions } from "@/components/campaigns/CampaignHeaderActions";
 import { PlatformSplit, type PlatformSplitRow } from "@/components/charts/PlatformSplit";
 import { chartAxisTick, chartLegendProps, chartTooltipProps } from "@/components/charts/chartTheme";
-import { formatFull, formatCompact } from "@/lib/format";
+import { formatFull } from "@/lib/format";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import { AudioCard } from "@/components/campaigns/AudioCard";
 import { SpotifyStreamsCard } from "@/components/campaigns/SpotifyStreamsCard";
@@ -29,7 +29,7 @@ import { SeriesModeToggle } from "@/components/charts/SeriesModeToggle";
 import { nextPeriodBy, toChanges, withinRange, type ChartRange, type SeriesMode } from "@/lib/charts/seriesMode";
 import { ChartTabsCard, type ChartTab } from "@/components/charts/ChartTabsCard";
 import { launchLabel, type CampaignLaunch } from "@/lib/campaigns/launch";
-import { formatTick, niceAxis, stackExtent } from "@/lib/charts/axisTicks";
+import { fullAxisWidth, niceAxis, stackExtent } from "@/lib/charts/axisTicks";
 import { platformLabel } from "@/lib/platforms/registry";
 
 /* Taken from the report seam rather than restated here. It was restated, and the
@@ -87,7 +87,7 @@ function audioTab(key: string, label: string, audio: CampaignAudio, launch: Camp
   return {
     key,
     label,
-    figure: audio.uses === null ? null : `${audio.usesRounded ? "≈" : ""}${formatCompact(audio.uses)} videos`,
+    figure: audio.uses === null ? null : `${audio.usesRounded ? "≈" : ""}${formatFull(audio.uses)} videos`,
     render: (range) => <AudioCard audio={audio} range={range} launch={launch} embedded />,
   };
 }
@@ -266,7 +266,7 @@ function ViewsChart({
         x={launch.day}
         stroke="var(--cc-text-muted)"
         strokeDasharray="4 3"
-        label={{ value: launchLabel(launch), position: "insideTopLeft", fontSize: 11, fill: "var(--cc-text-muted)" }}
+        label={{ value: launchLabel(launch), position: "insideTopLeft", fontSize: 12, fill: "var(--cc-text-muted)" }}
       />
     ) : null;
 
@@ -284,10 +284,10 @@ function ViewsChart({
         </p>
       ) : enough && viewsMode === "daily" ? (
         <ChartFrame height={320}>
-          <BarChart data={shownDaily} stackOffset="sign" margin={{ top: 8, right: 24, left: -8, bottom: 0 }}>
+          <BarChart data={shownDaily} stackOffset="sign" margin={{ top: 8, right: 24, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--cc-border)" vertical={false} />
             <XAxis dataKey="date" ticks={dateAxis.ticks} interval="preserveStartEnd" minTickGap={14} tickFormatter={dateAxis.tick} tick={chartAxisTick} />
-            <YAxis tickFormatter={(v) => formatTick(Number(v))} tick={chartAxisTick} width={72} {...niceAxis(stackExtent(shownDaily, seriesKeys))} />
+            <YAxis tickFormatter={(v) => formatFull(Number(v))} tick={chartAxisTick} width={fullAxisWidth(niceAxis(stackExtent(shownDaily, seriesKeys)))} {...niceAxis(stackExtent(shownDaily, seriesKeys))} />
             <ReferenceLine y={0} stroke="var(--cc-border)" />
             {marker}
             <Tooltip
@@ -304,7 +304,7 @@ function ViewsChart({
         </ChartFrame>
       ) : enough ? (
         <ChartFrame height={320}>
-          <AreaChart data={shown} margin={{ top: 8, right: 24, left: -8, bottom: 0 }}>
+          <AreaChart data={shown} margin={{ top: 8, right: 24, left: 0, bottom: 0 }}>
             <defs>
               {activeSeries.map((s) => (
                 <linearGradient key={s.key} id={`perfGrad-${s.key}`} x1="0" y1="0" x2="0" y2="1">
@@ -315,7 +315,7 @@ function ViewsChart({
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--cc-border)" />
             <XAxis dataKey="date" ticks={dateAxis.ticks} interval="preserveStartEnd" minTickGap={14} tickFormatter={dateAxis.tick} tick={chartAxisTick} />
-            <YAxis tickFormatter={(v) => formatTick(Number(v))} tick={chartAxisTick} width={72} {...niceAxis(stackExtent(shown, seriesKeys))} />
+            <YAxis tickFormatter={(v) => formatFull(Number(v))} tick={chartAxisTick} width={fullAxisWidth(niceAxis(stackExtent(shown, seriesKeys)))} {...niceAxis(stackExtent(shown, seriesKeys))} />
             {marker}
             <Tooltip
               {...chartTooltipProps}
@@ -496,7 +496,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
           {
             key: "views",
             label: "Views",
-            figure: kpis.viewsKnownPosts === 0 && kpis.posts > 0 ? null : formatCompact(kpis.views),
+            figure: kpis.viewsKnownPosts === 0 && kpis.posts > 0 ? null : formatFull(kpis.views),
             hasData: timeSeries.length >= 3,
             render: (range, series) => (
               <ViewsChart timeSeries={timeSeries} activeSeries={activeSeries} range={range} launch={launch} mode={series.mode} onModeChange={series.setMode} />
@@ -512,7 +512,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
             ? [{
                 key: "spotify",
                 label: "Spotify",
-                figure: data.streams.totalPlays === null ? null : `${formatCompact(data.streams.totalPlays)} plays`,
+                figure: data.streams.totalPlays === null ? null : `${formatFull(data.streams.totalPlays)} plays`,
                 render: (range: ChartRange, series: { mode: SeriesMode; setMode: (m: SeriesMode) => void }) => (
                   <SpotifyStreamsCard streams={data.streams!} range={range} launch={launch} embedded mode={series.mode} onModeChange={series.setMode} />
                 ),

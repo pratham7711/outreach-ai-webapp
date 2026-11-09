@@ -51,7 +51,7 @@
   --radius: 0.75rem;
   --app-font: var(--font-satoshi), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 
-  --background: #F7F7F5;
+  --background: #FFFFFF;
   --foreground: #0B0B0B;
   --card: #FFFFFF;
   --card-foreground: #0B0B0B;
@@ -962,6 +962,9 @@
   --cc-z-drawer: 61;
   --cc-z-modal: 100;
   --cc-z-toast: 200;
+  /* Phone tab bar height; a table's floor width, set per table inline. */
+  --cc-phone-tabs-h: 3.5rem;
+  --cc-dt-min: 0px;
 
 
   /* FLUID, not stepped. Each clamp() below interpolates linearly between its
@@ -1202,9 +1205,10 @@
   --cc-tab-justify: flex-start;
   --cc-tab-icon-size: auto;
   --cc-tabs-mt: 0px;
-  --cc-t-9: 0.5625rem;
-  --cc-t-10: 0.625rem;
-  --cc-t-11: 0.6875rem;
+  /* Nothing on screen is set below 12px: 9, 10 and 11 resolve to 12. */
+  --cc-t-9: 0.75rem;
+  --cc-t-10: 0.75rem;
+  --cc-t-11: 0.75rem;
   --cc-t-12: 0.75rem;
   --cc-t-13: 0.8125rem;
   --cc-t-14: 0.875rem;
@@ -1514,7 +1518,7 @@
   --cc-success-border: color-mix(in srgb, var(--cc-success) 30%, transparent);
   /* Black-and-white theme: a starred row is marked by its filled star, not by a hue. */
   --cc-favorite: #0A0A0A;
-  --background: #F5F5F5;
+  --background: #FFFFFF;
   --foreground: #0A0A0A;
   --card: #FFFFFF;
   --card-foreground: #0A0A0A;
@@ -2059,7 +2063,7 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Group heading above each run of nav items. */
 .cc-nav-group-label {
-  font-size: 0.6875rem;
+  font-size: var(--cc-t-12);
   font-weight: 700;
   letter-spacing: 0.8px;
   text-transform: uppercase;
@@ -3007,20 +3011,565 @@ h1, h2, h3, h4, h5, h6 {
 @media (max-width: 480px) {
   .portal-boost-fields { grid-template-columns: 1fr; }
 }
-/* Below lg the portal's tab bar is fixed to the bottom (57px plus the safe
-   area, app/(portal)/portal/layout.tsx), so the Submit row sticks just above
-   it while its card is on screen. */
-@media (max-width: 1023.98px) {
-  .portal-submit-bar {
-    position: sticky;
-    bottom: calc(57px + env(safe-area-inset-bottom));
-    z-index: 5;
-    background: var(--cc-card);
-    padding: 10px 0;
-    margin-bottom: -10px;
-  }
+
+/* Creator portal campaign screen. Desktop: the brief and submissions in the
+   main column, the action, sound and dates on a rail that stays in view
+   (the layout Content Rewards and Clipster use). Below lg: one column with
+   the action first, and a bar above the tab bar that brings it back. */
+/* Campaign cover: a plain card, the song as a solid ink tile, a strong
+   title, and the campaign's facts as a row of stats. Colour stays in the
+   small accents, not in a band. */
+.portal-cover {
+  margin: 0 0 var(--cc-sp-7);
+  padding: 16px 24px 0;
+  border: 1px solid var(--cc-border);
+  border-radius: var(--cc-r-card);
+  background: var(--cc-card);
+}
+.portal-cover-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 32px;
+  margin-left: -6px;
+  padding: 0 8px 0 4px;
+  border-radius: var(--cc-r-control);
+  font-size: var(--cc-t-13);
+  font-weight: var(--cc-fw-strong);
+  color: var(--cc-text-muted);
+  text-decoration: none;
+}
+.portal-cover-back:hover {
+  color: var(--cc-text);
+  background: var(--cc-hover-bg);
+}
+.portal-cover-main {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-top: 10px;
+}
+.portal-cover-art {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  flex-shrink: 0;
+  border-radius: 14px;
+  background: var(--cc-text);
+  color: var(--cc-bg);
+  box-shadow: 0 6px 16px -8px color-mix(in oklab, var(--cc-text) 55%, transparent);
+}
+.portal-cover-text {
+  min-width: 0;
+}
+.portal-cover-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.portal-cover-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: var(--cc-r-pill);
+  background: var(--cc-hover-bg);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cc-text-muted);
+}
+.portal-cover-title {
+  margin: 0;
+  font-size: clamp(22px, 2.4vw, 28px);
+  font-weight: 750;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--cc-text);
+  text-wrap: balance;
+}
+.portal-cover-org {
+  margin: 4px 0 0;
+  font-size: var(--cc-t-14);
+  color: var(--cc-text-muted);
+}
+.portal-cover-facts {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 18px -24px 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--cc-border);
+}
+.portal-cover-facts > li {
+  flex: 1 1 160px;
+  border-right: 1px solid var(--cc-border);
+}
+.portal-cover-facts > li:last-child {
+  border-right: 0;
+}
+.portal-cover-fact {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 24px;
+  cursor: default;
+}
+.portal-cover-fact-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: var(--portal-soft);
+  color: var(--portal-ink);
+}
+.portal-cover-fact-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
+}
+.portal-cover-fact-text > strong {
+  font-size: 17px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--cc-text);
+}
+.portal-cover-fact-text > span {
+  font-size: 12px;
+  color: var(--cc-text-muted);
+}
+.portal-cover-fact:focus-visible {
+  outline: 2px solid var(--cc-text);
+  outline-offset: -4px;
+  border-radius: var(--cc-r-control);
+}
+@media (max-width: 767.98px) {
+  .portal-cover { padding: 12px 16px 0; }
+  .portal-cover-main { gap: 14px; }
+  .portal-cover-art { width: 56px; height: 56px; border-radius: 12px; }
+  .portal-cover-facts { margin: 14px -16px 0; }
+  .portal-cover-facts > li { flex-basis: 50%; }
+  .portal-cover-facts > li:nth-child(2n) { border-right: 0; }
+  .portal-cover-facts > li:nth-child(n + 3) { border-top: 1px solid var(--cc-border); }
+  .portal-cover-fact { padding: 12px 16px; }
 }
 
+[data-hue="violet"] { --portal-soft: var(--cc-landing-violet-soft); --portal-ink: var(--cc-landing-violet-ink); }
+[data-hue="blue"] { --portal-soft: var(--cc-landing-blue-soft); --portal-ink: var(--cc-landing-blue-ink); }
+[data-hue="pink"] { --portal-soft: var(--cc-landing-pink-soft); --portal-ink: var(--cc-landing-pink-ink); }
+[data-hue="green"] { --portal-soft: var(--cc-landing-green-soft); --portal-ink: var(--cc-landing-green-ink); }
+[data-hue="orange"] { --portal-soft: var(--cc-landing-orange-soft); --portal-ink: var(--cc-landing-orange-ink); }
+.portal-ttl {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cc-sp-4);
+}
+.portal-ttl-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: var(--cc-r-control);
+  background: var(--portal-soft);
+  color: var(--portal-ink);
+}
+.portal-sub-row {
+  display: flex;
+  align-items: center;
+  gap: var(--cc-sp-5);
+}
+.portal-sub-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: var(--cc-r-control);
+  background: var(--cc-hover-bg);
+}
+.portal-sub-body {
+  flex: 1;
+  min-width: 0;
+}
+.portal-sub-views {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+  padding-left: var(--cc-sp-4);
+  cursor: default;
+}
+.portal-sub-views > strong {
+  font-size: 18px;
+  font-weight: 750;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--cc-text);
+}
+.portal-sub-views > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--cc-text-muted);
+}
+.portal-sub-views > span > svg {
+  color: var(--cc-landing-green-ink);
+}
+.portal-row-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cc-sp-5);
+}
+.portal-row-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--cc-text);
+}
+.portal-campaign-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cc-sp-6);
+}
+.portal-campaign-rail,
+.portal-campaign-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cc-sp-6);
+  min-width: 0;
+}
+.portal-slot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cc-sp-6);
+  min-width: 0;
+}
+.portal-slot:empty {
+  display: none;
+}
+@media (max-width: 1023.98px) {
+  .portal-campaign-rail,
+  .portal-campaign-main {
+    display: contents;
+  }
+  .portal-slot-brief { order: 1; }
+  .portal-slot-sound { order: 2; }
+  .portal-slot-action { order: 4; }
+  .portal-action-anchor { scroll-margin-top: 88px; }
+  .portal-slot-draft { order: 5; }
+  .portal-slot-subs { order: 6; }
+  .portal-slot-dates { order: 7; }
+  .portal-slot-first { order: 0; }
+}
+@media (min-width: 1024px) {
+  .portal-campaign-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    align-items: start;
+  }
+  .portal-campaign-rail {
+    grid-column: 2;
+    grid-row: 1;
+    position: sticky;
+    top: var(--cc-sp-7);
+  }
+  .portal-campaign-main {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .portal-sticky-action {
+    display: none;
+  }
+}
+@media (max-width: 1023.98px) {
+  .portal-sticky-action {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: calc(57px + env(safe-area-inset-bottom));
+    z-index: 20;
+    padding: var(--cc-sp-4) var(--cc-sp-6);
+    background: var(--cc-card);
+    border-top: 1px solid var(--cc-border);
+  }
+  .portal-sticky-action[data-hidden] {
+    display: none;
+  }
+}
+.portal-sound {
+  display: flex;
+  align-items: center;
+  gap: var(--cc-sp-4);
+}
+.portal-sound-art {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: var(--cc-r-control);
+  background: var(--cc-text);
+  color: var(--cc-bg);
+}
+.portal-sound-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: var(--cc-t-13);
+  color: var(--cc-text-muted);
+}
+.portal-sound-text > strong {
+  font-size: var(--cc-t-14);
+  font-weight: var(--cc-fw-strong);
+  color: var(--cc-text);
+}
+.portal-sound-text {
+  flex: 1;
+}
+.portal-sound-links {
+  display: flex;
+  gap: var(--cc-sp-3);
+  flex-shrink: 0;
+}
+.portal-sound-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--cc-sp-2);
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 var(--cc-sp-4);
+  border: 1px solid var(--cc-border);
+  border-radius: var(--cc-r-control);
+  font-size: var(--cc-t-13);
+  font-weight: var(--cc-fw-strong);
+  color: var(--cc-text);
+  text-decoration: none;
+}
+.portal-tokens {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cc-sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.portal-token {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 36px;
+  padding: 0 10px 0 9px;
+  border: 0;
+  border-radius: var(--cc-r-control);
+  background: var(--portal-soft);
+  font: inherit;
+  font-size: var(--cc-t-13);
+  font-weight: 700;
+  color: var(--portal-ink);
+  cursor: pointer;
+  transition: box-shadow 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.portal-token:hover,
+.portal-token:focus-visible {
+  box-shadow: inset 0 0 0 1.5px var(--portal-ink);
+  outline: none;
+}
+.portal-token-act {
+  margin-left: 4px;
+  opacity: 0.7;
+}
+@media (max-width: 767.98px) {
+  .portal-token { min-height: 44px; }
+}
+
+/* Do / Don't as two tinted columns rather than one mixed list. */
+.portal-brief-after {
+  margin-top: var(--cc-sp-6);
+}
+.portal-dodont {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+.portal-dodont-col {
+  padding: 12px 14px 14px;
+  border-radius: 12px;
+}
+.portal-dodont-col[data-kind="do"] {
+  background: var(--cc-landing-green-soft);
+  --portal-ink: var(--cc-landing-green-ink);
+}
+.portal-dodont-col[data-kind="dont"] {
+  background: var(--cc-landing-pink-soft);
+  --portal-ink: var(--cc-landing-pink-ink);
+}
+.portal-dodont-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--cc-t-13);
+  font-weight: 750;
+  color: var(--portal-ink);
+}
+.portal-dodont-col ul {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.portal-dodont-col li {
+  display: flex;
+  gap: 8px;
+  font-size: var(--cc-t-14);
+  line-height: 1.45;
+  color: var(--cc-text);
+}
+.portal-dodont-col li > svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+  color: var(--portal-ink);
+}
+.portal-examples {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.portal-examples-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 2px;
+  font-size: var(--cc-t-13);
+  font-weight: 700;
+  color: var(--cc-text-muted);
+}
+.portal-example {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--cc-border);
+  border-radius: var(--cc-r-pill);
+  font-size: var(--cc-t-13);
+  font-weight: 650;
+  color: var(--cc-text);
+  text-decoration: none;
+}
+.portal-example:hover {
+  background: var(--cc-hover-bg);
+}
+
+/* Dates as a short timeline: done dates fade, the next one is lit. */
+.portal-timeline {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.portal-timeline > li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+}
+.portal-timeline > li + li::before {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: -9px;
+  height: 18px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--cc-border);
+}
+.portal-timeline-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--cc-landing-orange);
+  box-shadow: 0 0 0 3px var(--cc-landing-orange-soft);
+}
+.portal-timeline > li[data-past] .portal-timeline-dot {
+  background: var(--cc-border);
+  box-shadow: none;
+}
+.portal-timeline-label {
+  font-size: var(--cc-t-14);
+  color: var(--cc-text);
+}
+.portal-timeline > li[data-key] .portal-timeline-label {
+  font-weight: 700;
+}
+.portal-timeline > li[data-past] .portal-timeline-label {
+  color: var(--cc-text-muted);
+}
+.portal-timeline-when {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: var(--cc-t-14);
+  font-variant-numeric: tabular-nums;
+}
+.portal-timeline-rel {
+  font-size: 12px;
+  color: var(--cc-text-muted);
+}
+
+.portal-brief-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.portal-brief-more {
+  display: none;
+}
+@media (max-width: 767.98px) {
+  .portal-brief-body[data-folded] {
+    max-height: 150px;
+    overflow: hidden;
+    mask-image: linear-gradient(to bottom, black 55%, transparent);
+  }
+  .portal-brief-more {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    margin-top: var(--cc-sp-2);
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--cc-landing-violet-ink);
+    cursor: pointer;
+  }
+}
+.portal-brief-text { font-size: 14px; line-height: 1.6; color: var(--cc-text); display: flex; flex-direction: column; gap: 8px; }
+.portal-brief-text p, .portal-brief-text ul { margin: 0; }
+.portal-brief-text ul { padding-left: 20px; list-style: disc; display: flex; flex-direction: column; gap: 4px; }
+.portal-brief-text .portal-brief-h { font-weight: 600; }
 .cc-stage-label {
   font-size: var(--cc-stage-label-fs);
   color: var(--cc-stage-label-fg);
@@ -3100,14 +3649,25 @@ h1, h2, h3, h4, h5, h6 {
 .cc-metric-delta {
   display: inline-flex;
   align-items: center;
-  gap: var(--cc-sp-2);
+  align-self: flex-start;
+  gap: var(--cc-sp-1);
+  padding: var(--cc-sp-1) var(--cc-sp-3);
   font-size: var(--cc-t-12);
-  font-weight: 500;
+  font-weight: var(--cc-fw-strong);
+  font-variant-numeric: tabular-nums;
+  border-radius: 999px;
 }
-.cc-metric-delta[data-tone="good"] { color: var(--cc-success-fg); }
-.cc-metric-delta[data-tone="bad"] { color: var(--cc-danger-fg); }
-.cc-metric-delta[data-tone="flat"] { color: var(--cc-text-muted); }
+.cc-metric-delta[data-tone="good"] { color: var(--cc-success-fg); background: var(--cc-success-bg); }
+.cc-metric-delta[data-tone="bad"] { color: var(--cc-danger-fg); background: var(--cc-danger-bg); }
+.cc-metric-delta[data-tone="flat"] { color: var(--cc-text-muted); background: var(--cc-hover-bg); }
+.cc-metric-deltarow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cc-sp-1) var(--cc-sp-3);
+}
 .cc-metric-delta-label {
+  font-size: var(--cc-t-12);
   font-weight: 400;
   color: var(--cc-text-muted);
 }
@@ -3405,6 +3965,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .cc-dt {
   width: 100%;
+  min-width: var(--cc-dt-min);
   table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
@@ -4608,7 +5169,7 @@ a.ui-dropdown-item {
 
 .cc-tab-count {
   margin-left: var(--cc-sp-3);
-  font-size: 0.6875rem;
+  font-size: var(--cc-t-12);
   opacity: 0.8;
 }
 /* The count pill fits inside the label's line, so a tab with a count is as
@@ -7985,7 +8546,7 @@ label.cc-dialog-option[data-disabled]:hover { background: transparent; }
 }
 
 .cc-list-head {
-  font-size: 10px;
+  font-size: var(--cc-t-12);
   font-weight: 600;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -8726,7 +9287,7 @@ label.cc-dialog-option[data-disabled]:hover { background: transparent; }
   gap: 4px 10px;
   margin-top: auto;
   padding-top: 10px;
-  font-size: 11px;
+  font-size: var(--cc-t-12);
   line-height: 1.25;
   color: var(--spr-tile-ink-dim);
 }
@@ -8744,7 +9305,7 @@ label.cc-dialog-option[data-disabled]:hover { background: transparent; }
 }
 .spr-board-head {
   border-bottom: 1px solid var(--spr-hairline);
-  font-size: 11px;
+  font-size: var(--cc-t-12);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -11453,4 +12014,863 @@ a.cc-platform-chip[data-problem]:hover {
   .legal-prose { font-size: var(--cc-t-15); }
   .legal-prose code { white-space: normal; overflow-wrap: anywhere; }
   .legal-prose ul > li.legal-platform { grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 14px; }
+}
+
+/* ── Phone shell (under 768px) ───────────────────────────────────────────
+   One line on top (the page, or the way back to its parent, and the bell),
+   the main destinations in a tab bar at the bottom where a thumb reaches,
+   and everything else in the More drawer. The desktop bar's trail, search,
+   Feedback and account menu do not fit 390px and are not repeated here. */
+.cc-topbar-phone,
+.cc-phone-tabs,
+.cc-rail-feedback {
+  display: none;
+}
+@media (max-width: 767px) {
+  :root {
+    --cc-topbar-pad-start: var(--cc-page-pad-inline);
+    --cc-topbar-pad-end: var(--cc-sp-5);
+  }
+  .cc-rail-hamburger,
+  .cc-topbar-start,
+  .cc-topbar-feedback,
+  .cc-topbar-account {
+    display: none;
+  }
+  .cc-topbar-phone {
+    display: flex;
+    align-items: center;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .cc-topbar-phone-title {
+    overflow: hidden;
+    font-size: var(--cc-t-17);
+    font-weight: var(--cc-fw-strong);
+    color: var(--cc-text);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .cc-topbar-phone-back {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--cc-sp-1);
+    min-width: 0;
+    min-height: 44px;
+    margin-inline-start: calc(-1 * var(--cc-sp-3));
+    padding-inline-end: var(--cc-sp-4);
+    font-size: var(--cc-t-16);
+    font-weight: var(--cc-fw-medium);
+    color: var(--cc-text);
+    text-decoration: none;
+  }
+  .cc-topbar-phone-back > span {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .cc-phone-tabs {
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+    z-index: var(--cc-z-topbar);
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    padding-bottom: env(safe-area-inset-bottom);
+    background: var(--cc-card);
+    border-top: 1px solid var(--cc-border);
+  }
+  .cc-phone-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--cc-sp-1);
+    min-height: var(--cc-phone-tabs-h);
+    padding: var(--cc-sp-3) var(--cc-sp-1);
+    font-size: var(--cc-t-11);
+    font-weight: var(--cc-fw-medium);
+    line-height: 1.2;
+    color: var(--cc-text-muted);
+    text-decoration: none;
+    background: none;
+    border: 0;
+    cursor: pointer;
+  }
+  .cc-phone-tab[aria-current="page"],
+  .cc-phone-tab[data-active] {
+    color: var(--cc-primary);
+    font-weight: var(--cc-fw-strong);
+  }
+  .cc-phone-tab-icon {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+  #main-content {
+    padding-bottom: calc(var(--cc-phone-tabs-h) + env(safe-area-inset-bottom));
+  }
+  .cc-rail-feedback {
+    display: block;
+    margin-bottom: var(--cc-sp-3);
+  }
+  .cc-rail-feedback .cc-feedback-trigger {
+    justify-content: flex-start;
+    width: 100%;
+    padding-inline: var(--cc-sp-6);
+  }
+  .cc-rail-feedback .cc-feedback-trigger-label {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+  }
+
+  /* The bar names a top-level page, so its own h1 stays for screen readers
+     only; a detail page keeps its title block, and its back link moves up. */
+  .cc-shell-root .cc-page-band:not([data-has-back]) .cc-page-heading {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .cc-shell-root .cc-page-band[data-has-back] .cc-page-back {
+    display: none;
+  }
+  .cc-page-band {
+    padding-bottom: var(--cc-sp-6);
+  }
+  /* Header controls stay one row and scroll sideways rather than stacking
+     into three rows above the content. */
+  .cc-page-actions {
+    flex: 1 0 100%;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .cc-page-actions > * {
+    flex-shrink: 0;
+  }
+  .cc-phone-hide {
+    display: none;
+  }
+
+  .cc-metric-tile {
+    gap: var(--cc-sp-2);
+    padding: var(--cc-sp-6) var(--cc-sp-7);
+  }
+  .cc-metric-tile-head {
+    min-width: 0;
+  }
+  .cc-metric-label {
+    overflow: hidden;
+    font-size: var(--cc-t-12);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .cc-metric-value {
+    font-size: var(--cc-t-22);
+  }
+  .cc-metric-footer {
+    font-size: var(--cc-t-11);
+  }
+  /* The "?" definitions take a 44px touch box each; on a phone that box is
+     what cut "Active campaigns" to "Active campai...". They stay on desktop. */
+  .cc-metric-tile .cc-metric-hint,
+  .cc-section-card-head .cc-metric-hint {
+    display: none;
+  }
+
+  /* A card's control stays beside its title while the title keeps at least
+     12rem; past that it wraps under, so the title is never squeezed into a
+     one-word column. */
+  .cc-section-card-head {
+    flex-wrap: wrap;
+    gap: var(--cc-sp-4);
+    padding: var(--cc-sp-6) var(--cc-sp-7) var(--cc-sp-5);
+  }
+  .cc-section-card-heading {
+    flex: 1 1 12rem;
+  }
+}
+
+/* ── Tables on a phone: one card per row ──────────────────────────────────
+   A table scrolled sideways shows its first column and one other at 390px
+   (the campaign list showed names cut to "Paper Satellites — ..." and only
+   Budget). Each row becomes a card instead: the lead cell across the top,
+   the rest as labelled values three to a line, the row's actions in its top
+   right corner. Sorting moves to the page's own sort control. */
+@media (max-width: 767px) {
+  .cc-dt {
+    display: block;
+    min-width: 0;
+  }
+  .cc-dt > colgroup,
+  .cc-dt > thead {
+    display: none;
+  }
+  .cc-dt > tbody {
+    display: block;
+  }
+  .cc-dt > tbody > tr {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--cc-sp-5) var(--cc-sp-6);
+    padding: var(--cc-sp-6) var(--cc-sp-7);
+    background-color: var(--cc-card);
+    border-bottom: 1px solid var(--cc-border);
+  }
+  .cc-dt > tbody > tr:last-child {
+    border-bottom: 0;
+  }
+  .cc-dt > tbody > tr > td,
+  .cc-dt[data-sticky-first] > * > tr > :first-child {
+    position: static;
+    display: block;
+    min-width: 0;
+    padding: 0;
+    text-align: start;
+    background: none;
+    border: 0;
+    box-shadow: none;
+  }
+  .cc-dt > tbody > tr > td[data-align] {
+    text-align: start;
+  }
+  /* Grid or table is a desktop choice: on a phone both are cards. */
+  .cc-view-toggle {
+    display: none;
+  }
+  .cc-dt > tbody > tr > td[data-lead],
+  .cc-dt > tbody > tr.cc-dt-empty > td {
+    grid-column: 1 / -1;
+  }
+  /* A trend (line plus figures) needs the card's full width. */
+  .cc-dt > tbody > tr > td:has(> .cc-week-trend) {
+    grid-column: 1 / -1;
+    order: 1;
+  }
+  .cc-dt .cc-sound-trend {
+    justify-content: flex-start;
+  }
+  .cc-dt .cc-sound-trend .cc-week-trend-figures {
+    align-items: flex-start;
+    min-width: 0;
+  }
+  .cc-dt > tbody > tr > td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: var(--cc-sp-1);
+    font-size: var(--cc-t-11);
+    font-weight: var(--cc-fw-medium);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--cc-text-muted);
+  }
+  .cc-dt > tbody > tr:not(.cc-dt-empty) > td:not([data-label], [data-lead]):last-child {
+    position: absolute;
+    top: var(--cc-sp-4);
+    right: var(--cc-sp-4);
+  }
+  .cc-dt > tbody > tr:has(> td:not([data-label], [data-lead]):last-child) > td[data-lead] {
+    padding-inline-end: var(--cc-sp-11);
+  }
+
+  /* A row that opens a page is one line on a phone: what it is, the one
+     figure that matters, and a chevron. The rest is on the page it opens. */
+  .cc-dt[data-phone-list] > tbody > tr:not(.cc-dt-empty) {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0 var(--cc-sp-6);
+    padding: var(--cc-sp-6) var(--cc-sp-11) var(--cc-sp-6) var(--cc-sp-7);
+  }
+  /* The row is one surface on a phone: no per-cell hover tint, which a tap
+     leaves behind on touch screens. */
+  .cc-dt[data-phone-list] > tbody > tr:hover > td {
+    background: none;
+  }
+  .cc-dt[data-phone-list] > tbody > tr > td:not([data-lead], [data-phone]) {
+    display: none;
+  }
+  .cc-dt[data-phone-list] > tbody > tr > td[data-lead] {
+    grid-column: 1;
+    grid-row: 1;
+    padding-inline-end: 0;
+  }
+  .cc-dt[data-phone-list] > tbody > tr > td[data-phone] {
+    grid-column: 2;
+    grid-row: 1;
+    order: 0;
+    text-align: end;
+    font-variant-numeric: tabular-nums;
+  }
+  .cc-dt[data-phone-list] > tbody > tr > td[data-phone]::before {
+    display: none;
+  }
+  .cc-dt[data-phone-list] > tbody > tr > td[data-phone] {
+    font-size: var(--cc-t-14);
+    font-weight: var(--cc-fw-medium);
+  }
+  /* What the figure counts, under it: "268K" alone does not say. */
+  .cc-dt[data-phone-list] > tbody > tr > td[data-phone]::after {
+    content: attr(data-label);
+    display: block;
+    font-size: var(--cc-t-12);
+    font-weight: 400;
+    text-transform: lowercase;
+    color: var(--cc-text-muted);
+  }
+  .cc-dt[data-phone-list] > tbody > tr:not(.cc-dt-empty)::after {
+    content: "";
+    position: absolute;
+    top: calc(50% - 0.25rem);
+    right: var(--cc-sp-8);
+    width: 0.5rem;
+    height: 0.5rem;
+    border-top: 1.5px solid var(--cc-text-muted);
+    border-right: 1.5px solid var(--cc-text-muted);
+    transform: rotate(45deg);
+  }
+  .cc-dt[data-phone-list][data-phone-actions] > tbody > tr:not(.cc-dt-empty)::after {
+    content: none;
+  }
+  .cc-dt[data-phone-list][data-phone-actions] > tbody > tr:not(.cc-dt-empty) {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    padding-inline-end: var(--cc-sp-7);
+  }
+  .cc-dt[data-phone-list][data-phone-actions] > tbody > tr > td:not([data-label], [data-lead]):last-child {
+    display: block;
+    position: static;
+    grid-column: 3;
+  }
+  /* A row opened in place shows every cell, as the card it was before. */
+  .cc-dt[data-phone-list] > tbody > tr[data-open] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: var(--cc-sp-5);
+  }
+  .cc-dt[data-phone-list] > tbody > tr[data-open]::after {
+    top: var(--cc-sp-9);
+  }
+  /* A note under the one figure would push over the name; it shows once the row is open. */
+  .cc-dt[data-phone-list] > tbody > tr:not([data-open]) > td[data-phone] .cc-dt-sub {
+    display: none;
+  }
+  .cc-dt[data-phone-list] > tbody > tr[data-open] > td {
+    display: block;
+  }
+  .cc-dt[data-phone-list] > tbody > tr[data-open] > td:not([data-label], [data-lead]):last-child {
+    position: static;
+    grid-column: 1 / -1;
+  }
+  .cc-dt[data-phone-list] > tbody > tr[data-open]::after {
+    transform: rotate(135deg);
+  }
+  /* A row that opens a panel rather than a page: its button covers the row. */
+  .cc-dt[data-phone-list] .cc-dt-stretch::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+  }
+  .cc-dt[data-phone-list] .cc-sparkline,
+  .cc-dt[data-phone-list] .cc-phone-list-hide {
+    display: none;
+  }
+}
+
+/* The confirm-your-email strip: one line, a text link to resend and a close. */
+.cc-banner.cc-verify-banner {
+  align-items: center;
+  padding-block: var(--cc-sp-3);
+  font-size: var(--cc-t-13);
+}
+.cc-verify-banner .cc-banner-text {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.cc-verify-banner-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cc-sp-4);
+}
+.cc-verify-banner-link {
+  padding: 0;
+  font: inherit;
+  font-weight: var(--cc-fw-strong);
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.cc-verify-banner-link:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+.cc-verify-banner-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-radius: var(--cc-r-sm);
+  cursor: pointer;
+}
+.cc-verify-banner-close:hover {
+  background: var(--cc-hover-bg);
+}
+@media (max-width: 767px) {
+  .cc-verify-banner-email,
+  .cc-verify-banner-tail {
+    display: none;
+  }
+  .cc-verify-banner .cc-banner-text::after {
+    content: "your email.";
+  }
+}
+
+/* A list row's week: the 14-day line, then the gain and its change on the
+   week before. Only the pill is coloured: a line still rising while the gain
+   slows would read as a contradiction drawn in red. */
+.cc-week-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cc-sp-5);
+  color: var(--cc-text-muted);
+}
+.cc-week-trend-figures {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--cc-sp-1);
+  font-variant-numeric: tabular-nums;
+  color: var(--cc-text);
+}
+.cc-sparkline {
+  flex-shrink: 0;
+  overflow: visible;
+}
+/* Trackers' Uses cell: the same trend, right-aligned with its column. */
+.cc-sound-trend {
+  justify-content: flex-end;
+}
+.cc-sound-trend .cc-week-trend-figures {
+  align-items: flex-end;
+  min-width: 9.5rem;
+}
+.cc-sound-trend .cc-sound-change {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cc-sp-3);
+}
+
+/* Active filters, one removable chip each, under a list page's header.
+   Same look as the roster's own row (.cc-roster-active). */
+.cc-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cc-sp-3);
+  margin: calc(-1 * var(--cc-sp-4)) 0 var(--cc-sp-8);
+}
+.cc-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cc-sp-2);
+  max-width: 100%;
+  padding: var(--cc-sp-2) var(--cc-sp-4) var(--cc-sp-2) var(--cc-sp-5);
+  border: 1px solid var(--cc-border);
+  border-radius: 999px;
+  background: var(--cc-card);
+  color: var(--cc-text);
+  font-size: var(--cc-t-13);
+  cursor: pointer;
+}
+.cc-filter-chip:hover {
+  border-color: var(--cc-primary);
+}
+.cc-filter-chip > svg {
+  flex-shrink: 0;
+  color: var(--cc-text-muted);
+}
+.cc-filter-chip-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cc-filter-chips-clear {
+  padding: var(--cc-sp-2) var(--cc-sp-3);
+  border: 0;
+  background: none;
+  color: var(--cc-primary);
+  font-size: var(--cc-t-13);
+  font-weight: 600;
+  cursor: pointer;
+}
+.cc-filter-chip:focus-visible,
+.cc-filter-chips-clear:focus-visible {
+  outline: 2px solid var(--cc-primary);
+  outline-offset: 1px;
+}
+
+/* Creator Roster on a phone: one line per creator, like a phone list row --
+   picture, name and handle, followers, a chevron. Tags, accounts, price and
+   the rest are on the profile the row opens. */
+@media (max-width: 767.98px) {
+  .cc-roster-grid {
+    gap: 0;
+    overflow: hidden;
+    border: 1px solid var(--cc-border);
+    border-radius: var(--cc-r-card);
+    background: var(--cc-card);
+  }
+  :root .cc-roster-card > .ui-card,
+  :root .cc-roster-card > .ui-card:hover {
+    border: 0;
+    border-bottom: 1px solid var(--cc-border);
+    border-radius: 0;
+    box-shadow: none;
+  }
+  :root .cc-roster-card:last-child > .ui-card {
+    border-bottom: 0;
+  }
+  .cc-roster-card > .ui-card > .ui-card-body {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--cc-sp-6);
+    padding: var(--cc-sp-6) var(--cc-sp-7);
+  }
+  .cc-roster-card > .ui-card > .ui-card-body::after {
+    content: "";
+    flex-shrink: 0;
+    width: 0.5rem;
+    height: 0.5rem;
+    margin-inline: var(--cc-sp-2);
+    border-top: 1.5px solid var(--cc-text-muted);
+    border-right: 1.5px solid var(--cc-text-muted);
+    transform: rotate(45deg);
+  }
+  .cc-roster-check,
+  .cc-roster-card-meta,
+  .cc-roster-card-foot,
+  .cc-roster-card-age,
+  .cc-roster-card-stats > div:not(:first-child) {
+    display: none;
+  }
+  .cc-roster-card-stats > div:first-child {
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: flex-end;
+  }
+  .cc-roster-card-stats > div:first-child > dd {
+    font-size: var(--cc-t-14);
+    font-weight: var(--cc-fw-medium);
+  }
+  .cc-roster-card-stats > div:first-child > dt {
+    font-size: var(--cc-t-12);
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: lowercase;
+    color: var(--cc-text-muted);
+  }
+  .cc-roster-card-head {
+    flex: 1;
+    gap: var(--cc-sp-6);
+    padding-right: 0;
+  }
+  .cc-roster-card-head .ui-avatar {
+    width: 2.5rem;
+    height: 2.5rem;
+    font-size: var(--cc-t-14);
+  }
+  .cc-roster-card-link {
+    font-size: var(--cc-t-16);
+    font-weight: 600;
+  }
+  .cc-roster-card .cc-roster-card-stats {
+    display: block;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    text-align: end;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Number tiles on a phone: one block of figures with hairlines between them,
+   not a stack of boxed cards, and no "as of" line under each -- the help
+   page and the detail views carry when a number was read. */
+@media (max-width: 767.98px) {
+  .cc-tiles-balanced {
+    gap: 0;
+    overflow: hidden;
+    border: 1px solid var(--cc-border);
+    border-radius: var(--cc-r-card);
+    background: var(--cc-card);
+  }
+  .cc-tiles-balanced > .cc-metric-tile {
+    padding: var(--cc-sp-6) var(--cc-sp-7);
+    background: none;
+    border: 0;
+    border-radius: 0;
+    box-shadow: 1px 1px 0 0 var(--cc-border);
+  }
+  .cc-tiles-balanced .cc-metric-footer {
+    display: none;
+  }
+  .cc-tiles-balanced .cc-metric-value {
+    font-size: var(--cc-t-20);
+  }
+}
+
+/* A campaign's sections as a tab row on a phone (the rail on a desktop). */
+.cc-campaign-phone-tabs {
+  display: none;
+}
+@media (max-width: 767.98px) {
+  .cc-campaign-phone-tabs {
+    display: flex;
+    gap: var(--cc-sp-7);
+    margin: calc(-1 * var(--cc-sp-6)) calc(-1 * var(--cc-sp-7)) var(--cc-sp-7);
+    padding: 0 var(--cc-sp-7);
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-bottom: 1px solid var(--cc-border);
+    scrollbar-width: none;
+  }
+  .cc-campaign-phone-tab {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: var(--cc-sp-3);
+    min-height: 2.75rem;
+    margin-bottom: -1px;
+    border-bottom: 2px solid transparent;
+    color: var(--cc-text-muted);
+    font-size: var(--cc-t-14);
+    font-weight: var(--cc-fw-medium);
+    white-space: nowrap;
+    text-decoration: none;
+  }
+  .cc-campaign-phone-tab[aria-current="page"] {
+    border-bottom-color: var(--cc-text);
+    color: var(--cc-text);
+    font-weight: var(--cc-fw-strong);
+  }
+  .cc-campaign-phone-tab-count {
+    font-size: var(--cc-t-12);
+    color: var(--cc-text-muted);
+  }
+}
+
+.cc-posttile-stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.cc-posttile-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* Campaign overview on a phone: an unset brief or checklist is its title and
+   its Set up button, not a card of filler text; Tags with nothing to pick is
+   left out (its only action is in Settings). The composer drops the
+   keyboard hint, which a phone keyboard has no Shift key for. */
+@media (max-width: 767.98px) {
+  .cc-campaign-card-unset > .cc-section-card-body {
+    display: none;
+  }
+  .cc-campaign-card-unset > .cc-section-card-head {
+    border-bottom: 0;
+  }
+  .cc-activity-composer-foot > span {
+    display: none;
+  }
+  .cc-activity-composer-foot {
+    justify-content: flex-end;
+  }
+}
+
+/* A chip's remove button keeps the phone's 44px target but hands the extra
+   back through its margins, so the chip stays one text line tall. */
+@media (max-width: 767.98px) {
+  .cc-chip-x {
+    margin: -12px -8px -12px -10px;
+  }
+}
+
+/* Labelled filter rows stacked on a phone ("Range", "Platform"): one grid,
+   so every control starts at the same edge, after the widest label. */
+@media (max-width: 767.98px) {
+  .cc-filter-rows {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    align-items: center;
+    column-gap: var(--cc-sp-5);
+    row-gap: var(--cc-sp-4);
+  }
+  .cc-filter-rows > .cc-filter-row {
+    display: contents;
+  }
+  .cc-filter-rows .cc-segmented {
+    justify-self: start;
+    max-width: 100%;
+  }
+}
+
+/* A header fact that takes a line of its own on a phone, so the dots after
+   it never start a wrapped line ("· Instagram · Posted …"). */
+@media (max-width: 767.98px) {
+  .cc-page-meta > .cc-page-meta-line {
+    flex-basis: 100%;
+  }
+  .cc-page-meta > .cc-page-meta-line + *::before {
+    content: none;
+  }
+}
+
+/* A song's posts on a phone: who posted it and its views, one line each;
+   the creator's name covers the row, so a tap opens the post. */
+@media (max-width: 767.98px) {
+  .cc-pat > thead {
+    display: none;
+  }
+  .cc-pat > tbody > tr {
+    position: relative;
+  }
+  .cc-pat > tbody > tr > td {
+    padding: var(--cc-sp-5) var(--cc-sp-2);
+  }
+  .cc-pat > tbody > tr > td:not(:first-child, :nth-child(5)) {
+    display: none;
+  }
+  .cc-pat > tbody > tr > td:nth-child(5)::after {
+    content: "views";
+    display: block;
+    font-size: var(--cc-t-11);
+    font-weight: var(--cc-fw-subtitle);
+    color: var(--cc-text-muted);
+  }
+  .cc-pat .cc-pat-open::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+  }
+}
+
+/* Posts on a phone: two posters a row, each with its creator and views. The
+   other counters are on the post's own page, and the toolbar's pickers sit
+   on one row that scrolls sideways instead of three stacked rows. */
+@media (max-width: 767.98px) {
+  .cc-poststab-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--cc-sp-4);
+  }
+  .cc-posttile-stat:not([data-stat="views"]),
+  .cc-posttile-foot,
+  .cc-posttile-platform-name,
+  .cc-poststab-asof {
+    display: none;
+  }
+}
+
+/* A list's sort and filter controls on a phone: one row that scrolls
+   sideways, not two or three stacked rows above the list. */
+@media (max-width: 767.98px) {
+  .cc-toolbar-end {
+    flex: 1 0 100%;
+    flex-wrap: nowrap;
+    margin-left: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .cc-toolbar-end > * {
+    flex-shrink: 0;
+  }
+}
+
+/* A top-level agency page on a phone (the creator portal's bar names no
+   page, so its titles stay): the bar already names it, so its band holds
+   only the page's buttons. The hidden title block leaves the flow, taking the
+   12px gap it left above them, and the page starts closer to the bar. */
+@media (max-width: 767.98px) {
+  :root {
+    --cc-page-pad-top: var(--cc-sp-6);
+  }
+  .cc-shell-root .cc-page-band:not([data-has-back]) > .cc-page-lead:not(:has(.cc-page-leading)) {
+    position: absolute;
+  }
+}
+
+/* My accounts: a platform card's Connect row, indented under the title on
+   wider screens; on a phone it uses the full card width. */
+.portal-acc-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--cc-border);
+  padding: 12px var(--cc-card-inset) 10px calc(var(--cc-card-inset) + 52px);
+}
+@media (max-width: 767.98px) {
+  .portal-acc-actions {
+    padding-left: var(--cc-card-inset);
+  }
+}
+
+/* fork-S settings declutter */
+.cc-sx-hub {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+  gap: var(--cc-sp-3);
+}
+.cc-sx-hub-row {
+  display: flex;
+  align-items: center;
+  gap: var(--cc-sp-4);
+  min-height: 64px;
+  padding: var(--cc-sp-4) var(--cc-sp-5);
+  border: 1px solid var(--cc-border);
+  border-radius: var(--cc-r-card);
+  background: var(--cc-card);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+.cc-sx-hub-row:hover {
+  border-color: color-mix(in srgb, var(--cc-primary) 35%, var(--cc-border));
+  background: var(--cc-hover-bg);
+}
+.cc-sx-hub-row:focus-visible { outline: 2px solid var(--cc-primary); outline-offset: 2px; }
+.cc-sx-hub-icon {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--cc-hover-bg);
+  color: var(--cc-text);
+}
+.cc-sx-hub-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cc-sx-hub-title { font-size: var(--cc-fs-body); font-weight: var(--cc-fw-strong); color: var(--cc-text); }
+.cc-sx-hub-desc { font-size: var(--cc-fs-body-sm); color: var(--cc-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cc-sx-hub-chev { flex: none; color: var(--cc-text-muted); }
+@media (max-width: 767.98px) {
+  .cc-sx-hub { grid-template-columns: 1fr; gap: var(--cc-sp-2); }
+  .cc-sx-hub-row { padding: var(--cc-sp-3) var(--cc-sp-4); min-height: 56px; }
 }

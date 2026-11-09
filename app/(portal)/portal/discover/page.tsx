@@ -200,7 +200,7 @@ export default function PortalDiscoverPage() {
                     <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>{c.title}</h3>
                     <p style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{c.org.name}</p>
                   </div>
-                  <Badge variant={TYPE_BADGE[c.campaignType] ?? "neutral"} style={{ fontSize: 10 }}>
+                  <Badge variant={TYPE_BADGE[c.campaignType] ?? "neutral"} style={{ fontSize: 12 }}>
                     {c.campaignType.replace(/_/g, " ")}
                   </Badge>
                 </div>

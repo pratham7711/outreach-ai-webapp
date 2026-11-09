@@ -109,7 +109,7 @@ export default function PortalProposalsPage() {
             gap: 12, padding: "12px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",
           }}>
             {["Campaign", "Org", "Budget", "Your Rate", "Status", "Date"].map(h => (
-              <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
+              <span key={h} style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
             ))}
           </div>
           {proposals.map((p, i) => (

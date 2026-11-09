@@ -22,6 +22,7 @@ import RosterTable, { ROSTER_COLUMNS, ROSTER_DEFAULT_COLUMNS, type RosterRow } f
 import { readCampaignSection } from "@/lib/campaignSections";
 import { SHOW_MONEY } from "@/lib/moneyUi";
 import { useCampaignNavPublish } from "@/components/providers/CampaignNavProvider";
+import { CampaignPhoneTabs } from "@/components/CampaignPhoneTabs";
 import { CampaignAudioSetup } from "@/components/campaigns/CampaignAudioSetup";
 import { CampaignSwitchesCard } from "./CampaignSwitchesCard";
 import { CampaignPictureCard } from "@/components/campaigns/CampaignPictureCard";
@@ -37,7 +38,7 @@ import {
   ClipboardList, Wallet, Trash2, AlertTriangle, UserPlus,
 } from "lucide-react";
 import { toast } from "sonner";
-import { formatCompact, formatDateAbs, formatFull, formatFullCurrency } from "@/lib/format";
+import { formatDateAbs, formatFull, formatFullCurrency } from "@/lib/format";
 import { asOfCaption } from "@/lib/dataAge";
 import { CreatorSelect } from "@/components/CreatorSelect";
 import { TOP_CREATOR_BARS, type CampaignPostSummary } from "@/lib/campaigns/detailSummary";
@@ -236,7 +237,7 @@ function CampaignTagsCard({
   const noDefs = defs !== null && defs.length === 0;
 
   return (
-    <SectionCard title="Tags">
+    <SectionCard title="Tags" className={noDefs && selected.length === 0 ? "cc-phone-hide" : undefined}>
       {selected.length === 0 ? (
         /* One line, not two: the empty card used to say "No tags added yet!"
            and then, under it, that no tags were defined either. */
@@ -244,7 +245,7 @@ function CampaignTagsCard({
           No tags yet.
           {noDefs ? (
             <>
-              {" "}Define campaign tags in <Link href="/settings/general">Settings → General</Link>.
+              {" "}<Link href="/settings/general">Add tags</Link>
             </>
           ) : null}
         </p>
@@ -745,6 +746,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           </>
         }
       />
+      <CampaignPhoneTabs campaignId={id} />
 
       {/* No longer a tabpanel: the control that opens this is a link in the
           rail, so role="tabpanel" would name a tab that does not exist and
@@ -785,7 +787,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                   goal ? (
                     <>
                       <span data-testid="view-goal">
-                        {formatCompact(summary.views)} of {formatCompact(goal.target)} goal ({goal.pct}%)
+                        {formatFull(summary.views)} of {formatFull(goal.target)} goal ({goal.pct}%)
                       </span>
                       {viewsNote ? <><br />{viewsNote}</> : null}
                     </>

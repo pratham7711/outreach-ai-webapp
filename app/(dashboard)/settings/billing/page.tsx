@@ -88,10 +88,7 @@ export default async function BillingPage() {
 
   return (
     <div className="rsp-page page-enter">
-      <PageHeader
-        title="Billing"
-        subtitle="Review your current plan, usage limits, and enabled capabilities."
-      />
+      <PageHeader title="Billing" />
 
       <div
         style={{

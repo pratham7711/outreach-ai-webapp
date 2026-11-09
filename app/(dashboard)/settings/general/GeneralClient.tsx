@@ -393,10 +393,7 @@ function TaxonomyList({
 export default function GeneralClient({ canManage }: { canManage: boolean }) {
   return (
     <div className="rsp-page page-enter">
-      <PageHeader
-        title="General"
-        subtitle="The tags, flags, deliverable types and statuses this workspace uses."
-      />
+      <PageHeader title="General" />
 
       {/* The stack, not the individual cards, is the card on the reference.
           MEASURED at desktop-1600: theirs paints ONE white panel 291,104
@@ -411,42 +408,42 @@ export default function GeneralClient({ canManage }: { canManage: boolean }) {
           canManage={canManage}
           kind="creator-tags"
           title="Creator tags"
-          description="Categorise and label creators by their general attributes — the niche they work in, the audience they reach, the kind of brief they suit."
+          description="Niche, audience, brief fit"
           singular="Creator tag"
         />
         <TaxonomyList
           canManage={canManage}
           kind="creator-flags"
           title="Creator flags"
-          description="Highlight a creator's current status or a standing attribute — fast turnaround, strong view rates, on a break, not responding. Flags show wherever the creator is listed."
+          description="Shown wherever the creator is listed"
           singular="Creator flag"
         />
         <TaxonomyList
           canManage={canManage}
           kind="campaign-tags"
           title="Campaign tags"
-          description="Categorise and label campaigns, for example “Fashion” or “Q4 Launch”, and filter on them."
+          description="e.g. Fashion, Q4 Launch"
           singular="Campaign tag"
         />
         <TaxonomyList
           canManage={canManage}
           kind="deliverable-types"
           title="Deliverable types"
-          description="The deliverables campaigns can ask for, such as an Instagram Reel or a TikTok song promo."
+          description="What a campaign can ask for"
           singular="Deliverable type"
         />
         <TaxonomyList
           canManage={canManage}
           kind="campaign-statuses"
           title="Campaign statuses"
-          description="Your own names for where a campaign stands. Each one sits in a fixed group, and the group is what lists and reports filter on."
+          description="Your names, each in a fixed group"
           singular="Campaign status"
         />
         <TaxonomyList
           canManage={canManage}
           kind="activation-statuses"
           title="Activation statuses"
-          description="Your own names for where a single creator's activation stands within a campaign."
+          description="Where a creator stands in a campaign"
           singular="Activation status"
         />
       </div>

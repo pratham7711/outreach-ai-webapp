@@ -203,7 +203,7 @@ const CreatorCard = memo(function CreatorCard({
           </div>
         </div>
         <div className="cc-roster-card-meta">
-          <PlatformChips links={accountsOf(creator)} max={4} compact />
+          <PlatformChips links={accountsOf(creator)} max={4} compact counts={accountsOf(creator).length > 1} />
           <TagList tags={creator.tags} />
         </div>
         {cardStats.length > 0 && (
@@ -660,8 +660,15 @@ export default function CreatorsClient({
         key: stat.key,
         label: stat.label,
         empty: (c: Creator) => isUnknownMetric(stat.read(c)),
-        render: (c: Creator) => <MetricFigure value={stat.read(c)} format={formatNumber} breakable />,
-        age: (c: Creator) => <FigureAge value={stat.read(c)} time={stat.at(c)} />,
+        render: (c: Creator) => (
+          <span title={isUnknownMetric(stat.read(c)) ? undefined : ageTitle(stat.at(c))}>
+            <MetricFigure value={stat.read(c)} format={formatNumber} breakable />
+          </span>
+        ),
+        age: (c: Creator) => {
+          const time = stat.at(c);
+          return time?.at && !isUnknownMetric(stat.read(c)) && isStale(time.at, time.field) ? <FigureAge value={stat.read(c)} time={time} /> : null;
+        },
       })),
       ...(hasPrice
         ? [{ key: "price", label: "Price", empty: (c: Creator) => !c.rate, render: (c: Creator) => (c.rate ? formatFullCurrency(c.rate) : "—") }]
@@ -693,7 +700,6 @@ export default function CreatorsClient({
     <div className="rsp-page">
       <PageHeader
         title="Creator Roster"
-        subtitle="Every creator your agency works with, in one place"
         /* The platform tabs close the header band, above the toolbar; each
            tab's count says how many creators it holds. */
         tabs={

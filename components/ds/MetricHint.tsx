@@ -43,7 +43,7 @@ export function MetricHint({
         closeDelay={120}
         aria-label={`What does ${name} mean?`}
         className={[
-          "inline-flex size-4 shrink-0 items-center justify-center rounded-full",
+          "cc-metric-hint inline-flex size-4 shrink-0 items-center justify-center rounded-full",
           "text-muted-foreground/70 transition-colors",
           "hover:text-foreground focus-visible:text-foreground",
           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
@@ -58,7 +58,7 @@ export function MetricHint({
         </PopoverTitle>
         <PopoverDescription className="text-[13px] leading-snug">{body}</PopoverDescription>
         {calculation ? (
-          <p className="border-t border-border pt-1.5 text-[11px] leading-snug text-muted-foreground">
+          <p className="border-t border-border pt-1.5 text-xs leading-snug text-muted-foreground">
             {calculation}
           </p>
         ) : null}

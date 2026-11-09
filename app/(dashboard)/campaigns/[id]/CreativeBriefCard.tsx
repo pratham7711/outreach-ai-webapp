@@ -81,6 +81,7 @@ export default function CreativeBriefCard({
 
   return (
     <SectionCard
+      className={!editing && !saved ? "cc-campaign-card-unset" : undefined}
       title="Creative brief"
       action={
         canEdit && !editing ? (

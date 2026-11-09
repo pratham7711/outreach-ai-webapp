@@ -18,7 +18,7 @@ import { formatCount, formatDay } from "@/components/portal/app/ui";
 
 export type DayValue = { day: string; value: number };
 
-const tick = { fontSize: 11, fill: "var(--cc-text-muted)" };
+const tick = { fontSize: 12, fill: "var(--cc-text-muted)" };
 
 const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
 

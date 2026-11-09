@@ -2,7 +2,7 @@
 import { Badge } from "@pratham7711/ui";
 import { Modal, ModalNotice } from "@/components/ds/Modal";
 import { Button } from "@/components/ds/Button";
-import { AlertTriangle, Music, RefreshCw } from "lucide-react";
+import { AlertTriangle, Music, RefreshCw, Trash2 } from "lucide-react";
 import { formatDateAbs, timeAgo, formatFull } from "@/lib/format";
 import type { ChartGranularity } from "@/lib/trackers/granularity";
 import { AudioUsesChart, VelocityChart, type SeriesPoint } from "./SoundCharts";
@@ -46,6 +46,7 @@ export function SoundDetailModal({
   onClose,
   onRefresh,
   refreshing = false,
+  onRemove,
 }: {
   sound: DetailSound | null;
   open: boolean;
@@ -55,6 +56,9 @@ export function SoundDetailModal({
      here and seeing the row behind still stale would read as a failed refresh. */
   onRefresh?: (soundId: string) => void;
   refreshing?: boolean;
+  /* The row's menu has Remove too, but a phone list row has no menu: this is
+     where a phone reaches it. */
+  onRemove?: (soundId: string) => void;
 }) {
   if (!sound) return null;
   const stale = sound.health !== "live";
@@ -200,6 +204,13 @@ export function SoundDetailModal({
         <span>{sound.chartGranularity} granularity</span>
         {sound.lastReadAt ? <span>last read {timeAgo(sound.lastReadAt)}</span> : null}
       </p>
+      {onRemove ? (
+        <div style={{ marginTop: 16 }}>
+          <Button variant="ghost" size="sm" style={{ color: "var(--cc-danger-fg)" }} onClick={() => onRemove(sound.id)} iconLeft={<Trash2 size={14} aria-hidden="true" />}>
+            Remove tracker
+          </Button>
+        </div>
+      ) : null}
     </Modal>
   );
 }

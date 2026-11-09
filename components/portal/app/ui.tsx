@@ -22,8 +22,12 @@ import { StatusBadge } from "@/components/ds/StatusBadge";
 export { platformLabel } from "@/lib/format";
 
 export function formatCount(n: number | null | undefined): string {
+  return formatExact(n);
+}
+
+export function formatExact(n: number | null | undefined): string {
   if (n === null || n === undefined) return "—";
-  return new Intl.NumberFormat("en-US", { notation: n >= 10_000 ? "compact" : "standard", maximumFractionDigits: 1 }).format(n);
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(n);
 }
 
 export function formatDay(iso: string | null | undefined, opts: { utc?: boolean } = {}): string {
@@ -62,6 +66,7 @@ export function Screen({
   back,
   children,
   maxWidth = 760,
+  hero,
 }: {
   title: string;
   subtitle?: ReactNode;
@@ -74,10 +79,12 @@ export function Screen({
   children: ReactNode;
   /** A screen of dashboards (My stats) takes the desktop's width; the rest read as one column. */
   maxWidth?: number;
+  /** Replaces the plain page header with the screen's own (a campaign's cover). */
+  hero?: ReactNode;
 }) {
   return (
     <main style={{ maxWidth, margin: "0 auto", padding: "20px 16px 24px" }}>
-      <PageHeader title={title} subtitle={subtitle} actions={action} badges={badges} back={back} />
+      {hero ?? <PageHeader title={title} subtitle={subtitle} actions={action} badges={badges} back={back} />}
       {children}
     </main>
   );

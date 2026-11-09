@@ -56,7 +56,7 @@ function ProfileForm({ initial }: { initial: { name: string; bio: string; email:
       onSubmit={save}
       onCancel={() => setForm(saved)}
     >
-      <Field label="Email" helper="The address you log in with.">
+      <Field label="Email">
         <Input id="acct-email" value={initial.email} readOnly />
       </Field>
       <Field label="Name" required error={dirty && nameMissing ? "Your name can't be empty" : undefined}>
@@ -121,19 +121,41 @@ function PasswordForm() {
       <Field label="New password" required helper="At least 8 characters.">
         <Input id="pw-new" type="password" value={next} onChange={(e) => setNext(e.target.value)} autoComplete="new-password" />
       </Field>
-      <p className="cc-form-help" style={{ margin: 0 }}>
-        Forgot it? There is no reset email. Write to{" "}
-        <a href={`mailto:${BRAND.contactEmail}`} style={{ color: "var(--cc-primary)", textDecoration: "underline" }}>
-          {BRAND.contactEmail}
-        </a>{" "}
-        from the address you sign in with.
-      </p>
+      <ForgotPassword />
     </SettingsForm>
+  );
+}
+
+function ForgotPassword() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div>
+      <button
+        type="button"
+        className="rsp-touch"
+        aria-expanded={open}
+        aria-controls="forgot-password"
+        onClick={() => setOpen((o) => !o)}
+        style={{ padding: 0, border: "none", background: "none", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "var(--cc-primary)" }}
+      >
+        Forgot your password?
+      </button>
+      {open && (
+        <p id="forgot-password" className="cc-form-help" style={{ margin: "6px 0 0" }}>
+          Email{" "}
+          <a href={`mailto:${BRAND.contactEmail}`} style={{ color: "var(--cc-primary)", textDecoration: "underline" }}>
+            {BRAND.contactEmail}
+          </a>{" "}
+          from the address you sign in with.
+        </p>
+      )}
+    </div>
   );
 }
 
 function DeleteAccount() {
   const router = useRouter();
+  const [open, setOpen] = useState(false);
   const [password, setPassword] = useState("");
   const [typed, setTyped] = useState("");
   const [deleting, setDeleting] = useState(false);
@@ -162,22 +184,33 @@ function DeleteAccount() {
     }
   };
 
+  if (!open) {
+    return (
+      <SectionCard
+        icon={Trash2}
+        title="Delete my account and data"
+        padded={false}
+        action={
+          <Button variant="secondary" onClick={() => setOpen(true)}>
+            Delete…
+          </Button>
+        }
+      >
+        {null}
+      </SectionCard>
+    );
+  }
+
   return (
     <SectionCard icon={Trash2} title="Delete my account and data" padded={false} className="cc-settings-card">
       <form onSubmit={remove} className="cc-settings-form">
         <div className="cc-settings-form__fields">
-          <div className="cc-prose">
-            <p>This deletes, straight away:</p>
-            <ul>
-              <li>your login,</li>
-              <li>every account you connected, and our access to it,</li>
-              <li>the numbers we read from those accounts.</li>
-            </ul>
-            <p>
-              Posts you submitted to a campaign stay with that campaign&apos;s agency, which holds its own records. See{" "}
-              <a href="/data-deletion">how deletion works</a>.
-            </p>
-          </div>
+          <p className="cc-form-help" style={{ margin: 0 }}>
+            Deletes your login, connected accounts and their numbers, straight away. Campaign posts stay with the agency.{" "}
+            <a href="/data-deletion" style={{ color: "var(--cc-primary)", textDecoration: "underline" }}>
+              How deletion works
+            </a>
+          </p>
           <Field label="Your password" required>
             <Input id="del-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
           </Field>
@@ -186,6 +219,9 @@ function DeleteAccount() {
           </Field>
         </div>
         <div className="cc-settings-form__foot">
+          <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
           <Button type="submit" variant="danger" loading={deleting} disabled={!password || typed !== "DELETE"}>
             Delete my account and data
           </Button>
@@ -231,20 +267,24 @@ export default function AccountPage() {
   };
 
   return (
-    <Screen title="Account" subtitle="Your profile, password, and your data.">
+    <Screen title="Account">
       {failed && <LoadFailed what="your account" onRetry={load} />}
       {!me && !failed && <SkeletonBlock height={220} />}
       {me && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <ProfileForm initial={me} />
           <PasswordForm />
-          <SectionCard icon={LogOut} title="Log out">
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-              <p style={{ fontSize: 14, color: "var(--cc-text-muted)", margin: 0 }}>Logs you out on this device.</p>
+          <SectionCard
+            icon={LogOut}
+            title="Log out"
+            padded={false}
+            action={
               <Button variant="secondary" onClick={logout}>
                 Log out
               </Button>
-            </div>
+            }
+          >
+            {null}
           </SectionCard>
           <DeleteAccount />
         </div>

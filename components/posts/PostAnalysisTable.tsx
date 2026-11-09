@@ -162,7 +162,7 @@ export function PostAnalysisTable({
         </p>
       ) : (
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <table className="cc-pat" style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "var(--cc-hover-bg)" }}>
                 <SortableTh label="Creator" sortKey="creator" sort={sort} onToggle={toggle} />
@@ -187,6 +187,7 @@ export function PostAnalysisTable({
                         whole target (WCAG 2.5.8 asks for 24). */}
                     <Link
                       href={`/campaigns/${p.campaignId}/posts/${p.id}`}
+                      className="cc-pat-open"
                       style={{ display: "inline-block", padding: "4px 0", margin: "-4px 0", textDecoration: "none", color: "var(--cc-text)", fontWeight: "var(--cc-fw-strong)", fontSize: "var(--cc-t-14)"}}
                     >
                       {p.creatorName ?? "Unknown"}

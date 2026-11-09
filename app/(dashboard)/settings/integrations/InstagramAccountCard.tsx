@@ -124,7 +124,7 @@ export function InstagramAccountCard() {
       <SectionCard
         icon={Instagram}
         title={title}
-        description="Connect your own Instagram professional account so the public profiles and posts you look up are read through it, on your workspace's behalf."
+        description="Reads the profiles and posts you look up"
       >
         <div className="cc-provider-row">
           <div className="cc-provider-id">
@@ -132,8 +132,8 @@ export function InstagramAccountCard() {
               <span className="cc-provider-name">Not connected</span>
               <span className="cc-pref-row-desc">
                 {view.configured
-                  ? "Used for Add creator, creator profiles, tracker refreshes and post reads. You pick the Facebook Page and Instagram account in Facebook's own screen."
-                  : "Instagram sign-in is not set up on this deployment."}
+                  ? "You pick the Page and account on Facebook's screen."
+                  : "Not set up on this deployment."}
               </span>
             </div>
           </div>

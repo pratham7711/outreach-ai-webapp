@@ -75,18 +75,27 @@ export function TopBar({ user, navHrefs }: { user?: TopBarUser; navHrefs?: strin
 
   // Breadcrumb leaf = the detail page's own <h1> (real entity name), not a literal "Detail".
   const [leaf, setLeaf] = useState<string | null>(null);
+  /* The page header's own back link, when it has one: a post's parent is its
+     campaign, which the first path segment alone would skip past. */
+  const [back, setBack] = useState<{ href: string; label: string } | null>(null);
   useEffect(() => {
-    if (!isDetailPage) { setLeaf(null); return; }
-    const main = document.getElementById("main-content");
-    if (!main) { setLeaf(null); return; }
     setLeaf(null);
-    const obs = new MutationObserver(() => {
+    setBack(null);
+    if (!isDetailPage) return;
+    const main = document.getElementById("main-content");
+    if (!main) return;
+    const read = () => {
       const t = main.querySelector("h1")?.textContent?.trim();
-      if (t) { setLeaf(t); obs.disconnect(); }
-    });
+      const a = main.querySelector<HTMLAnchorElement>(".cc-page-back");
+      const href = a?.getAttribute("href");
+      const label = a?.getAttribute("aria-label")?.replace(/^Back to /, "");
+      if (href && label) setBack({ href, label });
+      if (t) setLeaf(t);
+      return Boolean(t);
+    };
+    if (read()) return;
+    const obs = new MutationObserver(() => { if (read()) obs.disconnect(); });
     obs.observe(main, { childList: true, subtree: true });
-    const t0 = main.querySelector("h1")?.textContent?.trim();
-    if (t0) { setLeaf(t0); obs.disconnect(); }
     return () => obs.disconnect();
   }, [pathname, isDetailPage]);
 
@@ -147,6 +156,19 @@ export function TopBar({ user, navHrefs }: { user?: TopBarUser; navHrefs?: strin
 
   return (
     <header className="cc-topbar" data-region="topbar">
+      {/* Phones: one line, the page or the way back to its parent. The full
+          trail, search, Feedback and the account menu need more room than a
+          phone has; Feedback and the account menu move into the More drawer. */}
+      <div className="cc-topbar-phone">
+        {isDetailPage ? (
+          <Link href={back?.href ?? currentPage} className="cc-topbar-phone-back">
+            <ChevronLeft size={20} aria-hidden="true" />
+            <span data-truncate="true">{back?.label ?? title}</span>
+          </Link>
+        ) : (
+          <span className="cc-topbar-phone-title" data-truncate="true">{title}</span>
+        )}
+      </div>
       {/* Breadcrumb */}
       <nav aria-label="Breadcrumb" className="cc-topbar-start" data-trail={isDetailPage ? "detail" : undefined}>
         <Link href="/dashboard" className="cc-crumb">
@@ -214,12 +236,15 @@ export function TopBar({ user, navHrefs }: { user?: TopBarUser; navHrefs?: strin
 
         {/* Feedback lives in the bar, not over the page: as a floating pill it
             sat on whatever control a page put in its bottom-right corner. */}
-        <FeedbackButton surface="dashboard" />
+        <div className="cc-topbar-feedback">
+          <FeedbackButton surface="dashboard" />
+        </div>
 
         {/* Notifications */}
         <NotificationBell />
 
         {/* Account menu */}
+        <div className="cc-topbar-account">
         <MenuButton
           align="right"
           label={`Account menu for ${displayName}`}
@@ -233,6 +258,7 @@ export function TopBar({ user, navHrefs }: { user?: TopBarUser; navHrefs?: strin
           }
           items={accountItems}
         />
+        </div>
       </div>
     </header>
   );

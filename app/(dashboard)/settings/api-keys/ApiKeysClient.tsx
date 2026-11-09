@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { BookOpen, Key, KeyRound, Plus, Trash2, Copy, Check } from "lucide-react";
 import { PageHeader } from "@/components/ds";
+import { MetricHint } from "@/components/ds/MetricHint";
+import { StatusTabs } from "@/components/ds/StatusTabs";
 import { Banner } from "@/components/ds/Banner";
 import { Button } from "@/components/ds/Button";
 import { DataTable, type DataTableColumn } from "@/components/ds/DataTable";
@@ -27,6 +29,7 @@ interface ApiKeyItem {
 
 export default function ApiKeysClient() {
   const [keys, setKeys] = useState<ApiKeyItem[]>([]);
+  const [snippet, setSnippet] = useState<"rest" | "claude" | "mcp">("rest");
   const [loading, setLoading] = useState(true);
   /* Three states, not two. A failed or refused load left `keys` at [] and the
      page said "No API keys yet" — which is a claim about the org's keys, and
@@ -206,7 +209,6 @@ export default function ApiKeysClient() {
     <div className="rsp-page page-enter cc-api-keys">
       <PageHeader
         title="API keys"
-        subtitle="Keys let scripts and AI clients reach this organization's data."
         actions={
           <Button variant="primary" size="sm" iconLeft={<Plus size={16} />} onClick={openCreate} {...action("create-api-key")}>
             Create API key
@@ -235,7 +237,7 @@ export default function ApiKeysClient() {
         onClose={() => setShowCreate(false)}
         icon={KeyRound}
         title="Create API key"
-        description="Name it after the system that will use it. The key is shown once, right after you create it."
+        description="Shown once, right after you create it."
         size="sm"
         dismissible={false}
         footer={
@@ -307,7 +309,7 @@ export default function ApiKeysClient() {
         {loadError ? (
           <LoadError
             title="Could not load your API keys"
-            description={`${loadError} This is not the same as having none: nothing has been revoked or lost.`}
+            description={`${loadError} Nothing was revoked.`}
             onRetry={() => void fetchKeys()}
             retrying={loading}
           />
@@ -326,7 +328,7 @@ export default function ApiKeysClient() {
                   <NoResults
                     icon={<Key size={32} strokeWidth={1.75} />}
                     title="No API keys yet"
-                    description="Create a key to reach this organization from a script or an AI client."
+                    description={null}
                   />
                   <Button variant="secondary" size="sm" iconLeft={<Plus size={14} />} onClick={openCreate}>
                     Create your first key
@@ -339,22 +341,51 @@ export default function ApiKeysClient() {
 
         <SectionCard
           icon={BookOpen}
-          title="How to use your API key"
-          description="Pass the key in the Authorization header of any API request."
+          title="How to connect"
+          action={
+            <MetricHint
+              label="What a key can do"
+              what={`Read campaigns, posts, creators${PAYOUTS_ENABLED ? ", activations and payouts" : " and activations"}, and refresh a campaign's metrics (30-minute limit). A key carries the whole organisation; revoke it when a client no longer needs it.`}
+            />
+          }
         >
-          <div className="cc-api-docs">
-            {snippets.map((sn) => (
-              <div key={sn.label} className="cc-api-docs__snippet">
-                <p className="cc-microlabel">{sn.label}</p>
-                <div tabIndex={0} role="region" aria-label={sn.aria} className="cc-code-block">
-                  <code>{sn.code}</code>
+          {(() => {
+            const shown = snippets[snippet === "rest" ? 0 : snippet === "claude" ? 1 : 2];
+            return (
+              <div className="cc-api-docs">
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  <StatusTabs
+                    variant="pill"
+                    ariaLabel="Example"
+                    idBase="cc-api-example"
+                    active={snippet}
+                    onChange={(k) => setSnippet(k as "rest" | "claude" | "mcp")}
+                    tabs={[
+                      { key: "rest", label: "cURL" },
+                      { key: "claude", label: "Claude Code" },
+                      { key: "mcp", label: "JSON" },
+                    ]}
+                  />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    aria-label="Copy example"
+                    title="Copy example"
+                    iconLeft={<Copy size={14} />}
+                    onClick={() =>
+                      void navigator.clipboard.writeText(shown.code).then(
+                        () => toast.success("Copied"),
+                        () => toast.error("Couldn't copy"),
+                      )
+                    }
+                  />
+                </div>
+                <div tabIndex={0} role="tabpanel" id="cc-api-example-panel" aria-labelledby={`cc-api-example-tab-${snippet}`} aria-label={shown.aria} className="cc-code-block">
+                  <code>{shown.code}</code>
                 </div>
               </div>
-            ))}
-            <Banner tone="info" placement="inline" icon={false}>
-              The MCP server gives an AI client read access to campaigns, posts, creators{PAYOUTS_ENABLED ? ", activations and payouts" : " and activations"}, and lets it refresh a campaign&apos;s metrics under the same 30-minute limit as the Refresh Data button. A key carries the whole organisation, so revoke it here the moment a client no longer needs it.
-            </Banner>
-          </div>
+            );
+          })()}
         </SectionCard>
       </div>
     </div>

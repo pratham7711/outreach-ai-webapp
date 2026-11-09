@@ -643,7 +643,6 @@ export default function CampaignWizard({
       icon={Megaphone}
       tone="brand"
       title="New Campaign"
-      description="Name it, link the sound it promotes, and choose how posts get approved."
       size="md"
       dismissible={false}
       footer={
@@ -902,8 +901,8 @@ export default function CampaignWizard({
         <ThumbnailDrop
           hint={
             form.hasAudio
-              ? "Optional. Any picture: JPG, PNG, HEIC, SVG and more. Leave it empty to use the sound's cover art."
-              : "Optional. Any picture: JPG, PNG, HEIC, SVG and more. Shown on the campaigns list and on client links."
+              ? "Optional. Uses the sound's cover art if empty."
+              : "Optional"
           }
           preview={preview}
           caption={

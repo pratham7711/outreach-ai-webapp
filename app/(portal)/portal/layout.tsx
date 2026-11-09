@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Home, Briefcase, Link2, BarChart3, UserRound, LogOut, Wallet } from "lucide-react";
 import { BRAND } from "@/lib/brand";
 import { ConfirmProvider } from "@/components/ds";
+import { ExactFigures } from "@/components/ds/ExactFigures";
 import { LegalLinks } from "@/components/LegalLinks";
 import { FeedbackButton } from "@/components/feedback/FeedbackButton";
 import { PAYOUTS_ENABLED } from "@/lib/payouts/switch";
@@ -84,7 +85,7 @@ function PortalNav() {
       >
         <div style={{ display: "flex", alignItems: "center", gap: 28, minWidth: 0 }}>
           <Link href="/portal/dashboard" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
-            <span className="lp-brand-mark" aria-hidden style={{ width: 28, height: 28, fontSize: 11 }}>
+            <span className="lp-brand-mark" aria-hidden style={{ width: 28, height: 28, fontSize: 12 }}>
               {BRAND.short}
             </span>
             <span
@@ -95,7 +96,7 @@ function PortalNav() {
             </span>
             <span
               style={{
-                fontSize: 10,
+                fontSize: 12,
                 fontWeight: 700,
                 textTransform: "uppercase",
                 letterSpacing: "0.08em",
@@ -209,7 +210,7 @@ function PortalNav() {
                 gap: 2,
                 minHeight: 56,
                 padding: "6px 2px",
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: active ? 700 : 600,
                 textDecoration: "none",
                 color: active ? "var(--cc-primary)" : "var(--cc-text-muted)",
@@ -236,7 +237,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       <div style={{ minHeight: "100vh", background: "var(--cc-bg)" }}>
         <ThemedToaster richColors position="top-center" />
         {!isAuthPage && <PortalNav />}
-        {children}
+        <ExactFigures>{children}</ExactFigures>
         {/* The sign-in pages carry these under their own card. */}
         {!isAuthPage && (
           <footer style={{ padding: "24px 16px" }}>

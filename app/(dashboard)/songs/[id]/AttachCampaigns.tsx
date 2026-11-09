@@ -7,10 +7,54 @@ import { Dropdown } from "@/components/ds";
 
 export type AttachableCampaign = { id: string; title: string; songId: string | null };
 
+async function patchCampaignSong(campaignId: string, songId: string | null): Promise<boolean> {
+  const res = await fetch(`/api/campaigns/${campaignId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ songId }),
+  });
+  return res.ok;
+}
+
+/** Detach sits on the campaign's own row in the song's list, so each
+ *  campaign is listed once, not again as a chip above the list. */
+export function DetachCampaign({ campaignId, title }: { campaignId: string; title: string }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  return (
+    <button
+      type="button"
+      className="cc-song-detach"
+      aria-label={`Detach ${title}`}
+      title={failed ? "Could not detach that campaign" : "Detach from this song"}
+      disabled={busy}
+      onClick={async () => {
+        setBusy(true);
+        setFailed(false);
+        try {
+          if (await patchCampaignSong(campaignId, null)) router.refresh();
+          else setFailed(true);
+        } finally {
+          setBusy(false);
+        }
+      }}
+      style={{
+        background: "none", border: "none", cursor: "pointer", flexShrink: 0,
+        color: failed ? "var(--cc-danger-fg)" : "var(--cc-text-muted)",
+        display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 8, borderRadius: 999,
+      }}
+    >
+      <Unlink size={14} aria-hidden="true" />
+    </button>
+  );
+}
+
 /**
  * Attaching and detaching is the only way a song gathers campaigns, so it lives
- * on the song page rather than buried in campaign settings. Detach is offered
- * too — a campaign standing alone is a supported state, not a broken one.
+ * on the song page rather than buried in campaign settings. Detach is on each
+ * campaign's row (DetachCampaign) — a campaign standing alone is a supported
+ * state, not a broken one.
  */
 export default function AttachCampaigns({
   songId,
@@ -24,19 +68,13 @@ export default function AttachCampaigns({
   const [error, setError] = useState<string | null>(null);
   const [picked, setPicked] = useState("");
 
-  const attached = campaigns.filter((c) => c.songId === songId);
   const available = campaigns.filter((c) => c.songId !== songId);
 
   async function setSong(campaignId: string, nextSongId: string | null) {
     setBusy(campaignId);
     setError(null);
     try {
-      const res = await fetch(`/api/campaigns/${campaignId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ songId: nextSongId }),
-      });
-      if (!res.ok) {
+      if (!(await patchCampaignSong(campaignId, nextSongId))) {
         setError("Could not update that campaign.");
         return;
       }
@@ -82,39 +120,6 @@ export default function AttachCampaigns({
           <Link2 size={14} aria-hidden="true" /> Attach
         </button>
       </div>
-
-      {attached.length > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-          {attached.map((c) => (
-            <span
-              key={c.id}
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
-                background: "var(--cc-bg)", border: "1px solid var(--cc-border)",
-                borderRadius: 999, padding: "4px 6px 4px 12px", fontSize: "var(--cc-t-12)",
-                color: "var(--cc-text)",
-              }}
-            >
-              {c.title}
-              <button
-                type="button"
-                aria-label={`Detach ${c.title}`}
-                disabled={busy === c.id}
-                onClick={() => setSong(c.id, null)}
-                /* 24px square around the 12px glyph; the negative margin keeps
-                   the chip the height it was. At padding 2 the target was 16. */
-                style={{
-                  background: "none", border: "none", cursor: "pointer",
-                  color: "var(--cc-text-muted)", display: "inline-flex", padding: 6,
-                  margin: "-4px -4px -4px 0", borderRadius: 999,
-                }}
-              >
-                <Unlink size={12} aria-hidden="true" />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
 
       {error && <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-danger-fg)" }}>{error}</p>}
     </div>

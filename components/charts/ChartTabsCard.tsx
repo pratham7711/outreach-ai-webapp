@@ -63,7 +63,7 @@ export function ChartTabsCard({ tabs, title = "Campaign charts" }: { tabs: Chart
           padding: "0 var(--cc-card-inset)", borderBottom: "1px solid var(--cc-border)",
         }}
       >
-        <div role="tablist" aria-label={title} onKeyDown={onKeyDown} style={{ display: "flex", columnGap: 24, flexWrap: "wrap", minWidth: 0 }}>
+        <div role="tablist" aria-label={title} onKeyDown={onKeyDown} style={{ display: "flex", columnGap: 24, flexWrap: "nowrap", overflowX: "auto", scrollbarWidth: "none", minWidth: 0, maxWidth: "100%" }}>
           {tabs.map((t) => {
             const on = t.key === current.key;
             return (

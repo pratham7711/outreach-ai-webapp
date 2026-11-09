@@ -74,7 +74,7 @@ function FilterGroup({
 }) {
   const id = `analytics-filter-${legend.toLowerCase().replace(/\s+/g, "-")}`;
   return (
-    <div className="flex min-w-0 max-w-full flex-wrap items-center gap-x-3 gap-y-2">
+    <div className="cc-filter-row flex min-w-0 max-w-full flex-wrap items-center gap-x-3 gap-y-2">
       <span id={id} className="text-sm text-[var(--cc-text-muted)]">
         {legend}
       </span>
@@ -179,7 +179,6 @@ export default function AnalyticsPage() {
     <div className="rsp-page page-enter">
       <PageHeader
         title="Analytics"
-        subtitle="How every campaign and creator performed across your whole account."
         tabs={
           <StatusTabs
             ariaLabel="Analytics sections"
@@ -196,7 +195,7 @@ export default function AnalyticsPage() {
         }
       />
 
-      <div className="cc-toolbar">
+      <div className="cc-toolbar cc-filter-rows">
         <FilterGroup legend="Range" options={RANGE_PRESETS} active={range} onChange={setRange} />
         {platformPills.length > 2 && (
           <FilterGroup legend="Platform" options={platformPills} active={platform} onChange={setPlatform} />
@@ -267,11 +266,6 @@ export default function AnalyticsPage() {
               <SectionCard
                 icon={Calendar}
                 title="Campaigns launched"
-                description={
-                  launchMode === "cumulative"
-                    ? "A running total of the campaigns you started over the last six months, and how many of those are active now."
-                    : "How many campaigns you started each month over the last six months."
-                }
                 action={
                   data.monthlyTrend.every((m) => m.campaigns === 0) ? undefined : (
                     <SeriesModeToggle

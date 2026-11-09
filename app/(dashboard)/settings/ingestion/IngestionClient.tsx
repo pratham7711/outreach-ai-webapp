@@ -92,10 +92,7 @@ export default function IngestionClient() {
 
   return (
     <div className="rsp-page page-enter">
-      <PageHeader
-        title="Ingestion"
-        subtitle="Sync health per platform, dead-lettered posts and snapshot sources."
-      />
+      <PageHeader title="Ingestion" />
 
       <div className="cc-ingestion-stack">
         {/* Above the per-platform tiles, and outside the loading branch: the
@@ -124,7 +121,7 @@ export default function IngestionClient() {
                 <NoResults
                   icon={<CheckCircle2 size={32} strokeWidth={1.75} />}
                   title="No posts to ingest yet"
-                  description="Add a post to a campaign and its platform will appear here with its sync health."
+                  description={null}
                 />
               </SectionCard>
             ) : (
@@ -160,7 +157,7 @@ export default function IngestionClient() {
                   <NoResults
                     icon={<CheckCircle2 size={32} strokeWidth={1.75} />}
                     title="No failed posts"
-                    description="Ingestion is healthy. Posts that repeatedly fail to sync appear here."
+                    description={null}
                   />
                 }
               />
@@ -177,7 +174,7 @@ export default function IngestionClient() {
                   <NoResults
                     icon={<Camera size={32} strokeWidth={1.75} />}
                     title="No snapshots in the last 24 hours"
-                    description="Snapshots written in the last 24 hours appear here, grouped by source."
+                    description={null}
                   />
                 }
               />

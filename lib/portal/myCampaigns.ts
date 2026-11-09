@@ -157,14 +157,18 @@ export async function listJoinedCampaigns(
         a.status === "DECLINED" && a.feedbackNotes && provenIds.has(a.creatorId) ? a.feedbackNotes : null,
       deliverableDueDate: iso(a.deliverableDueDate),
       submissionDeadline: iso(a.campaign.submissionDeadline),
-      next: nextCampaignDate(
-        {
-          deliverableDueDate: a.deliverableDueDate,
-          submissionDeadline: a.campaign.submissionDeadline,
-          phases: a.campaign.phases,
-        },
-        now,
-      ),
+      /* Only a campaign still taking posts has a next date to act on; a
+         closed one listed "Your post is due" under its Closed badge. */
+      next: isPortalCampaignActionable(a.campaign.status)
+        ? nextCampaignDate(
+            {
+              deliverableDueDate: a.deliverableDueDate,
+              submissionDeadline: a.campaign.submissionDeadline,
+              phases: a.campaign.phases,
+            },
+            now,
+          )
+        : null,
     });
   }
   return out;

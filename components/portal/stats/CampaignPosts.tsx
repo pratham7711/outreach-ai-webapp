@@ -130,10 +130,7 @@ export default function CampaignPosts({ posts }: { posts: CampaignPost[] }) {
         ))}
       </ul>
 
-      <SourceLabel>
-        From each post as we read it for the campaign
-        {instagram && insightsColumns && <> · reach and saves from Instagram insights on your campaign posts</>}
-      </SourceLabel>
+      {instagram && insightsColumns && <SourceLabel>Reach and saves from Instagram insights</SourceLabel>}
     </Panel>
   );
 }

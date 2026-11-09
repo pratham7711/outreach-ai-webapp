@@ -9,7 +9,7 @@ import { platformLabel, formatFull } from "@/lib/format";
 import { asOfCaption } from "@/lib/dataAge";
 import { imgSrc } from "@/lib/postMedia";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
-import AttachCampaigns, { type AttachableCampaign } from "./AttachCampaigns";
+import AttachCampaigns, { DetachCampaign, type AttachableCampaign } from "./AttachCampaigns";
 import { noun } from "@/lib/ui/noun";
 import { MetricTile, PageHeader, SectionCard, StatusTabs } from "@/components/ds";
 
@@ -232,13 +232,14 @@ export default function SongDashboard({
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {campaigns.map((c) => (
+              <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
               <Link
-                key={c.id}
                 href={`/campaigns/${c.id}`}
                 className="cc-table-row"
                 style={{
+                  flex: 1, minWidth: 0,
                   display: "flex", alignItems: "center", gap: 12, padding: "10px 8px",
-                  margin: "0 -8px", borderRadius: 8, textDecoration: "none",
+                  margin: "0 0 0 -8px", borderRadius: 8, textDecoration: "none",
                 }}
               >
                 <Megaphone size={15} color="var(--cc-text-muted)" aria-hidden="true" />
@@ -248,7 +249,7 @@ export default function SongDashboard({
                     <Layers size={12} aria-hidden="true" /> {c.phaseCount}
                   </span>
                 )}
-                <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", fontVariantNumeric: "tabular-nums" }}>
+                <span className="cc-phone-hide" style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", fontVariantNumeric: "tabular-nums" }}>
                   {c.postCount} {noun(c.postCount, "post")}
                 </span>
                 <span
@@ -258,6 +259,8 @@ export default function SongDashboard({
                   {c.views === null ? "—" : formatFull(c.views)}
                 </span>
               </Link>
+              <DetachCampaign campaignId={c.id} title={c.title} />
+              </div>
             ))}
           </div>
         )}

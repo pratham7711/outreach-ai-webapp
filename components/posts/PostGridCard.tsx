@@ -252,7 +252,6 @@ function PostGridCardImpl({
                   key: "shares",
                   icon: <Share2 size={13} aria-hidden="true" />,
                   text: "\u2014 shares",
-                  note: sharesUnknownReason(post.platform).short,
                   title: sharesUnknownReason(post.platform).title,
                   unknown: true,
                 },
@@ -269,7 +268,7 @@ function PostGridCardImpl({
             );
           }
           return rows.map((row) => (
-            <div key={row.key} title={row.title} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--cc-t-13)", marginBottom: 2, minWidth: 0 }}>
+            <div key={row.key} className="cc-posttile-stat" data-stat={row.key} title={row.title} style={{ fontSize: "var(--cc-t-13)", marginBottom: 2, minWidth: 0 }}>
               {row.icon}{row.text}
               {row.note && (
                 <span style={{ fontSize: "var(--cc-t-11)", color: "color-mix(in srgb, var(--cc-overlay-ink-text) 72%, transparent)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -281,7 +280,7 @@ function PostGridCardImpl({
         })()}
         {/* No paddingRight any more: the corner icons this row used to clear
             are gone, so the date line gets the tile's full width back. */}
-        <div style={{ marginTop: 8, paddingTop: 7, borderTop: "1px solid color-mix(in srgb, var(--cc-overlay-ink-text) 22%, transparent)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 10.5, color: "color-mix(in srgb, var(--cc-overlay-ink-text) 78%, transparent)" }}>
+        <div className="cc-posttile-foot" style={{ marginTop: 8, paddingTop: 7, borderTop: "1px solid color-mix(in srgb, var(--cc-overlay-ink-text) 22%, transparent)", fontSize: 12, color: "color-mix(in srgb, var(--cc-overlay-ink-text) 78%, transparent)" }}>
           {/* Only once a platform has answered for this post: until
               then postedAt is the day someone added it here, not the
               day it went up, and Post.postedAt cannot be null. */}

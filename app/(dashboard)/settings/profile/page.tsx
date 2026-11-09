@@ -152,11 +152,7 @@ export default function OrgProfilePage() {
     <div className="rsp-page page-enter">
       <PageHeader
         title="Profile"
-        subtitle={
-          canManage
-            ? "Your organization's name, regional defaults and branding."
-            : "Your workspace settings. Only an owner or admin can change them."
-        }
+        subtitle={canManage ? undefined : "Read-only. Ask an owner or admin."}
       />
 
       {loading ? (

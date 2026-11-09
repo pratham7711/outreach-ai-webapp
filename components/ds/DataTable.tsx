@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { SortableTh, type SortState } from "./SortableTh";
 import { Skeleton } from "./Skeleton";
 import { NoResults } from "./NoResults";
+import { useCompactCount } from "@/components/ds/ExactFigures";
 
 export type DataTableColumn<T> = {
   key: string;
@@ -27,6 +28,8 @@ export type DataTableColumn<T> = {
   truncate?: string | ((row: T) => string | undefined);
   /** The column whose content links to `rowHref`. Defaults to the first column. */
   primary?: boolean;
+  /** On a phone list row, the one figure shown beside the name. Every other column waits for the detail page. */
+  phone?: boolean;
 };
 
 export type DataTableProps<T> = {
@@ -52,6 +55,19 @@ export type DataTableProps<T> = {
   stickyFirstColumn?: boolean;
   /** No card of its own, for a table that already sits in one (a SectionCard with padded={false}). */
   bare?: boolean;
+  /**
+   * On a phone, one line per row: the name, the `phone` column, a chevron, and
+   * the lead cell's own link or button stretched over the row. On whenever rows
+   * open a page (`rowHref`); set it for a row that opens a panel instead.
+   */
+  phoneList?: boolean;
+  /** Keep the row's actions menu on a phone list row, in the chevron's place: for actions the opened page does not have. */
+  phoneActions?: boolean;
+  /**
+   * For rows edited in place, with no page to open: a phone list row that a
+   * tap opens into the full card and closes again. Implies `phoneList`.
+   */
+  phoneExpand?: boolean;
   className?: string;
 };
 
@@ -92,11 +108,17 @@ export function DataTable<T>({
   minWidth,
   stickyFirstColumn = true,
   bare = false,
+  phoneList,
+  phoneActions,
+  phoneExpand,
   className,
 }: DataTableProps<T>) {
+  const compactCount = useCompactCount();
   const router = useRouter();
   const skeleton = loading && rows.length === 0;
   const primaryKey = rowHref ? (columns.find((c) => c.primary) ?? columns[0])?.key : undefined;
+  /* The cell that heads a row when a phone stacks it into a card. */
+  const leadKey = (columns.find((c) => c.primary) ?? columns.find((c) => !c.hideHeader))?.key;
   const tableMin =
     minWidth ?? columns.reduce((sum, c) => sum + (typeof c.width === "number" ? c.width : (c.minWidth ?? 160)), 0);
 
@@ -108,6 +130,17 @@ export function DataTable<T>({
       return;
     }
     router.push(href);
+  };
+
+  const [openRows, setOpenRows] = React.useState<ReadonlySet<string>>(() => new Set());
+  const toggleRow = (e: React.MouseEvent<HTMLTableRowElement>, key: string) => {
+    if (e.defaultPrevented || (e.target as Element).closest(INTERACTIVE)) return;
+    setOpenRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   };
 
   let body: React.ReactNode;
@@ -132,15 +165,19 @@ export function DataTable<T>({
   } else {
     body = rows.map((row, i) => {
       const href = rowHref?.(row);
+      const key = rowKey(row);
       return (
         <tr
-          key={rowKey(row)}
+          key={key}
           data-href={href || undefined}
-          onClick={href ? (e) => follow(e, href) : undefined}
+          data-open={(phoneExpand && openRows.has(key)) || undefined}
+          onClick={href ? (e) => follow(e, href) : phoneExpand ? (e) => toggleRow(e, key) : undefined}
           onAuxClick={href ? (e) => e.button === 1 && follow(e, href) : undefined}
         >
           {columns.map((c) => {
             let content = c.render(row, i);
+            const short = typeof content === "string" ? compactCount(content) : null;
+            if (short) content = <span title={short.exact}>{short.short}</span>;
             const tip = typeof c.truncate === "function" ? c.truncate(row) : c.truncate;
             if (c.truncate !== undefined) content = <span className="cc-dt-truncate">{content}</span>;
             if (href && c.key === primaryKey) {
@@ -151,7 +188,14 @@ export function DataTable<T>({
               );
             }
             return (
-              <td key={c.key} data-align={c.align} title={tip || undefined}>
+              <td
+                key={c.key}
+                data-align={c.align}
+                data-label={c.hideHeader || c.key === leadKey ? undefined : c.header}
+                data-lead={c.key === leadKey || undefined}
+                data-phone={c.phone || undefined}
+                title={tip || undefined}
+              >
                 {content}
               </td>
             );
@@ -166,9 +210,11 @@ export function DataTable<T>({
       <div className="cc-dt-scroll">
         <table
           className="cc-dt"
-          style={{ minWidth: tableMin }}
+          style={{ "--cc-dt-min": `${tableMin}px` } as React.CSSProperties}
           aria-busy={loading || undefined}
           data-sticky-first={stickyFirstColumn || undefined}
+          data-phone-list={(phoneList ?? (Boolean(rowHref) || phoneExpand)) || undefined}
+          data-phone-actions={phoneActions || undefined}
         >
           {caption ? <caption className="sr-only">{caption}</caption> : null}
           <colgroup>

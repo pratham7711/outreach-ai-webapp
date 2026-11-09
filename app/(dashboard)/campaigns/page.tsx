@@ -15,6 +15,7 @@ import { firstParam, readCampaignSort } from "@/lib/listParams";
 import { hasPermission } from "@/lib/rbac";
 import { launchDatesAhead } from "@/lib/campaigns/rules";
 import { MEASURED_FIELDS_KEY } from "@/lib/metricDisplay";
+import { campaignViewsTrends } from "@/lib/campaigns/viewsTrend";
 
 export default async function CampaignsPage({
   searchParams,
@@ -146,7 +147,7 @@ export default async function CampaignsPage({
   // (campaign, creator) pairs, so this stays small even for a campaign with
   // thousands of posts, and only covers the page being shown.
   const visibleIds = campaigns.map((c) => c.id);
-  const [postPairs, activationPairs, coverVersions, thumbnailCopies, postTotals, unreadPosts, opensAtByCampaign] = await Promise.all([
+  const [postPairs, activationPairs, coverVersions, thumbnailCopies, postTotals, unreadPosts, opensAtByCampaign, trends] = await Promise.all([
     db.post.groupBy({ by: ["campaignId", "creatorId"], where: { campaignId: { in: visibleIds }, ...NOT_REMOVED, creator: { NOT: UNATTRIBUTED_CREATOR_WHERE } } }),
     db.activation.groupBy({ by: ["campaignId", "creatorId"], where: { campaignId: { in: visibleIds } } }),
     // Our own copy of each campaign's sound cover; see campaignArtwork.
@@ -181,6 +182,8 @@ export default async function CampaignsPage({
     }),
     // A launch date still ahead puts "Opens <day>" on the row.
     launchDatesAhead(visibleIds, orgId),
+    // Views gained this week and last, and the daily line, per row.
+    campaignViewsTrends(visibleIds),
   ]);
   const totalsByCampaign = new Map(postTotals.map((t) => [t.campaignId, t]));
   const unreadByCampaign = new Map(unreadPosts.map((t) => [t.campaignId, t._count._all]));
@@ -216,6 +219,7 @@ export default async function CampaignsPage({
            views, so it travels as null and the chip is left off. */
         views: (totalsByCampaign.get(c.id)?._sum.viewsCount ?? 0) > 0 ? totalsByCampaign.get(c.id)!._sum.viewsCount : null,
         viewsUnread: unreadByCampaign.get(c.id) ?? 0,
+        trend: trends.get(c.id) ?? null,
         lastPostAt: totalsByCampaign.get(c.id)?._max.postedAt?.toISOString() ?? null,
         opensAt: opensAtByCampaign.get(c.id) ?? null,
         updatedAt: c.updatedAt.toISOString(),

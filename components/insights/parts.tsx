@@ -211,14 +211,14 @@ export function ColumnBars({ rows, label }: { rows: Array<{ key: string; label: 
       <div style={{ display: "grid", gridTemplateColumns: `repeat(${rows.length}, minmax(0, 1fr))`, alignItems: "end", gap: 6, height: 112 }}>
         {rows.map((r) => (
           <div key={r.key} style={{ display: "flex", flexDirection: "column", justifyContent: "flex-end", alignItems: "center", height: "100%", minWidth: 0 }}>
-            <span style={{ ...NUM, fontSize: 11, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>{formatPercent(r.share)}</span>
+            <span style={{ ...NUM, fontSize: 12, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>{formatPercent(r.share)}</span>
             <span style={{ width: "100%", maxWidth: 34, height: `${Math.max(2, (r.share / top) * 78)}px`, borderRadius: "5px 5px 2px 2px", background: "var(--cc-primary)" }} />
           </div>
         ))}
       </div>
       <div aria-hidden="true" style={{ display: "grid", gridTemplateColumns: `repeat(${rows.length}, minmax(0, 1fr))`, gap: 6, marginTop: 6, borderTop: "1px solid var(--cc-border)", paddingTop: 6 }}>
         {rows.map((r) => (
-          <span key={r.key} style={{ fontSize: 11, color: "var(--cc-text-muted)", textAlign: "center", whiteSpace: "nowrap" }}>
+          <span key={r.key} style={{ fontSize: 12, color: "var(--cc-text-muted)", textAlign: "center", whiteSpace: "nowrap" }}>
             {r.label}
           </span>
         ))}
@@ -243,7 +243,7 @@ export function MetricCells({ cells }: { cells: Cell[] }) {
           {!c.blank && (
             <>
               <div style={{ ...NUM, fontSize: 14, fontWeight: 700, color: "var(--cc-text)", lineHeight: 1.3 }}>{formatCount(c.value)}</div>
-              <div style={{ fontSize: 11, color: "var(--cc-text-muted)", lineHeight: 1.3 }}>{c.label}</div>
+              <div style={{ fontSize: 12, color: "var(--cc-text-muted)", lineHeight: 1.3 }}>{c.label}</div>
             </>
           )}
         </div>

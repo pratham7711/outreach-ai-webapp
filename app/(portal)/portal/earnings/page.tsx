@@ -175,7 +175,7 @@ export default function PortalEarningsPage() {
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <p style={{ fontSize: 20, fontWeight: 700, color: "var(--cc-text)" }}>{fmtMoney(c.approvedMinor, c.currency)}</p>
-                    <p style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>approved</p>
+                    <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>approved</p>
                   </div>
                 </div>
 
@@ -185,7 +185,7 @@ export default function PortalEarningsPage() {
                     <div style={{ height: 6, borderRadius: 3, background: "var(--cc-bg)", overflow: "hidden" }}>
                       <div style={{ width: `${pct}%`, height: "100%", background: pct >= 100 ? "var(--cc-success-fg)" : "var(--cc-primary)", transition: "width 0.2s" }} />
                     </div>
-                    <p style={{ fontSize: 11, color: "var(--cc-text-muted)", marginTop: 4 }}>
+                    <p style={{ fontSize: 12, color: "var(--cc-text-muted)", marginTop: 4 }}>
                       {c.canRequestPayout
                         ? "Minimum payout threshold reached"
                         : `${fmtMoney(c.approvedMinor, c.currency)} of ${fmtMoney(threshold, c.currency)} minimum`}

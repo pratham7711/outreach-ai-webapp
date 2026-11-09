@@ -211,7 +211,7 @@ export default function PortalMessagesClient() {
                       <span title={c.org.name} style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {c.org.name}
                       </span>
-                      <span style={{ fontSize: 11, color: "var(--cc-text-muted)", flexShrink: 0 }}>{formatTime(c.lastMessageAt)}</span>
+                      <span style={{ fontSize: 12, color: "var(--cc-text-muted)", flexShrink: 0 }}>{formatTime(c.lastMessageAt)}</span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
                       <span title={c.lastMessage?.body ?? undefined} style={{ flex: 1, fontSize: 12, color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -297,7 +297,7 @@ export default function PortalMessagesClient() {
                         >
                           {m.body}
                         </div>
-                        <div style={{ fontSize: 10, color: "var(--cc-text-subtle)", marginTop: 3, textAlign: isCreator ? "right" : "left" }}>
+                        <div style={{ fontSize: 12, color: "var(--cc-text-subtle)", marginTop: 3, textAlign: isCreator ? "right" : "left" }}>
                           {formatTime(m.createdAt)}
                         </div>
                       </div>

@@ -5,12 +5,12 @@ import { useRouter } from "next/navigation";
 import { Plus, Target, Sun, Zap, CheckCircle2, XCircle, LayoutList, Folder, Share2, ArrowUpDown, Trash2, Check, ChevronDown, X } from "lucide-react";
 import { Avatar } from "@pratham7711/ui";
 import {
-  PageHeader, StatusTabs, Pagination, FilterDrawer, FilterButton, Dropdown, MoreMenu, MenuButton, useConfirm, Button,
+  PageHeader, StatusTabs, Pagination, FilterDrawer, FilterButton, ActiveFilterChips, Dropdown, MoreMenu, MenuButton, useConfirm, Button,
   DataTable, ListToolbar, NoResults, StatusBadge, statusTone,
 } from "@/components/ds";
 import type { DataTableColumn, FilterDef, FilterValues } from "@/components/ds";
 import CampaignWizard from "@/components/modals/CampaignWizard";
-import { timeAgo, formatFullCurrency, formatFull, formatDateAbs } from "@/lib/format";
+import { timeAgo, formatFullCurrency, formatFull, formatCompactCount, formatDateAbs } from "@/lib/format";
 import { useListQuery } from "@/lib/useListQuery";
 import { CAMPAIGNS_PAGE_SIZE } from "@/lib/listPageSize";
 import { imgSrc } from "@/lib/postMedia";
@@ -21,6 +21,8 @@ import { CAMPAIGN_STATUS_STYLE } from "@/lib/statusColors";
 import { CAMPAIGN_STATUS_OPTIONS, campaignStatusText } from "@/components/campaigns/campaignStatus";
 import { rememberCampaignList } from "@/lib/campaigns/listReturn";
 import { action } from "@/lib/ui/actions";
+import { countDelta } from "@/lib/analytics/periodGrowth";
+import { Sparkline } from "@/components/ds/Sparkline";
 import { prefetchStartFromSources } from "@/components/campaigns/templates/useStartFromSources";
 
 type Campaign = {
@@ -36,6 +38,8 @@ type Campaign = {
   views?: number | null;
   /** Live posts with no view figure yet, so not in `views`. */
   viewsUnread?: number;
+  /** Views gained this week and last, and the daily line; null with no readings. */
+  trend?: { series: number[]; last7: number; prev7: number } | null;
   /** The launch date while it is still ahead, ISO; null once open. */
   opensAt?: string | null;
   /** The newest live post's date, ISO. */
@@ -48,6 +52,26 @@ type Campaign = {
   statusDefId: string | null;
   statusDefName: string | null;
 };
+
+/** Views gained in the last 7 days, the change on the 7 before, and the 14-day line. */
+function WeekTrend({ trend }: { trend: Campaign["trend"] }) {
+  if (!trend) return <span className="cc-dt-sub">No readings yet</span>;
+  const delta = countDelta(trend.last7, trend.prev7, "");
+  const tone = !delta || delta.trend === "flat" ? "flat" : delta.trend === "up" ? "good" : "bad";
+  return (
+    <span className="cc-week-trend" data-tone={tone}>
+      <Sparkline values={trend.series} width={64} height={24} />
+      <span className="cc-week-trend-figures">
+        <span title={`${formatFull(trend.last7)} views gained in the last 7 days`}>+{formatCompactCount(trend.last7)}</span>
+        {delta ? (
+          <span className="cc-metric-delta" data-tone={tone} title="Against the 7 days before">
+            {delta.value}
+          </span>
+        ) : null}
+      </span>
+    </span>
+  );
+}
 
 type Client = { id: string; name: string };
 type TeamOption = { id: string; name: string };
@@ -503,16 +527,23 @@ function campaignColumns({
       key: "views",
       header: "Views",
       align: "right",
+      phone: true,
       width: 128,
       render: (c) =>
         c.views == null ? (
           <span title="No view count read yet">{"—"}</span>
         ) : (
           <>
-            {formatFull(c.views)}
+            <span title={formatFull(c.views)}>{formatCompactCount(c.views)}</span>
             {c.viewsUnread ? <span className="cc-dt-sub">{formatFull(c.viewsUnread)} not read</span> : null}
           </>
         ),
+    },
+    {
+      key: "week",
+      header: "Last 7 days",
+      width: 184,
+      render: (c) => <WeekTrend trend={c.trend ?? null} />,
     },
     ...(showTeam
       ? [{
@@ -699,14 +730,19 @@ export default function CampaignsClient({
      cases collide: a brand-new org lands on Active with nothing anywhere, and
      "No campaigns match those filters" would be answering a question nobody
      asked. Nothing is filtered away when there is nothing. */
+  /* The status counts are narrowed by the drawer's filters, so a filter that
+     matched nothing read as an org with no campaigns: "No campaigns yet",
+     with the tabs, search and Filters button that could undo it hidden.
+     Filed plus unfiled is every campaign the org has, whatever is applied. */
+  const orgHasCampaigns = unfiledCount + folders.reduce((n, f) => n + f.campaigns, 0) > 0;
   const anyFilter =
-    statusCounts.ALL > 0 &&
+    orgHasCampaigns &&
     (Boolean(q) || status !== CAMPAIGN_STATUS_ALL || filterCount > 0 || Boolean(folderId));
   /* Only the status tab narrows: nothing was typed or filtered, so "No
      campaigns match those filters" and a Clear filters button answered a
      question nobody asked. Say the tab is empty instead. */
   const onlyTabNarrows =
-    statusCounts.ALL > 0 && !q && filterCount === 0 && !folderId && status !== CAMPAIGN_STATUS_ALL;
+    orgHasCampaigns && !q && filterCount === 0 && !folderId && status !== CAMPAIGN_STATUS_ALL;
   const clearEverything = () => {
     setSearch("");
     const cleared: Record<string, null> = { q: null, status: null, page: null, folderId: null, sort: null, dir: null };
@@ -723,7 +759,7 @@ export default function CampaignsClient({
   }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const totalPages = Math.max(1, Math.ceil(filteredTotal / CAMPAIGNS_PAGE_SIZE));
-  const hasAny = statusCounts.ALL > 0;
+  const hasAny = orgHasCampaigns;
 
   const columns = useMemo(
     () =>
@@ -831,6 +867,8 @@ export default function CampaignsClient({
           }
         />
       )}
+
+      <ActiveFilterChips filters={FILTERS} values={filterValues} onClear={(keys) => push({ ...Object.fromEntries(keys.map((k) => [k, null])), page: null })} />
 
       <DataTable
         className="cc-campaigns-table"

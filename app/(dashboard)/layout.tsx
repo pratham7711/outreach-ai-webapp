@@ -1,5 +1,6 @@
 import NewSidebar from "@/components/NewSidebar";
 import { TopBar } from "@/components/layout/TopBar";
+import { PhoneTabBar } from "@/components/layout/PhoneTabBar";
 import { TenantProvider } from "@/components/providers/TenantProvider";
 import { SidebarProvider } from "@/components/providers/SidebarProvider";
 import { CampaignNavProvider } from "@/components/providers/CampaignNavProvider";
@@ -177,6 +178,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
                 {children}
               </div>
             </main>
+            <PhoneTabBar navHrefs={navHrefs} />
           </DashboardContent>
         </ShellRoot>
        </ConfirmProvider>

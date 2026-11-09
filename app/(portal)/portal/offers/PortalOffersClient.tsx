@@ -183,7 +183,7 @@ export default function PortalOffersClient() {
 
                 <div style={{ display: "flex", gap: 24, marginBottom: 16, flexWrap: "wrap" }}>
                   <div>
-                    <span style={{ display: "block", fontSize: 11, color: "var(--cc-text-subtle)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    <span style={{ display: "block", fontSize: 12, color: "var(--cc-text-subtle)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                       Original offer
                     </span>
                     <span style={{ fontSize: 15, fontWeight: 600, color: "var(--cc-text)" }}>
@@ -192,7 +192,7 @@ export default function PortalOffersClient() {
                   </div>
                   {offer.counterRate != null && (
                     <div>
-                      <span style={{ display: "block", fontSize: 11, color: "var(--cc-text-subtle)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      <span style={{ display: "block", fontSize: 12, color: "var(--cc-text-subtle)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                         Your counter
                       </span>
                       <span style={{ fontSize: 15, fontWeight: 600, color: "var(--cc-text)" }}>
@@ -201,7 +201,7 @@ export default function PortalOffersClient() {
                     </div>
                   )}
                   <div>
-                    <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--cc-text-subtle)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--cc-text-subtle)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                       Current ask
                       {negotiated && <Tag variant="accent">negotiated</Tag>}
                     </span>

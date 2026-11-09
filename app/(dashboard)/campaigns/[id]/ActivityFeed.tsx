@@ -125,9 +125,7 @@ export default function ActivityFeed({ campaignId }: { campaignId: string }) {
           disabled={posting}
         />
         <div className="cc-activity-composer-foot">
-          <span>
-            Enter to post · Shift+Enter for a new line
-          </span>
+          <span />
           <Button
             variant="primary"
             size="sm"
@@ -152,11 +150,7 @@ export default function ActivityFeed({ campaignId }: { campaignId: string }) {
           className="cc-activity-empty"
           icon={<History size={24} />}
           title={filter === "comments" ? "No comments yet" : "No activity yet"}
-          description={
-            filter === "comments"
-              ? "Comments on this campaign will appear here."
-              : "Adding creators, posting, and status changes all show up here."
-          }
+          description={null}
         />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>

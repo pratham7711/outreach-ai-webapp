@@ -25,7 +25,6 @@ import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import CreatorName from "@/components/creators/CreatorName";
 import { TrackCampaignCreatorsButton } from "@/components/creators/TrackCreators";
 import { AgeLabel } from "@/components/ds/AgeLabel";
-import { TIME_NOT_RECORDED } from "@/lib/dataAge";
 import type { FigureTimeDto } from "@/lib/creators/figureTime";
 
 /**
@@ -168,7 +167,7 @@ function renderCell(key: string, r: RosterRow, currency: string): React.ReactNod
                 at={r.followersAt.at}
                 field={r.followersAt.field}
                 source={r.followersAt.at ? r.followersAt.source : r.followersAt.missing}
-                never={TIME_NOT_RECORDED}
+                never={null}
                 style={{ maxWidth: "100%", overflow: "hidden" }}
               />
             </span>
@@ -240,7 +239,7 @@ function ColumnPicker({
     onChange(selected.includes(key) ? selected.filter((k) => k !== key) : [...selected, key]);
 
   return (
-    <div ref={box} className="cc-column-picker">
+    <div ref={box} className="cc-column-picker cc-phone-hide">
       <Button
         variant="secondary"
         size="sm"
@@ -300,6 +299,7 @@ export default function RosterTable({
         align: c.align,
         sortKey: c.key,
         primary: c.locked,
+        phone: c.key === "views",
         render: (r: RosterRow) => renderCell(c.key, r, currency),
       })),
     [columnKeys, currency],

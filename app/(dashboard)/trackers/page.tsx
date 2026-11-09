@@ -17,6 +17,7 @@ import {
   StatusBadge,
   useConfirm,
   StatusTabs,
+  Sparkline,
   type DataTableColumn,
   type StatusTone,
 } from "@/components/ds";
@@ -33,7 +34,7 @@ import { apiDelete, apiFetch, apiPost } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessage";
 import { describeTrackerSweep } from "@/lib/refreshSummary";
 import { SOUND_URL_ERRORS, parseSoundUrl } from "@/lib/trackers/soundUrl";
-import { changeSpanLabel, isTrackerWindow, spanMatchesWindow } from "@/lib/trackers/metrics";
+import { changeSpanLabel, isTrackerWindow, spanMatchesWindow, windowHours } from "@/lib/trackers/metrics";
 import type { ChartGranularity } from "@/lib/trackers/granularity";
 import { action } from "@/lib/ui/actions";
 import { asOfCaption, dataAsOf } from "@/lib/dataAge";
@@ -96,6 +97,14 @@ function formatCount(n: number): string {
   return formatFull(n);
 }
 
+/** The readings inside the chosen window, counted back from the newest one. */
+function windowSeries(series: TrackedSound["series"], period: string): number[] {
+  if (series.length < 2 || !isTrackerWindow(period)) return [];
+  const last = Date.parse(series[series.length - 1].recordedAt);
+  const from = last - windowHours(period) * 3_600_000;
+  return series.filter((p) => Date.parse(p.recordedAt) >= from).map((p) => p.value);
+}
+
 const STATUS_BADGE: Record<TrackedSound["status"], { tone: StatusTone; label: string }> = {
   viral: { tone: "success", label: "Viral" },
   trending: { tone: "info", label: "Trending" },
@@ -149,6 +158,7 @@ export default function TrackersPage() {
   };
   const [modalOpen, setModalOpen] = useState(false);
   const [urlInput, setUrlInput] = useState("");
+  const [linkHelpOpen, setLinkHelpOpen] = useState(false);
   const [period, setPeriod] = useState("24h");
   // The reference lets this list be searched. Client-side over the already
   // fetched page: the sort and period are what the query is keyed on, and adding
@@ -403,7 +413,7 @@ export default function TrackersPage() {
                 (?tracker=) so a manager can paste the link to one sound. */}
             <button
               type="button"
-              className="cc-sound-open cc-dt-truncate"
+              className="cc-sound-open cc-dt-truncate cc-dt-stretch"
               onClick={() => setOpenTracker(s.id)}
               title={s.title}
               aria-label={`Open details for ${s.title}`}
@@ -439,20 +449,29 @@ export default function TrackersPage() {
         ) : s.health === "pending" ? (
           <StatusBadge tone="neutral">Awaiting first reading</StatusBadge>
         ) : (
-          <StatusBadge tone="warning">Not updating</StatusBadge>
+          <StatusBadge tone="neutral">Not updating</StatusBadge>
         ),
     },
     {
       key: "uses",
       header: "Uses",
-      width: 184,
+      width: 248,
       align: "right",
+      phone: true,
       render: (s) => {
         const snap = s.latestSnapshot;
         const added = s.addedInPeriod;
         const spanLabel = isTrackerWindow(period) ? changeSpanLabel(s.change, period, periodLabel(period)) : periodLabel(period);
+        /* Only a live sound gets a line: drawn beside a reading that stopped,
+           it would show movement nobody can currently see. Under four
+           readings it is a straight stroke that says nothing. */
+        const window = s.health === "live" ? windowSeries(s.series, period) : [];
+        const points = window.length >= 4 ? window : [];
+        const tone = added === null || added === 0 ? "flat" : added > 0 ? "good" : "bad";
         return (
-          <>
+          <span className="cc-week-trend cc-sound-trend" data-tone={tone}>
+            <Sparkline values={points} width={56} height={24} />
+            <span className="cc-week-trend-figures">
             <span
               className="cc-sound-uses"
               /* A dated number is still useful; a dated number dressed as a
@@ -475,13 +494,20 @@ export default function TrackersPage() {
                     : undefined
                 }
               >
-                {added >= 0 ? "+" : ""}
-                {formatCount(added)} / {spanLabel}
-                {s.growthPercentage !== null ? ` (${s.growthPercentage >= 0 ? "+" : ""}${s.growthPercentage.toFixed(1)}%)` : ""}
+                <span className="cc-phone-list-hide">
+                  {added >= 0 ? "+" : ""}
+                  {formatCount(added)} / {spanLabel}
+                </span>
+                {s.growthPercentage !== null ? (
+                  <span className="cc-metric-delta" data-tone={tone}>
+                    {s.growthPercentage >= 0 ? "+" : ""}
+                    {s.growthPercentage.toFixed(1)}%
+                  </span>
+                ) : null}
               </span>
             ) : (
               <span
-                className="cc-dt-sub"
+                className="cc-dt-sub cc-phone-list-hide"
                 title={
                   s.health !== "live" && s.lastReadAt
                     ? `Readings stopped on ${formatDateAbs(s.lastReadAt)}. The count above is the last known value, not a current one.`
@@ -495,7 +521,8 @@ export default function TrackersPage() {
                 — / {periodLabel(period)}
               </span>
             )}
-          </>
+            </span>
+          </span>
         );
       },
     },
@@ -726,6 +753,7 @@ export default function TrackersPage() {
           <DataTable
             className="cc-actions-table"
             caption="Sound trackers"
+            phoneList
             columns={soundColumns}
             rows={sounds}
             rowKey={(s) => s.id}
@@ -751,7 +779,7 @@ export default function TrackersPage() {
         onClose={closeAddModal}
         icon={Music}
         title="Track a sound"
-        description="Paste the link to a sound's own page. Its title and artwork fill in after the first reading."
+        description="Paste a TikTok sound link."
         size="sm"
         dismissible={false}
         footer={
@@ -780,11 +808,21 @@ export default function TrackersPage() {
           error={clientError ?? undefined}
           iconLeft={<Link2 size={16} />}
           autoComplete="off"
-          {...(clientError || soundLinkReady ? {} : { "aria-describedby": "sound-url-help" })}
+          {...(clientError || soundLinkReady || !linkHelpOpen ? {} : { "aria-describedby": "sound-url-help" })}
         />
         {/* How to find the link, until there is one: it goes once a link the
             parser accepts is in the field, and comes back if it stops being one. */}
-        {!soundLinkReady && (
+        {!soundLinkReady && !linkHelpOpen && (
+          <button
+            type="button"
+            aria-expanded={false}
+            onClick={() => setLinkHelpOpen(true)}
+            style={{ marginTop: 10, background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: "var(--cc-t-13)", fontWeight: 600, color: "var(--cc-text-muted)" }}
+          >
+            Where do I find it?
+          </button>
+        )}
+        {!soundLinkReady && linkHelpOpen && (
           <ModalSection title="Where to find the link">
             <div id="sound-url-help">
               <ModalOptionList>
@@ -866,6 +904,12 @@ export default function TrackersPage() {
         sound={allSounds.find((s) => s.id === openTracker) ?? null}
         onRefresh={(soundId) => refreshOneMutation.mutate(soundId)}
         refreshing={refreshOneMutation.isPending}
+        onRemove={(soundId) => {
+          const sound = allSounds.find((s) => s.id === soundId);
+          if (!sound) return;
+          setOpenTracker(null);
+          void handleDelete(sound);
+        }}
       />
     </div>
   );

@@ -22,6 +22,7 @@ import {
   MoreMenu,
   FilterDrawer,
   FilterButton,
+  ActiveFilterChips,
   Skeleton,
   type DataTableColumn,
   type FilterDef,
@@ -2269,6 +2270,11 @@ export default function PostsTab({
           </>
         }
       />
+      <ActiveFilterChips
+        filters={DRAWER_FILTERS}
+        values={drawerValues}
+        onClear={(keys) => applyDrawer({ ...drawerValues, ...Object.fromEntries(keys.map((k) => [k, undefined])) })}
+      />
       <FilterDrawer
         open={filtersOpen}
         onClose={() => setFiltersOpen(false)}
@@ -2486,7 +2492,6 @@ export default function PostsTab({
           title="Add posts"
           icon={ListPlus}
           tone="brand"
-          description="Paste post links, one or a whole batch. Who posted each one is detected for you."
           size="md"
           dismissible={false}
           footer={
@@ -2642,7 +2647,7 @@ export default function PostsTab({
               </div>
               <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
                 {addRows.length === 0
-                  ? `Separated by new lines, spaces or commas. Up to ${MAX_BULK_POSTS} at a time.`
+                  ? `Up to ${MAX_BULK_POSTS} links`
                   : `${addRows.length} link${addRows.length === 1 ? "" : "s"} found${
                       addRows.length >= MAX_BULK_POSTS ? ` — the limit is ${MAX_BULK_POSTS} at a time` : ""
                     }. ${checkingUrls ? "Checking… " : ""}Backspace removes the last one.`}

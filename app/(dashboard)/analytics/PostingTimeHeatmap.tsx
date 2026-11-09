@@ -157,7 +157,7 @@ export function PostingTimeHeatmap({
               ))}
               <div className="mt-1 flex items-center gap-2">
                 <span className="shrink-0" style={{ width: 32 }} />
-                <div className="relative flex-1 text-[10px] text-muted-foreground">
+                <div className="relative flex-1 text-xs text-muted-foreground">
                   {HOUR_TICKS.map((h) => (
                     <span
                       key={h}

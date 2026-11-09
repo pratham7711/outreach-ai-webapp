@@ -49,6 +49,7 @@ function plainColumns(onRemove: (itemId: string, creatorId: string, name: string
       header: "Followers",
       width: 120,
       align: "right",
+      phone: true,
       /* "—" with the reason, never 0 or blank: followersCount defaults to 0
          for a creator nobody has read. */
       render: (item) => <MetricFigure value={followersValue(item.creator.followersCount)} format={formatNumber} />,
@@ -276,6 +277,7 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
       ) : (
         <DataTable
           className="cc-actions-table"
+          phoneActions
           caption="Creators on this list"
           columns={plainColumns(handleRemoveCreator)}
           rows={list.items}

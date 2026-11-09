@@ -123,7 +123,7 @@ export function CampaignCard({ campaign }: { campaign: CampaignWithRelations }) 
               <div className="ml-auto flex -space-x-2">
                 {campaign.teamMembers.slice(0, 3).map((tm) => (
                   <Avatar key={tm.id} className="h-7 w-7 border-2 border-white">
-                    <AvatarFallback className="text-[10px]">
+                    <AvatarFallback className="text-xs">
                       {tm.user.name
                         .split(" ")
                         .map((n) => n[0])
@@ -132,7 +132,7 @@ export function CampaignCard({ campaign }: { campaign: CampaignWithRelations }) 
                   </Avatar>
                 ))}
                 {campaign.teamMembers.length > 3 && (
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-gray-200 text-[10px] text-gray-600">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-gray-200 text-xs text-gray-600">
                     +{campaign.teamMembers.length - 3}
                   </div>
                 )}

@@ -90,7 +90,6 @@ export default function SongsClient({ songs: initial }: { songs: SongRow[] }) {
     <div className="rsp-page">
       <PageHeader
         title="Songs"
-        subtitle="One release, every campaign promoting it, rolled up."
         actions={
           <Button variant="primary" iconLeft={<Plus size={16} />} onClick={() => setCreating((v) => !v)} {...action("add-song")}>
             Add song
@@ -165,7 +164,7 @@ export default function SongsClient({ songs: initial }: { songs: SongRow[] }) {
                     value={s.totalViews === null ? "—" : formatFull(s.totalViews)}
                     title={
                       s.totalViews !== null
-                        ? undefined
+                        ? viewsNote ?? undefined
                         : s.postCount === 0
                           ? "No posts yet, so there are no views to count"
                           : "None of this song's posts has a view count read yet"
@@ -174,11 +173,6 @@ export default function SongsClient({ songs: initial }: { songs: SongRow[] }) {
                   <Stat label="Posts" value={String(s.postCount)} />
                   <Stat label="Campaigns" value={String(s.campaignCount)} />
                 </div>
-                {viewsNote && (
-                  <p data-views-asof style={{ marginTop: 10, fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
-                    {viewsNote}
-                  </p>
-                )}
                 {s.platforms.length > 0 && (
                   <p style={{ marginTop: 14, fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
                     {s.platforms.map(platformLabel).join(" · ")}

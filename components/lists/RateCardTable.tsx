@@ -180,6 +180,7 @@ export default function RateCardTable({
       key: "client",
       header: "Client",
       width: 160,
+      phone: true,
       render: (item) => (
         <>
           <StatusBadge tone={DECISION_TONE[item.detail.decision]}>{DECISION_LABELS[item.detail.decision]}</StatusBadge>
@@ -219,6 +220,7 @@ export default function RateCardTable({
   return (
     <DataTable
       className="cc-actions-table"
+      phoneExpand
       caption="Rate card: creators on this list, in the order the share link shows them"
       columns={columns}
       rows={items}

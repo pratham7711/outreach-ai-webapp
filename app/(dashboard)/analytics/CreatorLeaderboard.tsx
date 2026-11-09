@@ -48,6 +48,7 @@ const COLUMNS: DataTableColumn<LeaderboardCreator & { rank: number }>[] = [
     header: "Views",
     width: 120,
     align: "right",
+    phone: true,
     /* "—" with the reason, never 0: these creators' posts carry no view count
        we read (Instagram photos publish none), and the route ranks them last. */
     render: (c) =>

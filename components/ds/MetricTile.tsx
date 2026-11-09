@@ -5,6 +5,7 @@ import { ArrowDownRight, ArrowUpRight, Minus, type LucideIcon } from "lucide-rea
 import { MetricHint } from "./MetricHint";
 import { METRIC_DEFINITIONS, type MetricKey } from "@/lib/metric-definitions";
 import { breakableFigure } from "./BreakableFigure";
+import { useCompactCount } from "@/components/ds/ExactFigures";
 
 type Trend = "up" | "down" | "flat";
 
@@ -66,7 +67,10 @@ export function MetricTile({
   const displayLabel = label ?? definition?.label ?? "";
 
   const valueText = typeof value === "string" || typeof value === "number" ? String(value) : null;
-  const compact = Math.max(valueText?.length ?? 0, fitTo ?? 0) >= COMPACT_AT;
+  /* A large count reads as 15.3M; the exact figure stays in the tooltip. */
+  const compactCount = useCompactCount();
+  const short = typeof value === "string" ? compactCount(value) : null;
+  const compact = !short && Math.max(valueText?.length ?? 0, fitTo ?? 0) >= COMPACT_AT;
 
   const deltaIsGood = delta ? (delta.isGood ?? delta.trend === "up") : false;
   const DeltaIcon = delta ? TREND_ICON[delta.trend] : null;
@@ -86,13 +90,15 @@ export function MetricTile({
           (breakableFigure), so every digit stays on screen. title keeps the
           plain figure for a value passed as a node. */}
       <span title={valueText ?? undefined} className="cc-metric-value" data-compact={compact || undefined}>
-        {valueText !== null && typeof value === "string" ? breakableFigure(value) : value}
+        {short ? short.short : valueText !== null && typeof value === "string" ? breakableFigure(value) : value}
       </span>
 
       {delta && DeltaIcon ? (
-        <span className="cc-metric-delta" data-tone={deltaTone}>
-          <DeltaIcon aria-hidden="true" size={14} strokeWidth={2.5} />
-          <span>{delta.value}</span>
+        <span className="cc-metric-deltarow">
+          <span className="cc-metric-delta" data-tone={deltaTone}>
+            <DeltaIcon aria-hidden="true" size={13} strokeWidth={2.5} />
+            <span>{delta.value}</span>
+          </span>
           {delta.label ? <span className="cc-metric-delta-label">{delta.label}</span> : null}
         </span>
       ) : null}

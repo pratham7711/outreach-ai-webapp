@@ -68,7 +68,7 @@ function PostTile({ post, platform, best, times }: { post: InsightsPost; platfor
             position: "absolute",
             top: 8,
             left: 8,
-            fontSize: 11,
+            fontSize: 12,
             fontWeight: 700,
             padding: "3px 8px",
             borderRadius: 999,

@@ -7,6 +7,10 @@ jest.mock("@/components/ds", () => ({
   PageHeader: ({ title }: any) => <h1>{title}</h1>,
 }));
 
+jest.mock("@/components/ds/MetricHint", () => ({
+  MetricHint: ({ what }: { what?: string }) => <p>{what}</p>,
+}));
+
 jest.mock("next/navigation", () => ({ useRouter: () => ({ push: jest.fn() }) }));
 
 jest.mock("sonner", () => ({ toast: { error: jest.fn(), success: jest.fn() } }));
@@ -66,8 +70,8 @@ describe("ApiKeysClient MCP description", () => {
     mockFetchOnce({ ok: true, body: { keys: [] } });
     render(<ApiKeysClient />);
     await screen.findByText("No API keys yet");
-    expect(screen.getByText(/The MCP server gives an AI client read access/).textContent).toContain(
-      "campaigns, posts, creators and activations, and lets it",
+    expect(screen.getByText(/^Read campaigns, posts, creators/).textContent).toContain(
+      "campaigns, posts, creators and activations, and refresh",
     );
     expect(document.body.textContent).not.toMatch(/payout/i);
   });
@@ -77,8 +81,8 @@ describe("ApiKeysClient MCP description", () => {
     mockFetchOnce({ ok: true, body: { keys: [] } });
     render(<ApiKeysClient />);
     await screen.findByText("No API keys yet");
-    expect(screen.getByText(/The MCP server gives an AI client read access/).textContent).toContain(
-      "creators, activations and payouts, and lets it",
+    expect(screen.getByText(/^Read campaigns, posts, creators/).textContent).toContain(
+      "creators, activations and payouts, and refresh",
     );
   });
 });

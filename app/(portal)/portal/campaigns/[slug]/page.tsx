@@ -1,10 +1,12 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Check, CircleHelp, Clock, Download, ExternalLink, X } from "lucide-react";
+import Link from "next/link";
+import { AtSign, Ban, CalendarClock, Check, ChevronLeft, CircleHelp, Clock, Copy, Download, ExternalLink, Eye, FileText, Film, Hash, Layers, Music, PenLine, PlayCircle, Send, Sparkles, ThumbsUp, UserCheck, UserPlus, Users, X } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { PlatformGlyph } from "@/components/ui/PlatformGlyph";
 import { Input } from "@pratham7711/ui";
 import { Button, Dropdown, Field } from "@/components/ds";
 import { useDirty } from "@/lib/useDirty";
@@ -12,6 +14,7 @@ import { detectPlatform, MEDIA_TYPES } from "@/lib/platforms/postUrl";
 import { SHOW_MONEY } from "@/lib/moneyUi";
 import type { CampaignDate } from "@/lib/portal/campaignDates";
 import { splitLinks } from "@/lib/portal/postLinks";
+import { briefBlocks } from "@/lib/portal/briefBlocks";
 import type { RuleCheck } from "@/lib/portal/submissionRules";
 import {
   Banner,
@@ -21,7 +24,7 @@ import {
   SectionTitle,
   SkeletonBlock,
   StatusPill,
-  formatCount,
+  formatExact,
   formatDay,
   platformLabel,
   relativeDay,
@@ -54,6 +57,14 @@ type CampaignDetail = {
   ruleChecksPlatform?: string | null;
   /** Whether the agency asks for boost codes on this campaign. */
   boostCodes?: boolean;
+  /** The release's TikTok / Instagram sounds, when the campaign promotes one. */
+  sounds?: { platform: string; title: string; artist: string; url: string }[];
+  /** Creators on the campaign (a count only). */
+  creatorCount?: number;
+  maxPostsPerAccount?: number | null;
+  minFollowers?: number | null;
+  requiredHashtags?: string[];
+  requiredMentions?: string[];
 };
 
 type Submission = {
@@ -113,29 +124,212 @@ function money(minor: number, currency: string) {
 function DatesCard({ dates, now }: { dates: CampaignDate[]; now: number }) {
   return (
     <Card>
-      <SectionTitle>Dates</SectionTitle>
+      <SectionTitle><IconTitle icon={CalendarClock} tone="orange">Dates</IconTitle></SectionTitle>
       {dates.length === 0 ? (
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)", margin: 0 }}>
-          The agency hasn&apos;t set any dates yet. They&apos;ll show here when they do.
-        </p>
+        <p style={{ fontSize: 14, color: "var(--cc-text-muted)", margin: 0 }}>No dates set yet.</p>
       ) : (
-        <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+        <ol className="portal-timeline">
           {dates.map((d) => {
             const past = new Date(d.at).getTime() < now - 86_400_000;
             return (
-              <li key={`${d.kind}-${d.at}`} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 14 }}>
-                <span style={{ color: past ? "var(--cc-text-muted)" : "var(--cc-text)", fontWeight: d.kind === "post_due" ? 600 : 400 }}>
-                  {d.label}
-                </span>
-                <span style={{ color: "var(--cc-text-muted)", whiteSpace: "nowrap" }}>
-                  {formatDay(d.at)} · {relativeDay(d.at)}
+              <li key={`${d.kind}-${d.at}`} data-past={past || undefined} data-key={d.kind === "post_due" || undefined}>
+                <span className="portal-timeline-dot" aria-hidden="true" />
+                <span className="portal-timeline-label">{d.label}</span>
+                <span className="portal-timeline-when">
+                  <strong>{formatDay(d.at)}</strong>
+                  <span className="portal-timeline-rel">{relativeDay(d.at)}</span>
                 </span>
               </li>
             );
           })}
+        </ol>
+      )}
+    </Card>
+  );
+}
+
+type ToneName = "violet" | "blue" | "pink" | "green" | "orange";
+
+/* A section title with a small tinted icon tile, so each card reads at a glance. */
+function IconTitle({ icon: Icon, tone, children }: { icon: typeof Check; tone: ToneName; children: React.ReactNode }) {
+  return (
+    <span className="portal-ttl">
+      <span className="portal-ttl-icon" data-hue={tone} aria-hidden="true">
+        <Icon size={15} />
+      </span>
+      {children}
+    </span>
+  );
+}
+
+/* The campaign's cover: the brand band behind the title, with the facts a
+   creator weighs before posting (Content Rewards and Clipster put them in
+   their headers). Each fact explains itself on hover or focus. */
+function CampaignCover({ detail, status, now }: { detail: CampaignDetail; status: { tone: Tone; label: string }; now: number }) {
+  const next = detail.dates.find((d) => new Date(d.at).getTime() >= now - 86_400_000);
+  const facts: { key: string; icon: typeof Check; value: string; label: string; tip: string; hue: ToneName }[] = [];
+  if (detail.creatorCount && detail.creatorCount > 0) {
+    facts.push({ key: "creators", hue: "violet", icon: Users, value: formatExact(detail.creatorCount), label: detail.creatorCount === 1 ? "creator" : "creators", tip: "Creators who have joined this campaign" });
+  }
+  if (detail.maxPostsPerAccount) {
+    facts.push({ key: "max", hue: "blue", icon: Layers, value: String(detail.maxPostsPerAccount), label: "posts per account", tip: "The most posts each of your accounts can submit" });
+  }
+  if (detail.minFollowers) {
+    facts.push({ key: "followers", hue: "pink", icon: UserCheck, value: `${formatExact(detail.minFollowers)}+`, label: "followers", tip: "Followers your account needs on the platform you post to" });
+  }
+  if (next && detail.acceptsPosts) {
+    facts.push({ key: "next", hue: "orange", icon: CalendarClock, value: formatDay(next.at), label: next.label.toLowerCase(), tip: `${next.label}: ${relativeDay(next.at)}` });
+  }
+  const art = detail.sounds?.[0];
+  return (
+    <header className="portal-cover">
+      <Link href="/portal/campaigns" className="portal-cover-back">
+        <ChevronLeft size={16} aria-hidden="true" /> Campaigns
+      </Link>
+      <div className="portal-cover-main">
+        <span className="portal-cover-art" aria-hidden="true">
+          <Music size={26} />
+        </span>
+        <div className="portal-cover-text">
+          <div className="portal-cover-badges">
+            <StatusPill tone={status.tone}>{status.label}</StatusPill>
+            {art && (
+              <span className="portal-cover-tag">
+                <Music size={12} aria-hidden="true" /> {art.title}
+              </span>
+            )}
+          </div>
+          <h1 className="portal-cover-title">{detail.title}</h1>
+          <p className="portal-cover-org">by {detail.orgName}</p>
+        </div>
+      </div>
+      {facts.length > 0 && (
+        <ul className="portal-cover-facts" aria-label="About this campaign">
+          {facts.map((f) => (
+            <li key={f.key}>
+              <Tooltip>
+                <TooltipTrigger render={<span className="portal-cover-fact" data-hue={f.hue} tabIndex={0} />}>
+                  <span className="portal-cover-fact-icon" aria-hidden="true">
+                    <f.icon size={16} />
+                  </span>
+                  <span className="portal-cover-fact-text">
+                    <strong>{f.value}</strong>
+                    <span>{f.label}</span>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>{f.tip}</TooltipContent>
+              </Tooltip>
+            </li>
+          ))}
+        </ul>
+      )}
+    </header>
+  );
+}
+
+/* The sound a music campaign is about, one tap from the app that posts with it. */
+/* What goes into the post: the sound as one row with its open buttons, and the
+   caption tags as tokens. One card, so the phone isn't a stack of boxes. */
+function CopyToken({ text, hue, icon: Icon }: { text: string; hue: ToneName; icon: typeof Check }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      toast.success(`Copied ${text}`);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      toast.error("Couldn't copy. Select the text instead.");
+    }
+  };
+  return (
+    <Tooltip>
+      <TooltipTrigger render={<button type="button" className="portal-token" data-hue={hue} onClick={copy} aria-label={`Copy ${text}`} />}>
+        <Icon size={13} aria-hidden="true" />
+        {text.slice(1)}
+        {copied ? <Check size={13} aria-hidden="true" className="portal-token-act" /> : <Copy size={12} aria-hidden="true" className="portal-token-act" />}
+      </TooltipTrigger>
+      <TooltipContent>{copied ? "Copied" : "Tap to copy"}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+function PostKit({ sounds, hashtags, mentions }: { sounds: NonNullable<CampaignDetail["sounds"]>; hashtags: string[]; mentions: string[] }) {
+  const first = sounds[0];
+  if (!first && hashtags.length + mentions.length === 0) return null;
+  return (
+    <Card>
+      <SectionTitle><IconTitle icon={Sparkles} tone="pink">Use in your post</IconTitle></SectionTitle>
+      {first && (
+        <div className="portal-sound">
+          <span className="portal-sound-art" aria-hidden="true">
+            <Music size={20} />
+          </span>
+          <span className="portal-sound-text">
+            <strong>{first.title}</strong>
+            <span>{first.artist}</span>
+          </span>
+          <span className="portal-sound-links">
+            {sounds.map((snd) => (
+              <a
+                key={snd.platform}
+                href={snd.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="portal-sound-link rsp-touch"
+                aria-label={`Open the sound in ${platformLabel(snd.platform)}`}
+                title={`Open in ${platformLabel(snd.platform)}`}
+              >
+                <PlatformGlyph platform={snd.platform} size={16} />
+                <ExternalLink size={12} aria-hidden="true" />
+              </a>
+            ))}
+          </span>
+        </div>
+      )}
+      {hashtags.length + mentions.length > 0 && (
+        <ul className="portal-tokens" aria-label="Add to your caption" style={first ? { marginTop: 12 } : undefined}>
+          {hashtags.map((h) => (
+            <li key={h}><CopyToken text={`#${h.replace(/^#/, "")}`} hue="violet" icon={Hash} /></li>
+          ))}
+          {mentions.map((m) => (
+            <li key={m}><CopyToken text={`@${m.replace(/^@/, "")}`} hue="blue" icon={AtSign} /></li>
+          ))}
         </ul>
       )}
     </Card>
+  );
+}
+
+function BriefText({ text }: { text: string }) {
+  const blocks = briefBlocks(text);
+  const groups: { list: boolean; items: typeof blocks }[] = [];
+  for (const b of blocks) {
+    const list = b.kind === "li";
+    const last = groups[groups.length - 1];
+    if (last && last.list && list) last.items.push(b);
+    else groups.push({ list, items: [b] });
+  }
+  return (
+    <div className="portal-brief-text">
+      {groups.map((g, i) =>
+        g.list ? (
+          <ul key={i}>
+            {g.items.map((b, j) => (
+              <li key={j}>{b.text}</li>
+            ))}
+          </ul>
+        ) : (
+          g.items.map((b, j) =>
+            b.kind === "h" ? (
+              <p key={`${i}-${j}`} className="portal-brief-h">{b.text}</p>
+            ) : (
+              <p key={`${i}-${j}`}>{b.text}</p>
+            ),
+          )
+        ),
+      )}
+    </div>
   );
 }
 
@@ -148,19 +342,13 @@ function BriefCard({ detail }: { detail: CampaignDetail }) {
   const rates = Object.entries(detail.rates ?? {});
   const checklist = detail.checklist ?? { dos: [], donts: [], examples: [] };
   const hasChecklist = checklist.dos.length + checklist.donts.length + checklist.examples.length > 0;
-  if (blocks.length === 0 && !hasChecklist && !detail.contentAssetsUrl && !(SHOW_MONEY && rates.length > 0)) return null;
-  return (
-    <Card>
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        {blocks.map(([title, text]) => (
+  const empty = blocks.length === 0 && !hasChecklist && !detail.contentAssetsUrl && !(SHOW_MONEY && rates.length > 0);
+  return empty ? null : <BriefFold after={hasChecklist ? <Checklist {...checklist} /> : null}>{blocks.map(([title, text]) => (
           <div key={title}>
-            <SectionTitle>{title}</SectionTitle>
-            <p style={{ fontSize: 14, color: "var(--cc-text)", margin: 0, whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{text}</p>
+            <SectionTitle><IconTitle icon={FileText} tone="violet">{title === "Brief" ? "What to make" : title}</IconTitle></SectionTitle>
+            <BriefText text={text} />
           </div>
         ))}
-        {hasChecklist && <Checklist {...checklist} />}
-        {/* Marketplace rates are money, and money is off in the creator app
-            (lib/moneyUi.ts). Hidden, never cleared. */}
         {SHOW_MONEY && rates.length > 0 && (
           <div>
             <SectionTitle>Rates per 1,000 views</SectionTitle>
@@ -179,8 +367,35 @@ function BriefCard({ detail }: { detail: CampaignDetail }) {
           >
             <Download size={15} aria-hidden="true" /> Campaign assets
           </a>
-        )}
+        )}</BriefFold>;
+}
+
+/* On a phone the brief opens as a short preview with Read more, so the first
+   screen isn't a wall of text. Desktop shows it whole. */
+function BriefFold({ children, after }: { children: React.ReactNode; after?: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+    const measure = () => setOverflows(el.scrollHeight > el.clientHeight + 4);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return (
+    <Card>
+      <div ref={bodyRef} className="portal-brief-body" data-folded={open ? undefined : ""}>
+        {children}
       </div>
+      {(overflows || open) && (
+        <button type="button" className="portal-brief-more" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+          {open ? "Show less" : "Read full brief"}
+        </button>
+      )}
+      {after && <div className="portal-brief-after">{after}</div>}
     </Card>
   );
 }
@@ -192,42 +407,54 @@ const iconStyle = (color: string): React.CSSProperties => ({ color, flexShrink: 
 /** The agency's do's and don'ts, and posts they point to as examples. */
 function Checklist({ dos, donts, examples }: { dos: string[]; donts: string[]; examples: string[] }) {
   return (
-    <div>
-      <SectionTitle>Checklist</SectionTitle>
+    <div className="portal-dodont-wrap">
       {dos.length + donts.length > 0 && (
-        <ul style={listStyle}>
-          {dos.map((d) => (
-            <li key={`do-${d}`} style={rowStyle}>
-              <Check size={16} aria-label="Do" style={iconStyle("var(--cc-success)")} /> {d}
-            </li>
-          ))}
-          {donts.map((d) => (
-            <li key={`dont-${d}`} style={rowStyle}>
-              <X size={16} aria-label="Don't" style={iconStyle("var(--cc-danger)")} /> {d}
-            </li>
-          ))}
-        </ul>
+        <div className="portal-dodont">
+          {dos.length > 0 && (
+            <div className="portal-dodont-col" data-kind="do">
+              <span className="portal-dodont-head">
+                <ThumbsUp size={14} aria-hidden="true" /> Do
+              </span>
+              <ul>
+                {dos.map((d) => (
+                  <li key={d}>
+                    <Check size={14} aria-hidden="true" /> {d}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {donts.length > 0 && (
+            <div className="portal-dodont-col" data-kind="dont">
+              <span className="portal-dodont-head">
+                <Ban size={14} aria-hidden="true" /> Don&apos;t
+              </span>
+              <ul>
+                {donts.map((d) => (
+                  <li key={d}>
+                    <X size={14} aria-hidden="true" /> {d}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
       )}
       {examples.length > 0 && (
-        <div style={{ marginTop: dos.length + donts.length > 0 ? 12 : 0 }}>
-          <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text-muted)", marginBottom: 6 }}>Example posts</span>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {examples.map((url, i) => {
-              const d = detectPlatform(url);
-              return (
-                <a
-                  key={url}
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="rsp-touch"
-                  style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 600, color: "var(--cc-primary)", textDecoration: "none" }}
-                >
-                  {d ? `${platformLabel(d.platform)} example ${i + 1}` : `Example ${i + 1}`} <ExternalLink size={13} aria-hidden="true" />
-                </a>
-              );
-            })}
-          </div>
+        <div className="portal-examples">
+          <span className="portal-examples-head">
+            <PlayCircle size={14} aria-hidden="true" /> Examples
+          </span>
+          {examples.map((url, i) => {
+            const d = detectPlatform(url);
+            return (
+              <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="portal-example rsp-touch">
+                {d ? <PlatformGlyph platform={d.platform} size={14} /> : null}
+                {d ? `${platformLabel(d.platform)} ${i + 1}` : `Example ${i + 1}`}
+                <ExternalLink size={12} aria-hidden="true" />
+              </a>
+            );
+          })}
         </div>
       )}
     </div>
@@ -243,11 +470,12 @@ const RULE_ICON: Record<RuleCheck["state"], { Icon: typeof Check; color: string;
 
 /** The submission rules, each with what we measured against it. */
 function RuleList({ checks }: { checks: RuleCheck[] }) {
+  const shown = checks.filter((c) => c.state === "fail" || c.state === "unknown");
+  if (shown.length === 0) return null;
   return (
     <div style={{ margin: "0 0 14px" }}>
-      <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 8 }}>Rules for this campaign</span>
       <ul style={listStyle} data-testid="portal-rule-checks">
-        {checks.map((c) => {
+        {shown.map((c) => {
           const { Icon, color, label } = RULE_ICON[c.state];
           return (
             <li key={c.key} style={rowStyle} data-state={c.state}>
@@ -412,11 +640,8 @@ function SubmitPosts({
 
   return (
     <Card>
-      <SectionTitle>Submit your posts</SectionTitle>
+      <SectionTitle><IconTitle icon={Send} tone="blue">Submit your posts</IconTitle></SectionTitle>
       {checks.length > 0 && <RuleList checks={checks} />}
-      <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: "0 0 10px" }}>
-        Paste one link or many, one per line. We work out the platform from each link.
-      </p>
       <label htmlFor="post-links" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>
         Post links
       </label>
@@ -503,10 +728,7 @@ function SubmitPosts({
         </div>
       )}
       <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: "12px 0 0" }}>
-        Views update by themselves when your account is connected.{" "}
-        <Link href="/portal/accounts" style={{ color: "var(--cc-primary)", fontWeight: 600 }}>
-          My accounts
-        </Link>
+        Submit as soon as it&apos;s live.
       </p>
     </Card>
   );
@@ -556,12 +778,24 @@ function DraftCard({ slug, draft, onDone }: { slug: string; draft: Draft; onDone
     }
   };
 
+  if (!CAN_SUBMIT_DRAFT.includes(draft.status) && !draft.draftUrl) {
+    return (
+      <Card>
+        <div className="portal-row-between">
+          <IconTitle icon={PenLine} tone="orange">
+            <span className="portal-row-title">Draft</span>
+          </IconTitle>
+          <StatusPill tone={state.tone}>{state.label}</StatusPill>
+        </div>
+      </Card>
+    );
+  }
   return (
     <Card>
-      <SectionTitle aside={<StatusPill tone={state.tone}>{state.label}</StatusPill>}>Draft for review</SectionTitle>
-      <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: "0 0 12px" }}>
-        If the agency wants to see your content before it goes live, send a draft link here first.
-      </p>
+      <SectionTitle aside={<StatusPill tone={state.tone}>{state.label}</StatusPill>}><IconTitle icon={PenLine} tone="orange">Draft for review</IconTitle></SectionTitle>
+      {CAN_SUBMIT_DRAFT.includes(draft.status) && (
+        <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: "0 0 12px" }}>Optional: send a draft before you post.</p>
+      )}
       {draft.status === "DECLINED" && draft.feedbackNotes && (
         <Banner tone="danger">
           <strong>Feedback:</strong> {draft.feedbackNotes}
@@ -687,9 +921,9 @@ function BoostCodeRow({ slug, submission, editable, onDone }: { slug: string; su
 function SubmissionList({ slug, submissions, currency, boostCodes, onDone }: { slug: string; submissions: Submission[]; currency: string; boostCodes: boolean; onDone: () => void }) {
   return (
     <div>
-      <SectionTitle>Your submissions</SectionTitle>
+      <SectionTitle><IconTitle icon={Film} tone="green">Your submissions</IconTitle></SectionTitle>
       {submissions.length === 0 ? (
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)", margin: 0 }}>Nothing yet. Your posts show here with their status and views.</p>
+        <p style={{ fontSize: 14, color: "var(--cc-text-muted)", margin: 0 }}>No posts yet.</p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {submissions.map((s) => {
@@ -699,23 +933,37 @@ function SubmissionList({ slug, submissions, currency, boostCodes, onDone }: { s
             const views = s.views;
             return (
               <div key={s.id} style={{ padding: 14, borderRadius: "var(--cc-r-card)", border: "1px solid var(--cc-border)", background: "var(--cc-card)" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+                <div className="portal-sub-row">
+                  <span className="portal-sub-glyph" aria-hidden="true">
+                    <PlatformGlyph platform={s.platform} size={18} />
+                  </span>
+                  <div className="portal-sub-body">
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6, minWidth: 0, width: "100%" }}>
                   <a
                     href={s.postUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ minWidth: 0, fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: "none" }}
+                    style={{ minWidth: 0, maxWidth: "100%", fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: "none" }}
                   >
                     {s.caption || s.postUrl}
                   </a>
                   <StatusPill tone={state.tone}>{state.label}</StatusPill>
                 </div>
-                <div style={{ fontSize: 13, color: "var(--cc-text-muted)", marginTop: 6 }}>
-                  {platformLabel(s.platform)} ·{" "}
-                  {views === null ? "views not read yet" : <strong style={{ color: "var(--cc-text)" }}>{formatCount(views)} views</strong>}
-                  {s.lastSyncedAt && <> · updated {relativeDay(s.lastSyncedAt)}</>}
-                  {SHOW_MONEY && s.earnedMinor > 0 && <> · {money(s.earnedMinor, currency)}</>}
+                  </div>
+                  <Tooltip>
+                    <TooltipTrigger render={<span className="portal-sub-views" tabIndex={0} />}>
+                      <strong>{views === null ? "–" : formatExact(views)}</strong>
+                      <span>
+                        <Eye size={12} aria-hidden="true" /> views
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {views === null ? "Views not read yet" : `${views.toLocaleString()} views on ${platformLabel(s.platform)}`}
+                      {SHOW_MONEY && s.earnedMinor > 0 ? ` · ${money(s.earnedMinor, currency)}` : ""}
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
+
                 {s.status === "REJECTED" && s.rejectionReason && (
                   <p style={{ fontSize: 13, color: "var(--cc-text)", margin: "6px 0 0" }}>{s.rejectionReason}</p>
                 )}
@@ -827,53 +1075,120 @@ function CampaignScreen() {
       ? { tone: "success", label: "Joined" }
       : { tone: "info", label: "Open" };
 
+  const sounds = detail.sounds ?? [];
+  const canSubmit = joined && detail.acceptsPosts;
+  const stillPosting = detail.acceptsPosts || detail.joinable || !!opensAt;
+
+  /* Desktop: what to make on the left, what to do and the facts on a rail
+     that stays beside it while the brief scrolls (Content Rewards, Clipster).
+     Phone: one column, the action first, and a bar at the bottom that brings
+     it back once it has scrolled away. */
   return (
-    <Screen
-      title={detail.title}
-      back={{ href: "/portal/campaigns", label: "Campaigns" }}
-      subtitle={detail.orgName}
-      badges={<StatusPill tone={status.tone}>{status.label}</StatusPill>}
-    >
+    <Screen title={detail.title} maxWidth={1080} hero={<CampaignCover detail={detail} status={status} now={loadedAt} />}>
       {banner && bannerShown && (
         <Banner tone={banner.tone} onDismiss={() => setBannerShown(false)}>
           {banner.text}
         </Banner>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        {detail.joinable && (
-          <Card>
-            <SectionTitle>Join this campaign</SectionTitle>
-            <p style={{ fontSize: 14, color: "var(--cc-text-muted)", margin: "0 0 12px" }}>
-              Anyone can join. Once you&apos;re in, post your content and submit the links here.
-            </p>
-            <Button variant="primary" loading={joining} onClick={join}>
-              Join campaign
-            </Button>
-          </Card>
-        )}
 
-        <DatesCard dates={detail.dates} now={loadedAt} />
-        <BriefCard detail={detail} />
 
-        {joined && draft && detail.acceptsPosts && <DraftCard slug={slug} draft={draft} onDone={load} />}
+      <div className="portal-campaign-grid">
+        <aside className="portal-campaign-rail">
+          <div className={`portal-slot portal-slot-action${canSubmit || detail.joinable ? "" : " portal-slot-first"}`}>
+            {detail.joinable && (
+              <Card>
+                <div id="portal-action" className="portal-action-anchor">
+                  <SectionTitle><IconTitle icon={UserPlus} tone="blue">Join this campaign</IconTitle></SectionTitle>
+                    <Button variant="primary" loading={joining} onClick={join}>
+                    Join campaign
+                  </Button>
+                </div>
+              </Card>
+            )}
+            {canSubmit && (
+              <div id="portal-action" className="portal-action-anchor">
+                <SubmitPosts slug={slug} checks={detail.ruleChecks ?? []} checksPlatform={detail.ruleChecksPlatform ?? null} boostCodes={detail.boostCodes === true} onDone={load} />
+              </div>
+            )}
+            {opensAt && (
+              <Banner tone="info">
+                Posts open {formatDay(opensAt, { utc: true })}.
+              </Banner>
+            )}
+            {joined && !detail.acceptsPosts && !opensAt && (
+              <Banner tone="info">No longer taking posts.</Banner>
+            )}
+            {!joined && !detail.joinable && !opensAt && (
+              <Banner tone="info">Invite only. Ask the agency for a link.</Banner>
+            )}
+          </div>
+          {stillPosting && (
+            <div className="portal-slot portal-slot-sound">
+              <PostKit sounds={sounds} hashtags={detail.requiredHashtags ?? []} mentions={detail.requiredMentions ?? []} />
+            </div>
+          )}
+          {(stillPosting || detail.dates.length > 0) && (
+            <div className="portal-slot portal-slot-dates">
+              <DatesCard dates={detail.dates} now={loadedAt} />
+            </div>
+          )}
+        </aside>
 
-        {joined && detail.acceptsPosts && <SubmitPosts slug={slug} checks={detail.ruleChecks ?? []} checksPlatform={detail.ruleChecksPlatform ?? null} boostCodes={detail.boostCodes === true} onDone={load} />}
-        {opensAt && (
-          <Banner tone="info">
-            Posts open on {formatDay(opensAt, { utc: true })}. Read the brief now; you can submit your links from that day.
-          </Banner>
-        )}
-        {joined && !detail.acceptsPosts && !opensAt && (
-          <Banner tone="info">This campaign isn&apos;t taking new posts any more. Your submissions are below.</Banner>
-        )}
-        {!joined && !detail.joinable && !opensAt && (
-          <Banner tone="info">This campaign is by invitation. Ask the agency for an invite link to join.</Banner>
-        )}
-
-        {joined && <SubmissionList slug={slug} submissions={submissions} currency={detail.currency} boostCodes={detail.boostCodes === true} onDone={load} />}
+        <div className="portal-campaign-main">
+          <div className="portal-slot portal-slot-brief">
+            <BriefCard detail={detail} />
+          </div>
+          {joined && draft && detail.acceptsPosts && (
+            <div className="portal-slot portal-slot-draft">
+              <DraftCard slug={slug} draft={draft} onDone={load} />
+            </div>
+          )}
+          {joined && (
+            <div className="portal-slot portal-slot-subs">
+              <SubmissionList slug={slug} submissions={submissions} currency={detail.currency} boostCodes={detail.boostCodes === true} onDone={load} />
+            </div>
+          )}
+        </div>
       </div>
+
+      {(canSubmit || detail.joinable) && (
+        <StickyAction
+          label={canSubmit ? "Submit a post" : "Join campaign"}
+          loading={!canSubmit && joining}
+          onClick={canSubmit ? undefined : join}
+        />
+      )}
     </Screen>
+  );
+}
+
+/* Phone only: whenever the Join / Submit card is off screen, above or below
+   (the brief comes first on a phone), a bar above the tab bar scrolls to it
+   (Submit) or does it (Join). */
+function StickyAction({ label, onClick, loading }: { label: string; onClick?: () => void; loading?: boolean }) {
+  const [hidden, setHidden] = useState(true);
+  useEffect(() => {
+    const target = document.getElementById("portal-action");
+    if (!target || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(([e]) => setHidden(e.isIntersecting), { threshold: 0, rootMargin: "0px 0px -160px 0px" });
+    io.observe(target);
+    return () => io.disconnect();
+  }, []);
+  return (
+    <div className="portal-sticky-action" data-hidden={hidden || undefined}>
+      <Button
+        variant="primary"
+        fullWidth
+        loading={loading}
+        onClick={() => {
+          if (onClick) onClick();
+          else document.getElementById("portal-action")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }}
+      >
+        {label}
+      </Button>
+    </div>
   );
 }
 

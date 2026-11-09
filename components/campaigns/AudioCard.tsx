@@ -3,7 +3,8 @@ import React, { useState } from "react";
 import { Card } from "@pratham7711/ui";
 import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, Cell, ReferenceLine, XAxis, YAxis, Tooltip } from "recharts";
 import { Music2 } from "lucide-react";
-import { formatCompact, formatFull, fitFigureSize } from "@/lib/format";
+import { formatFull, fitFigureSize } from "@/lib/format";
+import { useAxisFigure } from "@/components/ds/ExactFigures";
 import { imgSrc, shareImgSrc } from "@/lib/postMedia";
 import type { CampaignAudio } from "@/lib/reports/campaignPerformance";
 import { velocityBars } from "@/app/(dashboard)/trackers/SoundCharts";
@@ -100,12 +101,13 @@ function AddedBars({
   report: boolean;
   launch?: CampaignLaunch | null;
 }) {
+  const axisFigure = useAxisFigure();
   const tick = { fontSize: report ? 14 : 11, fill: report ? "var(--spr-audio-axis)" : "var(--cc-text-muted)" };
   return (
     <ResponsiveContainer width="100%" height={report ? "100%" : "82%"}>
       <BarChart data={bars} margin={{ top: 4, right: report ? 30 : 8, left: 0, bottom: 0 }}>
         <XAxis dataKey="t" tick={tick} tickLine={false} axisLine={false} tickFormatter={axisLabel} minTickGap={28} />
-        <YAxis tick={tick} tickLine={false} axisLine={false} width="auto" allowDecimals={false} tickFormatter={(v) => formatCompact(Number(v))} />
+        <YAxis tick={tick} tickLine={false} axisLine={false} width="auto" allowDecimals={false} tickFormatter={(v) => axisFigure(Number(v))} />
         {/* Negative bars are real: creators delete videos, and the count is an
             inventory rather than a running total. */}
         <ReferenceLine y={0} stroke={report ? "var(--spr-audio-axis)" : "var(--cc-border)"} strokeOpacity={report ? 0.4 : 1} />
@@ -222,7 +224,7 @@ function launchMarker(launch: CampaignLaunch | null | undefined, report: boolean
       x={x ?? Date.parse(launch.at)}
       stroke={ink}
       strokeDasharray="4 3"
-      label={{ value: launchLabel(launch), position: "insideTopLeft", fontSize: 11, fill: ink }}
+      label={{ value: launchLabel(launch), position: "insideTopLeft", fontSize: 12, fill: ink }}
     />
   );
 }
@@ -288,6 +290,7 @@ export function AudioCard({
   /** Inside the campaign's tabbed chart card, whose tab already names the sound. */
   embedded?: boolean;
 }) {
+  const axisFigure = useAxisFigure();
   /* The range cuts what the chart draws, after every per-reading figure was
      worked out over the whole series: velocity and the per-bucket bars at the
      window's left edge are still measured from the reading before it. */
@@ -467,13 +470,13 @@ export function AudioCard({
               <AreaChart data={audio.usageSeries} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                 <XAxis
                   {...TIME_AXIS}
-                  tick={{ fontSize: 11, fill: "var(--cc-text-muted)" }}
+                  tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }}
                   tickLine={false}
                   axisLine={false}
                   tickFormatter={axisLabel}
                 />
                 <YAxis
-                  tick={{ fontSize: 11, fill: "var(--cc-text-muted)" }}
+                  tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }}
                   tickLine={false}
                   axisLine={false}
                   /* Sized to its own labels. A fixed width with the chart pulled
@@ -487,7 +490,7 @@ export function AudioCard({
                      for a count is what you want. */
                   domain={view === "velocity" ? ["auto", "auto"] : [0, "auto"]}
                   allowDecimals={view === "velocity"}
-                  tickFormatter={(v) => (view === "velocity" ? velocityTick(v) : formatCompact(Number(v)))}
+                  tickFormatter={(v) => (view === "velocity" ? velocityTick(v) : axisFigure(Number(v)))}
                 />
                 <Tooltip
                   formatter={usageTooltipValue(view === "velocity" ? "velocity" : "usage")}
@@ -616,6 +619,7 @@ function ReportAudio({
   atLaunch: string | null;
   launch?: CampaignLaunch | null;
 }) {
+  const axisFigure = useAxisFigure();
   const hasCurve = fullSeries.length > 1;
   const notes = velocityNotes(audio);
   /* A month-old figure rendered as a bare number claims to be current, and this
@@ -733,7 +737,7 @@ function ReportAudio({
                      dashboard card above. */
                   domain={view === "velocity" ? ["auto", "auto"] : [0, "auto"]}
                   allowDecimals={view === "velocity"}
-                  tickFormatter={(v) => (view === "velocity" ? velocityTick(v) : formatCompact(Number(v)))}
+                  tickFormatter={(v) => (view === "velocity" ? velocityTick(v) : axisFigure(Number(v)))}
                 />
                 <Tooltip
                   formatter={usageTooltipValue(view === "velocity" ? "velocity" : "usage")}

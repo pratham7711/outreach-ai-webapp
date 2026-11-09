@@ -5,7 +5,7 @@ import {
 } from "recharts";
 import { MetricHint } from "@/components/ds";
 import { chartAxisTick, chartLegendProps, chartTooltipProps } from "@/components/charts/chartTheme";
-import { formatCompact, formatFull } from "@/lib/format";
+import { formatFull } from "@/lib/format";
 import { bucketChanges, type SeriesMode } from "@/lib/charts/seriesMode";
 
 type PerformancePoint = { t: number; date: string; views: number; likes: number | null; comments: number | null };
@@ -40,7 +40,7 @@ function PanelHeading({
 }) {
   return (
     <div className="mb-1 flex items-center gap-1.5">
-      <span className="text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
+      <span className="text-xs font-medium tracking-[0.06em] text-muted-foreground uppercase">
         {title}
       </span>
       <MetricHint label={label} what={what} />
@@ -100,7 +100,7 @@ function ChangeBars({
           axisLine={false}
           tickLine={false}
         />
-        <YAxis tick={chartAxisTick} axisLine={false} tickLine={false} width={52} tickFormatter={(v) => formatCompact(Number(v))} />
+        <YAxis tick={chartAxisTick} axisLine={false} tickLine={false} width="auto" tickFormatter={(v) => formatFull(Number(v))} />
         <ReferenceLine y={0} stroke="var(--chart-grid)" />
         <Tooltip {...chartTooltipProps} labelFormatter={label} formatter={(value, name) => [signed(value), String(name)]} />
         {series.length > 1 ? <Legend {...chartLegendProps} /> : null}
@@ -160,8 +160,8 @@ export function PerformanceOverTimeArea({ data, mode = "cumulative" }: { data: P
               tick={chartAxisTick}
               axisLine={false}
               tickLine={false}
-              width={52}
-              tickFormatter={(v) => formatCompact(Number(v))}
+              width="auto"
+              tickFormatter={(v) => formatFull(Number(v))}
             />
             <Tooltip
               {...chartTooltipProps}
@@ -196,8 +196,8 @@ export function PerformanceOverTimeArea({ data, mode = "cumulative" }: { data: P
               tick={chartAxisTick}
               axisLine={false}
               tickLine={false}
-              width={52}
-              tickFormatter={(v) => formatCompact(Number(v))}
+              width="auto"
+              tickFormatter={(v) => formatFull(Number(v))}
             />
             <Tooltip
               {...chartTooltipProps}
@@ -274,8 +274,8 @@ export function TrackingLine({
               tick={chartAxisTick}
               axisLine={false}
               tickLine={false}
-              width={52}
-              tickFormatter={(v) => formatCompact(Number(v))}
+              width="auto"
+              tickFormatter={(v) => formatFull(Number(v))}
             />
             <Tooltip
               {...chartTooltipProps}
@@ -310,8 +310,8 @@ export function TrackingLine({
               tick={chartAxisTick}
               axisLine={false}
               tickLine={false}
-              width={52}
-              tickFormatter={(v) => formatCompact(Number(v))}
+              width="auto"
+              tickFormatter={(v) => formatFull(Number(v))}
             />
             <Tooltip
               {...chartTooltipProps}

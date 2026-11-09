@@ -7,8 +7,13 @@ import { MetricHint, MetricTile, SectionCard, Skeleton } from "@/components/ds";
 import { loadCharts } from "@/components/charts/lazyCharts";
 import { formatNumber, type PerformanceData } from "../types";
 import { asOfCaption } from "@/lib/dataAge";
+import { countDelta } from "@/lib/analytics/periodGrowth";
 import { SeriesModeToggle } from "@/components/charts/SeriesModeToggle";
 import { periodLabel, type SeriesMode } from "@/lib/charts/seriesMode";
+
+/* The granularity dropdown above already says "Monthly"; the chart's own
+   switch names what the bars are instead, so the page doesn't say it twice. */
+const PER_PERIOD = { Daily: "Per day", Weekly: "Per week", Monthly: "Per month" } as const;
 
 const ViewsOverTimeArea = dynamic(
   () => loadCharts().then((m) => m.ViewsOverTimeArea),
@@ -17,6 +22,8 @@ const ViewsOverTimeArea = dynamic(
 
 type OverviewSectionProps = {
   financials: PerformanceData | null;
+  previous?: PerformanceData | null;
+  periodDays?: number;
   loading: boolean;
   widgets: string[];
   fallbackCampaignCount: number;
@@ -25,6 +32,8 @@ type OverviewSectionProps = {
 
 export function OverviewSection({
   financials,
+  previous,
+  periodDays,
   loading,
   widgets,
   fallbackCampaignCount,
@@ -35,6 +44,8 @@ export function OverviewSection({
   const totalViews = platforms.reduce((n, p) => n + p.views, 0);
   const totalPosts = platforms.reduce((n, p) => n + p.postsCount, 0);
   const series = financials?.viewsOverTime ?? [];
+  const prevPosts = previous?.platformBreakdown?.reduce((n, p) => n + p.postsCount, 0);
+  const vsLabel = periodDays ? `vs the ${periodDays} days before` : "vs the period before";
   const [viewsMode, setViewsMode] = React.useState<SeriesMode>("cumulative");
   /* A total over posts none of which has a view count is unknown, not 0: on 7D
      the tile read "TOTAL VIEWS 0" beside "TOTAL POSTS 5" -- five Instagram
@@ -87,6 +98,7 @@ export function OverviewSection({
             what="How many different creators published at least one post in the selected range."
             how="Counts each creator once, however many posts or campaigns they have in the range chosen above. Posts nobody could attribute to a creator are not counted."
             value={tileValue(String(s ? s.totalCreators : fallbackCreatorCount))}
+            delta={pending || !s ? undefined : countDelta(s.totalCreators, previous?.summary?.totalCreators, vsLabel)}
           />
           {/* Both come from the same platform rollup, so they are either
               genuinely measured together or genuinely absent together — and
@@ -117,6 +129,7 @@ export function OverviewSection({
                 what="How many pieces of content your creators published in the selected range."
                 how="Counts tracked posts with a publish date inside the range chosen above, whether or not they are still live."
                 value={tileValue(formatNumber(totalPosts))}
+                delta={pending ? undefined : countDelta(totalPosts, prevPosts, vsLabel)}
               />
             </>
           )}
@@ -140,11 +153,6 @@ export function OverviewSection({
              a running total (it only goes up), and the series starts the day the
              first reading landed -- there is no history to backfill, because
              history was never recorded. */
-          description={
-            viewsMode === "daily"
-              ? "Views gained in each period, from one reading a day."
-              : "Lifetime views across the workspace, read once a day."
-          }
           /* The method used to be the description: two 12px lines in the
              card header saying when readings are taken and what they cover.
              One line stays there; the rest is the hint's, where the other
@@ -165,7 +173,7 @@ export function OverviewSection({
                   label="Views over time"
                   value={viewsMode}
                   onChange={setViewsMode}
-                  periodLabel={periodLabel(series[0]?.date)}
+                  periodLabel={PER_PERIOD[periodLabel(series[0]?.date)]}
                 />
               ) : null}
             </span>
@@ -206,7 +214,7 @@ export function OverviewSection({
               )}
             </div>
           ) : (
-            <div className="h-[400px]">
+            <div className="h-[240px] md:h-[400px]">
               <ViewsOverTimeArea data={series} formatNumber={formatNumber} mode={viewsMode} />
             </div>
           )}

@@ -84,3 +84,10 @@ export function stackExtent<T extends object>(rows: readonly T[], keys: readonly
   }
   return [min, max];
 }
+
+/** Y-axis width that fits its longest tick printed in full ("3,000,000") at the 12px axis size. */
+export function fullAxisWidth(axis: { ticks?: number[] } | number): number {
+  const values = typeof axis === "number" ? [Math.ceil(Math.abs(axis) * 1.25)] : (axis.ticks ?? []);
+  const longest = Math.max(1, ...values.map((t) => new Intl.NumberFormat("en-US").format(t).length));
+  return Math.max(40, Math.ceil(longest * 7.4) + 14);
+}

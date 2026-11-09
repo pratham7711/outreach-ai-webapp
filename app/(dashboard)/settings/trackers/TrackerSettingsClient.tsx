@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { LineChart } from "lucide-react";
 import { Field, LoadError, SettingsForm, Skeleton, SectionCard, Banner } from "@/components/ds";
+import { MetricHint } from "@/components/ds/MetricHint";
 import { ModalOption, ModalOptionList } from "@/components/ds/Modal";
 import { useDirty } from "@/lib/useDirty";
 import { apiFetch } from "@/lib/api/client";
@@ -37,15 +38,15 @@ type Draft = Pick<Settings, "readCadence" | "chartGranularity">;
    has an opinion about — "every 4 hours" and "6 a day" are the same setting,
    and only one of them is the question being asked. */
 const READ_OPTIONS: { value: ReadCadence; label: string; hint: string }[] = [
-  { value: "6hourly", label: "4 a day", hint: "Every 6 hours. Our densest read; catches a spike on the day it happens." },
-  { value: "12hourly", label: "2 a day", hint: "Every 12 hours. The default; enough to follow a release week." },
-  { value: "daily", label: "1 a day", hint: "Cheapest. Too slow to watch a launch." },
+  { value: "6hourly", label: "4 a day", hint: "Catches a spike the same day" },
+  { value: "12hourly", label: "2 a day", hint: "Default" },
+  { value: "daily", label: "1 a day", hint: "Cheapest" },
 ];
 
 const CHART_OPTIONS: { value: ChartGranularity; label: string; hint: string }[] = [
-  { value: "6hourly", label: "6-hourly", hint: "Only meaningful if you also read every 6 hours." },
-  { value: "daily", label: "Daily", hint: "The default. One point a day, the usual way to read a trend." },
-  { value: "weekly", label: "Weekly", hint: "Smoothest. Good for a year-long view of a back catalogue." },
+  { value: "6hourly", label: "6-hourly", hint: "Needs 4 reads a day" },
+  { value: "daily", label: "Daily", hint: "Default" },
+  { value: "weekly", label: "Weekly", hint: "Smoothest, for long views" },
 ];
 
 const chartLabel = (v: string) => (CHART_OPTIONS.find((o) => o.value === v)?.label ?? v).toLowerCase();
@@ -134,7 +135,7 @@ export function TrackerSettingsClient() {
     <SettingsForm
       icon={LineChart}
       title="Reading and charts"
-      description="Applies to every tracked sound in this workspace."
+      description="For every tracked sound"
       dirty={dirty}
       saving={saving}
       onSubmit={() => void save()}
@@ -142,9 +143,16 @@ export function TrackerSettingsClient() {
       className="cc-tracker-settings"
     >
       <Field
-        label="Read cadence"
+        label={
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            Read cadence
+            <MetricHint
+              label="Read cadence"
+              what="How many snapshots we take of each tracked sound per day. Each one loads a real page, so this is the setting that costs something."
+            />
+          </span>
+        }
         group
-        helper="How many snapshots we take of each tracked sound per day. Every one is a real browser loading a real page, so this is the setting that costs something. The reader runs hourly and takes only the sounds that are due."
       >
         <RadioRow
           name="readCadence"
@@ -157,9 +165,13 @@ export function TrackerSettingsClient() {
       </Field>
 
       <Field
-        label="Chart granularity"
+        label={
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            Chart granularity
+            <MetricHint label="Chart granularity" what="Groups readings you already have. Free to change; never triggers extra reads." />
+          </span>
+        }
         group
-        helper="How densely the charts are drawn. This only groups readings you already have, so changing it costs nothing and never triggers extra reads."
       >
         <RadioRow
           name="chartGranularity"
@@ -172,10 +184,8 @@ export function TrackerSettingsClient() {
       </Field>
       {clamped ? (
         <Banner tone="warning" placement="inline" role="status">
-          Charts are drawn{" "}
-          <strong>{chartLabel(effective)}</strong>, not{" "}
-          {chartLabel(draft.chartGranularity)}: you cannot plot points more often than they are read. Raise the read
-          cadence to use this setting.
+          Charts show <strong>{chartLabel(effective)}</strong>. Raise the read cadence to plot{" "}
+          {chartLabel(draft.chartGranularity)}.
         </Banner>
       ) : null}
 

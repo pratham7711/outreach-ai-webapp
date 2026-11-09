@@ -34,10 +34,13 @@ export default function PlatformChips({
   links,
   max,
   compact = false,
+  counts = true,
 }: {
   links: PlatformChipLink[];
   max?: number;
   compact?: boolean;
+  /** Off where the follower count is already shown beside the chips. */
+  counts?: boolean;
 }) {
   const shown = max ? links.slice(0, max) : links;
   const hidden = links.length - shown.length;
@@ -62,7 +65,7 @@ export default function PlatformChips({
           <>
             <PlatformGlyph platform={l.platform} size="1.15em" className="cc-platform-chip-mark" />
             <span className="cc-platform-chip-text">
-              {l.problem ? "Not found" : l.followersCount ? formatCompact(l.followersCount) : label}
+              {l.problem ? "Not found" : counts && l.followersCount ? formatCompact(l.followersCount) : label}
             </span>
           </>
         ) : (

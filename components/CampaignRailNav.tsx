@@ -20,14 +20,33 @@ import { useCampaignListHref } from "@/lib/campaigns/listReturn";
  * Every section is a real link to ?section=<value>, not a button: middle-click
  * and copy-link work, and the back button walks the sections.
  */
-export default function CampaignRailNav({ campaignId }: { campaignId: string }) {
+/**
+ * Another section of the campaign already open. The page is a client component
+ * that reads ?section itself, so a server round trip sends nothing new -- and
+ * that round trip is what stalled for 10-14s on prod (MEASURED 2026-10-03: the
+ * requests reached Vercel that long after the click, then took under a
+ * second). The router syncs a native pushState into useSearchParams, so the
+ * switch is immediate and the back button still walks the sections.
+ */
+export function switchSection(e: { preventDefault: () => void }, pathname: string | null, campaignId: string, href: string) {
+  if (pathname !== `/campaigns/${campaignId}`) return;
+  e.preventDefault();
+  window.history.pushState(null, "", href);
+  document.getElementById("main-content")?.scrollTo({ top: 0 });
+}
+
+/** The section open now: a post's own page sits under Posts. */
+export function useActiveSection(): CampaignSection {
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  /* A post's own page sits under Posts. It carries no ?section, so it used to
-     resolve to the default and mark Overview as where you are. */
-  const active: CampaignSection = /^\/campaigns\/[^/]+\/posts\//.test(pathname ?? "")
-    ? "posts"
-    : readCampaignSection(searchParams);
+  return /^\/campaigns\/[^/]+\/posts\//.test(pathname ?? "") ? "posts" : readCampaignSection(searchParams);
+}
+
+export default function CampaignRailNav({ campaignId }: { campaignId: string }) {
+  const pathname = usePathname();
+  /* A post's own page carries no ?section, so it used to resolve to the
+     default and mark Overview as where you are. */
+  const active = useActiveSection();
   const { title, counts, missing } = useCampaignNav();
   const listHref = useCampaignListHref();
 
@@ -60,20 +79,7 @@ export default function CampaignRailNav({ campaignId }: { campaignId: string }) 
         const link = (
           <NavLink
             href={href}
-            onNavigate={(e) => {
-              /* Another section of the campaign already open. The page is a
-                 client component that reads ?section itself, so a server round
-                 trip sends nothing new -- and that round trip is what stalled
-                 for 10-14s on prod (MEASURED 2026-10-03: the requests reached
-                 Vercel that long after the click, then took under a second).
-                 The router syncs a native pushState into useSearchParams, so
-                 the switch is immediate and the back button still walks the
-                 sections. */
-              if (pathname !== `/campaigns/${campaignId}`) return;
-              e.preventDefault();
-              window.history.pushState(null, "", href);
-              document.getElementById("main-content")?.scrollTo({ top: 0 });
-            }}
+            onNavigate={(e) => switchSection(e, pathname, campaignId, href)}
             className={`cc-nav-item sidebar-link ${activeSection ? "active btn-press" : ""}`}
             aria-current={activeSection ? "page" : undefined}
           >

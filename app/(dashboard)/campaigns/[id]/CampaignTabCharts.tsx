@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
-import { formatCompact } from "@/lib/format";
+import { formatFull } from "@/lib/format";
+import { fullAxisWidth } from "@/lib/charts/axisTicks";
 import {
   PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from "recharts";
@@ -52,7 +53,7 @@ export function CreatorPerformanceBar({
 }) {
   return (
     <ChartFrame minHeight={200}>
-      <BarChart data={data} margin={{ top: 4, right: 0, bottom: 0, left: -8 }}>
+      <BarChart data={data} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
         <XAxis dataKey="name" tick={chartAxisTick} axisLine={false} tickLine={false} />
         <YAxis
@@ -60,8 +61,8 @@ export function CreatorPerformanceBar({
           tick={{ ...chartAxisTick, fill: "var(--chart-1)" }}
           axisLine={false}
           tickLine={false}
-          width={52}
-          tickFormatter={(v) => formatCompact(Number(v))}
+          width={fullAxisWidth(Math.max(0, ...data.map((d) => d.views ?? 0)))}
+          tickFormatter={(v) => formatFull(Number(v))}
         />
         <YAxis
           yAxisId="likes"
@@ -69,8 +70,8 @@ export function CreatorPerformanceBar({
           tick={{ ...chartAxisTick, fill: "var(--chart-3)" }}
           axisLine={false}
           tickLine={false}
-          width={44}
-          tickFormatter={(v) => formatCompact(Number(v))}
+          width={fullAxisWidth(Math.max(0, ...data.map((d) => d.likes ?? 0)))}
+          tickFormatter={(v) => formatFull(Number(v))}
         />
         <Tooltip
           {...chartTooltipProps}

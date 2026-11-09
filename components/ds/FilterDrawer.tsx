@@ -287,3 +287,79 @@ export function FilterButton({ count, onClick }: { count: number; onClick: () =>
     </button>
   );
 }
+
+type ActiveChip = { id: string; label: string; keys: string[] };
+
+function chipsOf(filters: FilterDef[], values: FilterValues): ActiveChip[] {
+  const chips: ActiveChip[] = [];
+  for (const def of filters) {
+    switch (def.type) {
+      case "multiSelect": {
+        const picked = (values[def.key] ?? "").split(",").filter(Boolean);
+        if (!picked.length) break;
+        const names = picked.map((v) => def.options.find((o) => o.value === v)?.label ?? v);
+        const shown = names.length > 2 ? `${names[0]} +${names.length - 1}` : names.join(", ");
+        chips.push({ id: def.key, label: `${def.label}: ${shown}`, keys: [def.key] });
+        break;
+      }
+      case "dateRange": {
+        const from = values[def.fromKey];
+        const to = values[def.toKey];
+        if (!from && !to) break;
+        const span = from && to ? `${from} – ${to}` : from ? `from ${from}` : `until ${to}`;
+        chips.push({ id: def.fromKey, label: `${def.label}: ${span}`, keys: [def.fromKey, def.toKey] });
+        break;
+      }
+      case "numberRange": {
+        const min = values[def.minKey];
+        const max = values[def.maxKey];
+        if (!min && !max) break;
+        const unit = def.unit ? ` ${def.unit}` : "";
+        const span = min && max ? `${min}–${max}${unit}` : min ? `≥ ${min}${unit}` : `≤ ${max}${unit}`;
+        chips.push({ id: def.minKey, label: `${def.label}: ${span}`, keys: [def.minKey, def.maxKey] });
+        break;
+      }
+      case "toggleGroup":
+        for (const o of def.options) {
+          if (values[o.key] === "1") chips.push({ id: o.key, label: o.label, keys: [o.key] });
+        }
+        break;
+    }
+  }
+  return chips;
+}
+
+export function ActiveFilterChips({
+  filters,
+  values,
+  onClear,
+}: {
+  filters: FilterDef[];
+  values: FilterValues;
+  /** The params to drop: every key behind the removed chip, or all of them. */
+  onClear: (keys: string[]) => void;
+}) {
+  const chips = chipsOf(filters, values);
+  if (!chips.length) return null;
+  return (
+    <div className="cc-filter-chips" role="group" aria-label="Active filters">
+      {chips.map((c) => (
+        <button
+          key={c.id}
+          type="button"
+          className="cc-filter-chip"
+          aria-label={`Remove filter ${c.label}`}
+          onClick={() => onClear(c.keys)}
+        >
+          <span className="cc-filter-chip-label">{c.label}</span>
+          <X size={13} aria-hidden="true" />
+        </button>
+      ))}
+      {chips.length > 1 && (
+        <button type="button" className="cc-filter-chips-clear" onClick={() => onClear(chips.flatMap((c) => c.keys))}>
+          Clear all
+        </button>
+      )}
+    </div>
+  );
+}

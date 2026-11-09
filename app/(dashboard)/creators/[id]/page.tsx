@@ -272,7 +272,8 @@ function LabelCard({
                 aria-label={`Remove ${s.name}`}
                 disabled={busy}
                 onClick={() => void save(selectedIds.filter((v) => v !== s.id))}
-                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)", display: "inline-flex", padding: 0 }}
+                className="cc-chip-x"
+                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0 }}
               >
                 <Trash2 size={13} aria-hidden="true" />
               </button>
@@ -371,6 +372,7 @@ function ListsCard({ creatorId, lists, onSaved }: { creatorId: string; lists: { 
                 aria-label={`Remove from ${l.name}`}
                 disabled={busy}
                 onClick={() => void change(`/api/lists/${l.id}/creators/${creatorId}`, { method: "DELETE" }, `Removed from ${l.name}`, (s) => s.filter((x) => x.id !== l.id))}
+                className="cc-chip-x"
                 style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0 }}
               >
                 <Trash2 size={13} aria-hidden="true" />
@@ -560,7 +562,7 @@ const POST_COLUMNS: DataTableColumn<Post>[] = [
     ),
   },
   { key: "campaign", header: "Campaign", width: 200, truncate: (p) => p.campaign?.title, render: (p) => p.campaign?.title ?? "—" },
-  { key: "views", header: "Views", width: 112, align: "right", render: (p) => <MetricFigure value={postCounterValue(p.viewsCount, p, "views")} format={formatFull} /> },
+  { key: "views", header: "Views", width: 112, align: "right", phone: true, render: (p) => <MetricFigure value={postCounterValue(p.viewsCount, p, "views")} format={formatFull} /> },
   { key: "likes", header: "Likes", width: 104, align: "right", render: (p) => <MetricFigure value={postCounterValue(p.likesCount, p, "likes")} format={formatFull} /> },
   { key: "comments", header: "Comments", width: 112, align: "right", render: (p) => <MetricFigure value={postCounterValue(p.commentsCount, p, "comments")} format={formatFull} /> },
   { key: "shares", header: "Shares", width: 96, align: "right", render: (p) => <MetricFigure value={postCounterValue(p.sharesCount, p, "shares")} format={formatFull} /> },
@@ -594,7 +596,7 @@ const CAMPAIGN_COLUMNS: DataTableColumn<CreatorCampaign>[] = [
       </>
     ),
   },
-  { key: "status", header: "Status", width: 168, render: campaignRowStatus },
+  { key: "status", header: "Status", width: 168, phone: true, render: campaignRowStatus },
   {
     key: "budget",
     header: "Budget",

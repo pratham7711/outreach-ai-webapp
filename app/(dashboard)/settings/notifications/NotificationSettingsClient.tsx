@@ -2,7 +2,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Bell } from "lucide-react";
+import Link from "next/link";
 import { LoadError, SectionCard, Skeleton } from "@/components/ds";
+import { MetricHint } from "@/components/ds/MetricHint";
 import { Switch } from "@/components/ds/Switch";
 import { apiFetch } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessage";
@@ -99,14 +101,15 @@ export function NotificationSettingsClient() {
           key={group}
           icon={Bell}
           title={group}
-          description={`Customize settings for ${group}`}
         >
           <div className="cc-pref-rows">
             {defs.map((def) => (
               <div key={def.key} className="cc-pref-row">
                 <div className="cc-pref-row-text">
-                  <div className="cc-pref-row-title" id={`notif-${def.key}`}>{def.label}</div>
-                  <div className="cc-pref-row-desc">{def.description}</div>
+                  <div className="cc-pref-row-title" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span id={`notif-${def.key}`}>{def.label}</span>
+                    {(def.description.match(/\S+/g) ?? []).length > 8 ? <MetricHint label={def.label} what={def.description} /> : null}
+                  </div>
                 </div>
                 {/* Named by the row's own title, so each switch announces what
                     it controls; without a name all twelve read as "switch". */}
@@ -126,10 +129,7 @@ export function NotificationSettingsClient() {
           created mailed the whole org), and nothing has replaced it. What they
           genuinely control now is the bell in the top bar. */}
       <p className="cc-settings-note">
-        These switches control the notification bell in the top bar. Activity email is
-        not sent for these events — only sign-up, password reset and invites go out by
-        email. Slack delivery is separate and org-wide: an admin sets it up once for the
-        whole team under Settings → Integrations.
+        Bell only, no email. Slack is set up in <Link href="/settings/integrations">Integrations</Link>.
       </p>
     </div>
   );

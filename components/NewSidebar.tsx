@@ -17,6 +17,7 @@ import {
 import { PAYOUTS_ENABLED } from "@/lib/payouts/switch";
 import { mediaUrl } from "@/lib/postMedia";
 import { useSidebar } from "@/components/providers/SidebarProvider";
+import { FeedbackButton } from "@/components/feedback/FeedbackButton";
 import { ThemeRadioGroup } from "@/components/ThemeChoices";
 
 /*
@@ -268,7 +269,7 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
     <>
       {/* Mobile hamburger button */}
       <button
-        className={`fixed top-1.5 left-2 z-50 size-11 cursor-pointer items-center justify-center rounded-[10px] border border-border bg-card shadow-sm lg:hidden ${
+        className={`cc-rail-hamburger fixed top-1.5 left-2 z-50 size-11 cursor-pointer items-center justify-center rounded-[10px] border border-border bg-card shadow-sm lg:hidden ${
           mobileOpen ? "hidden" : "flex"
         }`}
         onClick={() => setMobileOpen(true)}
@@ -353,7 +354,7 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
               <div className="flex items-center gap-1.5">
                 {/* Mobile close */}
                 <button
-                  className="flex cursor-pointer items-center rounded-md border-0 bg-transparent p-1 text-muted-foreground hover:text-foreground lg:hidden"
+                  className="flex cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-1 text-muted-foreground hover:text-foreground lg:hidden"
                   onClick={() => setMobileOpen(false)}
                   aria-label="Close navigation menu"
                 >
@@ -437,6 +438,9 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
 
         {/* Footer - User Profile */}
         <div className="cc-sidebar-footer px-2 py-2">
+          <div className="cc-rail-feedback">
+            <FeedbackButton surface="dashboard" />
+          </div>
           {/* User menu dropdown */}
           {showUserMenu && (() => {
             const menu = (

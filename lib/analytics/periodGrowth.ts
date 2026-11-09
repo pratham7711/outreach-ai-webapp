@@ -71,6 +71,17 @@ export function viewsGrowth(totals: readonly DailyTotal[], days: number, nowMs?:
 }
 
 /** The tile's delta: the change in whole percent and what it is against. */
+/** A count beside the same count over the window before; nothing when the earlier window had none. */
+export function countDelta(
+  current: number,
+  previous: number | null | undefined,
+  label: string,
+): { value: string; trend: "up" | "down" | "flat"; label: string } | undefined {
+  if (previous == null || !(previous > 0) || !Number.isFinite(current)) return undefined;
+  const pct = Math.round(((current - previous) / previous) * 100);
+  return { value: `${pct > 0 ? "+" : ""}${pct}%`, trend: pct > 0 ? "up" : pct < 0 ? "down" : "flat", label };
+}
+
 export function growthDelta(g: PeriodGrowth): { value: string; trend: "up" | "down" | "flat"; label: string } | undefined {
   if (g.change === null) return undefined;
   const pct = Math.round(g.change * 100);

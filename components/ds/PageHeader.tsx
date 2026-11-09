@@ -83,6 +83,7 @@ export function PageHeader({
         data-region="page-header"
         data-parity="page.header-strip"
         data-has-tabs={tabs ? "" : undefined}
+        data-has-back={back ? "" : undefined}
       >
         <div className="cc-page-lead">
           {back ? (

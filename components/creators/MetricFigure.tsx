@@ -1,4 +1,4 @@
-import { formatFull } from "@/lib/format";
+import { compactCount, formatFull } from "@/lib/format";
 import { isUnknownMetric, metricText, type MetricValue } from "@/lib/creators/metricValue";
 import { breakableFigure } from "@/components/ds/BreakableFigure";
 
@@ -23,7 +23,13 @@ export default function MetricFigure({
   /* A card wraps the figure rather than cutting it (see BreakableFigure); the
      text is the same string either way. A table keeps it on one line, where a
      column that wraps a number mid-figure is worse than one that scrolls. */
-  if (!isUnknownMetric(value)) return <>{breakable ? breakableFigure(format(value)) : format(value)}</>;
+  if (!isUnknownMetric(value)) {
+    const text = format(value);
+    /* A large count reads as 2.4M; the exact figure is the tooltip. */
+    const short = compactCount(text);
+    if (short) return <span title={short.exact}>{short.short}</span>;
+    return <>{breakable ? breakableFigure(text) : text}</>;
+  }
   /* position: relative anchors the .sr-only reason, as in AgeLabel. Without it
      that absolutely positioned span resolves against the page, escapes the
      table's scrolling wrapper, and widens the whole page: MEASURED 2026-10-13,

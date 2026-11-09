@@ -45,6 +45,26 @@ export function formatCompact(n: number): string {
  * the label has a fixed few characters of room and the precision is carried by
  * the tooltip instead.
  */
+/**
+ * A grouped count as display text: "268,036" -> "268K" from 10,000 up, with the
+ * exact figure returned for a tooltip. Only bare counts qualify -- money, a
+ * percentage or anything with units is returned as null and shown as it is,
+ * because those are what someone reconciles.
+ */
+export const COMPACT_FROM = 10_000;
+export function compactCount(text: string): { short: string; exact: string } | null {
+  const t = text.trim();
+  if (!/^-?\d{1,3}(,\d{3})+$/.test(t)) return null;
+  const n = Number(t.replace(/,/g, ""));
+  if (!Number.isFinite(n) || Math.abs(n) < COMPACT_FROM) return null;
+  return { short: formatCompact(n), exact: t };
+}
+
+/** formatCompact for a count from COMPACT_FROM up, formatFull below it. */
+export function formatCompactCount(n: number): string {
+  return Math.abs(n) >= COMPACT_FROM ? formatCompact(n) : formatFull(n);
+}
+
 export function formatFull(n: number): string {
   if (!Number.isFinite(n)) return "0";
   return FULL.format(n);

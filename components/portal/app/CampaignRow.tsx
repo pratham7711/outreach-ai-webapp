@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ChevronRight, Music } from "lucide-react";
 import type { JoinedCampaign } from "@/lib/portal/myCampaigns";
 import { StatusPill, formatDay, relativeDay, type Tone } from "@/components/portal/app/ui";
 
@@ -17,8 +18,11 @@ export function CampaignRow({ c }: { c: JoinedCampaign }) {
   return (
     <Link
       href={c.href}
+      className="rsp-touch"
       style={{
-        display: "block",
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
         padding: 14,
         borderRadius: "var(--cc-r-card)",
         border: "1px solid var(--cc-border)",
@@ -27,6 +31,22 @@ export function CampaignRow({ c }: { c: JoinedCampaign }) {
         color: "inherit",
       }}
     >
+      <span
+        aria-hidden="true"
+        style={{
+          flex: "none",
+          width: 44,
+          height: 44,
+          borderRadius: "var(--cc-r-control)",
+          display: "grid",
+          placeItems: "center",
+          background: c.actionable ? "var(--cc-text)" : "var(--cc-hover-bg)",
+          color: c.actionable ? "var(--cc-bg)" : "var(--cc-text-muted)",
+        }}
+      >
+        <Music size={20} />
+      </span>
+      <div style={{ flex: 1, minWidth: 0 }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 600, color: "var(--cc-text)" }}>{c.title}</div>
@@ -34,16 +54,14 @@ export function CampaignRow({ c }: { c: JoinedCampaign }) {
         </div>
         <StatusPill tone={state.tone}>{state.label}</StatusPill>
       </div>
-      <div style={{ fontSize: 13, color: "var(--cc-text)", marginTop: 10 }}>
-        {c.next ? (
-          <>
-            <strong style={{ fontWeight: 600 }}>{c.next.label}</strong> · {formatDay(c.next.at)}{" "}
-            <span style={{ color: "var(--cc-text-muted)" }}>({relativeDay(c.next.at)})</span>
-          </>
-        ) : (
-          <span style={{ color: "var(--cc-text-muted)" }}>No upcoming dates</span>
-        )}
+      {c.next && (
+        <div style={{ fontSize: 13, color: "var(--cc-text)", marginTop: 10 }}>
+          <strong style={{ fontWeight: 600 }}>{c.next.label}</strong> · {formatDay(c.next.at)}{" "}
+          <span style={{ color: "var(--cc-text-muted)" }}>({relativeDay(c.next.at)})</span>
+        </div>
+      )}
       </div>
+      <ChevronRight size={18} aria-hidden="true" style={{ flex: "none", color: "var(--cc-text-muted)" }} />
     </Link>
   );
 }

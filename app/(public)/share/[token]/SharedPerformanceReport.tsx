@@ -687,7 +687,7 @@ export default function SharedPerformanceReport({
                                   <span
                                     style={{
                                       alignSelf: "flex-start",
-                                      fontSize: 10, fontWeight: 700, letterSpacing: "0.02em",
+                                      fontSize: 12, fontWeight: 700, letterSpacing: "0.02em",
                                       padding: "2px 7px", borderRadius: 999, whiteSpace: "nowrap",
                                       ...activationStatusBadgeStyle(row.status),
                                     }}

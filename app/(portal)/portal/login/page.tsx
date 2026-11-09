@@ -60,7 +60,7 @@ function LoginInner() {
             ? "Sign in to join this campaign"
             : errand.connect
               ? "Sign in to see the accounts you connected"
-              : "Sign in to your creator account"
+              : undefined
       }
       footer={
         <>

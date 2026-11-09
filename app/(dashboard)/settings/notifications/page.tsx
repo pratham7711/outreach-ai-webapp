@@ -11,10 +11,7 @@ export default async function NotificationSettingsPage() {
 
   return (
     <div className="rsp-page page-enter">
-      <PageHeader
-        title="Notifications"
-        subtitle="Which events reach you in the notification bell. These are yours alone; teammates choose their own. Each switch saves as you flip it."
-      />
+      <PageHeader title="Notifications" subtitle="Just for you. Saves as you flip." />
       <NotificationSettingsClient />
     </div>
   );

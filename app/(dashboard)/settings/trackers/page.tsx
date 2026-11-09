@@ -19,10 +19,7 @@ export default async function TrackerSettingsPage() {
 
   return (
     <div className="rsp-page page-enter">
-      <PageHeader
-        title="Tracker settings"
-        subtitle="How often tracked sounds are read, and how their charts are drawn."
-      />
+      <PageHeader title="Tracker settings" />
       {canManage ? (
         <TrackerSettingsClient />
       ) : (

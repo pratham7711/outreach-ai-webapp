@@ -10,6 +10,7 @@ import { isInstagramLoginRow } from "@/lib/platforms/accountOrigin";
 import { OAUTH_PLATFORMS, toPlatformEnum, type OAuthPlatform } from "@/lib/oauth/providers";
 import { WHAT_WE_NEVER_DO, WHAT_WE_READ } from "@/lib/portal/whatWeRead";
 import { Button, useConfirm } from "@/components/ds";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { PlatformTile } from "@/components/ui/PlatformTile";
 import { TikTokConnectAgreement, YouTubeConnectAgreement } from "@/components/LegalLinks";
 import {
@@ -72,6 +73,7 @@ const BUTTON_NAME: Record<OAuthPlatform, string> = {
 };
 /** One icon per line of WHAT_WE_NEVER_DO, in its order. */
 const NEVER_ICONS: LucideIcon[] = [ShieldCheck, MessageSquareOff, Unplug];
+const NEVER_SHORT = ["Read-only", "No DMs or passwords", "Disconnect any time"];
 
 const RETURN_TO = "/portal/accounts";
 
@@ -105,8 +107,11 @@ function readConnectResult(): { tone: "success" | "danger"; text: string } | nul
    globals.css (rsp-touch, 44px) reaches buttons and links, not a summary. */
 /* Open by default until the platform is connected: before Connect is when a
    creator (and a platform reviewer) needs to see what the permissions read. */
-function WhatWeRead({ platform, defaultOpen }: { platform: OAuthPlatform; defaultOpen: boolean }) {
-  const [open, setOpen] = useState(defaultOpen);
+/* On a phone it starts closed: open on every platform it made the page five
+   screens tall, with the Connect buttons far apart. Collapsed before paint,
+   so the server's open render is never seen there. */
+function WhatWeRead({ platform, notes }: { platform: OAuthPlatform; notes: string[] }) {
+  const [open, setOpen] = useState(false);
   const id = `what-we-read-${platform}`;
   return (
     <>
@@ -121,6 +126,7 @@ function WhatWeRead({ platform, defaultOpen }: { platform: OAuthPlatform; defaul
           alignItems: "center",
           gap: 4,
           padding: "6px 0",
+          marginLeft: "auto",
           border: "none",
           background: "none",
           cursor: "pointer",
@@ -134,6 +140,11 @@ function WhatWeRead({ platform, defaultOpen }: { platform: OAuthPlatform; defaul
       </button>
       {open && (
         <ul id={id} style={{ flex: "1 1 100%", minWidth: 0, margin: "0 0 2px", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }}>
+          {notes.map((n) => (
+            <li key={n} style={{ fontSize: 13, color: "var(--cc-text-muted)", lineHeight: 1.5 }}>
+              {n}
+            </li>
+          ))}
           {WHAT_WE_READ[platform].map((r) => (
             <li key={r.scope} style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4, fontSize: 13, color: "var(--cc-text)", lineHeight: 1.5 }}>
               <code className="cc-scope-chip">{r.scope.replace("https://www.googleapis.com/auth/", "")}</code>
@@ -194,11 +205,10 @@ function PlatformCard({
               <StatusPill tone={state.tone}>{state.label}</StatusPill>
             </span>
           </div>
-          {CARD_NOTE[platform] && <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: "2px 0 0", lineHeight: 1.45 }}>{CARD_NOTE[platform]}</p>}
           {accounts.length === 0 && publicProfile && (
-            <p style={{ fontSize: 13, color: "var(--cc-text)", margin: "6px 0 0", lineHeight: 1.5 }}>
-              We read the public numbers of <strong>{publicProfile.handle}</strong>
-              {publicProfile.lastReadAt ? `, last on ${formatDay(publicProfile.lastReadAt)}` : ""}. Connect it to add insights and keep them current.
+            <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: "2px 0 0", lineHeight: 1.45 }}>
+              {publicProfile.handle}
+              {publicProfile.lastReadAt ? ` · read ${relativeDay(publicProfile.lastReadAt)}` : ""}
             </p>
           )}
         </div>
@@ -225,8 +235,10 @@ function PlatformCard({
                     </div>
                     <div style={{ fontSize: 13, color: "var(--cc-text-muted)", fontVariantNumeric: "tabular-nums" }}>
                       {formatCount(a.followersCount)} {followerWord}
-                      {typeof a.mediaCount === "number" ? ` · ${formatCount(a.mediaCount)} ${platform === "youtube" ? "videos" : "posts"}` : ""} ·{" "}
-                      {a.statsSyncedAt ? `last synced ${formatDay(a.statsSyncedAt)} (${relativeDay(a.statsSyncedAt)})` : "not synced yet"}
+                      {" · "}
+                      <span title={a.statsSyncedAt ? `Last synced ${formatDay(a.statsSyncedAt)}` : undefined}>
+                        {a.statsSyncedAt ? `synced ${relativeDay(a.statsSyncedAt)}` : "not synced yet"}
+                      </span>
                     </div>
                     </div>
                   </div>
@@ -243,7 +255,7 @@ function PlatformCard({
                 </div>
                 {lapsed && (
                   <p style={{ fontSize: 13, color: "var(--cc-text)", margin: "8px 0 0" }}>
-                    Access to this account has lapsed, so its numbers have stopped updating.
+                    Access lapsed. Numbers have stopped updating.
                   </p>
                 )}
               </li>
@@ -252,22 +264,13 @@ function PlatformCard({
         </ul>
       )}
 
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "8px 16px",
-          flexWrap: "wrap",
-          borderTop: "1px solid var(--cc-border)",
-          padding: "12px var(--cc-card-inset) 10px calc(var(--cc-card-inset) + 52px)",
-        }}
-      >
+      <div className="portal-acc-actions">
         {/* A gated platform in production has no credentials behind it: the
             start route can only bounce the creator back with reason=provider,
             so the button is left out and the note says what to do instead.
             Development keeps it, because there the route runs a mock flow. */}
         {gated ? (
-          capability?.connectNote && <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}>{capability.connectNote}</p>
+          <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}>Not available yet. Submit post links instead.</p>
         ) : !canConnect ? null : (
           <>
             <ConnectLink
@@ -276,17 +279,18 @@ function PlatformCard({
               label={accounts.length > 0 ? "Add another account" : `Connect ${BUTTON_NAME[platform]}`}
               pendingLabel={`Opening ${BUTTON_NAME[platform]} sign-in…`}
             />
-            {platform === "instagram" && instagramUnifiedLogin() && accounts.length === 0 && (
-              <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: 0, flex: "1 1 220px", lineHeight: 1.45 }}>
-                Works with Instagram Creator and Business accounts. On Meta&rsquo;s screen, choose Continue with Instagram.
-              </p>
-            )}
-            {capability?.connect === "gated" && capability.connectNote && accounts.length === 0 && (
-              <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: 0, flex: "1 1 220px" }}>{capability.connectNote}</p>
-            )}
           </>
         )}
-        <WhatWeRead platform={platform} defaultOpen={accounts.length === 0} />
+        <WhatWeRead
+            platform={platform}
+            notes={[
+              ...(CARD_NOTE[platform] ? [CARD_NOTE[platform]] : []),
+              ...(platform === "instagram" && instagramUnifiedLogin() && accounts.length === 0
+                ? ["Works with Instagram Creator and Business accounts. On Meta’s screen, choose Continue with Instagram."]
+                : []),
+              ...(!gated && capability?.connect === "gated" && capability.connectNote && accounts.length === 0 ? [capability.connectNote] : []),
+            ]}
+          />
         {platform === "youtube" && !gated && canConnect && (
           <YouTubeConnectAgreement style={{ flex: "1 1 100%" }} />
         )}
@@ -491,7 +495,7 @@ export default function MyAccountsPage() {
   const connectedCount = shown.filter((platform) => accountsFor(platform).length > 0).length;
 
   return (
-    <Screen title="My accounts" subtitle="Connect your accounts so your posts report their own numbers.">
+    <Screen title="My accounts">
       {result && resultShown && (
         <Banner tone={result.tone} onDismiss={() => setResultShown(false)}>
           {result.text}
@@ -503,58 +507,39 @@ export default function MyAccountsPage() {
         <Card style={{ marginBottom: 16 }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>Join a campaign to connect</h2>
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)", margin: "6px 0 14px", lineHeight: 1.5, maxWidth: 560 }}>
-            A connection is linked to the agency running your campaign, so Connect opens once you are on one. Join an
-            open campaign, or open the link an agency sent you.
+            Connect opens once you&rsquo;re on a campaign.
           </p>
           <ButtonLink href="/portal/campaigns?tab=open">Browse open campaigns</ButtonLink>
         </Card>
       )}
 
-      <ul
-        aria-label="What we never do"
-        style={{
-          listStyle: "none",
-          margin: "0 0 20px",
-          padding: 0,
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-          gap: "10px 20px",
-        }}
-      >
+      <ul aria-label="What we never do" style={{ listStyle: "none", margin: "0 0 16px", padding: 0, display: "flex", flexWrap: "wrap", gap: 8 }}>
         {WHAT_WE_NEVER_DO.map((line, i) => {
           const Icon = NEVER_ICONS[i] ?? ShieldCheck;
           return (
-            <li
-              key={line}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "10px 12px",
-                fontSize: 13,
-                color: "var(--cc-text)",
-                lineHeight: 1.45,
-                background: "var(--cc-card)",
-                border: "1px solid var(--cc-border)",
-                borderRadius: 12,
-              }}
-            >
-              <span
-                aria-hidden="true"
-                style={{
-                  display: "inline-grid",
-                  placeItems: "center",
-                  flex: "none",
-                  width: 30,
-                  height: 30,
-                  borderRadius: 8,
-                  background: "var(--cc-success-bg)",
-                  color: "var(--cc-success-fg)",
-                }}
-              >
-                <Icon size={16} />
-              </span>
-              <span>{line}</span>
+            <li key={line}>
+              <Tooltip>
+                <TooltipTrigger
+                  render={<span tabIndex={0} />}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "5px 10px",
+                    borderRadius: 999,
+                    fontSize: 13,
+                    fontWeight: 500,
+                    background: "var(--cc-success-bg)",
+                    color: "var(--cc-success-fg)",
+                    cursor: "help",
+                  }}
+                >
+                  <Icon size={14} aria-hidden="true" />
+                  {NEVER_SHORT[i] ?? line}
+                  <span className="sr-only">. {line}</span>
+                </TooltipTrigger>
+                <TooltipContent>{line}</TooltipContent>
+              </Tooltip>
             </li>
           );
         })}
@@ -594,9 +579,6 @@ export default function MyAccountsPage() {
             {otherPublic.length > 0 && (
               <Card>
                 <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>Other public profiles</h2>
-                <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: "4px 0 8px" }}>
-                  Read from what anyone can see; there is nothing to connect on these platforms.
-                </p>
                 {otherPublic.map((p) => (
                   <p key={`${p.platform}-${p.handle}`} style={{ fontSize: 14, color: "var(--cc-text)", margin: "4px 0" }}>
                     {platformLabel(p.platform)} · {p.handle}

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Banner } from "@/components/ds/Banner";
 import { apiFetch } from "@/lib/api/client";
 import { formatDateAbs } from "@/lib/format";
@@ -141,9 +141,22 @@ function Notice({
   detail: string;
   style?: React.CSSProperties;
 }) {
+  const [open, setOpen] = useState(false);
+  const detailId = useId();
   return (
     <Banner tone="warning" title={headline} style={style}>
-      — {detail}
+      <span id={detailId} hidden={!open}>
+        {detail[0].toUpperCase() + detail.slice(1)}{" "}
+      </span>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={detailId}
+        onClick={() => setOpen((o) => !o)}
+        style={{ background: "none", border: "none", padding: 0, color: "inherit", font: "inherit", fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}
+      >
+        {open ? "Hide" : "Why?"}
+      </button>
     </Banner>
   );
 }

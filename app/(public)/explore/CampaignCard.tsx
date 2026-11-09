@@ -91,7 +91,7 @@ export default function CampaignCard({ campaign }: { campaign: MarketplaceCardDT
             >
               {campaign.orgName}
             </div>
-            <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>{typeLabel}</div>
+            <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{typeLabel}</div>
           </div>
         </div>
 
@@ -114,7 +114,7 @@ export default function CampaignCard({ campaign }: { campaign: MarketplaceCardDT
             {!open && (
               <span
                 style={{
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: 700,
                   color: "var(--cc-neutral-fg)",
                   background: "var(--cc-neutral-bg)",
@@ -128,7 +128,7 @@ export default function CampaignCard({ campaign }: { campaign: MarketplaceCardDT
             {showDaysLeft && (
               <span
                 style={{
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: 700,
                   color: "var(--cc-warning-fg)",
                   background: "var(--cc-warning-bg)",
@@ -142,7 +142,7 @@ export default function CampaignCard({ campaign }: { campaign: MarketplaceCardDT
             {showClaimed && (
               <span
                 style={{
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: 700,
                   color: "var(--cc-danger-fg)",
                   background: "var(--cc-danger-bg)",
@@ -174,7 +174,7 @@ export default function CampaignCard({ campaign }: { campaign: MarketplaceCardDT
                     style={{
                       padding: "3px 8px",
                       borderRadius: 6,
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: 600,
                       background: meta.bg,
                       color: meta.color,

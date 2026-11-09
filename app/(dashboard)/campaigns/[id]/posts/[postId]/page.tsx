@@ -184,10 +184,10 @@ const DEFAULT_TTL_CHOICE = 30;
    say which, or a post read because its campaign is running looks like one
    somebody switched on -- and Untrack on it reads as undoing nothing. */
 function trackingSummary(source: string | null, cadence: string, remaining: string): string {
-  if (source === "campaign") return `Tracking on — read ${cadence} while this campaign is live.`;
-  if (source === "new-post") return `Tracking automatically for its first 30 days — read ${cadence}, ${remaining}.`;
-  if (source === "final-read") return "Older than 180 days — one more reading, then its numbers are kept as final.";
-  return `Tracking on — read ${cadence}, ${remaining}.`;
+  if (source === "campaign") return `Read ${cadence} while live`;
+  if (source === "new-post") return `First 30 days · read ${cadence}, ${remaining}`;
+  if (source === "final-read") return "One final reading left";
+  return `Read ${cadence}, ${remaining}`;
 }
 
 function formatRemaining(hours: number | null): string {
@@ -727,7 +727,7 @@ export default function PostDetailPage() {
         }
         meta={
           <>
-            <span>
+            <span className="cc-page-meta-line">
               <CreatorAvatar id={post.creator.id} name={post.creator.name} size="sm" />
               <span>
                 by <strong>{post.creator.name}</strong>
@@ -930,6 +930,7 @@ export default function PostDetailPage() {
 
       {chartData.length > 1 && (
         <SectionCard
+          className={trackingSeries.length > 1 ? "cc-phone-hide" : undefined}
           icon={TrendingUp}
           title="Performance over time"
           action={<SeriesModeToggle label="Performance over time" value={perfMode} onChange={setPerfMode} />}
@@ -1026,7 +1027,7 @@ export default function PostDetailPage() {
             <NoResults
               icon={<Shield size={32} strokeWidth={1.75} />}
               title="No bot signals detected"
-              description="Botted-view heuristics run over this post's snapshot history. Flags will appear here if suspicious growth is detected."
+              description={null}
             />
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>

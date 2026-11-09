@@ -276,7 +276,7 @@ export default function MyStatsPage() {
   const otherTrends = stats && insights ? stats.trends.filter((t) => !insights.some((b) => trendForAccount([t], b.platform, b.handle))) : [];
 
   return (
-    <Screen title="My stats" subtitle="Your numbers, and where each one came from." maxWidth={1200}>
+    <Screen title="My stats" maxWidth={1200}>
       {failed && <LoadFailed what="your stats" onRetry={load} />}
       {loading && (
         <div aria-hidden="true" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -312,7 +312,6 @@ export default function MyStatsPage() {
           ) : (
             <EmptyState
               title="No connected accounts"
-              body="Connect one to see its recent posts and best post here."
               action={{ label: "Connect an account", href: "/portal/accounts" }}
             />
           )}
