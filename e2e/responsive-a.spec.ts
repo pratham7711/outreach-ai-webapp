@@ -222,14 +222,13 @@ test.describe('Responsive A — dashboard + campaigns surfaces', () => {
       return;
     }
 
-    const hamburger = page.getByRole('button', { name: 'Open navigation menu' });
-    await expect(hamburger).toBeVisible();
-    await expect(hamburger).toHaveAttribute('aria-expanded', 'false');
+    // On a phone the drawer opens from the bottom tab bar's More tab.
+    const more = page.getByRole('navigation', { name: 'Main', exact: true }).getByRole('button', { name: 'More' });
+    await expect(more).toBeVisible();
+    await expect(more).toHaveAttribute('aria-expanded', 'false');
 
-    await hamburger.click();
-    // The trigger hides itself once the drawer is open, so it leaves the
-    // accessibility tree entirely — the drawer's own close button takes over.
-    await expect(hamburger).toBeHidden();
+    await more.click();
+    await expect(more).toHaveAttribute('aria-expanded', 'true');
     await expect(page.getByRole('button', { name: 'Close navigation menu' })).toBeVisible();
 
     // The drawer is now translated on-screen: its left edge sits at x >= 0.

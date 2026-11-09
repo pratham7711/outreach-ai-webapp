@@ -9,13 +9,13 @@ test.describe('Settings', () => {
     const main = page.locator('main');
     await expect(main.getByText('Profile').first()).toBeVisible({ timeout: 15000 });
     await expect(main.getByText('Team').first()).toBeVisible({ timeout: 10000 });
-    await expect(main.getByText('Activity Log').first()).toBeVisible({ timeout: 10000 });
+    await expect(main.getByText('Audit log').first()).toBeVisible({ timeout: 10000 });
     await expect(main.getByText('Billing')).toHaveCount(0);
   });
 
   test('profile page loads', async ({ page }) => {
     await navigateAndWait(page, '/settings/profile');
-    await expectHeading(page, /organization profile/i);
+    await expectHeading(page, /^profile$/i);
   });
 
   test('team page loads', async ({ page }) => {

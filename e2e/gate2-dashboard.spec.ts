@@ -104,7 +104,7 @@ test.describe('Gate 2 Dashboard — Performance Tab', () => {
     const total = await rows.count();
 
     await page.getByRole('combobox', { name: /filter by platform/i }).click();
-    await page.getByRole('option', { name: 'YOUTUBE', exact: true }).click();
+    await page.getByRole('option', { name: 'YouTube', exact: true }).click();
 
     // Narrower, and still non-empty: seeded camp-1 has YouTube posts and others.
     await expect.poll(() => rows.count(), { timeout: 20000 }).toBeLessThan(total);
@@ -188,7 +188,9 @@ test.describe('Gate 2 Dashboard — Share Report', () => {
     const postId: string | undefined = (await postsRes.json())?.posts?.[0]?.id;
     expect(postId, 'camp-1 has a seeded post').toBeTruthy();
     await page.goto(`/campaigns/camp-1/posts/${postId}`);
-    await expect(page.locator('[data-action="share-campaign"]')).toHaveCount(1, { timeout: 30000 });
+    await page.getByRole('button', { name: 'More post actions' }).click({ timeout: 30000 });
+    await expect(page.getByRole('menuitem', { name: 'Share campaign' })).toBeVisible();
+    await page.keyboard.press('Escape');
 
     // Performance: the header button is the only Share; the tab's own is gone.
     await page.goto('/campaigns/camp-1?section=performance');

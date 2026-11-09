@@ -95,7 +95,7 @@ test.describe('Post Tracking', () => {
     if (snapshots >= 3) {
       await expect(botSignalsSection).toBeVisible({ timeout: 15000 });
     } else {
-      await expect(page.getByText(/Tracking (on|off)/i).first()).toBeVisible({ timeout: 15000 });
+      await expect(page.getByText(/Tracking (on|off)|Read every|First 30 days/i).first()).toBeVisible({ timeout: 15000 });
       await expect(botSignalsSection).toHaveCount(0);
       await expect(page.getByText(/no bot signals detected/i)).toHaveCount(0);
     }

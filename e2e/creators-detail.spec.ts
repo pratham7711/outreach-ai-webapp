@@ -12,9 +12,9 @@ test.describe('Creator Detail', () => {
   });
 
   test('shows profile tabs', async ({ page }) => {
-    await expect(page.getByText(/profile/i).first()).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText(/posts/i).first()).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText(/campaigns/i).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('tab', { name: /profile/i })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('tab', { name: /posts/i })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('tab', { name: /campaigns/i })).toBeVisible({ timeout: 10000 });
   });
 
   test('shows follower stats', async ({ page }) => {

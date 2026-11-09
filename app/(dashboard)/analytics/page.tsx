@@ -196,7 +196,7 @@ export default function AnalyticsPage() {
       />
 
       <div className="cc-toolbar cc-filter-rows">
-        <FilterGroup legend="Range" options={RANGE_PRESETS} active={range} onChange={setRange} />
+        <FilterGroup legend="Date range" options={RANGE_PRESETS} active={range} onChange={setRange} />
         {platformPills.length > 2 && (
           <FilterGroup legend="Platform" options={platformPills} active={platform} onChange={setPlatform} />
         )}
