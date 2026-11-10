@@ -739,6 +739,7 @@ function DraftCard({ slug, draft, onDone }: { slug: string; draft: Draft; onDone
   const [draftCaption, setDraftCaption] = useState(draft.draftCaption ?? "");
   const [draftMediaType, setDraftMediaType] = useState(draft.draftMediaType ?? "");
   const [saving, setSaving] = useState(false);
+  const [formOpen, setFormOpen] = useState(!!draft.draftUrl || draft.status === "DECLINED");
   const state = DRAFT_STATE[draft.status] ?? { tone: "neutral" as Tone, label: draft.status.replace(/_/g, " ").toLowerCase() };
   const dirty = useDirty(
     { draftUrl: draft.draftUrl ?? "", draftCaption: draft.draftCaption ?? "", draftMediaType: draft.draftMediaType ?? "" },
@@ -793,18 +794,21 @@ function DraftCard({ slug, draft, onDone }: { slug: string; draft: Draft; onDone
   return (
     <Card>
       <SectionTitle aside={<StatusPill tone={state.tone}>{state.label}</StatusPill>}><IconTitle icon={PenLine} tone="orange">Draft for review</IconTitle></SectionTitle>
-      {CAN_SUBMIT_DRAFT.includes(draft.status) && (
-        <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: "0 0 12px" }}>Optional: send a draft before you post.</p>
-      )}
       {draft.status === "DECLINED" && draft.feedbackNotes && (
         <Banner tone="danger">
           <strong>Feedback:</strong> {draft.feedbackNotes}
         </Banner>
       )}
-      {CAN_SUBMIT_DRAFT.includes(draft.status) ? (
+      {CAN_SUBMIT_DRAFT.includes(draft.status) && !formOpen ? (
+        <div>
+          <Button type="button" variant="secondary" iconLeft={<PenLine size={15} aria-hidden="true" />} onClick={() => setFormOpen(true)}>
+            Send a draft
+          </Button>
+        </div>
+      ) : CAN_SUBMIT_DRAFT.includes(draft.status) ? (
         <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <Field label="Draft link" required>
-            <Input value={draftUrl} onChange={(e) => setDraftUrl(e.target.value)} placeholder="A Google Drive, Dropbox or any shareable link" />
+          <Field label="Draft link">
+            <Input autoFocus={!draft.draftUrl} value={draftUrl} onChange={(e) => setDraftUrl(e.target.value)} placeholder="A Google Drive, Dropbox or any shareable link" />
           </Field>
           <Field label="Caption">
             <Input value={draftCaption} onChange={(e) => setDraftCaption(e.target.value)} placeholder="The caption you plan to post with" />

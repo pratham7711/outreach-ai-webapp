@@ -219,8 +219,8 @@ function PlatformCard({
           {accounts.map((a) => {
             const lapsed = reconnect.has(a.id);
             return (
-              <li key={a.id} style={{ borderTop: "1px solid var(--cc-border)", padding: "12px var(--cc-card-inset) 12px calc(var(--cc-card-inset) + 52px)" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              <li key={a.id} className="portal-acc-row">
+                <div className="portal-acc-row-main">
                   <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 10 }}>
                     <AccountAvatar url={a.avatarUrl} handle={a.handle} />
                     <div style={{ minWidth: 0 }}>

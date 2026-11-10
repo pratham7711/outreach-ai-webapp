@@ -12833,6 +12833,30 @@ a.cc-platform-chip[data-problem]:hover {
   }
 }
 
+/* A connected account under its platform: same indent as the Connect row on
+   wider screens; on a phone it starts at the card edge. The account keeps at
+   least 12rem, so the buttons share its line when they fit and wrap under it
+   otherwise. */
+.portal-acc-row {
+  border-top: 1px solid var(--cc-border);
+  padding: 12px var(--cc-card-inset) 12px calc(var(--cc-card-inset) + 52px);
+}
+.portal-acc-row-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+@media (max-width: 767.98px) {
+  .portal-acc-row {
+    padding-left: var(--cc-card-inset);
+  }
+}
+.portal-acc-row-main > :first-child {
+  flex: 1 1 12rem;
+}
+
 /* fork-S settings declutter */
 .cc-sx-hub {
   display: grid;
