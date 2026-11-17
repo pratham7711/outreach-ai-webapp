@@ -69,6 +69,7 @@ export async function GET(
       return NextResponse.json({
         audio: await withStoredCover(audios.audio, sounds.tiktok?.id, campaign.orgId),
         instagramAudio: await withStoredCover(audios.instagramAudio, sounds.instagram?.id, campaign.orgId),
+        youtubeAudio: await withStoredCover(audios.youtubeAudio, sounds.youtube?.id, campaign.orgId),
         /* False while the Instagram slot cannot be written: an older song's
            Instagram audio still shows above, it just cannot sit beside a
            TikTok sound yet. */
@@ -95,6 +96,7 @@ export async function GET(
     delete performance.posts;
     performance.audio = await withStoredCover(performance.audio, soundIds.tiktok, campaign.orgId);
     performance.instagramAudio = await withStoredCover(performance.instagramAudio, soundIds.instagram, campaign.orgId);
+    performance.youtubeAudio = await withStoredCover(performance.youtubeAudio ?? null, soundIds.youtube, campaign.orgId);
     return NextResponse.json(performance);
   } catch (error) {
     console.error("Failed to fetch campaign performance:", error);

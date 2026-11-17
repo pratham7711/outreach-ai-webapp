@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { checkInstagramAudio, identifyAudioLink } from "@/lib/campaigns/audioLink";
+import { checkInstagramAudio, checkYouTubeAudio, identifyAudioLink } from "@/lib/campaigns/audioLink";
 import { readOneTikTokAudioUsage } from "@/lib/platforms/tiktokAudioUsage";
 import { permissionDenial } from "@/lib/authz";
 
@@ -67,6 +67,24 @@ export async function POST(req: Request) {
       coverImageUrl: ig?.coverImageUrl ?? null,
       usesCount: ig?.usesCount ?? null,
       usesRounded: ig ? ig.precision === "rounded" : false,
+    });
+  }
+
+  if (result.audio.platform === "YOUTUBE") {
+    /* The Shorts audio page carries title, artist, cover and the count in one
+       public GET (lib/platforms/youtubeSourcePage). */
+    const checked = await checkYouTubeAudio(result.audio.tiktokSoundId);
+    if (!checked.ok) return NextResponse.json({ error: checked.reason, message: checked.message }, { status: 400 });
+    const yt = checked.reading;
+    return NextResponse.json({
+      platform: "YOUTUBE",
+      soundId: result.audio.tiktokSoundId,
+      verified: yt ? true : null,
+      provisionalTitle: yt?.title ?? null,
+      artist: yt?.artist ?? null,
+      coverImageUrl: yt?.coverImageUrl ?? null,
+      usesCount: yt?.usesCount ?? null,
+      usesRounded: yt ? yt.precision === "rounded" : false,
     });
   }
 

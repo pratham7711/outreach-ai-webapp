@@ -38,6 +38,16 @@ const INSTAGRAM_HOSTS = new Set([
   "m.instagram.com",
 ]);
 
+const YOUTUBE_HOSTS = new Set([
+  "youtube.com",
+  "www.youtube.com",
+  "m.youtube.com",
+  "music.youtube.com",
+  "youtu.be",
+]);
+
+const YT_ID_RE = /^[A-Za-z0-9_-]{11}$/;
+
 /** Instagram audio record ids are plain numerics, well short of a snowflake. */
 const IG_ID_RE = /^(\d{8,25})$/;
 
@@ -53,12 +63,13 @@ const IG_ID_RE = /^(\d{8,25})$/;
  * set and on the *creator* type (youtubeAccountId, youtubeFlag,
  * youtubePublicDemo) -- it is a creator platform there, never a sound.
  *
- * That matches what the platforms expose: TikTok and Instagram each publish an
- * audio page carrying a use count, which is the number a tracker exists to
- * follow. YouTube's Shorts source page publishes no equivalent counter, so
- * adding it would mean inventing both a URL shape and a metric.
+ * YouTube was added later (2026-11-17), on a client's ask and on a
+ * measurement: the Shorts audio page, youtube.com/source/<videoId>/shorts,
+ * prints "137K Shorts" for a popular source and lists every Short for a small
+ * one, so it does carry a number to follow (lib/platforms/youtubeSourcePage).
+ * The sound id is the source video's id.
  */
-export type SoundPlatform = "TIKTOK" | "INSTAGRAM";
+export type SoundPlatform = "TIKTOK" | "INSTAGRAM" | "YOUTUBE";
 
 export type ParsedSoundUrl =
   | {
@@ -133,6 +144,28 @@ function parseInstagram(url: URL): ParsedSoundUrl {
   return { kind: "invalid", reason: "unrecognised" };
 }
 
+/**
+ * A YouTube audio is the video a Short borrowed its sound from, so three link
+ * shapes name it: the Shorts audio page (/source/<id>/shorts, what "Use this
+ * sound" opens), the video itself (watch?v=<id>, youtu.be/<id>), and the same
+ * video on YouTube Music. A /shorts/<id> link is a Short, i.e. a post, whose own
+ * id is not its audio's.
+ */
+function parseYouTube(url: URL, host: string): ParsedSoundUrl {
+  const path = url.pathname.replace(/\/+$/, "");
+  const sound = (id: string | null | undefined): ParsedSoundUrl =>
+    id && YT_ID_RE.test(id)
+      ? { kind: "sound", platform: "YOUTUBE", tiktokSoundId: id, provisionalTitle: null }
+      : { kind: "invalid", reason: "unrecognised" };
+
+  if (host === "youtu.be") return sound(path.split("/")[1]);
+  const source = path.match(/^\/source\/([^/]+)(?:\/shorts)?$/);
+  if (source) return sound(source[1]);
+  if (path === "/watch") return sound(url.searchParams.get("v"));
+  if (/^\/(?:shorts|live)\/[^/]+/.test(path)) return { kind: "video", reason: "video_url" };
+  return { kind: "invalid", reason: "unrecognised" };
+}
+
 export function parseSoundUrl(input: string): ParsedSoundUrl {
   const trimmed = (input ?? "").trim();
   if (!trimmed) return { kind: "invalid", reason: "unrecognised" };
@@ -151,6 +184,7 @@ export function parseSoundUrl(input: string): ParsedSoundUrl {
 
   const host = normaliseHost(url.hostname);
   if (INSTAGRAM_HOSTS.has(host)) return parseInstagram(url);
+  if (YOUTUBE_HOSTS.has(host)) return parseYouTube(url, host);
   if (!TIKTOK_HOSTS.has(host)) return { kind: "invalid", reason: "not_tiktok" };
 
   // Query and fragment are noise here: share links carry _t, _r, is_from_webapp
@@ -196,7 +230,7 @@ export const SOUND_URL_ERRORS: Record<string, string> = {
   video_url:
     "That's a link to a post, not its sound. On TikTok, tap the spinning record in the corner (or the sound name at the bottom); on Instagram, tap the audio name under the reel. Then copy the link from the sound's own page.",
   not_tiktok:
-    "This doesn't look like a TikTok or Instagram link. Paste one that starts with tiktok.com/music/ or instagram.com/reels/audio/ — you'll find it on the sound's page.",
+    "This doesn't look like a TikTok, Instagram or YouTube link. Paste one that starts with tiktok.com/music/, instagram.com/reels/audio/ or youtube.com/source/ — you'll find it on the sound's page.",
   unrecognised:
     "We couldn't find a sound in that link. Open the sound's own page on TikTok or Instagram and copy the link from there.",
   short_link_unresolvable:
@@ -216,4 +250,10 @@ export const SOUND_URL_ERRORS: Record<string, string> = {
     "Instagram doesn't publish a use count for that audio. Original audio pages show the reels but not how many there are, so there's no number for a tracker to follow. Licensed music from Instagram's audio library does publish one.",
   instagram_audio_unreadable:
     "We couldn't reach Instagram to check that audio just now. Try again in a minute.",
+  youtube_audio_not_found:
+    "We couldn't find that audio on YouTube. Open a Short that uses it, tap the sound name, and copy the link of the page it opens.",
+  youtube_audio_no_count:
+    "YouTube doesn't show how many Shorts use that audio yet, so there's no number for a tracker to follow.",
+  youtube_audio_unreadable:
+    "We couldn't reach YouTube to check that audio just now. Try again in a minute.",
 };

@@ -101,6 +101,7 @@ function openWizard(props: { defaultCurrency?: string } = {}) {
 }
 const create = () => screen.getByText("Create Campaign").closest("button")!;
 const name = (value: string) => fireEvent.change(screen.getByLabelText("Campaign Name"), { target: { value } });
+const openAudioField = (field: "instagram" | "youtube" | "spotify") => fireEvent.click(screen.getByTestId(`wz-audio-chip-${field}`));
 
 describe("CampaignWizard — currency", () => {
   const budget = (value: string) => fireEvent.change(screen.getByLabelText("Budget"), { target: { value } });
@@ -334,11 +335,11 @@ describe("CampaignWizard — checking a TikTok sound", () => {
   it("leaves out a link from another site", async () => {
     importLink({});
     await act(async () => {
-      fireEvent.change(screen.getByLabelText("TikTok sound"), { target: { value: "https://www.youtube.com/watch?v=abc" } });
+      fireEvent.change(screen.getByLabelText("TikTok sound"), { target: { value: "https://vimeo.com/76979871" } });
       fireEvent.blur(screen.getByLabelText("TikTok sound"));
     });
     expect(screen.getByLabelText("TikTok sound")).toHaveValue("");
-    expect(screen.getByTestId("audio-link-not-added")).toHaveTextContent("Not added. That isn't a TikTok, Instagram or Spotify link.");
+    expect(screen.getByTestId("audio-link-not-added")).toHaveTextContent("Not added. That isn't a TikTok, Instagram, YouTube or Spotify link.");
   });
 });
 
@@ -367,6 +368,7 @@ describe("CampaignWizard — Spotify link", () => {
     openWizard();
     name("Summer Drop");
     fireEvent.click(screen.getByText("This campaign promotes a sound"));
+    openAudioField("spotify");
   }
 
   beforeEach(() => mockToastError.mockReset());
@@ -528,6 +530,7 @@ describe("CampaignWizard — Instagram audio", () => {
     openWizard();
     name("Summer Drop");
     fireEvent.click(screen.getByText("This campaign promotes a sound"));
+    openAudioField("instagram");
   }
   const sent = (fetchMock: jest.Mock) => {
     const call = fetchMock.mock.calls.find((c) => c[0] === "/api/campaigns")!;
@@ -539,6 +542,7 @@ describe("CampaignWizard — Instagram audio", () => {
   it("sits between the TikTok sound and the Spotify link, optional", () => {
     api();
     openWithSound();
+    openAudioField("spotify");
     const fields = screen.getAllByRole("textbox").map((el) => el.getAttribute("aria-label"));
     expect(fields.indexOf("TikTok sound")).toBeLessThan(fields.indexOf("Instagram audio"));
     expect(fields.indexOf("Instagram audio")).toBeLessThan(fields.indexOf("Spotify link"));
@@ -554,7 +558,7 @@ describe("CampaignWizard — Instagram audio", () => {
     await act(async () => {
       fireEvent.blur(igField());
     });
-    expect(igField()).toHaveValue("");
+    expect(screen.queryByLabelText("Instagram audio")).toBeNull();
     expect(screen.getByLabelText("TikTok sound")).toHaveValue(tiktokUrl);
     expect(screen.getByTestId("audio-link-moved")).toHaveTextContent("Moved here from Instagram audio.");
     expect(JSON.parse((fetchMock.mock.calls[0] as unknown as [string, { body: string }])[1].body)).toEqual({ url: tiktokUrl });
@@ -621,14 +625,15 @@ describe("CampaignWizard — Instagram audio", () => {
     expect(mockToastError).not.toHaveBeenCalled();
   });
 
-  it("moves an Instagram audio put in the TikTok field to its own, and checks it there", async () => {
+  it("moves an Instagram audio put in the TikTok field to its own, closing the emptied TikTok field", async () => {
     const fetchMock = api();
     openWithSound();
     fireEvent.change(screen.getByLabelText("TikTok sound"), { target: { value: igUrl } });
     await act(async () => {
       fireEvent.blur(screen.getByLabelText("TikTok sound"));
     });
-    expect(screen.getByLabelText("TikTok sound")).toHaveValue("");
+    expect(screen.queryByLabelText("TikTok sound")).toBeNull();
+    expect(screen.getByTestId("wz-audio-chip-tiktok")).toHaveAttribute("aria-pressed", "false");
     expect(igField()).toHaveValue(igUrl);
     expect(screen.getByTestId("audio-link-moved")).toHaveTextContent("Moved here from TikTok sound.");
     expect(fetchMock).toHaveBeenCalledWith("/api/campaigns/audio/resolve", expect.anything());

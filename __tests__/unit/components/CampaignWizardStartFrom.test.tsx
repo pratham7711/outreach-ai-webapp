@@ -281,7 +281,8 @@ describe("CampaignWizard — Start from", () => {
     expect(screen.getByLabelText("Budget")).toHaveValue(null);
     expect(screen.queryByLabelText("Currency")).toBeNull();
     expect(screen.getByRole("radio", { name: /Manual/ })).toHaveAttribute("aria-checked", "true");
-    expect(notes().value).toBe("");
+    expect(screen.queryByLabelText("Notes")).toBeNull();
+    expect(screen.getByRole("button", { name: /Add notes/ })).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Campaign Name"), { target: { value: "Fresh" } });
     await act(async () => {

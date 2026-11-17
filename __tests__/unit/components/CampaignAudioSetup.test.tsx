@@ -53,13 +53,14 @@ const section = (name: string) => screen.getByRole("region", { name });
 const patches = (fetchMock: jest.Mock) => fetchMock.mock.calls.filter((c) => c[1]?.method === "PATCH");
 
 describe("CampaignAudioSetup — a campaign with no sound", () => {
-  it("offers a TikTok sound, an Instagram audio and a Spotify link, each on its own", async () => {
+  it("offers a TikTok sound, an Instagram audio, a YouTube audio and a Spotify link, each on its own", async () => {
     mockApi();
     setup();
     expect(await screen.findByRole("button", { name: /add tiktok sound/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /add instagram audio/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /add youtube audio/i })).toBeInTheDocument();
     expect(screen.getByLabelText("Spotify link")).toBeInTheDocument();
-    expect(screen.getByText(/videos on TikTok, reels on Instagram, plays on Spotify/)).toBeInTheDocument();
+    expect(screen.getByText(/videos on TikTok, reels on Instagram, Shorts on YouTube, plays on Spotify/)).toBeInTheDocument();
   });
 
   it("leaves a post link out, says why, and spends no round trip on it", async () => {

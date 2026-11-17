@@ -14,10 +14,13 @@
  */
 
 import type { PrismaClient } from "@/lib/generated/prisma";
-import { SOUND_URL_ERRORS, parseSoundUrl } from "@/lib/trackers/soundUrl";
+import { SOUND_URL_ERRORS, parseSoundUrl, type SoundPlatform } from "@/lib/trackers/soundUrl";
 import { expandShortLink } from "@/lib/trackers/expandShortLink";
 import { readOneInstagramAudio } from "@/lib/platforms/instagramAudioUsage";
 import type { InstagramAudioReading } from "@/lib/platforms/instagramAudioPage";
+import { readOneYouTubeAudio } from "@/lib/platforms/youtubeAudioUsage";
+import type { YouTubeSourceReading } from "@/lib/platforms/youtubeSourcePage";
+import { findSongForLinkedSound, setSongLinkedSound } from "@/lib/songs/songSoundLinks";
 
 export type AudioLinkResult =
   | { ok: true; songId: string }
@@ -25,7 +28,7 @@ export type AudioLinkResult =
 
 /** What a usable audio link resolves to, before anything is written. */
 export type ResolvedAudio = {
-  platform: "TIKTOK" | "INSTAGRAM";
+  platform: SoundPlatform;
   tiktokSoundId: string;
   provisionalTitle?: string | null;
 };
@@ -96,6 +99,25 @@ export async function checkInstagramAudio(audioId: string): Promise<InstagramAud
 }
 
 /**
+ * The same front-door question for a YouTube Shorts audio: a source id that
+ * does not exist still answers 200, and a page that lists only its first
+ * Shorts has no count to follow. Not reaching YouTube keeps the link.
+ */
+export type YouTubeAudioCheck =
+  | { ok: true; reading: YouTubeSourceReading | null }
+  | { ok: false; reason: "youtube_audio_not_found" | "youtube_audio_no_count"; message: string };
+
+export async function checkYouTubeAudio(videoId: string): Promise<YouTubeAudioCheck> {
+  const probe = await readOneYouTubeAudio(videoId, { deadlineAt: Date.now() + 15_000 }).catch(() => null);
+  if (probe?.ok) return { ok: true, reading: probe.reading };
+  if (probe?.reason === "not-found" || probe?.reason === "no-count") {
+    const reason = probe.reason === "not-found" ? "youtube_audio_not_found" : "youtube_audio_no_count";
+    return { ok: false, reason, message: SOUND_URL_ERRORS[reason] };
+  }
+  return { ok: true, reading: null };
+}
+
+/**
  * Find-or-create the tracker row for a sound. Scoped by platform as well as
  * id: the same numeric id can exist on both, and merging them would point one
  * platform's tracker at the other's curve.
@@ -105,7 +127,7 @@ export async function ensureSound(
   orgId: string,
   audio: ResolvedAudio,
   fallbackTitle: string
-): Promise<{ id: string; platform: "TIKTOK" | "INSTAGRAM" }> {
+): Promise<{ id: string; platform: SoundPlatform }> {
   const { platform, tiktokSoundId, provisionalTitle } = audio;
   const sound =
     (await db.tikTokSound.findFirst({
@@ -151,6 +173,7 @@ export async function ensureSongForAudio(
   fallbackTitle: string,
   opts: { linksReady?: boolean } = {}
 ): Promise<string> {
+  if (audio.platform === "YOUTUBE") throw new Error("ensureSongForAudio: a YouTube audio goes through linkYouTubeAudio");
   const sound = await ensureSound(db, orgId, audio, fallbackTitle);
   const instagramSlot = audio.platform === "INSTAGRAM" && opts.linksReady === true;
 
@@ -176,6 +199,35 @@ export async function ensureSongForAudio(
     }));
 
   return song.id;
+}
+
+/**
+ * The song for a YouTube Shorts audio: the one already promoted with it, or a
+ * new one, with the audio linked through SongSoundLink. Only called once that
+ * table exists (songSoundLinksReady) -- inside a transaction a missing table
+ * would take the campaign down with it.
+ *
+ * `songId` is a song the campaign already has (from its TikTok or Instagram
+ * sound, or from before): the audio is linked onto it rather than starting a
+ * second song.
+ */
+export async function linkYouTubeAudio(
+  db: Pick<PrismaClient, "tikTokSound" | "song" | "songSoundLink">,
+  orgId: string,
+  audio: ResolvedAudio,
+  fallbackTitle: string,
+  songId: string | null,
+): Promise<string> {
+  const sound = await ensureSound(db, orgId, audio, fallbackTitle);
+  const target =
+    songId ??
+    (await findSongForLinkedSound(db, orgId, sound.id)) ??
+    (await db.song.create({
+      data: { orgId, title: audio.provisionalTitle ?? fallbackTitle, artist: "" },
+      select: { id: true },
+    })).id;
+  await setSongLinkedSound(db, orgId, target, "YOUTUBE", sound.id);
+  return target;
 }
 
 /**

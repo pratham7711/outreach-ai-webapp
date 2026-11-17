@@ -167,11 +167,15 @@ export default async function SharedReportPage({
     : null;
   const audioCover = withThumbnails.audio ? coverPath(songSounds.tiktok) : null;
   const instagramCover = withThumbnails.instagramAudio ? coverPath(songSounds.instagram) : null;
+  const youtubeCover = withThumbnails.youtubeAudio ? coverPath(songSounds.youtube) : null;
   const data = {
     ...withThumbnails,
     ...(withThumbnails.audio && audioCover ? { audio: { ...withThumbnails.audio, coverUrl: audioCover } } : {}),
     ...(withThumbnails.instagramAudio && instagramCover
       ? { instagramAudio: { ...withThumbnails.instagramAudio, coverUrl: instagramCover } }
+      : {}),
+    ...(withThumbnails.youtubeAudio && youtubeCover
+      ? { youtubeAudio: { ...withThumbnails.youtubeAudio, coverUrl: youtubeCover } }
       : {}),
   };
 

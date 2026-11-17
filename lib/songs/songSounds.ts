@@ -1,6 +1,7 @@
 import { db as moduleDb } from "@/lib/db";
 import type { PrismaClient } from "@/lib/generated/prisma";
 import { isMissingSongLinkColumn } from "./songLinkDdl";
+import { readSongLinkedSound } from "./songSoundLinks";
 
 /**
  * A song's two sounds: the TikTok one in Song.soundId and the Instagram one in
@@ -60,13 +61,23 @@ export type SongSounds = {
   ready: boolean;
   tiktok: SongSoundRow | null;
   instagram: SongSoundRow | null;
+  /** The song's YouTube Shorts audio, from SongSoundLink (lib/songs/songSoundLinks). */
+  youtube: SongSoundRow | null;
 };
 
-const NONE: Omit<SongSounds, "ready"> = { tiktok: null, instagram: null };
+const NONE: Omit<SongSounds, "ready"> = { tiktok: null, instagram: null, youtube: null };
 
-/** A song's TikTok and Instagram sounds. Org-scoped; a song that is not the org's reads as none. */
+/** A song's TikTok, Instagram and YouTube sounds. Org-scoped; a song that is not the org's reads as none. */
 export async function readSongSounds(orgId: string, songId: string | null | undefined, db: Db = moduleDb): Promise<SongSounds> {
   if (!songId) return { ready: true, ...NONE };
+  const [slots, youtube] = await Promise.all([
+    readSongSlotSounds(orgId, songId, db),
+    readSongLinkedSound(orgId, songId, "YOUTUBE", db as Parameters<typeof readSongLinkedSound>[3]),
+  ]);
+  return { ...slots, youtube };
+}
+
+async function readSongSlotSounds(orgId: string, songId: string, db: Db): Promise<Omit<SongSounds, "youtube">> {
   try {
     const song = await db.song.findFirst({
       where: { id: songId, orgId },
@@ -88,9 +99,9 @@ export async function readSongSoundIds(
   orgId: string,
   songId: string | null | undefined,
   db: Db = moduleDb
-): Promise<{ tiktok: string | null; instagram: string | null }> {
+): Promise<{ tiktok: string | null; instagram: string | null; youtube: string | null }> {
   const sounds = await readSongSounds(orgId, songId, db);
-  return { tiktok: sounds.tiktok?.id ?? null, instagram: sounds.instagram?.id ?? null };
+  return { tiktok: sounds.tiktok?.id ?? null, instagram: sounds.instagram?.id ?? null, youtube: sounds.youtube?.id ?? null };
 }
 
 /**
@@ -105,8 +116,10 @@ export async function setSongSound(
   db: Db,
   orgId: string,
   songId: string,
-  sound: { id: string; platform: SongSoundPlatform }
+  sound: { id: string; platform: SongSoundPlatform | "YOUTUBE" }
 ): Promise<"changed" | "unchanged" | "no-song"> {
+  /* YouTube has no slot on Song; it links through SongSoundLink. */
+  if (sound.platform === "YOUTUBE") throw new Error("setSongSound: a YouTube sound links through SongSoundLink");
   const song = await db.song.findFirst({
     where: { id: songId, orgId, deletedAt: null },
     select: { soundId: true, instagramSoundId: true, sound: { select: { platform: true } } },

@@ -17,15 +17,16 @@ import { SPOTIFY_LINK_ERRORS, SPOTIFY_SHORT_HOSTS } from "@/lib/songs/spotifyLin
  * whichever field it happened to be pasted into.
  */
 
-export type AudioField = "TIKTOK" | "INSTAGRAM" | "SPOTIFY";
+export type AudioField = "TIKTOK" | "INSTAGRAM" | "YOUTUBE" | "SPOTIFY";
 
 export const AUDIO_FIELD_NAME: Record<AudioField, string> = {
   TIKTOK: "TikTok sound",
   INSTAGRAM: "Instagram audio",
+  YOUTUBE: "YouTube audio",
   SPOTIFY: "Spotify link",
 };
 
-/** The field a value belongs in, or null when it is none of the three sites. */
+/** The field a value belongs in, or null when it is none of the four sites. */
 export function audioFieldFor(value: string): AudioField | null {
   const raw = value.trim();
   if (!raw) return null;
@@ -42,6 +43,7 @@ export function audioFieldFor(value: string): AudioField | null {
   const on = (domain: string) => host === domain || host.endsWith(`.${domain}`);
   if (on("tiktok.com")) return "TIKTOK";
   if (on("instagram.com")) return "INSTAGRAM";
+  if (on("youtube.com") || host === "youtu.be") return "YOUTUBE";
   if (on("spotify.com") || SPOTIFY_SHORT_HOSTS.has(host)) return "SPOTIFY";
   return null;
 }
@@ -65,8 +67,11 @@ export function isLinkLike(value: string): boolean {
 const NOT_ADDED: Record<string, string> = {
   video_url: "That's a link to a post, not its sound. Tap the sound's name on the post and copy the link of the page it opens.",
   unrecognised: "We couldn't find a sound in that link.",
-  not_tiktok: "That isn't a TikTok, Instagram or Spotify link.",
+  not_tiktok: "That isn't a TikTok, Instagram, YouTube or Spotify link.",
   not_instagram_audio: "That isn't an Instagram audio link.",
+  not_youtube_audio: "That isn't a YouTube audio link.",
+  youtube_audio_not_found: "YouTube has no Shorts audio at that link.",
+  youtube_audio_no_count: "YouTube doesn't show how many Shorts use that audio yet, so there's nothing to track.",
   instagram_audio_no_count:
     "That's original audio. Instagram doesn't show how many reels use original audio, so there's nothing to track. Songs from Instagram's music library show it.",
   instagram_audio_not_found: "Instagram has no audio at that link.",

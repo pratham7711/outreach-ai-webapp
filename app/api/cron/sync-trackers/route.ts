@@ -12,6 +12,7 @@ import { openSoundBrowserSession } from "@/lib/platforms/tiktokSoundBrowser";
 import { isMeasuredRung, readTikTokAudioUsage, type UsageRung } from "@/lib/platforms/tiktokAudioUsage";
 import { openSandboxProfileFetcher } from "@/lib/platforms/tiktokProfileSandbox";
 import { readInstagramAudioUsage } from "@/lib/platforms/instagramAudioUsage";
+import { readYouTubeAudioUsage } from "@/lib/platforms/youtubeAudioUsage";
 import { gateSoundReading, keepSoundArtwork, recordSoundSnapshot } from "@/lib/sounds/snapshot";
 import { holdSoundReading, type TrackerSnapshot } from "@/lib/trackers/metrics";
 import {
@@ -193,6 +194,7 @@ async function cronHandler(request: NextRequest) {
        allowMusicPage stays off: that rung belongs BEHIND the browser, below. */
     const dueTikTok = due.filter((sound) => sound.platform === "TIKTOK");
     const dueInstagram = due.filter((sound) => sound.platform === "INSTAGRAM");
+    const dueYouTube = due.filter((sound) => sound.platform === "YOUTUBE");
 
     const embedReadings = dueTikTok.length
       ? await readTikTokAudioUsage(
@@ -210,6 +212,14 @@ async function cronHandler(request: NextRequest) {
         )
       : new Map();
 
+    /* YouTube's Shorts audio page: the same one-GET read as Instagram's. */
+    const youtubeReadings = dueYouTube.length
+      ? await readYouTubeAudioUsage(
+          dueYouTube.map((sound) => sound.tiktokSoundId),
+          { deadlineAt: deadline },
+        )
+      : new Map();
+
     for (const sound of due) {
       if (Date.now() > deadline) {
         decisions.push({ soundId: sound.id, action: "skip", reason: "deadline-passed" });
@@ -217,8 +227,9 @@ async function cronHandler(request: NextRequest) {
         continue;
       }
 
-      if (sound.platform === "INSTAGRAM") {
-        const outcome = instagramReadings.get(sound.tiktokSoundId);
+      if (sound.platform === "INSTAGRAM" || sound.platform === "YOUTUBE") {
+        const label = sound.platform === "YOUTUBE" ? "youtube" : "instagram";
+        const outcome = (sound.platform === "YOUTUBE" ? youtubeReadings : instagramReadings).get(sound.tiktokSoundId);
         if (!outcome || (!outcome.ok && outcome.reason === "deadline")) {
           decisions.push({ soundId: sound.id, action: "skip", reason: "deadline-passed" });
           skipped++;
@@ -249,10 +260,10 @@ async function cronHandler(request: NextRequest) {
           if (
             !(await recordSoundSnapshot(sound, outcome.reading, {
               precision: outcome.reading.precision,
-              writer: "sync-trackers:instagram",
+              writer: `sync-trackers:${label}`,
             }))
           ) {
-            decisions.push({ soundId: sound.id, action: "skip", reason: "rounded-agrees:instagram" });
+            decisions.push({ soundId: sound.id, action: "skip", reason: `rounded-agrees:${label}` });
             skipped++;
             continue;
           }
@@ -269,7 +280,7 @@ async function cronHandler(request: NextRequest) {
         decisions.push({
           soundId: sound.id,
           action: "snapshot",
-          reason: `instagram-${outcome.reading.precision}`,
+          reason: `${label}-${outcome.reading.precision}`,
           usesCount: outcome.reading.usesCount,
         });
         snapshotted++;

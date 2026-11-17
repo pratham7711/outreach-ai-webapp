@@ -24,11 +24,15 @@ jest.mock("@/lib/platforms/tiktokAudioUsage", () => ({
 jest.mock("@/lib/platforms/instagramAudioUsage", () => ({
   readInstagramAudioUsage: jest.fn(),
 }));
+jest.mock("@/lib/platforms/youtubeAudioUsage", () => ({
+  readYouTubeAudioUsage: jest.fn(),
+}));
 
 import { db } from "@/lib/db";
 import { snapshotSounds } from "@/lib/sounds/snapshot";
 import { readTikTokAudioUsage } from "@/lib/platforms/tiktokAudioUsage";
 import { readInstagramAudioUsage } from "@/lib/platforms/instagramAudioUsage";
+import { readYouTubeAudioUsage } from "@/lib/platforms/youtubeAudioUsage";
 
 const mockDb = db as unknown as {
   tikTokSound: { findMany: jest.Mock; update: jest.Mock };
@@ -36,6 +40,7 @@ const mockDb = db as unknown as {
 };
 const tiktokReader = readTikTokAudioUsage as jest.Mock;
 const instagramReader = readInstagramAudioUsage as jest.Mock;
+const youtubeReader = readYouTubeAudioUsage as jest.Mock;
 
 /* Deliberately the SAME numeric id on both platforms. That collision is the
    whole reason the dispatch exists: it is legal, it is what the create route
@@ -60,6 +65,7 @@ beforeEach(() => {
   mockDb.tikTokSound.update.mockResolvedValue({});
   tiktokReader.mockResolvedValue(new Map());
   instagramReader.mockResolvedValue(new Map());
+  youtubeReader.mockResolvedValue(new Map());
 });
 
 const written = () => mockDb.soundTrackerSnapshot.create.mock.calls[0][0].data;
@@ -202,4 +208,36 @@ it("treats an Instagram deadline the way it treats a TikTok one", async () => {
 
   expect(result.failed).toBe(0);
   expect(result.skipped).toBe(0);
+});
+
+/* YouTube Shorts audio: the source video's id, read from its Shorts page. */
+it("hands the YouTube reader only YouTube ids and records its reading", async () => {
+  mockDb.tikTokSound.findMany.mockResolvedValue([
+    row({ id: "tt", platform: "TIKTOK", tiktokSoundId: SHARED_ID }),
+    row({ id: "yt", platform: "YOUTUBE", tiktokSoundId: "efCmfyPaK5U" }),
+  ]);
+  youtubeReader.mockResolvedValue(
+    new Map([
+      ["efCmfyPaK5U", { ok: true, reading: { usesCount: 6, precision: "exact", title: "code.red", artist: "DudePlaya, DXNTVX", coverImageUrl: null } }],
+    ]),
+  );
+
+  const result = await snapshotSounds();
+
+  expect(youtubeReader).toHaveBeenCalledWith(["efCmfyPaK5U"], expect.anything());
+  expect(tiktokReader).toHaveBeenCalledWith([SHARED_ID], expect.anything());
+  expect(instagramReader).not.toHaveBeenCalled();
+  expect(result.snapshots).toBe(1);
+  expect(written().usesCount).toBe(6);
+});
+
+it("skips a YouTube source whose page lists only its first Shorts", async () => {
+  mockDb.tikTokSound.findMany.mockResolvedValue([row({ id: "yt", platform: "YOUTUBE", tiktokSoundId: "efCmfyPaK5U" })]);
+  youtubeReader.mockResolvedValue(new Map([["efCmfyPaK5U", { ok: false, reason: "no-count" }]]));
+
+  const result = await snapshotSounds();
+
+  expect(result.skipped).toBe(1);
+  expect(result.failed).toBe(0);
+  expect(mockDb.soundTrackerSnapshot.create).not.toHaveBeenCalled();
 });

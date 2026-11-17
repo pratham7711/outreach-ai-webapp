@@ -6,7 +6,7 @@ import {
 } from "recharts";
 import { BarChart3, Music2, Radio, CircleDot } from "lucide-react";
 import { ChartFrame } from "@/components/ds/ChartFrame";
-import type { SharedReportData } from "@/lib/reports/campaignPerformance";
+import type { CampaignAudio, SharedReportData } from "@/lib/reports/campaignPerformance";
 import { DEFAULT_SHARE_VISIBILITY, type ShareVisibility } from "@/lib/reports/shareVisibility";
 import { formatFull, formatCompact, platformLabel } from "@/lib/format";
 import { creatorNameParts, creatorNameText } from "@/lib/creators/creatorName";
@@ -343,8 +343,9 @@ export default function SharedPerformanceReport({
      that place when it is the song's only sound, and otherwise pairs with the
      Spotify card in the row below. Records from before instagramAudio have no
      such field, which reads as no Instagram audio. */
-  const firstAudio = data.audio ?? data.instagramAudio ?? null;
-  const secondAudio = data.audio ? (data.instagramAudio ?? null) : null;
+  const audios = [data.audio, data.instagramAudio, data.youtubeAudio].filter((a): a is CampaignAudio => Boolean(a));
+  const firstAudio = audios[0] ?? null;
+  const laterAudios = audios.slice(1);
   const coverSources = !hydrated
     ? []
     : [...new Set([firstAudio?.coverUrl, artworkUrl].map((u) => shareImgSrc(token, u ?? null, 302)))].filter(
@@ -573,9 +574,11 @@ export default function SharedPerformanceReport({
 
             {/* A row of its own: the row above pairs two cards from 1440 up,
                 and a third would sit half-width under the views chart. */}
-            {secondAudio || data.streams ? (
+            {laterAudios.length > 0 || data.streams ? (
               <div className="spr-row">
-                {secondAudio ? <AudioCard audio={secondAudio} shareToken={token} variant="report" range={range} launch={data.launch ?? null} /> : null}
+                {laterAudios.map((a) => (
+                  <AudioCard key={a.platform} audio={a} shareToken={token} variant="report" range={range} launch={data.launch ?? null} />
+                ))}
                 {data.streams ? <SpotifyStreamsCard streams={data.streams} variant="report" range={range} launch={data.launch ?? null} /> : null}
               </div>
             ) : null}

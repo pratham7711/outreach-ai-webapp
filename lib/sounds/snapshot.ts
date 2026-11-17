@@ -3,6 +3,7 @@ import { isCoverUrlStale } from "@/lib/sounds/coverUrl";
 import { captureSoundCover } from "@/lib/sounds/coverStore";
 import { readTikTokAudioUsage, isMeasuredRung } from "@/lib/platforms/tiktokAudioUsage";
 import { readInstagramAudioUsage } from "@/lib/platforms/instagramAudioUsage";
+import { readYouTubeAudioUsage } from "@/lib/platforms/youtubeAudioUsage";
 import { readSongSoundIds } from "@/lib/songs/songSounds";
 import { createLogger } from "@/lib/observability/logger";
 import { ABANDON_AFTER_DEADLINE_MS, waitUntil } from "@/lib/ops/waitUntil";
@@ -112,6 +113,7 @@ export async function snapshotSounds(options: SnapshotOptions = {}): Promise<Sna
 
   const dueTikTok = due.filter((sound) => sound.platform === "TIKTOK");
   const dueInstagram = due.filter((sound) => sound.platform === "INSTAGRAM");
+  const dueYouTube = due.filter((sound) => sound.platform === "YOUTUBE");
 
   /* allowMusicPage stays on here even though that rung has never answered from
      a server. It is the documented last resort, the fetcher now runs it
@@ -152,9 +154,23 @@ export async function snapshotSounds(options: SnapshotOptions = {}): Promise<Sna
   if (instagramRead && !instagramRead.settled) log.error("instagram audio reads abandoned", { sounds: dueInstagram.length });
   const instagramReadings = instagramRead?.settled ? instagramRead.value : new Map();
 
+  /* YouTube's Shorts audio page is the same kind of read: one public GET, and
+     the same outcomes (lib/platforms/youtubeAudioUsage). */
+  const youtubeRead = dueYouTube.length
+    ? await waitUntil(
+        readYouTubeAudioUsage(
+          dueYouTube.map((sound) => sound.tiktokSoundId),
+          { deadlineAt: deadline },
+        ),
+        giveUpAt,
+      )
+    : null;
+  if (youtubeRead && !youtubeRead.settled) log.error("youtube audio reads abandoned", { sounds: dueYouTube.length });
+  const youtubeReadings = youtubeRead?.settled ? youtubeRead.value : new Map();
+
   for (const sound of due) {
-    if (sound.platform === "INSTAGRAM") {
-      const outcome = instagramReadings.get(sound.tiktokSoundId);
+    if (sound.platform === "INSTAGRAM" || sound.platform === "YOUTUBE") {
+      const outcome = (sound.platform === "YOUTUBE" ? youtubeReadings : instagramReadings).get(sound.tiktokSoundId);
 
       if (!outcome || (!outcome.ok && outcome.reason === "deadline")) {
         unread++;
@@ -482,12 +498,12 @@ export async function primeSongAudio(
   });
   if (!song) return null;
 
-  /* Both of the song's sounds: its TikTok one and its Instagram audio. An
-     Instagram read is one page fetch, so it goes first and cannot be starved
-     by a TikTok read that has to boot a sandbox. */
+  /* Every sound the song has: YouTube and Instagram are one page fetch each,
+     so they go first and cannot be starved by a TikTok read that has to boot
+     a sandbox. */
   const ids = await readSongSoundIds(orgId, song.id);
   let last: SnapshotResult | null = null;
-  for (const soundId of [ids.instagram, ids.tiktok]) {
+  for (const soundId of [ids.youtube, ids.instagram, ids.tiktok]) {
     if (!soundId) continue;
     const already = await db.soundTrackerSnapshot.findFirst({
       where: { soundId },

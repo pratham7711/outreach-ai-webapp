@@ -19,6 +19,10 @@ describe("audioFieldFor — the field a pasted link belongs in", () => {
     ["https://open.spotify.com/album/69bRMupnNveGN0PbZNoctn", "SPOTIFY"],
     ["https://spotify.link/AbCdEf", "SPOTIFY"],
     ["spotify:track:69bRMupnNveGN0PbZNoctn", "SPOTIFY"],
+    ["https://www.youtube.com/source/efCmfyPaK5U/shorts?app=desktop&ra=m", "YOUTUBE"],
+    ["https://www.youtube.com/watch?v=abc", "YOUTUBE"],
+    ["https://youtu.be/dQw4w9WgXcQ", "YOUTUBE"],
+    ["https://music.youtube.com/watch?v=dQw4w9WgXcQ", "YOUTUBE"],
   ])("%s -> %s", (link, field) => {
     expect(audioFieldFor(link)).toBe(field);
   });
@@ -26,7 +30,7 @@ describe("audioFieldFor — the field a pasted link belongs in", () => {
   it.each([
     "",
     "   ",
-    "https://www.youtube.com/watch?v=abc",
+    "https://notyoutube.com/source/efCmfyPaK5U/shorts",
     "https://nottiktok.com/music/x-6604064037363780357",
     "https://instagram.com.evil.example/reels/audio/1/",
     "not a link at all",

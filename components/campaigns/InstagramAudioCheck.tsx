@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import { Music2 } from "lucide-react";
 import { SOUND_URL_ERRORS, parseSoundUrl } from "@/lib/trackers/soundUrl";
+import { imgSrc } from "@/lib/postMedia";
 
 /**
  * The Instagram audio field's checking, shared by the New Campaign form and
@@ -22,6 +23,17 @@ export const INSTAGRAM_AUDIO_LABEL = "Instagram audio";
 export const INSTAGRAM_AUDIO_PLACEHOLDER = "https://www.instagram.com/reels/audio/…";
 export const INSTAGRAM_AUDIO_HINT =
   "Optional. The track's audio page on Instagram. We read how many reels use it once a day. Licensed music only: Instagram shows no count for original audio.";
+
+/** The two audio fields read from a public page: same check, same row. */
+export type PageAudioPlatform = "INSTAGRAM" | "YOUTUBE";
+
+export const YOUTUBE_AUDIO_LABEL = "YouTube audio";
+export const YOUTUBE_AUDIO_PLACEHOLDER = "https://www.youtube.com/source/…/shorts";
+
+const PAGE = {
+  INSTAGRAM: { name: "Instagram", fallbackTitle: "Instagram audio", unreadable: "instagram_audio_unreadable", wrong: "not_instagram_audio" },
+  YOUTUBE: { name: "YouTube", fallbackTitle: "YouTube audio", unreadable: "youtube_audio_unreadable", wrong: "not_youtube_audio" },
+} as const;
 
 export type InstagramAudioFound = {
   soundId: string;
@@ -44,17 +56,20 @@ export type InstagramAudioCheck =
   | { status: "unverified"; raw: string; message: string };
 
 const TIKTOK_IN_INSTAGRAM = "That's a TikTok sound. Put it in the TikTok sound field.";
+const NOT_YOUTUBE = "That isn't a YouTube audio link.";
 export const INSTAGRAM_IN_TIKTOK = "That's an Instagram audio. Put it in the Instagram audio field.";
 
 /** What the parser alone can tell about a non-empty value: its refusal and the reason code, or null. */
-export function instagramAudioLocalRefusal(value: string): { message: string; reason: string } | null {
+export function instagramAudioLocalRefusal(
+  value: string,
+  platform: PageAudioPlatform = "INSTAGRAM",
+): { message: string; reason: string } | null {
   const raw = value.trim();
   if (!raw) return null;
   const parsed = parseSoundUrl(raw);
-  if (parsed.kind === "sound") {
-    return parsed.platform === "INSTAGRAM" ? null : { message: TIKTOK_IN_INSTAGRAM, reason: "not_instagram_audio" };
-  }
-  if (parsed.kind === "short-link") return { message: TIKTOK_IN_INSTAGRAM, reason: "not_instagram_audio" };
+  const wrong = { message: platform === "YOUTUBE" ? NOT_YOUTUBE : TIKTOK_IN_INSTAGRAM, reason: PAGE[platform].wrong };
+  if (parsed.kind === "sound") return parsed.platform === platform ? null : wrong;
+  if (parsed.kind === "short-link") return wrong;
   const reason = parsed.kind === "video" ? "video_url" : parsed.reason === "not_tiktok" ? "unrecognised" : parsed.reason;
   return { message: SOUND_URL_ERRORS[reason] ?? SOUND_URL_ERRORS.unrecognised, reason };
 }
@@ -63,15 +78,16 @@ export function instagramAudioLocalError(value: string): string | null {
   return instagramAudioLocalRefusal(value)?.message ?? null;
 }
 
-/** "2,000,000 reels", or "≈2M reels" for a figure Instagram rounded. */
-export function reelsLabel(count: number | null | undefined, rounded: boolean): string | null {
+/** "2,000,000 reels", or "≈2M reels" for a figure Instagram rounded. YouTube counts Shorts. */
+export function reelsLabel(count: number | null | undefined, rounded: boolean, platform: PageAudioPlatform = "INSTAGRAM"): string | null {
   if (count == null) return null;
-  if (!rounded) return `${count.toLocaleString()} reels`;
+  const noun = platform === "YOUTUBE" ? (count === 1 && !rounded ? "Short" : "Shorts") : "reels";
+  if (!rounded) return `${count.toLocaleString()} ${noun}`;
   const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(count);
-  return `≈${compact} reels`;
+  return `≈${compact} ${noun}`;
 }
 
-export function useInstagramAudioCheck() {
+export function useInstagramAudioCheck(platform: PageAudioPlatform = "INSTAGRAM") {
   const [check, setCheck] = useState<InstagramAudioCheck>({ status: "idle" });
   /* The newest request wins, as in useSpotifyLinkCheck. */
   const seq = useRef(0);
@@ -91,7 +107,7 @@ export function useInstagramAudioCheck() {
       return next;
     };
     if (!raw) return settle({ status: "idle" });
-    const local = instagramAudioLocalRefusal(raw);
+    const local = instagramAudioLocalRefusal(raw, platform);
     if (local) return settle({ status: "refused", raw, ...local });
     setCheck({ status: "checking", raw });
     try {
@@ -101,7 +117,7 @@ export function useInstagramAudioCheck() {
         body: JSON.stringify({ url: raw }),
       });
       const body = await res.json().catch(() => null);
-      if (res.ok && body?.platform === "INSTAGRAM" && body.verified === true) {
+      if (res.ok && body?.platform === platform && body.verified === true) {
         return settle({
           status: "found",
           raw,
@@ -115,10 +131,17 @@ export function useInstagramAudioCheck() {
           },
         });
       }
-      if (res.ok && body?.platform === "INSTAGRAM") {
-        return settle({ status: "unverified", raw, message: SOUND_URL_ERRORS.instagram_audio_unreadable });
+      if (res.ok && body?.platform === platform) {
+        return settle({ status: "unverified", raw, message: SOUND_URL_ERRORS[PAGE[platform].unreadable] });
       }
-      if (res.ok) return settle({ status: "refused", raw, message: TIKTOK_IN_INSTAGRAM, reason: "not_instagram_audio" });
+      if (res.ok) {
+        return settle({
+          status: "refused",
+          raw,
+          message: platform === "YOUTUBE" ? NOT_YOUTUBE : TIKTOK_IN_INSTAGRAM,
+          reason: PAGE[platform].wrong,
+        });
+      }
       if (res.status === 400) {
         return settle({
           status: "refused",
@@ -127,11 +150,11 @@ export function useInstagramAudioCheck() {
           reason: typeof body?.error === "string" ? body.error : null,
         });
       }
-      return settle({ status: "unverified", raw, message: body?.message ?? SOUND_URL_ERRORS.instagram_audio_unreadable });
+      return settle({ status: "unverified", raw, message: body?.message ?? SOUND_URL_ERRORS[PAGE[platform].unreadable] });
     } catch {
       return settle({ status: "unverified", raw, message: "Could not reach the server." });
     }
-  }, []);
+  }, [platform]);
 
   /** The field was edited: whatever was checked described a different link. */
   const edited = useCallback((value: string) => {
@@ -152,10 +175,18 @@ export function useInstagramAudioCheck() {
 }
 
 /** The audio Instagram described: cover, title, artist and reel count. */
-export function InstagramAudioFoundRow({ audio, note }: { audio: InstagramAudioFound; note?: string | null }) {
+export function InstagramAudioFoundRow({
+  audio,
+  note,
+  platform = "INSTAGRAM",
+}: {
+  audio: InstagramAudioFound;
+  note?: string | null;
+  platform?: PageAudioPlatform;
+}) {
   return (
     <div
-      data-testid="instagram-audio-found"
+      data-testid={platform === "YOUTUBE" ? "youtube-audio-found" : "instagram-audio-found"}
       style={{
         display: "flex",
         alignItems: "center",
@@ -170,9 +201,9 @@ export function InstagramAudioFoundRow({ audio, note }: { audio: InstagramAudioF
     >
       {audio.coverImageUrl ? (
         /* eslint-disable-next-line @next/next/no-img-element --
-           Instagram's CDN, a host next/image is not configured for. */
+           The platform's CDN, a host next/image is not configured for. */
         <img
-          src={audio.coverImageUrl}
+          src={imgSrc(audio.coverImageUrl, 72) ?? audio.coverImageUrl}
           alt=""
           width={36}
           height={36}
@@ -197,10 +228,10 @@ export function InstagramAudioFoundRow({ audio, note }: { audio: InstagramAudioF
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
           }}
         >
-          {audio.title ?? "Instagram audio"}
+          {audio.title ?? PAGE[platform].fallbackTitle}
         </span>
         <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {[audio.artist, reelsLabel(audio.usesCount, audio.usesRounded), note ?? null].filter(Boolean).join(" · ")}
+          {[audio.artist, reelsLabel(audio.usesCount, audio.usesRounded, platform), note ?? null].filter(Boolean).join(" · ")}
         </span>
       </span>
     </div>
@@ -217,24 +248,26 @@ export function InstagramAudioStatus({
   localError,
   hint = INSTAGRAM_AUDIO_HINT,
   note,
+  platform = "INSTAGRAM",
 }: {
   check: InstagramAudioCheck;
   localError: string | null;
   hint?: string;
+  platform?: PageAudioPlatform;
   /** Appended to the found row, e.g. what its cover is used for. */
   note?: string | null;
 }) {
   const message = localError ?? (check.status === "refused" || check.status === "unverified" ? check.message : null);
   return (
     <>
-      {check.status === "found" && !localError && <InstagramAudioFoundRow audio={check.audio} note={note} />}
+      {check.status === "found" && !localError && <InstagramAudioFoundRow audio={check.audio} note={note} platform={platform} />}
       {message ? (
         <p role="alert" style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-danger)", margin: "6px 0 0" }}>
           {message}
         </p>
-      ) : check.status === "checking" ? (
+      ) : check.status === "found" ? null : check.status === "checking" ? (
         <p role="status" style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
-          Checking the audio with Instagram…
+          Checking the audio with {PAGE[platform].name}…
         </p>
       ) : (
         <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "6px 0 0" }}>{hint}</p>

@@ -68,6 +68,13 @@ describe("audio sweeps route each row to its own platform's reader", () => {
       expect(src).toMatch(/readInstagramAudioUsage\(/);
     });
 
+    it(`${what} reads YouTube Shorts audio from its own list`, () => {
+      expect(src).toMatch(/filter\(\s*\(?\s*\w+\s*\)?\s*=>\s*\w+\.platform === "YOUTUBE"\s*\)/);
+      const calls = [...src.matchAll(/readYouTubeAudioUsage\(\s*([A-Za-z0-9_]+)/g)];
+      expect(calls.length).toBeGreaterThan(0);
+      for (const call of calls) expect(call[1]).toMatch(/YouTube$/);
+    });
+
     it(`${what} selects platform, or the dispatch above has nothing to read`, () => {
       expect(src).toMatch(/platform:\s*true/);
     });

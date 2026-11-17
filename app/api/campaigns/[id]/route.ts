@@ -16,7 +16,8 @@ import { STATUS_DEF_SELECT, defaultStatusDefFor } from "@/lib/campaigns/statusDe
 import { primeSongAudio } from "@/lib/sounds/snapshot";
 import { captureCampaignThumbnail } from "@/lib/campaigns/thumbnailCopy";
 import { isUploadedThumbnailUrl } from "@/lib/campaigns/uploadedPicture";
-import { checkInstagramAudio, createSongForSpotifyLink, ensureSongForAudio, ensureSound, identifyAudioLink } from "@/lib/campaigns/audioLink";
+import { checkInstagramAudio, checkYouTubeAudio, createSongForSpotifyLink, ensureSongForAudio, ensureSound, identifyAudioLink, linkYouTubeAudio } from "@/lib/campaigns/audioLink";
+import { clearSongLinkedSound, songSoundLinksReady } from "@/lib/songs/songSoundLinks";
 import { clearSongSound, readSongSounds, setSongSound } from "@/lib/songs/songSounds";
 import { resolveSpotifyLink } from "@/lib/songs/spotifyLinkResolve";
 import { SPOTIFY_LINK_UNAVAILABLE, readSongSpotifyLink, songLinksReady, type SpotifyLinkSave } from "@/lib/songs/songLinks";
@@ -59,7 +60,7 @@ const updateCampaignSchema = z.object({
   audioUrl: z.string().trim().min(1).max(2048).optional(),
   /* Takes one platform's sound off the campaign's song, leaving the other
      sound and the Spotify link where they are. */
-  removeAudio: z.enum(["TIKTOK", "INSTAGRAM"]).optional(),
+  removeAudio: z.enum(["TIKTOK", "INSTAGRAM", "YOUTUBE"]).optional(),
   /* The song's Spotify track link, from the campaign's audio settings. Empty
      or null clears it, and the song goes back to being matched by title and
      artist. It is stored on the campaign's song, so every campaign promoting
@@ -332,6 +333,19 @@ export async function PATCH(
         if (!checked.ok) return NextResponse.json({ error: checked.reason, message: checked.message }, { status: 400 });
         if (checked.reading?.title && !audio.provisionalTitle) audio = { ...audio, provisionalTitle: checked.reading.title };
       }
+      /* YouTube: same front-door read, and it links onto the campaign's song
+         through SongSoundLink -- which has to exist first. */
+      if (audio.platform === "YOUTUBE") {
+        const checked = await checkYouTubeAudio(audio.tiktokSoundId);
+        if (!checked.ok) return NextResponse.json({ error: checked.reason, message: checked.message }, { status: 400 });
+        if (checked.reading?.title && !audio.provisionalTitle) audio = { ...audio, provisionalTitle: checked.reading.title };
+        if (!(await songSoundLinksReady())) {
+          return NextResponse.json(
+            { error: "youtube_link_unavailable", message: "YouTube audio can't be saved yet. Try again later." },
+            { status: 503 }
+          );
+        }
+      }
       const linksReady = await songLinksReady(orgId);
       const fallbackTitle = rest.title ?? existing.title;
       /* One transaction for the pair, for the reason the create route gives: a
@@ -343,7 +357,9 @@ export async function PATCH(
          Spotify link, which used to be left behind on the old song when the
          campaign was moved to the new sound's. Without the link columns, or
          without a song, it is found-or-made by the sound as it always was. */
+      const youtube = audio.platform === "YOUTUBE" ? audio : null;
       audioSongId = await db.$transaction(async (tx) => {
+        if (youtube) return linkYouTubeAudio(tx, orgId, youtube, fallbackTitle, existing.songId ?? null);
         if (linksReady && existing.songId) {
           const sound = await ensureSound(tx, orgId, audio, fallbackTitle);
           if ((await setSongSound(tx, orgId, existing.songId, sound)) !== "no-song") return existing.songId;
@@ -363,10 +379,11 @@ export async function PATCH(
         readSongSounds(orgId, existing.songId),
         readSongSpotifyLink(orgId, existing.songId),
       ]);
-      const target = removeAudio === "TIKTOK" ? sounds.tiktok : sounds.instagram;
-      const other = removeAudio === "TIKTOK" ? sounds.instagram : sounds.tiktok;
+      const target = removeAudio === "TIKTOK" ? sounds.tiktok : removeAudio === "INSTAGRAM" ? sounds.instagram : sounds.youtube;
+      const others = [sounds.tiktok, sounds.instagram, sounds.youtube].filter((snd) => snd && snd !== target);
       if (target) {
-        if (!sounds.ready || (other === null && link.trackId === null)) detachSong = true;
+        if ((removeAudio !== "YOUTUBE" && !sounds.ready) || (others.length === 0 && link.trackId === null)) detachSong = true;
+        else if (removeAudio === "YOUTUBE") await clearSongLinkedSound(db, orgId, existing.songId, "YOUTUBE");
         else await clearSongSound(db, orgId, existing.songId, removeAudio);
       }
     }

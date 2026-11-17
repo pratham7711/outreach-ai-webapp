@@ -2,8 +2,10 @@ import { test, expect, type Locator, type Page } from '@playwright/test';
 import { navigateAndWait } from './helpers';
 
 /*
- * A campaign's audio: a TikTok sound, an Instagram audio and a Spotify track,
- * side by side, in the New Campaign form and in the campaign's settings.
+ * A campaign's audio: a TikTok sound, an Instagram audio, a YouTube audio and a
+ * Spotify track, side by side, in the New Campaign form and in the campaign's
+ * settings. In the form, TikTok is open from the start and the others open from
+ * their chips, or by a link pasted for them.
  *
  * A link goes to its own field whichever one it is pasted into, and a link
  * that can never give a number to follow is left out with a line saying why.
@@ -15,6 +17,7 @@ const INSTAGRAM_AUDIO = 'https://www.instagram.com/reels/audio/2094289147512017/
 const ORIGINAL_AUDIO = 'https://www.instagram.com/reels/audio/932615931412635/';
 const TIKTOK_SOUND = 'https://www.tiktok.com/music/Runaway-6604064037363780357';
 const SPOTIFY_TRACK = 'https://open.spotify.com/track/69bRMupnNveGN0PbZNoctn';
+const YOUTUBE_AUDIO = 'https://www.youtube.com/source/efCmfyPaK5U/shorts?app=desktop';
 
 /* A paste, as the browser delivers one: a ClipboardEvent carrying the text.
    Dispatched rather than typed with the OS clipboard, which a headless CI
@@ -38,6 +41,13 @@ async function answerChecks(page: Page) {
       await route.fulfill({
         status: 400,
         json: { error: 'instagram_audio_no_count', message: "Instagram doesn't publish a use count for that audio." },
+      });
+    } else if (url.includes('youtube.com')) {
+      await route.fulfill({
+        json: {
+          platform: 'YOUTUBE', verified: true, soundId: 'efCmfyPaK5U', provisionalTitle: 'code.red',
+          artist: 'DudePlaya, DXNTVX', coverImageUrl: null, usesCount: 6, usesRounded: false,
+        },
       });
     } else if (url.includes('instagram.com')) {
       await route.fulfill({
@@ -69,6 +79,29 @@ test.describe('Campaign audio in the New Campaign form', () => {
     await page.getByText('This campaign promotes a sound').click();
   });
 
+  test('opens TikTok alone, and each other field from its chip', async ({ page }) => {
+    await expect(page.getByLabel('TikTok sound', { exact: true })).toBeVisible();
+    for (const label of ['Instagram audio', 'YouTube audio', 'Spotify link']) {
+      await expect(page.getByLabel(label, { exact: true })).toHaveCount(0);
+    }
+    await page.getByTestId('wz-audio-chip-youtube').click();
+    await expect(page.getByTestId('wz-audio-chip-youtube')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByLabel('YouTube audio', { exact: true })).toBeVisible();
+    await page.getByTestId('wz-audio-chip-youtube').click();
+    await expect(page.getByLabel('YouTube audio', { exact: true })).toHaveCount(0);
+  });
+
+  test('moves a YouTube audio pasted for TikTok to its own field, and shows its Shorts', async ({ page }) => {
+    const asked = await answerChecks(page);
+    await paste(page.getByLabel('TikTok sound', { exact: true }), YOUTUBE_AUDIO);
+    await expect(page.getByLabel('YouTube audio', { exact: true })).toHaveValue(YOUTUBE_AUDIO);
+    await expect(page.getByLabel('TikTok sound', { exact: true })).toHaveCount(0);
+    await expect(page.getByTestId('youtube-audio-found')).toContainText('code.red');
+    await expect(page.getByTestId('youtube-audio-found')).toContainText('6 Shorts');
+    expect(asked).toEqual([YOUTUBE_AUDIO]);
+    await expect(page.getByRole('button', { name: /Create Campaign/ })).toBeEnabled();
+  });
+
   test('puts each link in its own field, whichever box it is pasted into', async ({ page }) => {
     const asked = await answerChecks(page);
     const tiktok = page.getByLabel('TikTok sound', { exact: true });
@@ -78,7 +111,7 @@ test.describe('Campaign audio in the New Campaign form', () => {
 
     await paste(tiktok, INSTAGRAM_AUDIO);
     await expect(instagram).toHaveValue(INSTAGRAM_AUDIO);
-    await expect(tiktok).toHaveValue('');
+    await expect(tiktok).toHaveCount(0);
     await expect(page.getByTestId('instagram-audio-found')).toContainText('≈2M reels');
 
     await paste(instagram, SPOTIFY_TRACK);
@@ -89,7 +122,7 @@ test.describe('Campaign audio in the New Campaign form', () => {
     await spotify.fill(TIKTOK_SOUND);
     await spotify.blur();
     await expect(tiktok).toHaveValue(TIKTOK_SOUND);
-    await expect(spotify).toHaveValue('');
+    await expect(spotify).toHaveCount(0);
     await expect(page.getByText('1,200,000 videos')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Import' })).toHaveCount(0);
 
@@ -104,6 +137,7 @@ test.describe('Campaign audio in the New Campaign form', () => {
     const instagram = page.getByLabel('Instagram audio', { exact: true });
     const create = page.getByRole('button', { name: /Create Campaign/ });
 
+    await page.getByTestId('wz-audio-chip-instagram').click();
     await paste(instagram, ORIGINAL_AUDIO);
     await expect(page.getByTestId('audio-link-not-added')).toContainText("Not added. That's original audio.");
     await expect(instagram).toHaveValue('');
@@ -118,6 +152,7 @@ test.describe('Campaign audio in the New Campaign form', () => {
     await expect(instagram).toHaveValue(INSTAGRAM_AUDIO);
     await expect(page.getByTestId('instagram-audio-found')).toContainText('Runaway');
 
+    await page.getByTestId('wz-audio-chip-spotify').click();
     await paste(page.getByLabel('Spotify link', { exact: true }), `https://open.spotify.com/album/69bRMupnNveGN0PbZNoctn`);
     await expect(page.getByText("That's an album link. Open the song and copy its link.")).toBeVisible();
     await expect(page.getByLabel('Spotify link', { exact: true })).toHaveValue('');
@@ -136,6 +171,7 @@ test.describe('Campaign audio in settings', () => {
     const spotifySection = page.getByRole('region', { name: 'Spotify track' });
     await expect(tiktokSection).toBeVisible({ timeout: 20000 });
     await expect(page.getByRole('region', { name: 'Instagram audio' })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'YouTube audio' })).toBeVisible();
     await expect(spotifySection).toBeVisible();
 
     await tiktokSection.getByRole('button', { name: 'Add TikTok sound' }).click();

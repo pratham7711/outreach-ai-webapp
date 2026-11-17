@@ -405,6 +405,7 @@ model Song {
   sound          TikTokSound?         @relation("SongSound", fields: [soundId], references: [id])
   instagramSound TikTokSound?         @relation("SongInstagramSound", fields: [instagramSoundId], references: [id])
   streamReadings SongStreamSnapshot[]
+  soundLinks     SongSoundLink[]
 
   @@index([orgId])
   @@index([orgId, deletedAt])
@@ -1458,8 +1459,8 @@ model TikTokSound {
   id            String   @id @default(cuid())
   orgId         String
   /// Which platform's audio this row is. Reuses the shared Platform enum so
-  /// prod needs no CREATE TYPE. Only TIKTOK and INSTAGRAM are reachable --
-  /// CreatorCore tracks exactly those two and has no YouTube audio tracker.
+  /// prod needs no CREATE TYPE. TIKTOK and INSTAGRAM sit in Song's own
+  /// columns; YOUTUBE (the Shorts audio page) hangs off SongSoundLink.
   platform      Platform @default(TIKTOK)
   /// The platform-native sound id. Keeps its TikTok-era name because the
   /// column is called that in prod and renaming it is not worth a DDL.
@@ -1474,6 +1475,7 @@ model TikTokSound {
   snapshots SoundTrackerSnapshot[]
   songs     Song[]                 @relation("SongSound")
   instagramSongs Song[]            @relation("SongInstagramSound")
+  songLinks SongSoundLink[]
   cover     SoundCover?
 
   /// The tenant key: every trackers page and the sound sweep filter on it.
@@ -2789,4 +2791,25 @@ model Feedback {
   // The inbox lists newest first; per-org for when an agency asks what it sent.
   @@index([createdAt])
   @@index([orgId, createdAt])
+}
+
+/// A song's sound on a platform with no column of its own on Song. YouTube
+/// Shorts audio is the first: a table rather than Song.youtubeSoundId because
+/// production runs the code before the DDL, and a missing table fails only the
+/// queries that name it, where a missing Song column fails every song read that
+/// selects it (lib/songs/songSoundLinks.ts).
+model SongSoundLink {
+  id        String   @id @default(cuid())
+  orgId     String
+  songId    String
+  platform  Platform
+  soundId   String
+  createdAt DateTime @default(now())
+
+  song  Song        @relation(fields: [songId], references: [id], onDelete: Cascade)
+  sound TikTokSound @relation(fields: [soundId], references: [id], onDelete: Cascade)
+
+  @@unique([songId, platform])
+  @@index([orgId])
+  @@index([soundId])
 }

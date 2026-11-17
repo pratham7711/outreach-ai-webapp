@@ -46,7 +46,7 @@ beforeEach(() => {
 it("returns the report without the per-post rows", async () => {
   const body = await (await GET(req(), params)).json();
   expect(body.posts).toBeUndefined();
-  expect(Object.keys(body).sort()).toEqual(["audio", "currency", "instagramAudio", "kpis", "leaderboard", "platformSplit", "seriesPlatforms", "timeSeries"]);
+  expect(Object.keys(body).sort()).toEqual(["audio", "currency", "instagramAudio", "kpis", "leaderboard", "platformSplit", "seriesPlatforms", "timeSeries", "youtubeAudio"]);
 });
 
 it("answers ?only=audio from the audio loader alone, without the chart", async () => {
@@ -58,6 +58,7 @@ it("answers ?only=audio from the audio loader alone, without the chart", async (
     instagramReady: true,
     sharedWith: 0,
     spotify: { ready: true, trackId: null, url: null },
+    youtubeAudio: null,
   });
   expect(readSongSpotifyLink).not.toHaveBeenCalled();
   expect(db.campaign.count).not.toHaveBeenCalled();

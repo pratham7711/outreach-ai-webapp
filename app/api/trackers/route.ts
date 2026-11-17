@@ -23,6 +23,7 @@ import { SOUND_URL_ERRORS, parseSoundUrl } from "@/lib/trackers/soundUrl";
 import { soundSeries } from "@/lib/sounds/usageSeries";
 import { usesPrecisionOf } from "@/lib/sounds/precision";
 import { readOneInstagramAudio } from "@/lib/platforms/instagramAudioUsage";
+import { readOneYouTubeAudio } from "@/lib/platforms/youtubeAudioUsage";
 import { expandShortLink } from "@/lib/trackers/expandShortLink";
 import { trackerLimitError, trackerUsage } from "@/lib/trackers/limit";
 import { requirePermission } from "@/lib/authz";
@@ -243,7 +244,7 @@ export async function POST(req: NextRequest) {
     /* Which platform's audio this is. It comes from the URL's host, never from
        the id's shape: an Instagram record id is far shorter than a TikTok
        snowflake, and guessing from length would misfile one as the other. */
-    let platform: "TIKTOK" | "INSTAGRAM" = "TIKTOK";
+    let platform: "TIKTOK" | "INSTAGRAM" | "YOUTUBE" = "TIKTOK";
     let title: string;
     let artist: string;
     let coverImageUrl: string | null = null;
@@ -318,6 +319,28 @@ export async function POST(req: NextRequest) {
         /* Instagram names the audio in the page we just read, so unlike TikTok
            there is nothing provisional to show and then correct. */
         title = probe.reading.title ?? `Audio ${result.tiktokSoundId.slice(-6)}`;
+        artist = probe.reading.artist ?? "";
+        coverImageUrl = probe.reading.coverImageUrl;
+      } else if (result.platform === "YOUTUBE") {
+        /* YouTube's Shorts audio page, read at the door for the same reason as
+           Instagram's: an id that is no source still answers 200, and a page
+           that only lists its first Shorts has no count to follow. */
+        const probe = await readOneYouTubeAudio(result.tiktokSoundId, { deadlineAt: Date.now() + 15_000 });
+        if (!probe.ok) {
+          const error =
+            probe.reason === "not-found"
+              ? "youtube_audio_not_found"
+              : probe.reason === "no-count"
+                ? "youtube_audio_no_count"
+                : "youtube_audio_unreadable";
+          return NextResponse.json(
+            { error, message: SOUND_URL_ERRORS[error] ?? "We couldn't reach YouTube to check that audio just now. Try again in a minute." },
+            { status: error === "youtube_audio_unreadable" ? 422 : 400 }
+          );
+        }
+        tiktokSoundId = result.tiktokSoundId;
+        platform = result.platform;
+        title = probe.reading.title ?? `Audio ${result.tiktokSoundId}`;
         artist = probe.reading.artist ?? "";
         coverImageUrl = probe.reading.coverImageUrl;
       } else {

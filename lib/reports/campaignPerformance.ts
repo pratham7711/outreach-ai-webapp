@@ -1,3 +1,4 @@
+import { audioPlatformOf, soundPageUrl, type AudioPlatform } from "@/lib/sounds/soundPage";
 import { unstable_cache } from "next/cache";
 import { db } from "@/lib/db";
 import { unwrittenMetricValue, fieldMetricValue, rollupEngagement, snapshotViewsKnownSql, postEngagementPercent } from "@/lib/metricDisplay";
@@ -155,6 +156,8 @@ export type CampaignPerformance = {
    * an Instagram audio shows it here, not as `audio`.
    */
   instagramAudio: CampaignAudio | null;
+  /** The release's YouTube Shorts audio. Optional: reports saved before it have none. */
+  youtubeAudio?: CampaignAudio | null;
   /**
    * The promoted song's Spotify play count, read once a day by the
    * snapshot-song-streams cron (lib/songs/streams). Null when the campaign has
@@ -231,7 +234,7 @@ export type CampaignAudio = {
   coverUrl: string | null;
   soundUrl: string;
   /** Which platform's audio this is: the card's heading and link follow it. */
-  platform: "TIKTOK" | "INSTAGRAM";
+  platform: AudioPlatform;
   uses: number | null;
   /** True when `uses` is the platform's rounded figure ("74K"), not a count. */
   usesRounded: boolean;
@@ -891,6 +894,7 @@ async function computeCampaignPerformanceUncached(
     posts: postRows,
     audio: audios.audio,
     instagramAudio: audios.instagramAudio,
+    youtubeAudio: audios.youtubeAudio,
     streams,
     launch: campaignLaunch(firstPost ? firstPost._min.postedAt : earliestPostedAt(posts)),
   };
@@ -926,7 +930,7 @@ export function knownViews(
  * instead of a year of them, and no org read for the chart granularity.
  * `usageSeries` comes back empty; every other field is computed the same way.
  */
-export type CampaignAudios = { audio: CampaignAudio | null; instagramAudio: CampaignAudio | null };
+export type CampaignAudios = { audio: CampaignAudio | null; instagramAudio: CampaignAudio | null; youtubeAudio: CampaignAudio | null };
 
 export async function loadCampaignAudio(
   campaignId: string,
@@ -938,18 +942,19 @@ export async function loadCampaignAudio(
     where: { id: campaignId },
     select: { song: { select: { id: true, coverUrl: true } } },
   });
-  if (!campaign?.song) return { audio: null, instagramAudio: null };
+  if (!campaign?.song) return { audio: null, instagramAudio: null, youtubeAudio: null };
   const sounds = await readSongSounds(orgId, campaign.song.id);
-  if (!sounds.tiktok && !sounds.instagram) return { audio: null, instagramAudio: null };
+  if (!sounds.tiktok && !sounds.instagram && !sounds.youtube) return { audio: null, instagramAudio: null, youtubeAudio: null };
 
   const org = withSeries ? await db.organization.findUnique({ where: { id: orgId }, select: { uiConfig: true } }) : null;
   const chartAt = effectiveChartGranularity(parseGranularity(org?.uiConfig ?? null));
   const songCover = campaign.song.coverUrl ?? null;
-  const [audio, instagramAudio] = await Promise.all([
+  const [audio, instagramAudio, youtubeAudio] = await Promise.all([
     sounds.tiktok ? soundCardData(sounds.tiktok, songCover, withSeries, chartAt) : null,
     sounds.instagram ? soundCardData(sounds.instagram, songCover, withSeries, chartAt) : null,
+    sounds.youtube ? soundCardData(sounds.youtube, songCover, withSeries, chartAt) : null,
   ]);
-  return { audio, instagramAudio };
+  return { audio, instagramAudio, youtubeAudio };
 }
 
 async function soundCardData(
@@ -973,7 +978,7 @@ async function soundCardData(
   });
   const latest = rows[0] ?? null;
   const series = withSeries ? soundSeries(rows.slice().reverse(), { bucketHours: CHART_BUCKET_HOURS[chartAt] }) : [];
-  const platform = sound.platform === "INSTAGRAM" ? "INSTAGRAM" : "TIKTOK";
+  const platform = audioPlatformOf(sound.platform);
 
   return {
     title: sound.title,
@@ -984,10 +989,7 @@ async function soundCardData(
     platform,
     /* An Instagram audio linked to tiktok.com/music/x-<its id> -- someone
        else's sound, or none -- and was headed "TikTok Audio". */
-    soundUrl:
-      platform === "INSTAGRAM"
-        ? `https://www.instagram.com/reels/audio/${encodeURIComponent(sound.tiktokSoundId)}/`
-        : `https://www.tiktok.com/music/x-${sound.tiktokSoundId}`,
+    soundUrl: soundPageUrl(platform, sound.tiktokSoundId),
     uses: latest ? latest.usesCount : null,
     usesRounded: latest ? usesPrecisionOf(latest.usesCount) === "rounded" : false,
     // A change needs two readings, both exact; otherwise the card shows a dash.

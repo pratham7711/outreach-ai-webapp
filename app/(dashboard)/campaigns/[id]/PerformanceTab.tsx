@@ -62,6 +62,8 @@ type PerformanceData = {
   audio: CampaignAudio | null;
   /** The song's Instagram audio; absent from a report cached before it existed. */
   instagramAudio?: CampaignAudio | null;
+  /** The song's YouTube Shorts audio; absent from a report cached before it existed. */
+  youtubeAudio?: CampaignAudio | null;
   /** Null when the campaign has no song; see lib/songs/streams. */
   streams: CampaignStreams | null;
   /** Absent from a report cached before it existed. */
@@ -87,7 +89,7 @@ function audioTab(key: string, label: string, audio: CampaignAudio, launch: Camp
   return {
     key,
     label,
-    figure: audio.uses === null ? null : `${audio.usesRounded ? "≈" : ""}${formatFull(audio.uses)} videos`,
+    figure: audio.uses === null ? null : `${audio.usesRounded ? "≈" : ""}${formatFull(audio.uses)} ${audio.platform === "YOUTUBE" ? "Shorts" : "videos"}`,
     render: (range) => <AudioCard audio={audio} range={range} launch={launch} embedded />,
   };
 }
@@ -507,6 +509,9 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
             : []),
           ...(data.instagramAudio
             ? [audioTab("instagram", "Instagram audio", data.instagramAudio, launch)]
+            : []),
+          ...(data.youtubeAudio
+            ? [audioTab("youtube", "YouTube audio", data.youtubeAudio, launch)]
             : []),
           ...(data.streams
             ? [{

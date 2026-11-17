@@ -38,7 +38,7 @@ describe("sortSongSounds", () => {
 describe("readSongSounds", () => {
   it("answers no sounds, ready, for a campaign with no song, without a query", async () => {
     const db = fakeDb(null);
-    expect(await readSongSounds("org-1", null, asDb(db))).toEqual({ ready: true, tiktok: null, instagram: null });
+    expect(await readSongSounds("org-1", null, asDb(db))).toEqual({ ready: true, tiktok: null, instagram: null, youtube: null });
     expect(db.song.findFirst).not.toHaveBeenCalled();
   });
 
@@ -47,7 +47,7 @@ describe("readSongSounds", () => {
     db.song.findFirst
       .mockRejectedValueOnce(Object.assign(new Error("The column `(not available)` does not exist"), { code: "P2022" }))
       .mockResolvedValueOnce({ sound: IG } as never);
-    expect(await readSongSounds("org-1", "song-1", asDb(db))).toEqual({ ready: false, tiktok: null, instagram: IG });
+    expect(await readSongSounds("org-1", "song-1", asDb(db))).toEqual({ ready: false, tiktok: null, instagram: IG, youtube: null });
     // Org-scoped both times.
     for (const [arg] of db.song.findFirst.mock.calls as unknown as [{ where: unknown }][]) {
       expect(arg.where).toEqual({ id: "song-1", orgId: "org-1" });

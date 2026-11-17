@@ -1,4 +1,5 @@
 "use client";
+import { audioPlatformName } from "@/lib/sounds/soundPage";
 import React, { useState } from "react";
 import { Card } from "@pratham7711/ui";
 import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, Cell, ReferenceLine, XAxis, YAxis, Tooltip } from "recharts";
@@ -166,7 +167,7 @@ function loneVelocityDot(series: CampaignAudio["usageSeries"], fill: string) {
 
 /** What the Velocity view says when it has nothing to draw, or draws an estimate. */
 function velocityNotes(audio: CampaignAudio) {
-  const where = audio.platform === "INSTAGRAM" ? "Instagram" : "TikTok";
+  const where = audioPlatformName(audio.platform);
   return {
     has: audio.usageSeries.some((p) => p.velocity !== null),
     approx: audio.usageSeries.some((p) => p.velocityApprox),
@@ -318,7 +319,7 @@ export function AudioCard({
   // A tracked sound has counts only after a sync. Zero would claim the audio has
   // never been used, so an unsynced tracker shows an em dash instead.
   const uses = full.uses === null ? "—" : `${full.usesRounded ? "≈" : ""}${formatFull(full.uses)}`;
-  const heading = audio.platform === "INSTAGRAM" ? "Instagram Audio" : "TikTok Audio";
+  const heading = `${audioPlatformName(audio.platform)} Audio`;
   const added = audio.videosAdded24h === null ? "—" : `+${formatFull(audio.videosAdded24h)}`;
 
   /* Usage is how many videos use the sound; Velocity is how fast that is moving.
@@ -631,7 +632,7 @@ function ReportAudio({
 
   return (
     <section className="spr-card spr-audio">
-      <h2 className="spr-section">{audio.platform === "INSTAGRAM" ? "Instagram Audio" : "TikTok Audio"}</h2>
+      <h2 className="spr-section">{`${audioPlatformName(audio.platform)} Audio`}</h2>
 
       <div className="spr-audio-tiles">
         <a

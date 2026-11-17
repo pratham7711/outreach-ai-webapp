@@ -14,6 +14,7 @@ import {
 } from "@/components/campaigns/SpotifyLinkCheck";
 import {
   INSTAGRAM_AUDIO_PLACEHOLDER,
+  YOUTUBE_AUDIO_PLACEHOLDER,
   instagramAudioLocalRefusal,
   reelsLabel,
 } from "@/components/campaigns/InstagramAudioCheck";
@@ -56,7 +57,7 @@ import {
 type LinkReceiver = { receive: (url: string, from: AudioField) => boolean };
 type HandOff = (from: AudioField, to: AudioField, url: string) => boolean;
 
-type Platform = "TIKTOK" | "INSTAGRAM";
+type Platform = "TIKTOK" | "INSTAGRAM" | "YOUTUBE";
 
 type ResolvedSound = {
   platform: string;
@@ -107,6 +108,15 @@ const SLOT = {
     empty: "No Instagram audio. Add the track\u2019s audio page and we track how many reels use it.",
     hint: "Open the audio from a reel and copy its link. Licensed music only: Instagram shows no count for original audio.",
     uses: (n: number | null | undefined, rounded = false) => reelsLabel(n, rounded),
+  },
+  YOUTUBE: {
+    heading: "YouTube audio",
+    noun: "YouTube audio",
+    otherNoun: "TikTok sound",
+    placeholder: YOUTUBE_AUDIO_PLACEHOLDER,
+    empty: "No YouTube audio. Add its Shorts audio page and we track how many Shorts use it.",
+    hint: "On a Short, tap the sound name and copy the link of the page it opens.",
+    uses: (n: number | null | undefined, rounded = false) => reelsLabel(n, rounded, "YOUTUBE"),
   },
 } as const;
 
@@ -198,7 +208,7 @@ function Cover({ src, size }: { src: string | null; size: number }) {
 
 /** The local parse for a slot's own platform: a post link, or a link that is not a sound. */
 function slotLocalRefusal(platform: Platform, raw: string): { message: string; reason: string } | null {
-  if (platform === "INSTAGRAM") return instagramAudioLocalRefusal(raw);
+  if (platform === "INSTAGRAM" || platform === "YOUTUBE") return instagramAudioLocalRefusal(raw, platform);
   const parsed = parseSoundUrl(raw);
   if (parsed.kind === "sound" || parsed.kind === "short-link") return null;
   const reason = parsed.kind === "video" ? "video_url" : parsed.reason;
@@ -489,7 +499,7 @@ function SoundSlot({
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {notice?.tone === "moved" && <AudioFieldNotice notice={notice} />}
           <p style={{ ...mutedStyle, fontSize: "var(--cc-t-13)" }}>
-            This is the {platform === "INSTAGRAM" ? "audio" : "sound"} we will track. Nothing has been attached yet.
+            This is the {platform === "TIKTOK" ? "sound" : "audio"} we will track. Nothing has been attached yet.
           </p>
           {resolved.verified === false && (
             <p role="status" style={alertStyle}>
@@ -497,10 +507,10 @@ function SoundSlot({
               cover fill in once TikTok answers.
             </p>
           )}
-          {platform === "INSTAGRAM" && resolved.verified == null && (
+          {platform !== "TIKTOK" && resolved.verified == null && (
             <p role="status" style={alertStyle}>
-              Instagram didn&apos;t answer, so this audio isn&apos;t confirmed yet. If the link is right, its title,
-              cover and reel count fill in once Instagram does.
+              {platform === "YOUTUBE" ? "YouTube" : "Instagram"} didn&apos;t answer, so this audio isn&apos;t confirmed
+              yet. If the link is right, its title, cover and count fill in once it does.
             </p>
           )}
           <div style={{ background: "var(--cc-bg)", borderRadius: 10, padding: 14, display: "flex", alignItems: "center", gap: 12 }}>
@@ -518,7 +528,7 @@ function SoundSlot({
             <div style={{ minWidth: 0 }}>
               <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}>
                 {resolved.provisionalTitle ??
-                  (resolved.verified === false ? "Sound not verified" : platform === "INSTAGRAM" ? "Instagram audio" : "Untitled sound")}
+                  (resolved.verified === false ? "Sound not verified" : platform === "TIKTOK" ? "Untitled sound" : copy.heading)}
               </p>
               <p style={{ ...mutedStyle, marginTop: 4 }}>
                 {[
@@ -528,7 +538,7 @@ function SoundSlot({
                      as undefined, and .toLocaleString() on it throws and
                      blanks the whole step. */
                   copy.uses(resolved.usesCount, resolved.usesRounded === true),
-                  `${resolved.platform} · ${platform === "INSTAGRAM" ? "audio" : "sound"} ${resolved.soundId}`,
+                  `${resolved.platform} · ${platform === "TIKTOK" ? "sound" : "audio"} ${resolved.soundId}`,
                 ]
                   .filter(Boolean)
                   .join(" · ")}
@@ -557,7 +567,7 @@ function SoundSlot({
       {step === 2 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <p style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}>
-            <Check size={16} color="var(--cc-primary)" aria-hidden="true" /> Tracking this {platform === "INSTAGRAM" ? "audio" : "sound"}
+            <Check size={16} color="var(--cc-primary)" aria-hidden="true" /> Tracking this {platform === "TIKTOK" ? "sound" : "audio"}
           </p>
           <p style={mutedStyle}>
             Usage is read once a day, and its card is now on this campaign&apos;s Performance section and on
@@ -743,6 +753,7 @@ function SpotifyLinkSettings({
 export function CampaignAudioSetup({ campaignId }: { campaignId: string }) {
   const [tiktok, setTiktok] = useState<CurrentAudio | null>(null);
   const [instagram, setInstagram] = useState<CurrentAudio | null>(null);
+  const [youtube, setYouTube] = useState<CurrentAudio | null>(null);
   /* False while the database has no Instagram slot: an older song's one
      sound still shows, it just cannot be joined by the other platform's. */
   const [slotsReady, setSlotsReady] = useState(true);
@@ -752,6 +763,7 @@ export function CampaignAudioSetup({ campaignId }: { campaignId: string }) {
   const receivers = {
     TIKTOK: useRef<LinkReceiver>(null),
     INSTAGRAM: useRef<LinkReceiver>(null),
+    YOUTUBE: useRef<LinkReceiver>(null),
     SPOTIFY: useRef<LinkReceiver>(null),
   };
   const handOff: HandOff = (_from, to, url) => receivers[to].current?.receive(url, _from) ?? false;
@@ -778,6 +790,7 @@ export function CampaignAudioSetup({ campaignId }: { campaignId: string }) {
           : null;
       setTiktok(toCurrent(data?.audio));
       setInstagram(toCurrent(data?.instagramAudio));
+      setYouTube(toCurrent(data?.youtubeAudio));
       setSlotsReady(data?.instagramReady !== false);
       setSharedWith(typeof data?.sharedWith === "number" ? data.sharedWith : 0);
       setSpotifyLink({
@@ -806,7 +819,7 @@ export function CampaignAudioSetup({ campaignId }: { campaignId: string }) {
       <h3 style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", margin: "0 0 6px" }}>Campaign audio</h3>
       <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>
         The track this campaign promotes, followed on each platform you link: videos on TikTok, reels on
-        Instagram, plays on Spotify. Each is read once a day and charted on the report.
+        Instagram, Shorts on YouTube, plays on Spotify. Each is read once a day and charted on the report.
       </p>
       {sharedWith > 0 && (
         <p
@@ -841,6 +854,16 @@ export function CampaignAudioSetup({ campaignId }: { campaignId: string }) {
         current={instagram}
         blockedReason={blocked(tiktok, SLOT.INSTAGRAM.otherNoun)}
         takesThumbnail={!tiktok}
+        onChanged={load}
+        onHandOff={handOff}
+      />
+      <SoundSlot
+        ref={receivers.YOUTUBE}
+        campaignId={campaignId}
+        platform="YOUTUBE"
+        current={youtube}
+        blockedReason={null}
+        takesThumbnail={!tiktok && !instagram}
         onChanged={load}
         onHandOff={handOff}
       />

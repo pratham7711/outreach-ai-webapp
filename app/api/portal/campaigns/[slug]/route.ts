@@ -7,7 +7,7 @@ import { isPortalCampaignActionable } from "@/lib/marketplace/portalVisibility";
 import { isCampaignIdKey, resolvePortalAccess } from "@/lib/portal/campaignAccess";
 import { campaignDates } from "@/lib/portal/campaignDates";
 import { readSongSounds } from "@/lib/songs/songSounds";
-import { soundUrl } from "@/lib/platforms/tiktokSound";
+import { soundPageUrl } from "@/lib/sounds/soundPage";
 import { fieldMetricValue } from "@/lib/metricDisplay";
 import { boostCodesAllowed, loadCampaignRules, scheduledUntil } from "@/lib/campaigns/rules";
 import { ruleChecksFor } from "@/lib/portal/ruleChecks";
@@ -149,16 +149,13 @@ export async function GET(
       readSongSounds(campaign.orgId, campaign.songId),
       db.activation.count({ where: { campaignId: campaign.id, deletedAt: null } }),
     ]);
-    const sounds = [songSounds.tiktok, songSounds.instagram].flatMap((snd) =>
+    const sounds = [songSounds.tiktok, songSounds.instagram, songSounds.youtube].flatMap((snd) =>
       snd
         ? [{
             platform: snd.platform,
             title: snd.title,
             artist: snd.artist,
-            url:
-              snd.platform === "INSTAGRAM"
-                ? `https://www.instagram.com/reels/audio/${encodeURIComponent(snd.tiktokSoundId)}/`
-                : soundUrl(snd.tiktokSoundId),
+            url: soundPageUrl(snd.platform, snd.tiktokSoundId),
           }]
         : [],
     );

@@ -9,7 +9,8 @@ import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { z } from "zod";
 import { pageParam, pageSizeParam, parseQuery } from "@/lib/http/queryParams";
-import { checkInstagramAudio, createSongForSpotifyLink, ensureSongForAudio, ensureSound, identifyAudioLink, type ResolvedAudio } from "@/lib/campaigns/audioLink";
+import { checkInstagramAudio, checkYouTubeAudio, createSongForSpotifyLink, ensureSongForAudio, ensureSound, identifyAudioLink, linkYouTubeAudio, type ResolvedAudio } from "@/lib/campaigns/audioLink";
+import { songSoundLinksReady } from "@/lib/songs/songSoundLinks";
 import { setSongSound } from "@/lib/songs/songSounds";
 import { resolveSpotifyLink } from "@/lib/songs/spotifyLinkResolve";
 import { songLinksReady } from "@/lib/songs/songLinks";
@@ -63,6 +64,9 @@ const createCampaignSchema = z.object({
   /* The song's Spotify track link, optional. Re-parsed here whatever the form
      said about it, and stored on the campaign's song as its track id. */
   spotifyUrl: z.string().trim().min(1).max(2048).nullable().optional(),
+  /* The song's YouTube Shorts audio: youtube.com/source/<id>/shorts, or the
+     source video's own link. */
+  youtubeAudioUrl: z.string().trim().min(1).max(2048).nullable().optional(),
   /* Start from a saved template or from a past campaign's setup. Only the
      source is named: its brief, rules and phases are read here from the
      server's own copy, in this org, never taken from the body. The fields
@@ -154,7 +158,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { title, status, campaignType, typeConfig, folderId, thumbnailUrl, paymentMode, paymentRelease, enrollmentOpen, audioUrl, instagramAudioUrl, spotifyUrl, setupFrom } = parsed.data;
+    const { title, status, campaignType, typeConfig, folderId, thumbnailUrl, paymentMode, paymentRelease, enrollmentOpen, audioUrl, instagramAudioUrl, spotifyUrl, youtubeAudioUrl, setupFrom } = parsed.data;
 
     /* The starting point, read before anything is written so a template or
        campaign that is not this org's (or not in this member's scope) is a 404
@@ -238,6 +242,39 @@ export async function POST(request: NextRequest) {
       instagramAudio = audio;
       audio = null;
     }
+    /* The YouTube audio the same way, and a YouTube link in the sound field is
+       the song's YouTube audio when the YouTube field is empty. */
+    let youtubeAudio: ResolvedAudio | null = null;
+    if (youtubeAudioUrl) {
+      const parsedYouTube = await identifyAudioLink(youtubeAudioUrl);
+      if (!parsedYouTube.ok) {
+        return NextResponse.json({ error: parsedYouTube.reason, message: parsedYouTube.message }, { status: 400 });
+      }
+      if (parsedYouTube.audio.platform !== "YOUTUBE") {
+        return NextResponse.json(
+          { error: "not_youtube_audio", message: "That isn't a YouTube audio link. Paste one that starts with youtube.com/source/." },
+          { status: 400 }
+        );
+      }
+      youtubeAudio = parsedYouTube.audio;
+    }
+    if (audio?.platform === "YOUTUBE") {
+      if (youtubeAudio) {
+        return NextResponse.json(
+          { error: "two_youtube_audios", message: "Both links are YouTube audio. Put the TikTok sound in the first field." },
+          { status: 400 }
+        );
+      }
+      youtubeAudio = audio;
+      audio = null;
+    }
+    if (youtubeAudio) {
+      const checked = await checkYouTubeAudio(youtubeAudio.tiktokSoundId);
+      if (!checked.ok) return NextResponse.json({ error: checked.reason, message: checked.message }, { status: 400 });
+      if (checked.reading?.title && !youtubeAudio.provisionalTitle) {
+        youtubeAudio = { ...youtubeAudio, provisionalTitle: checked.reading.title };
+      }
+    }
     if (instagramAudio) {
       const checked = await checkInstagramAudio(instagramAudio.tiktokSoundId);
       if (!checked.ok) return NextResponse.json({ error: checked.reason, message: checked.message }, { status: 400 });
@@ -265,6 +302,9 @@ export async function POST(request: NextRequest) {
     const linksReady = spotifyTrackId || instagramAudio ? await songLinksReady(orgId) : false;
     /* The same question for the rules table, for the same reason. */
     const rulesReady = setup?.rules ? await rulesTableReady() : false;
+    /* And for the table a YouTube audio links through. Without it the campaign
+       is still created, and the response says the YouTube link did not save. */
+    const youtubeReady = youtubeAudio ? await songSoundLinksReady() : false;
 
     /* One transaction, because the Song and TikTokSound rows exist only to be
        pointed at by this campaign. They used to be created first, on the global
@@ -272,9 +312,10 @@ export async function POST(request: NextRequest) {
        referencing them -- and a TikTokSound is a standing instruction to fetch
        a page on a schedule, so the orphan keeps costing something. */
     let instagramLinked: boolean | undefined;
+    let youtubeLinked: boolean | undefined;
     let setupWritten: SetupWritten | undefined;
     const campaign = await db.$transaction(async (tx) => {
-      const songId = audio
+      let songId = audio
         ? await ensureSongForAudio(tx, orgId, audio, title, { linksReady })
         : instagramAudio
           ? await ensureSongForAudio(tx, orgId, instagramAudio, title, { linksReady })
@@ -290,6 +331,17 @@ export async function POST(request: NextRequest) {
           instagramLinked = true;
         } else {
           instagramLinked = false;
+        }
+      }
+
+      /* The YouTube audio links onto whichever song the other links made, or
+         finds or makes one of its own. */
+      if (youtubeAudio) {
+        if (youtubeReady) {
+          songId = await linkYouTubeAudio(tx, orgId, youtubeAudio, title, songId);
+          youtubeLinked = true;
+        } else {
+          youtubeLinked = false;
         }
       }
 
@@ -423,6 +475,7 @@ export async function POST(request: NextRequest) {
         ...campaign,
         ...(spotifyLinked === undefined ? {} : { spotifyLinked }),
         ...(instagramLinked === undefined ? {} : { instagramLinked }),
+        ...(youtubeLinked === undefined ? {} : { youtubeLinked }),
         /* What came along from the starting point. rules is false with rules
            in the source only when the rules table is not on this database. */
         ...(setupFrom && setupWritten ? { setupFrom: { ...setupFrom, copied: setupWritten } } : {}),
