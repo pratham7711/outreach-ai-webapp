@@ -290,6 +290,33 @@ describe("POST /api/mcp", () => {
     expect(body.result.structuredContent).toEqual(data);
   });
 
+  it("names each campaign's client, so an agent never has to answer with an id", async () => {
+    mockDb.campaign.findMany.mockResolvedValue([
+      { id: "c1", title: "Launch", status: "COMPLETE", client: { name: "Universal Records" }, _count: { activations: 0, posts: 0 } },
+    ]);
+    mockDb.campaign.count.mockResolvedValue(1);
+    mockDb.campaign.findFirst.mockResolvedValue({
+      id: "c1",
+      title: "Launch",
+      clientId: "client-2",
+      client: { id: "client-2", name: "Universal Records" },
+      tags: [],
+      _count: { activations: 0, posts: 0 },
+    });
+
+    const listed = await (await POST(makeJsonRpcRequest("tools/call", { name: "list_campaigns", arguments: {} }))).json();
+    expect(listed.result.structuredContent.campaigns[0].client).toEqual({ name: "Universal Records" });
+    expect(mockDb.campaign.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ select: expect.objectContaining({ client: { select: { name: true } } }) }),
+    );
+
+    const got = await (await POST(makeJsonRpcRequest("tools/call", { name: "get_campaign", arguments: { id: "c1" } }))).json();
+    expect(got.result.structuredContent.client).toEqual({ id: "client-2", name: "Universal Records" });
+    expect(mockDb.campaign.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ include: expect.objectContaining({ client: { select: { id: true, name: true } } }) }),
+    );
+  });
+
   it("scopes list_campaigns queries to orgId", async () => {
     mockDb.campaign.findMany.mockResolvedValue([]);
     const req = makeJsonRpcRequest("tools/call", {

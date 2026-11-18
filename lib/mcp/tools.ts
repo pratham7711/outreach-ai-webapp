@@ -93,7 +93,7 @@ const TOOLS: Tool[] = [
     def: {
       name: "list_campaigns",
       description:
-        "List campaigns in the organization, newest activity first. Filter by status or search by title. Returns a page: `campaigns`, plus `total`, `hasMore` and `nextOffset` for paging.",
+        "List campaigns in the organization, newest activity first. Filter by status or search by title. Each campaign carries its client's name. Returns a page: `campaigns`, plus `total`, `hasMore` and `nextOffset` for paging.",
       inputSchema: {
         type: "object",
         properties: {
@@ -124,6 +124,7 @@ const TOOLS: Tool[] = [
             campaignType: true,
             budget: true,
             currency: true,
+            client: { select: { name: true } },
             _count: { select: { activations: true, posts: { where: NOT_REMOVED } } },
           },
           orderBy: { updatedAt: "desc" },
@@ -139,7 +140,7 @@ const TOOLS: Tool[] = [
   {
     def: {
       name: "get_campaign",
-      description: "Get one campaign's full record by id, including its tags and its post and activation counts.",
+      description: "Get one campaign's full record by id, including its client (brand), its tags and its post and activation counts.",
       inputSchema: {
         type: "object",
         properties: { id: { type: "string", description: "Campaign ID" } },
@@ -151,7 +152,11 @@ const TOOLS: Tool[] = [
       if (!args.id) return toolFailure("id is required");
       const campaign = await db.campaign.findFirst({
         where: { id: args.id, ...campaignFilter(caller) },
-        include: { tags: true, _count: { select: { activations: true, posts: { where: NOT_REMOVED } } } },
+        include: {
+          tags: true,
+          client: { select: { id: true, name: true } },
+          _count: { select: { activations: true, posts: { where: NOT_REMOVED } } },
+        },
       });
       if (!campaign) {
         return toolFailure("Campaign not found", "Call list_campaigns to see the ids this key can read.");
