@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithQuery as render } from "../../helpers/renderWithQuery";
 
 jest.mock("@pratham7711/ui", () => ({
@@ -106,8 +106,10 @@ describe("DashboardClient — widget gating via dashboardWidgets", () => {
     render(<DashboardClient {...baseProps} dashboardWidgets={ALL_WIDGETS} />);
     // The grid itself is present — active campaigns is always known.
     expect(await screen.findByText("Active campaigns")).toBeInTheDocument();
-    // An unmeasured figure is not shown at all, not shown as 0 or a dash.
-    expect(screen.queryByText("Total views")).not.toBeInTheDocument();
+    // An unmeasured figure is not shown at all, not shown as 0 or a dash. While
+    // the first request is out the row keeps all four places, so this is the
+    // state once it has answered.
+    await waitFor(() => expect(screen.queryByText("Total views")).not.toBeInTheDocument());
     expect(screen.queryByText("Total posts")).not.toBeInTheDocument();
   });
 
