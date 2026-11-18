@@ -18,7 +18,7 @@ figure{margin:14px 0 26px}figure img{max-width:100%;border:1px solid var(--line)
 .gap li{margin-bottom:8px}.links a{display:inline-block;margin:0 14px 6px 0}
 </style></head><body><main>
 <h1>MCP page + OAuth sign-in for apps</h1>
-<div class="sub">Verification sheet · Made Boring Campaigns · 2026-11-19 (IST) · live on prod as <code>dpl_2FYyVjgkW49u9sTMq2UxTGzEciQY</code> (commit <code>97a720a7</code>)</div>
+<div class="sub">Verification sheet · Made Boring Campaigns · 2026-11-19 (IST) · live on prod as <code>dpl_AswdmZ3R4paC2MesAqhNChds7rbn</code> (commit <code>18e3abea</code>; MCP + OAuth first shipped in <code>97a720a7</code>)</div>
 
 <div class="tiles">
 <div class="tile"><div class="k">13 / 13</div><div class="l">Prod sign-in, end to end (review account)</div></div>
@@ -40,7 +40,7 @@ figure{margin:14px 0 26px}figure img{max-width:100%;border:1px solid var(--line)
 <tr><td>Connecting an app</td><td>Create an API key in Settings, paste it into the app</td><td>Paste the URL → <b>Connect</b> → sign in → <b>Allow</b>. No key to copy. API keys still work.</td></tr>
 <tr><td>What the app can see</td><td>An API key's org-wide access</td><td>Exactly what the signed-in person can see; role and campaign scope re-read on every call</td></tr>
 <tr><td>Settings → API keys</td><td>Keys only</td><td>Adds “Connect Claude with sign-in” → <code>/mcp</code></td></tr>
-<tr><td>Campaign tools</td><td>Client came back as an id (<code>client-2</code>)</td><td>Client name returned — <b>commit 18e3abea, not on prod yet</b></td></tr>
+<tr><td>Campaign tools</td><td>Client came back as an id (<code>client-2</code>)</td><td>Client name returned (commit <code>18e3abea</code>, live)</td></tr>
 </table>
 
 <h2>What it looks like (prod, screenshots taken after deploy)</h2>
@@ -66,7 +66,7 @@ figure{margin:14px 0 26px}figure img{max-width:100%;border:1px solid var(--line)
 </ol>
 
 <h2>Automated results</h2>
-<h3>Prod, after deploy — review account, real sign-in (13/13)</h3>
+<h3>Prod, after deploy — review account, real sign-in (13/13 on 97a720a7; re-run on 18e3abea adds the client checks)</h3>
 <table><tr><th>Check</th><th>Result</th><th>Detail</th></tr>
 <tr><td>Register an app (dynamic client registration)</td><td><span class="b ok">PASS</span></td><td>HTTP 201</td></tr><tr><td>Signed-out consent screen sends you to /login</td><td><span class="b ok">PASS</span></td><td></td></tr><tr><td>Login brings you back to the consent screen</td><td><span class="b ok">PASS</span></td><td></td></tr><tr><td>Allow sends the app a code, with state and issuer</td><td><span class="b ok">PASS</span></td><td></td></tr><tr><td>App swaps the code for tokens</td><td><span class="b ok">PASS</span></td><td>HTTP 200</td></tr><tr><td>App lists the tools</td><td><span class="b ok">PASS</span></td><td>13 tools</td></tr><tr><td>list_campaigns ×10</td><td><span class="b ok">PASS</span></td><td>p50 153 ms · p90 182 · max 189</td></tr><tr><td>get_org_kpis ×10</td><td><span class="b ok">PASS</span></td><td>p50 141 ms · p90 168 · max 171</td></tr><tr><td>list_creators ×10</td><td><span class="b ok">PASS</span></td><td>p50 143 ms · p90 156 · max 183</td></tr><tr><td>get_campaign</td><td><span class="b ok">PASS</span></td><td></td></tr><tr><td>Refresh gives a new token and kills the old one</td><td><span class="b ok">PASS</span></td><td></td></tr><tr><td>App shows under Connected apps on /mcp</td><td><span class="b ok">PASS</span></td><td></td></tr><tr><td>Disconnect → the app's token is refused (401)</td><td><span class="b ok">PASS</span></td><td></td></tr>
 </table>
@@ -118,10 +118,10 @@ figure{margin:14px 0 26px}figure img{max-width:100%;border:1px solid var(--line)
 <li><b>The “Add to Claude” link format</b> (<code>claude.ai/customize/connectors?modal=add-custom-connector…</code>) is unconfirmed. If it opens the wrong page, the manual path in step 2 still works.</li>
 <li><b>Claude Code's <code>/mcp</code> authenticate step</b> has not been run against prod.</li>
 <li><b>Whether LKM can use it:</b> it needs API access on their plan (Pro / Enterprise, or switched on per org). Their plan was not read.</li>
-<li><b>Client-name fix (18e3abea)</b>: passes every local suite and the benchmark question, but is waiting for its candidate push; until then the client comes back as an id on prod.</li>
+<li><b>Client name on prod with a real client:</b> the deployed tools now return a <code>client</code> field (checked on prod), but the review account's only campaign has no client, so a <i>named</i> client was confirmed on the test database only.</li>
 <li>Rate limits on registration and token calls are kept in each server instance's memory, so on Vercel they are per instance, not global.</li>
 </ul>
 
 <h2>Rollback</h2>
-<div class="card"><code>vercel rollback dpl_E3R1Ntg4T6swrQeApkLak54XuUZL</code> (commit be65e171, the deploy before this). The three new tables can stay; nothing reads them in the old build.</div>
+<div class="card">Client-name fix only: <code>vercel rollback dpl_2FYyVjgkW49u9sTMq2UxTGzEciQY</code> (97a720a7). Everything: <code>vercel rollback dpl_E3R1Ntg4T6swrQeApkLak54XuUZL</code> (be65e171, before MCP). The three new tables can stay; the old build never reads them.</div>
 </main></body></html>
