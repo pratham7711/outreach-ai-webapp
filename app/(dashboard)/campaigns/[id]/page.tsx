@@ -7,7 +7,7 @@ import Link from "next/link";
 import { Badge, EmptyState, Avatar, Input, Textarea } from "@pratham7711/ui";
 import { Modal } from "@/components/ds/Modal";
 import { Dropdown, MetricTile, EntityPicker, Button, PageHeader, SectionCard, Field, FieldRow, Skeleton } from "@/components/ds";
-import { TileGridSkeleton, PageHeaderSkeleton } from "@/components/ui/PageSkeleton";
+import { TileGridSkeleton } from "@/components/ui/PageSkeleton";
 import { PlatformSplit } from "@/components/charts/PlatformSplit";
 import { useDirty } from "@/lib/useDirty";
 import { CAMPAIGN_STATUS_OPTIONS, campaignStatusText } from "@/components/campaigns/campaignStatus";
@@ -17,6 +17,7 @@ import ActivityFeed from "./ActivityFeed";
 import DraftsTab from "./DraftsTab";
 import CreativeBriefCard from "./CreativeBriefCard";
 import CampaignRulesCard from "./CampaignRulesCard";
+import { CampaignDetailSkeleton } from "./CampaignDetailSkeleton";
 import { viewGoalProgress, type CampaignRules } from "@/lib/campaigns/rulesShape";
 import RosterTable, { ROSTER_COLUMNS, ROSTER_DEFAULT_COLUMNS, type RosterRow } from "./RosterTable";
 import { readCampaignSection } from "@/lib/campaignSections";
@@ -46,6 +47,7 @@ import { loadCharts } from "@/components/charts/lazyCharts";
 import { noun } from "@/lib/ui/noun";
 import { platformLabel } from "@/lib/format";
 import { followersReached } from "@/lib/campaigns/followersReached";
+import { startFetch, takeFetch } from "@/lib/http/earlyFetch";
 
 const ChartSkeleton = ({ height }: { height: number }) => (
   <Skeleton width="100%" height={height} radius="var(--cc-r-card)" />
@@ -197,7 +199,7 @@ function CampaignTagsCard({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/settings/taxonomy/campaign-tags")
+    takeFetch("/api/settings/taxonomy/campaign-tags")
       .then((r) => r.json())
       .then((d) => setDefs(Array.isArray(d.items) ? d.items : []))
       .catch(() => setDefs([]));
@@ -293,18 +295,6 @@ function CampaignTagsCard({
   );
 }
 
-function LoadingSkeleton() {
-  return (
-    <div className="cc-page-content rsp-page" aria-busy="true">
-      <PageHeaderSkeleton />
-      <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-        <TileGridSkeleton count={4} />
-        <Skeleton width="100%" height={300} radius="var(--cc-r-card)" />
-      </div>
-    </div>
-  );
-}
-
 function editFormFrom(c: Campaign) {
   return {
     title: c.title,
@@ -397,6 +387,15 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       })
       .finally(() => setLoading(false));
   }, [id]);
+
+  /* The Overview's cards fetch on mount, and they mount only once the campaign
+     has loaded; start their reads alongside it instead of after it. */
+  useEffect(() => {
+    if (activeTab !== "overview") return;
+    startFetch(`/api/campaigns/${id}/activity`);
+    startFetch(`/api/campaigns/${id}/rules`);
+    startFetch("/api/settings/taxonomy/campaign-tags");
+  }, [id, activeTab]);
 
   useEffect(() => { loadCampaign(); }, [loadCampaign]);
 
@@ -625,7 +624,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     });
   }, [campaign?.title, campaign?._count.posts, pendingDrafts, draftsEver, roster.length, campaignMissing, publishCampaignNav]);
 
-  if (loading) return <LoadingSkeleton />;
+  if (loading) return <CampaignDetailSkeleton />;
   if (loadError) return (
     <div className="cc-page-content">
       <EmptyState

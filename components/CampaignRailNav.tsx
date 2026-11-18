@@ -28,8 +28,17 @@ import { useCampaignListHref } from "@/lib/campaigns/listReturn";
  * second). The router syncs a native pushState into useSearchParams, so the
  * switch is immediate and the back button still walks the sections.
  */
+export function onCampaignPage(pathname: string | null, campaignId: string) {
+  return pathname === `/campaigns/${campaignId}`;
+}
+
+/* On the campaign page itself a section link never reaches the router (see
+   switchSection), so prefetching it is wasted work: the rail and the phone
+   strip were prefetching every section, 12 RSC requests per campaign opened
+   (MEASURED 2026-11-19, local prod build), each a server render. Off the page
+   (a post's own page) the links do navigate, and keep their prefetch. */
 export function switchSection(e: { preventDefault: () => void }, pathname: string | null, campaignId: string, href: string) {
-  if (pathname !== `/campaigns/${campaignId}`) return;
+  if (!onCampaignPage(pathname, campaignId)) return;
   e.preventDefault();
   window.history.pushState(null, "", href);
   document.getElementById("main-content")?.scrollTo({ top: 0 });
@@ -79,6 +88,7 @@ export default function CampaignRailNav({ campaignId }: { campaignId: string }) 
         const link = (
           <NavLink
             href={href}
+            prefetch={onCampaignPage(pathname, campaignId) ? false : undefined}
             onNavigate={(e) => switchSection(e, pathname, campaignId, href)}
             className={`cc-nav-item sidebar-link ${activeSection ? "active btn-press" : ""}`}
             aria-current={activeSection ? "page" : undefined}

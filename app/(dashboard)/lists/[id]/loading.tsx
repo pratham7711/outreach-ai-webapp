@@ -1,5 +1,5 @@
-import { DashboardSkeleton } from "@/components/ui/PageSkeleton";
+import { ListDetailSkeleton } from "./ListDetailSkeleton";
 
 export default function ListDetailLoading() {
-  return <DashboardSkeleton />;
+  return <ListDetailSkeleton />;
 }

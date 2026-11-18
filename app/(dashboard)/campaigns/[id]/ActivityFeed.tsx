@@ -5,6 +5,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { Textarea } from "@pratham7711/ui";
 import { StatusTabs, Button, SectionCard, NoResults, Skeleton } from "@/components/ds";
 import { History } from "lucide-react";
+import { takeFetch } from "@/lib/http/earlyFetch";
 
 type ActivityEvent = {
   id: string;
@@ -44,7 +45,7 @@ export default function ActivityFeed({ campaignId }: { campaignId: string }) {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const res = await fetch(`/api/campaigns/${campaignId}/activity`);
+      const res = await takeFetch(`/api/campaigns/${campaignId}/activity`);
       if (!res.ok) throw new Error("Failed to load activity");
       const data = await res.json();
       setEvents(data.events ?? []);

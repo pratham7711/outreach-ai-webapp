@@ -7,6 +7,7 @@ import { Button, SectionCard } from "@/components/ds";
 import { RULE_LIMITS, type CampaignRules } from "@/lib/campaigns/rulesShape";
 import { detectPlatform } from "@/lib/platforms/postUrl";
 import { platformLabel } from "@/lib/format";
+import { takeFetch } from "@/lib/http/earlyFetch";
 
 /**
  * The campaign's creator checklist, submission rules, launch date and view
@@ -204,7 +205,7 @@ export default function CampaignRulesCard({
 
   useEffect(() => {
     let live = true;
-    fetch(`/api/campaigns/${campaignId}/rules`)
+    takeFetch(`/api/campaigns/${campaignId}/rules`)
       .then((r) => (r.ok ? r.json() : null))
       .then((body: { rules?: CampaignRules; ready?: boolean } | null) => {
         if (!live || !body?.rules) return;

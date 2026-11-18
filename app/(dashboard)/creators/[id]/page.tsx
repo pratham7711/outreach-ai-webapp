@@ -28,7 +28,6 @@ import {
   type DataTableColumn,
 } from "@/components/ds";
 import { PlatformTag } from "@/components/ds/StatusBadge";
-import { PageHeaderSkeleton, TileGridSkeleton } from "@/components/ui/PageSkeleton";
 import { useDirty } from "@/lib/useDirty";
 import { formatDateAbs, platformLabel, formatFull, formatFullCurrency } from "@/lib/format";
 import { campaignStatusLabel } from "@/lib/statusColors";
@@ -59,6 +58,8 @@ import PostStatusChip from "@/components/posts/PostStatusChip";
 import { postAgeContext, postMeasuredAt, postStatus } from "@/lib/posts/postStatus";
 import { dataAsOf } from "@/lib/dataAge";
 import type { FigureTimeDto } from "@/lib/creators/figureTime";
+import { responsiveStyles } from "./creatorDetailStyles";
+import { CreatorDetailSkeleton } from "./CreatorDetailSkeleton";
 
 function formatNumber(num: number): string {
   return formatFull(num);
@@ -407,115 +408,6 @@ function ListsCard({ creatorId, lists, onSaved }: { creatorId: string; lists: { 
   );
 }
 
-const responsiveStyles = `
-  .cd-stats { margin-bottom: 24px; }
-  /* Two column stacks rather than one grid: five cards in a 2-column grid
-     left "On lists" alone in its row and stretched Notes to the height of
-     About. Each stack is as tall as its own cards. */
-  .cd-profile {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 24px;
-    align-items: start;
-  }
-  .cd-profile-col {
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-    min-width: 0;
-  }
-  .cd-empty-line {
-    margin: 0;
-    font-size: var(--cc-t-14);
-    line-height: 1.5;
-    color: var(--cc-text-muted);
-  }
-  .cd-bio {
-    margin: 0;
-    font-size: var(--cc-t-14);
-    line-height: 1.6;
-    color: var(--cc-text);
-  }
-  /* Label over value, in a 2-column grid: the label is the muted 12px line,
-     the value 14px medium in the ink. */
-  .cd-facts {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 20px 32px;
-    margin: 0;
-  }
-  .cd-bio + .cd-facts { margin-top: 20px; }
-  .cd-facts > div { min-width: 0; }
-  .cd-facts dt {
-    margin: 0 0 4px;
-    font-size: var(--cc-t-12);
-    color: var(--cc-text-muted);
-  }
-  .cd-facts dd {
-    margin: 0;
-    font-size: var(--cc-t-14);
-    font-weight: var(--cc-fw-medium);
-    color: var(--cc-text);
-    overflow-wrap: anywhere;
-    font-variant-numeric: tabular-nums;
-  }
-  .cd-facts dd[data-figure] {
-    font-size: var(--cc-t-18);
-    font-weight: 700;
-  }
-  .cd-account-foot {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px 16px;
-    margin-top: 16px;
-    padding-top: 12px;
-    border-top: 1px solid var(--cc-border);
-    font-size: var(--cc-t-12);
-    color: var(--cc-text-muted);
-  }
-  .cd-account-foot > span { display: inline-flex; align-items: center; gap: 6px; }
-  .cd-section-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 16px;
-  }
-  .cd-section-head h2 {
-    margin: 0;
-    font-size: var(--cc-t-16);
-    font-weight: 600;
-    color: var(--cc-text);
-  }
-  .cd-post-stats {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-  .cd-post-stat {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: var(--cc-t-13);
-    color: var(--cc-text-muted);
-    font-variant-numeric: tabular-nums;
-  }
-  .cd-social-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-
-  @media (min-width: 480px) {
-    .cd-social-grid { grid-template-columns: repeat(2, 1fr); }
-  }
-
-  @media (min-width: 900px) {
-    .cd-profile { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .cd-social-grid { grid-template-columns: repeat(3, 1fr); }
-  }
-`;
 
 /**
  * A post's status chip (when it is anything but live) and its counters' age,
@@ -605,21 +497,6 @@ const CAMPAIGN_COLUMNS: DataTableColumn<CreatorCampaign>[] = [
     render: (c) => (c.budget ? formatCurrency(Number(c.budget), c.currency) : "—"),
   },
 ];
-
-/** The loaded page's shape: header band, the four tiles, then the cards. */
-function LoadingSkeleton() {
-  return (
-    <div className="rsp-page">
-      <style>{responsiveStyles}</style>
-      <PageHeaderSkeleton />
-      <TileGridSkeleton count={4} style={{ marginBottom: 24 }} />
-      <div className="cd-profile">
-        <Skeleton height={220} radius="var(--cc-r-card)" />
-        <Skeleton height={220} radius="var(--cc-r-card)" />
-      </div>
-    </div>
-  );
-}
 
 const PLATFORMS = ["INSTAGRAM", "TIKTOK", "YOUTUBE", "TWITTER"] as const;
 const PLATFORM_OPTIONS = PLATFORMS.map((p) => ({ value: p, label: platformLabel(p) }));
@@ -932,7 +809,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
     { label: "Social accounts", value: "social" },
   ];
 
-  if (loading) return <LoadingSkeleton />;
+  if (loading) return <CreatorDetailSkeleton />;
   if (!creator) return (
     <div className="rsp-page">
       <NotFoundState

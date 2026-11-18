@@ -7,7 +7,7 @@ import { NotFoundState } from "@/components/errors/NotFoundState";
 import { toast } from "sonner";
 import { formatDateAbs, formatFull } from "@/lib/format";
 import { useConfirm, Button, DataTable, MoreMenu, PageHeader, PlatformTag, StatusBadge, type DataTableColumn } from "@/components/ds";
-import { DataTableSkeleton, PageHeaderSkeleton } from "@/components/ui/PageSkeleton";
+import { ListDetailSkeleton } from "./ListDetailSkeleton";
 import AddCreatorsDropdown from "@/components/lists/AddCreatorsDropdown";
 import ListSharePanel from "@/components/lists/ListSharePanel";
 import RateCardTable, { ListCreatorCell, type RateCardItem } from "@/components/lists/RateCardTable";
@@ -178,12 +178,7 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
     setDeleting(false);
   };
 
-  if (loading) return (
-    <div className="rsp-page">
-      <PageHeaderSkeleton />
-      <DataTableSkeleton columns={[{}, { width: 112 }, { width: 112 }, { width: 128 }, { width: 64 }]} />
-    </div>
-  );
+  if (loading) return <ListDetailSkeleton />;
 
   if (!list) return (
     <div className="rsp-page">

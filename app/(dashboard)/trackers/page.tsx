@@ -690,7 +690,7 @@ export default function TrackersPage() {
       ) : (
       <>
       {loading ? (
-        <TileGridSkeleton count={4} style={{ marginBottom: 24 }} />
+        <TileGridSkeleton count={4} footer style={{ marginBottom: 24 }} />
       ) : allSounds.length === 0 ? (
         /* Four zeroes above TrackersIntro, which is the screen that explains
            what a tracker is. Nothing has been measured yet, so there is nothing

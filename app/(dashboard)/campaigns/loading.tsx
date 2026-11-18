@@ -12,5 +12,17 @@ const CAMPAIGN_COLUMNS_SKELETON = [
 ];
 
 export default function CampaignsLoading() {
-  return <ListPageSkeleton filters={3} columns={CAMPAIGN_COLUMNS_SKELETON} rows={8} />;
+  return (
+    <ListPageSkeleton
+      filters={3}
+      columns={CAMPAIGN_COLUMNS_SKELETON}
+      rows={8}
+      header={{
+        title: "Campaigns",
+        subtitle: false,
+        actions: [105, 154],
+        tabs: ["All", "Pending", "Active", "Complete", "Canceled"].map((label) => ({ label, icon: true, count: true })),
+      }}
+    />
+  );
 }

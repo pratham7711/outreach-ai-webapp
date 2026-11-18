@@ -2,23 +2,136 @@
 
 import type React from "react";
 import { Skeleton } from "@/components/ds/Skeleton";
+import { SectionCard } from "@/components/ds/SectionCard";
+import { ChevronLeft } from "lucide-react";
 
-/** Reusable skeleton for page headers (title + subtitle + action button) */
-export function PageHeaderSkeleton({ hasAction = true }: { hasAction?: boolean }) {
+export type HeaderTabSkeleton = string | { label: string; icon?: boolean; count?: boolean };
+/* Inline, so the line keeps the height of the text it stands in for. */
+const INLINE: React.CSSProperties = { display: "inline-block", verticalAlign: "middle" };
+
+export type HeaderSkeletonProps = Parameters<typeof PageHeaderSkeleton>[0];
+
+/**
+ * The page header while the page loads, drawn with PageHeader's own classes
+ * (.rsp-header.cc-page-band and its parts), so the band, its hairline, the
+ * tab strip and the gap to the content are the loaded header's. A title or a
+ * tab label that never changes is written out; anything that comes from data
+ * is a block. `actions` is the width of each header button, left to right.
+ */
+export function PageHeaderSkeleton({
+  hasAction = true,
+  actions,
+  title,
+  subtitle = true,
+  tabs,
+  back = false,
+  leading = false,
+  badges = 0,
+  meta = false,
+}: {
+  hasAction?: boolean;
+  actions?: number[];
+  title?: string;
+  subtitle?: boolean | string;
+  tabs?: HeaderTabSkeleton[];
+  back?: boolean;
+  /** Beside the title: a creator's avatar (true), a song's artwork ("thumb") or a post's video frame ("wide"). */
+  leading?: boolean | "thumb" | "wide";
+  badges?: number;
+  meta?: boolean;
+}) {
+  const buttons = actions ?? (hasAction ? [132] : []);
   return (
-    <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-      <div>
-        <div style={{ marginBottom: 8 }}>
-          <Skeleton width={200} height={28} />
+    <header
+      className="rsp-header cc-page-band"
+      aria-hidden="true"
+      data-has-tabs={tabs?.length ? "" : undefined}
+      data-has-back={back ? "" : undefined}
+    >
+      <div className="cc-page-lead">
+        {back ? (
+          <span className="cc-page-back">
+            <ChevronLeft size={16} />
+          </span>
+        ) : null}
+        {leading ? (
+          <div className="cc-page-leading">
+            {leading === true ? (
+              <Skeleton width={40} height={40} radius="50%" />
+            ) : (
+              <Skeleton width={leading === "wide" ? 60 : 40} height={40} radius="var(--cc-r-control)" />
+            )}
+          </div>
+        ) : null}
+        <div className="cc-page-heading">
+          <div className="cc-page-titleline">
+            <div className="cc-page-title">{title ?? <Skeleton width={220} height={22} style={INLINE} />}</div>
+            {badges > 0 ? (
+              <div className="cc-page-titlemeta">
+                {Array.from({ length: badges }).map((_, i) => (
+                  <Skeleton key={i} width={72} height={20} radius="var(--cc-r-pill)" />
+                ))}
+              </div>
+            ) : null}
+          </div>
+          {subtitle ? (
+            <p className="cc-page-subtitle">
+              {typeof subtitle === "string" ? subtitle : <Skeleton width={260} height={14} style={INLINE} />}
+            </p>
+          ) : null}
+          {meta ? (
+            <div className="cc-page-meta">
+              <span><Skeleton width={96} height={12} /></span>
+              <span><Skeleton width={64} height={12} /></span>
+              <span><Skeleton width={72} height={12} /></span>
+            </div>
+          ) : null}
         </div>
-        <Skeleton width={260} height={16} />
       </div>
-      {hasAction && (
-        <div style={{ borderRadius: 8 }}>
-          <Skeleton width={140} height="var(--cc-control-h)" radius="var(--cc-r-control)" />
+      {buttons.length > 0 ? (
+        <div className="cc-page-actions">
+          {buttons.map((w, i) => (
+            <Skeleton key={i} width={w} height="var(--cc-control-h)" radius="var(--cc-r-control)" />
+          ))}
+        </div>
+      ) : null}
+      {tabs?.length ? (
+        <div className="cc-page-tabs">
+          <div className="cc-tabs" data-variant="underline" role="tablist">
+            {tabs.map((t, i) => {
+              const tab = typeof t === "string" ? { label: t } : t;
+              return (
+                <span key={tab.label} className="cc-tab" role="tab" aria-selected={i === 0}>
+                  {tab.icon ? <Skeleton width={16} height={16} /> : null}
+                  {tab.label}
+                  {tab.count ? <Skeleton width={22} height={18} radius="var(--cc-r-pill)" /> : null}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+    </header>
+  );
+}
+
+/**
+ * A SectionCard while its body loads: the real card head with the title it
+ * will have, and `lines` placeholder rows under it.
+ */
+export function SectionCardSkeleton({ title, lines = 3, height }: { title: string; lines?: number; height?: number }) {
+  return (
+    <SectionCard title={title}>
+      {height ? (
+        <Skeleton width="100%" height={height} radius="var(--cc-r-control)" />
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--cc-sp-4)" }}>
+          {Array.from({ length: lines }).map((_, i) => (
+            <Skeleton key={i} width={["88%", "64%", "76%", "52%"][i % 4]} height={14} />
+          ))}
         </div>
       )}
-    </div>
+    </SectionCard>
   );
 }
 
@@ -28,22 +141,22 @@ export function PageHeaderSkeleton({ hasAction = true }: { hasAction?: boolean }
  * height match and nothing shifts when the figures arrive. Pass the count the
  * page will render -- the dashboard drew 2 placeholders and then 4 tiles.
  */
-export function TileGridSkeleton({ count = 4, style }: { count?: number; style?: React.CSSProperties }) {
+export function TileGridSkeleton({ count = 4, style, footer = false }: { count?: number; style?: React.CSSProperties; footer?: boolean }) {
   return (
     <div className="cc-tiles-balanced" style={style} aria-hidden="true">
       {Array.from({ length: count }).map((_, i) => (
         <div key={i} className="cc-metric-tile">
           <Skeleton width={96} height={14} style={{ margin: "3px 0" }} />
           <Skeleton width={120} height={26} style={{ margin: "3px 0" }} />
+          {footer ? (
+            <div className="cc-metric-footer">
+              <Skeleton width={140} height={12} style={INLINE} />
+            </div>
+          ) : null}
         </div>
       ))}
     </div>
   );
-}
-
-/** Kept for existing callers; the tile row above is what it now draws. */
-export function StatGridSkeleton({ count = 4 }: { count?: number }) {
-  return <TileGridSkeleton count={count} style={{ marginBottom: 32 }} />;
 }
 
 /** The ListToolbar row: a search box and `filters` controls at the right. */
@@ -113,234 +226,114 @@ export function DataTableSkeleton({ columns = 5, rows = 8 }: { columns?: number 
   );
 }
 
-/** Skeleton for table rows */
-export function TableSkeleton({ rows = 5, columns = 4 }: { rows?: number; columns?: number }) {
+/**
+ * A grid of placeholder cards. `className`/`style` are the page's own grid
+ * (so the columns and gap are the loaded page's), `height` the loaded card's
+ * measured height, and `lead` the leading mark: a round avatar, a square
+ * cover, or none.
+ */
+export function CardGridSkeleton({
+  count = 6,
+  className = "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
+  style = { gap: 20 },
+  height = 180,
+  lead = "avatar",
+  stats = 2,
+}: {
+  count?: number;
+  className?: string;
+  style?: React.CSSProperties;
+  height?: number;
+  lead?: "avatar" | "cover" | "none";
+  stats?: number;
+}) {
   return (
-    <div
-      style={{
-        background: "var(--cc-card)",
-        border: "1px solid var(--cc-border)",
-        borderRadius: "var(--cc-r-card)",
-        overflow: "hidden",
-      }}
-    >
-      {/* Table header */}
-      <div
-        style={{
-          display: "flex",
-          gap: 16,
-          padding: "14px 24px",
-          background: "var(--cc-hover-bg)",
-          borderBottom: "1px solid var(--cc-border)",
-        }}
-      >
-        {Array.from({ length: columns }).map((_, i) => (
-          <div key={i} style={{ flex: i === 0 ? 2 : 1 }}>
-            <Skeleton width={80} height={12} />
-          </div>
-        ))}
-      </div>
-      {/* Table rows */}
-      {Array.from({ length: rows }).map((_, i) => (
-        <div
-          key={i}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 16,
-            padding: "14px 24px",
-            borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
-          }}
-        >
-          <div style={{ flexShrink: 0 }}>
-            <Skeleton width={36} height={36} borderRadius="50%" />
-          </div>
-          <div style={{ flex: 2 }}>
-            <div style={{ marginBottom: 6 }}>
-              <Skeleton width="70%" height={14} />
-            </div>
-            <Skeleton width="40%" height={12} />
-          </div>
-          {Array.from({ length: columns - 1 }).map((_, j) => (
-            <div key={j} style={{ flex: 1 }}>
-              <Skeleton width={60} height={14} />
-            </div>
-          ))}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/** Skeleton for card grid (creators, etc.) */
-export function CardGridSkeleton({ count = 6 }: { count?: number }) {
-  return (
-    <div
-      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
-      style={{ gap: 20 }}
-    >
+    <div className={className} style={style} aria-hidden="true">
       {Array.from({ length: count }).map((_, i) => (
         <div
           key={i}
           style={{
+            height,
+            overflow: "hidden",
             background: "var(--cc-card)",
             border: "1px solid var(--cc-border)",
             borderRadius: "var(--cc-r-card)",
             padding: "var(--cc-card-inset)",
           }}
         >
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 20 }}>
-            <div style={{ flexShrink: 0 }}>
-              <Skeleton width={48} height={48} borderRadius="50%" />
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ marginBottom: 6 }}>
-                <Skeleton width="60%" height={16} />
-              </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
+            {lead === "none" ? null : (
+              <Skeleton width={lead === "cover" ? 52 : 44} height={lead === "cover" ? 52 : 44} radius={lead === "cover" ? 10 : "50%"} />
+            )}
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
+              <Skeleton width="60%" height={16} />
               <Skeleton width="40%" height={13} />
             </div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
-            <div>
-              <div style={{ marginBottom: 6 }}>
-                <Skeleton width={60} height={11} />
-              </div>
-              <Skeleton width={50} height={18} />
+          {stats > 0 ? (
+            <div style={{ display: "grid", gridTemplateColumns: `repeat(${stats}, 1fr)`, gap: 10 }}>
+              {Array.from({ length: stats }).map((_, j) => (
+                <div key={j} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <Skeleton width={56} height={11} />
+                  <Skeleton width={44} height={18} />
+                </div>
+              ))}
             </div>
-            <div>
-              <div style={{ marginBottom: 6 }}>
-                <Skeleton width={70} height={11} />
-              </div>
-              <Skeleton width={40} height={18} />
-            </div>
-          </div>
-          <Skeleton width="100%" height={32} borderRadius={6} />
+          ) : null}
         </div>
       ))}
     </div>
   );
 }
 
-/** Skeleton for chart area */
-export function ChartSkeleton() {
-  return (
-    <div
-      style={{
-        background: "var(--cc-card)",
-        border: "1px solid var(--cc-border)",
-        borderRadius: "var(--cc-r-card)",
-        padding: "var(--cc-card-inset)",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 24 }}>
-        <Skeleton width={32} height={32} borderRadius={8} />
-        <Skeleton width={180} height={16} />
-      </div>
-      <Skeleton width="100%" height={240} borderRadius={8} />
-    </div>
-  );
-}
-
-/** Full dashboard page skeleton */
+/**
+ * /dashboard while it loads: its header (range, granularity, Export; the
+ * Overview / Performance / Activity strip), the four KPI tiles with their
+ * caption line, then the Views over time card at the chart's 400px.
+ */
 export function DashboardSkeleton() {
   return (
-    <div className="cc-page-content">
-      <PageHeaderSkeleton hasAction={false} />
-      <StatGridSkeleton count={4} />
-      <div className="grid grid-cols-1 lg:grid-cols-5" style={{ gap: 24, marginBottom: 32 }}>
-        <div className="lg:col-span-3">
-          <TableSkeleton rows={5} columns={4} />
-        </div>
-        <div className="lg:col-span-2">
-          <div
-            style={{
-              background: "var(--cc-card)",
-              border: "1px solid var(--cc-border)",
-              borderRadius: "var(--cc-r-card)",
-              padding: "var(--cc-card-inset)",
-            }}
-          >
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} style={{ display: "flex", gap: 14, padding: "14px 0", borderBottom: i < 4 ? "1px solid var(--cc-border)" : "none" }}>
-                <div style={{ flexShrink: 0 }}>
-                  <Skeleton width={34} height={34} borderRadius={8} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ marginBottom: 6 }}>
-                    <Skeleton width="80%" height={13} />
-                  </div>
-                  <Skeleton width="50%" height={12} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+    <div className="rsp-page">
+      <PageHeaderSkeleton
+        title="Dashboard"
+        subtitle={false}
+        actions={[222, 120, 132]}
+        tabs={[{ label: "Overview", icon: true }, { label: "Performance", icon: true }, { label: "Activity", icon: true }]}
+      />
+      <div className="flex flex-col gap-6" aria-hidden="true">
+        <TileGridSkeleton count={4} footer />
+        <SectionCardSkeleton title="Views over time" height={400} />
       </div>
-      <ChartSkeleton />
     </div>
   );
 }
 
-/** Campaigns list skeleton */
-export function CampaignsListSkeleton() {
+/**
+ * The fallback for a route with no loading screen of its own: the header band
+ * and one content block, so nothing in it claims a shape the page will not
+ * have.
+ */
+export function GenericPageSkeleton() {
   return (
-    <div className="cc-page-content">
-      <PageHeaderSkeleton />
-      <div style={{ marginBottom: 20 }}>
-        <Skeleton width="100%" height={40} borderRadius={10} />
-      </div>
-      <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i}>
-            <Skeleton width={100} height={34} borderRadius={8} />
-          </div>
-        ))}
-      </div>
-      <div style={{ display: "flex", gap: 6, marginBottom: 24 }}>
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i}>
-            <Skeleton width={80} height={36} />
-          </div>
-        ))}
-      </div>
-      <TableSkeleton rows={6} columns={5} />
+    <div className="rsp-page">
+      <PageHeaderSkeleton hasAction={false} subtitle={false} />
+      <Skeleton width="100%" height={360} radius="var(--cc-r-card)" />
     </div>
   );
 }
 
-/** Creators list skeleton */
+/** The Creator Roster: platform tabs, the toolbar, then the card grid. */
 export function CreatorsListSkeleton() {
   return (
-    <div className="cc-page-content">
-      <PageHeaderSkeleton />
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
-        <div style={{ flex: 1 }}>
-          <Skeleton width="100%" height={40} borderRadius={10} />
-        </div>
-        <Skeleton width={80} height={36} borderRadius={10} />
-      </div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i}>
-            <Skeleton width={80} height={28} borderRadius={999} />
-          </div>
-        ))}
-      </div>
-      <CardGridSkeleton count={6} />
-    </div>
-  );
-}
-
-/** Clients list skeleton */
-export function ClientsListSkeleton() {
-  return (
-    <div className="cc-page-content">
-      <PageHeaderSkeleton />
-      <StatGridSkeleton count={2} />
-      <div style={{ marginBottom: 24 }}>
-        <Skeleton width="100%" height={40} borderRadius={10} />
-      </div>
-      <TableSkeleton rows={5} columns={3} />
+    <div className="rsp-page">
+      <PageHeaderSkeleton
+        title="Creator Roster"
+        subtitle={false}
+        actions={[100, 139]}
+        tabs={["All", "Instagram", "YouTube", "TikTok", "Twitter"].map((label) => ({ label, count: true }))}
+      />
+      <ListToolbarSkeleton filters={3} />
+      <CardGridSkeleton count={6} className="cc-roster-grid" style={undefined} height={249} />
     </div>
   );
 }
@@ -355,17 +348,21 @@ export function ListPageSkeleton({
   columns = 5,
   rows = 8,
   hasAction = true,
+  header,
+  tileFooter = false,
 }: {
   tiles?: number;
+  tileFooter?: boolean;
   filters?: number;
   columns?: number | SkeletonColumn[];
   rows?: number;
   hasAction?: boolean;
+  header?: HeaderSkeletonProps;
 }) {
   return (
     <div className="rsp-page">
-      <PageHeaderSkeleton hasAction={hasAction} />
-      {tiles > 0 ? <TileGridSkeleton count={tiles} style={{ marginBottom: 24 }} /> : null}
+      <PageHeaderSkeleton hasAction={hasAction} {...header} />
+      {tiles > 0 ? <TileGridSkeleton count={tiles} footer={tileFooter} style={{ marginBottom: 24 }} /> : null}
       <ListToolbarSkeleton filters={filters} />
       <DataTableSkeleton columns={columns} rows={rows} />
     </div>
@@ -378,17 +375,22 @@ export function CardGridPageSkeleton({
   toolbar = true,
   filters = 0,
   hasAction = true,
+  header,
+  children,
 }: {
   count?: number;
   toolbar?: boolean;
   filters?: number;
   hasAction?: boolean;
+  header?: HeaderSkeletonProps;
+  /** The page's own card grid, when CardGridSkeleton is not its shape. */
+  children?: React.ReactNode;
 }) {
   return (
     <div className="rsp-page">
-      <PageHeaderSkeleton hasAction={hasAction} />
+      <PageHeaderSkeleton hasAction={hasAction} {...header} />
       {toolbar ? <ListToolbarSkeleton filters={filters} /> : null}
-      <CardGridSkeleton count={count} />
+      {children ?? <CardGridSkeleton count={count} />}
     </div>
   );
 }

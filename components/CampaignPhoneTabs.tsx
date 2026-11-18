@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { NavLink } from "@/components/layout/NavLink";
 import { CAMPAIGN_SECTIONS } from "@/lib/campaignSections";
 import { useCampaignNav } from "@/components/providers/CampaignNavProvider";
-import { switchSection, useActiveSection } from "@/components/CampaignRailNav";
+import { onCampaignPage, switchSection, useActiveSection } from "@/components/CampaignRailNav";
 
 /**
  * A campaign's sections on a phone, as a row of tabs under its header. On a
@@ -35,6 +35,7 @@ export function CampaignPhoneTabs({ campaignId }: { campaignId: string }) {
           <NavLink
             key={section.value}
             href={href}
+            prefetch={onCampaignPage(pathname, campaignId) ? false : undefined}
             onNavigate={(e) => switchSection(e, pathname, campaignId, href)}
             className="cc-campaign-phone-tab"
             aria-current={on ? "page" : undefined}

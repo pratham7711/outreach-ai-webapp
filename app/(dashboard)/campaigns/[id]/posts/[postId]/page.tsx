@@ -18,7 +18,6 @@ import {
   type DataTableColumn,
   type StatusTone,
 } from "@/components/ds";
-import { TileGridSkeleton } from "@/components/ui/PageSkeleton";
 import { enumLabel } from "@/lib/ui/enumLabel";
 import { Banner } from "@/components/ds/Banner";
 import { StatusBadge } from "@/components/ds/StatusBadge";
@@ -60,6 +59,7 @@ import { RotateCcw } from "lucide-react";
 import { SeriesModeToggle } from "@/components/charts/SeriesModeToggle";
 import type { SeriesMode } from "@/lib/charts/seriesMode";
 import { CHART_BUCKET_HOURS, CHART_GRANULARITIES, type ChartGranularity } from "@/lib/trackers/granularity";
+import { PostDetailSkeleton } from "./PostDetailSkeleton";
 
 const TRACK_PERIOD_LABEL: Record<ChartGranularity, string> = { "6hourly": "Per 6h", daily: "Daily", weekly: "Weekly" };
 
@@ -462,18 +462,7 @@ export default function PostDetailPage() {
     }
   };
 
-  if (loading) {
-    /* Shaped like the page: header band, the tile row, then a chart card. */
-    return (
-      <div className="rsp-page" aria-busy="true">
-        <div className="cc-postpage-body">
-          <Skeleton width={320} height={32} />
-          <TileGridSkeleton count={5} />
-          <Skeleton width="100%" height={300} radius="var(--cc-r-card)" />
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <PostDetailSkeleton />;
 
   if (error) {
     return (

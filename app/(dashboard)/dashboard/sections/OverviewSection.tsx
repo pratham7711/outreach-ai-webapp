@@ -69,6 +69,12 @@ export function OverviewSection({
   const pending = loading;
   const tileValue = (value: React.ReactNode) =>
     pending ? <Skeleton width={96} height={28} /> : value;
+  /* While a request is out, the row keeps the shape it will have: the two
+     platform tiles stay unless the last answer had none, and the tiles that
+     carry a caption keep a line for it. Measured on /dashboard: two tiles at
+     98px became four at 131px when the figures landed (CLS 0.102). */
+  const showPlatformTiles = pending ? !s || platforms.length > 0 : platforms.length > 0;
+  const footerLine = <Skeleton width={140} height={12} style={{ display: "inline-block", verticalAlign: "middle" }} />;
   /* The tiles share one figure size, set by the longest of them. */
   const tileFit = pending || !s
     ? 0
@@ -99,11 +105,12 @@ export function OverviewSection({
             how="Counts each creator once, however many posts or campaigns they have in the range chosen above. Posts nobody could attribute to a creator are not counted."
             value={tileValue(String(s ? s.totalCreators : fallbackCreatorCount))}
             delta={pending || !s ? undefined : countDelta(s.totalCreators, previous?.summary?.totalCreators, vsLabel)}
+            footer={pending ? footerLine : undefined}
           />
           {/* Both come from the same platform rollup, so they are either
               genuinely measured together or genuinely absent together — and
               when they are absent the tiles are not drawn. */}
-          {platforms.length > 0 && (
+          {showPlatformTiles && (
             <>
               {/* Overridden on this screen because the chart below them is NOT
                   scoped the same way, and the gap is large enough to look like
@@ -121,7 +128,7 @@ export function OverviewSection({
                 what="How many times posts published in the selected range have been watched, counting each post's lifetime views."
                 how="Adds up the latest view count of every tracked post published inside the range chosen above. The chart below is not filtered this way — each of its points covers every post the workspace holds, so its numbers are larger."
                 value={tileValue(viewsUnknown ? "\u2014" : formatNumber(totalViews))}
-                footer={pending ? null : viewsCaption}
+                footer={pending ? footerLine : viewsCaption}
               />
               <MetricTile
                 fitTo={tileFit}
