@@ -132,7 +132,11 @@ describe("the MCP page and the OAuth discovery documents are public", () => {
     },
   );
 
-  it("still sends a signed-out visitor to sign in before the consent screen", () => {
-    expect(redirectsTo(visit("/oauth/authorize?client_id=x", false))).toBe("/login");
+  /* The consent page redirects a signed-out visitor to /login itself, keeping
+     the authorization request as the callback; the middleware must not send a
+     signed-in one to /dashboard as it would from an auth page. */
+  it("leaves the consent screen to the page in both auth states", () => {
+    expect(allowed(visit("/oauth/authorize?client_id=x", false))).toBe(true);
+    expect(allowed(visit("/oauth/authorize?client_id=x", true))).toBe(true);
   });
 });

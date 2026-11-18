@@ -82,6 +82,23 @@ const ALLOWLIST: Record<string, Entry> = {
     mustCall: /\bbearerMatches\s*\(/,
   },
   "mcp/route.ts": { reason: "DELETE is a 405 stub; there is no MCP session to end", methods: ["DELETE"] },
+  "oauth/authorize/route.ts": {
+    reason: "the consent decision: the signed-in person grants an app access as themselves; same-origin only",
+    mustCall: /\bauth\s*\(/,
+  },
+  "oauth/connections/route.ts": {
+    reason: "ends the caller's own app connections, keyed to their user id",
+    mustCall: /\bauth\s*\(/,
+  },
+  "oauth/register/route.ts": {
+    reason: "OAuth client registration (RFC 7591): nobody is signed in; grants nothing until a person presses Allow; rate limited",
+    mustCall: /\brateLimit\s*\(/,
+  },
+  "oauth/token/route.ts": {
+    reason: "OAuth token endpoint: the authorization code with its PKCE verifier, or the refresh token, is the credential; rate limited",
+    mustCall: /\brateLimit\s*\(/,
+  },
+  "oauth/revoke/route.ts": { reason: "RFC 7009 revocation: the token being revoked is the credential" },
   "portal/auth/login/route.ts": { reason: "creator sign-in; nobody is signed in yet" },
   "portal/auth/register/route.ts": { reason: "creator registration; nobody is signed in yet" },
   "portal/auth/logout/route.ts": { reason: "clears the caller's own portal cookie" },

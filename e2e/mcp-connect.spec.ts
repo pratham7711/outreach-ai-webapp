@@ -56,6 +56,15 @@ test.describe('MCP page, signed out', () => {
     await expectNoHorizontalScroll(page, '/ at 390 with the MCP link');
   });
 
+  test('the consent screen sends a signed-out visitor to sign in and keeps the request', async ({ page }) => {
+    const request = new URLSearchParams({ response_type: 'code', client_id: 'mbo_client_e2e', state: 'keep-me' });
+    await page.goto(`/oauth/authorize?${request}`);
+    await expect(page).toHaveURL(/\/login\?/, { timeout: 30000 });
+    const callback = new URL(page.url()).searchParams.get('callbackUrl') ?? '';
+    expect(callback.startsWith('/oauth/authorize?')).toBe(true);
+    expect(new URLSearchParams(callback.split('?')[1]).get('state')).toBe('keep-me');
+  });
+
   test('an unauthenticated MCP call points the client at the metadata', async ({ baseURL }) => {
     const api = await anonymous(baseURL);
     const res = await api.post('/api/mcp', { data: { jsonrpc: '2.0', id: 1, method: 'tools/list' } });
