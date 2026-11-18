@@ -7,7 +7,7 @@ import { authorizationRedirect } from "@/lib/oauth/mcpOAuth";
 import { createAuthorizationCode } from "@/lib/oauth/mcpOAuthStore";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
-import { requestOrigin } from "@/lib/oauth/requestOrigin";
+import { originFromHeaders } from "@/lib/oauth/requestOrigin";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +20,7 @@ function seeOther(url: string) {
  * post must not be able to press Allow for somebody who is signed in.
  */
 export async function POST(req: NextRequest) {
-  const origin = await requestOrigin();
+  const origin = originFromHeaders(req.headers);
   if (req.headers.get("origin") !== origin) {
     return Response.json({ error: "Cross-site request refused." }, { status: 403 });
   }

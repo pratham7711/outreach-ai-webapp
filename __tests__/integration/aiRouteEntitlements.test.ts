@@ -177,7 +177,7 @@ describe("POST /api/mcp entitlement gate", () => {
     const res = await callRequest();
 
     expect(res.status).toBe(403);
-    expect(await res.json()).toEqual({ error: "Forbidden" });
+    expect(await res.json()).toMatchObject({ error: "Forbidden", message: expect.stringMatching(/API access/) });
     expect(mockExecuteMcpTool).not.toHaveBeenCalled();
   });
 

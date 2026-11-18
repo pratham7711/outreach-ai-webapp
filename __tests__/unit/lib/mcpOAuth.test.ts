@@ -197,3 +197,15 @@ describe("client authentication at the token endpoint", () => {
     expect(clientDisplayName({ ...base, name: "Claude" })).toBe("Claude");
   });
 });
+
+describe("the origin a request came in on", () => {
+  const h = (o: Record<string, string>) => new Headers(o);
+  it("prefers the proxy's forwarded host and protocol", () => {
+    const { originFromHeaders } = jest.requireActual("@/lib/oauth/requestOrigin");
+    expect(originFromHeaders(h({ host: "internal:3000", "x-forwarded-host": "campaign.example.com", "x-forwarded-proto": "https" }))).toBe(
+      "https://campaign.example.com",
+    );
+    expect(originFromHeaders(h({ host: "localhost:3009" }))).toBe("http://localhost:3009");
+    expect(originFromHeaders(h({ host: "campaign.example.com" }))).toBe("https://campaign.example.com");
+  });
+});

@@ -9,7 +9,7 @@ import {
   type IssuedTokens,
   type TokenFailure,
 } from "@/lib/oauth/mcpOAuthStore";
-import { requestOrigin } from "@/lib/oauth/requestOrigin";
+import { originFromHeaders } from "@/lib/oauth/requestOrigin";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
         redirectUri: form.get("redirect_uri"),
         codeVerifier: form.get("code_verifier"),
         resource: form.get("resource"),
-        origin: await requestOrigin(),
+        origin: originFromHeaders(req.headers),
       });
     } else if (grant === "refresh_token") {
       result = await refreshTokens({ refreshToken: form.get("refresh_token"), client });

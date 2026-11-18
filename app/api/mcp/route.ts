@@ -11,7 +11,7 @@ import { hasPermission } from "@/lib/rbac";
 import type { AuthResult } from "@/lib/authenticate";
 import { CORS_HEADERS, MCP_SCOPE, isAccessToken, preflight, protectedResourceMetadataUrl } from "@/lib/oauth/mcpOAuth";
 import { authenticateAccessToken } from "@/lib/oauth/mcpOAuthStore";
-import { requestOrigin } from "@/lib/oauth/requestOrigin";
+import { originFromHeaders } from "@/lib/oauth/requestOrigin";
 
 const logger = createLogger({ context: { route: "api/mcp" } });
 
@@ -137,9 +137,9 @@ async function handleMessage(caller: McpCaller, message: any): Promise<object | 
 /* The 401 an MCP client reads to find out how to sign in: RFC 9728 points it
    at the protected resource metadata, which names this app as the
    authorization server. */
-async function unauthorized(error?: "invalid_token") {
+function unauthorized(req: NextRequest, error?: "invalid_token") {
   const params = [
-    `resource_metadata="${protectedResourceMetadataUrl(await requestOrigin())}"`,
+    `resource_metadata="${protectedResourceMetadataUrl(originFromHeaders(req.headers))}"`,
     `scope="${MCP_SCOPE}"`,
     ...(error ? [`error="${error}"`, `error_description="The access token is invalid or expired"`] : []),
   ];
@@ -163,7 +163,7 @@ async function authenticateMcp(req: NextRequest): Promise<{ ok: true; auth: Auth
         response:
           check.reason === "unavailable"
             ? NextResponse.json({ error: "Sign-in for apps is not set up yet." }, { status: 503 })
-            : await unauthorized("invalid_token"),
+            : unauthorized(req, "invalid_token"),
       };
     }
     if (!check.auth.role || !hasPermission(check.auth.role, "campaigns:read")) {
@@ -175,7 +175,7 @@ async function authenticateMcp(req: NextRequest): Promise<{ ok: true; auth: Auth
      every role holds; what differs by role is applied per tool through the
      caller (row scope, and the refresh permission). */
   const gate = await requirePermission(req, "campaigns:read");
-  if (!gate.ok) return { ok: false, response: gate.response.status === 401 ? await unauthorized() : gate.response };
+  if (!gate.ok) return { ok: false, response: gate.response.status === 401 ? unauthorized(req) : gate.response };
   return { ok: true, auth: gate.auth };
 }
 
