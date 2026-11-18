@@ -39,7 +39,15 @@ export const authConfig = {
         nextUrl.pathname.startsWith("/privacy") ||
         nextUrl.pathname.startsWith("/terms") ||
         underSegment(nextUrl.pathname, "/data-deletion") ||
-        underSegment(nextUrl.pathname, "/about");
+        underSegment(nextUrl.pathname, "/about") ||
+        /* How to connect an AI app: a public page, linked from the homepage. */
+        underSegment(nextUrl.pathname, "/mcp");
+      /* OAuth discovery for the MCP endpoint (RFC 9728 / RFC 8414). Read by an
+         MCP client before anybody has signed in, so it must never bounce to
+         /login. /oauth/authorize is NOT here: it is where a person signs in. */
+      const isOAuthDiscovery =
+        underSegment(nextUrl.pathname, "/.well-known/oauth-protected-resource") ||
+        underSegment(nextUrl.pathname, "/.well-known/oauth-authorization-server");
       /* The creator app's two ways in that need no account: an agency's connect
          link (/connect/<token>) and its campaign invite (/invite/<code>). Both
          are opened from inside Instagram, TikTok or WhatsApp, usually on a phone
@@ -84,7 +92,8 @@ export const authConfig = {
         isPublicListPage ||
         isPublicLegalPage ||
         isCreatorEntryPage ||
-        isVerifyEmailPage
+        isVerifyEmailPage ||
+        isOAuthDiscovery
       )
         return true;
       /* The interrupted path rides along as callbackUrl, so signing in lands

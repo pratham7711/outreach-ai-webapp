@@ -339,6 +339,24 @@ export const AREAS = {
      shared-links.spec.ts, which opens /songs/[id] in an org of its own; it is
      also listed under creators and portal, for the shared list, the connect
      link and the campaign invitation it opens. */
+  /* The MCP connection page, the header link to it, and the OAuth server an
+     app signs in through: discovery metadata, registration, consent, tokens. */
+  mcp: {
+    specs: ["mcp-connect.spec.ts"],
+    sources: [
+      "app/(public)/mcp/",
+      "app/(auth)/oauth/",
+      "app/api/oauth/",
+      "app/.well-known/",
+      "app/api/mcp/",
+      "app/api/admin/migrate-mcp-oauth/",
+      "components/marketing/",
+      "lib/oauth/mcpOAuth",
+      "lib/oauth/authorizeRequest.ts",
+      "lib/oauth/requestOrigin.ts",
+      "lib/mcp/",
+    ],
+  },
   songs: {
     specs: ["shared-links.spec.ts"],
     sources: ["app/(dashboard)/songs/", "app/api/songs/"],

@@ -7,6 +7,11 @@ import { API_ACCESS_FEATURE } from "@/lib/featureKeys";
 import { rateLimit } from "@/lib/rateLimit";
 import { createLogger } from "@/lib/observability/logger";
 import { BRAND } from "@/lib/brand";
+import { hasPermission } from "@/lib/rbac";
+import type { AuthResult } from "@/lib/authenticate";
+import { CORS_HEADERS, MCP_SCOPE, isAccessToken, preflight, protectedResourceMetadataUrl } from "@/lib/oauth/mcpOAuth";
+import { authenticateAccessToken } from "@/lib/oauth/mcpOAuthStore";
+import { requestOrigin } from "@/lib/oauth/requestOrigin";
 
 const logger = createLogger({ context: { route: "api/mcp" } });
 
@@ -129,17 +134,73 @@ async function handleMessage(caller: McpCaller, message: any): Promise<object | 
   }
 }
 
-export async function POST(req: NextRequest) {
+/* The 401 an MCP client reads to find out how to sign in: RFC 9728 points it
+   at the protected resource metadata, which names this app as the
+   authorization server. */
+async function unauthorized(error?: "invalid_token") {
+  const params = [
+    `resource_metadata="${protectedResourceMetadataUrl(await requestOrigin())}"`,
+    `scope="${MCP_SCOPE}"`,
+    ...(error ? [`error="${error}"`, `error_description="The access token is invalid or expired"`] : []),
+  ];
+  return NextResponse.json(
+    { error: "Unauthorized" },
+    { status: 401, headers: { "WWW-Authenticate": `Bearer ${params.join(", ")}` } }
+  );
+}
+
+/* An OAuth access token is accepted here and nowhere else in the API, and it
+   acts as the person who approved it. Without one, the session and org API
+   key paths are unchanged. */
+async function authenticateMcp(req: NextRequest): Promise<{ ok: true; auth: AuthResult } | { ok: false; response: Response }> {
+  const header = req.headers.get("authorization") ?? "";
+  const bearer = header.startsWith("Bearer ") ? header.slice(7).trim() : null;
+  if (bearer && isAccessToken(bearer)) {
+    const check = await authenticateAccessToken(bearer);
+    if (!check.ok) {
+      return {
+        ok: false,
+        response:
+          check.reason === "unavailable"
+            ? NextResponse.json({ error: "Sign-in for apps is not set up yet." }, { status: 503 })
+            : await unauthorized("invalid_token"),
+      };
+    }
+    if (!check.auth.role || !hasPermission(check.auth.role, "campaigns:read")) {
+      return { ok: false, response: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+    }
+    return { ok: true, auth: check.auth };
+  }
   /* Every tool reads campaign data, so the floor is campaigns:read -- which
      every role holds; what differs by role is applied per tool through the
      caller (row scope, and the refresh permission). */
   const gate = await requirePermission(req, "campaigns:read");
+  if (!gate.ok) return { ok: false, response: gate.response.status === 401 ? await unauthorized() : gate.response };
+  return { ok: true, auth: gate.auth };
+}
+
+function withCors(res: Response): Response {
+  for (const [k, v] of Object.entries(CORS_HEADERS)) res.headers.set(k, v);
+  return res;
+}
+
+export async function POST(req: NextRequest) {
+  return withCors(await handlePost(req));
+}
+
+export const OPTIONS = preflight;
+
+async function handlePost(req: NextRequest): Promise<Response> {
+  const gate = await authenticateMcp(req);
   if (!gate.ok) return gate.response;
   const authResult = gate.auth;
 
   const entitlements = await getOrgEntitlements(authResult.orgId);
   if (!hasOrgFeature(entitlements, API_ACCESS_FEATURE)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json(
+      { error: "Forbidden", message: `This workspace's ${BRAND.name} plan does not include API access.` },
+      { status: 403 }
+    );
   }
 
   const { orgId } = authResult;

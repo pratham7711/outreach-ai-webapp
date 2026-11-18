@@ -338,6 +338,7 @@ model Organization {
   campaignStatusDefs   CampaignStatusDef[]
   activationStatusDefs ActivationStatusDef[]
   campaignTemplates    CampaignTemplate[]
+  mcpOAuthTokens     McpOAuthToken[]
 }
 
 /// A campaign's setup, saved to start new campaigns from: client, budget,
@@ -604,6 +605,8 @@ model User {
   sessions        Session[]
 
   @@index([orgId])
+  mcpOAuthCodes   McpOAuthCode[]
+  mcpOAuthTokens  McpOAuthToken[]
 }
 
 model OrgPlanConfig {
@@ -2812,4 +2815,66 @@ model SongSoundLink {
   @@unique([songId, platform])
   @@index([orgId])
   @@index([soundId])
+}
+
+/// An MCP client that registered itself (OAuth dynamic client registration,
+/// RFC 7591). Clients that identify by a metadata-document URL (client_id is
+/// an https URL) are never stored: their document is read at authorize time.
+model McpOAuthClient {
+  id                      String    @id @default(cuid())
+  clientId                String    @unique
+  clientSecretHash        String?
+  name                    String?
+  clientUri               String?
+  logoUri                 String?
+  redirectUris            String[]
+  tokenEndpointAuthMethod String    @default("none")
+  createdAt               DateTime  @default(now())
+  lastUsedAt              DateTime?
+}
+
+/// A one-use authorization code, bound to the PKCE challenge and redirect URI
+/// it was issued for. Only its hash is stored.
+model McpOAuthCode {
+  id            String    @id @default(cuid())
+  codeHash      String    @unique
+  clientId      String
+  userId        String
+  orgId         String
+  redirectUri   String
+  codeChallenge String
+  scope         String
+  resource      String?
+  expiresAt     DateTime
+  usedAt        DateTime?
+  createdAt     DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+}
+
+/// An access/refresh token pair issued to an MCP client for one person.
+/// Rotated on refresh: the old row is revoked and points at its successor.
+model McpOAuthToken {
+  id               String    @id @default(cuid())
+  clientId         String
+  clientName       String?
+  userId           String
+  orgId            String
+  scope            String
+  resource         String?
+  accessTokenHash  String    @unique
+  accessExpiresAt  DateTime
+  refreshTokenHash String?   @unique
+  refreshExpiresAt DateTime?
+  revokedAt        DateTime?
+  lastUsedAt       DateTime?
+  createdAt        DateTime  @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([userId, clientId])
+  @@index([orgId])
 }

@@ -123,3 +123,16 @@ describe("the security contact file", () => {
     expect(allowed(visit("/campaigns/abc.txt", false))).toBe(false);
   });
 });
+
+describe("the MCP page and the OAuth discovery documents are public", () => {
+  it.each(["/mcp", "/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/api/mcp", "/.well-known/oauth-authorization-server"])(
+    "lets a signed-out client read %s",
+    (path) => {
+      expect(allowed(visit(path, false))).toBe(true);
+    },
+  );
+
+  it("still sends a signed-out visitor to sign in before the consent screen", () => {
+    expect(redirectsTo(visit("/oauth/authorize?client_id=x", false))).toBe("/login");
+  });
+});

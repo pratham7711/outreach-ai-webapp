@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { BookOpen, Key, KeyRound, Plus, Trash2, Copy, Check } from "lucide-react";
+import Link from "next/link";
+import { BookOpen, Key, KeyRound, Plug, Plus, Trash2, Copy, Check } from "lucide-react";
 import { PageHeader } from "@/components/ds";
 import { MetricHint } from "@/components/ds/MetricHint";
 import { StatusTabs } from "@/components/ds/StatusTabs";
@@ -210,9 +211,15 @@ export default function ApiKeysClient() {
       <PageHeader
         title="API keys"
         actions={
-          <Button variant="primary" size="sm" iconLeft={<Plus size={16} />} onClick={openCreate} {...action("create-api-key")}>
-            Create API key
-          </Button>
+          <>
+            <Link href="/mcp" className="ui-btn ui-btn-secondary ui-btn-sm" data-cc-slot="secondary" data-testid="api-keys-mcp-link">
+              <Plug size={16} aria-hidden />
+              Connect Claude with sign-in
+            </Link>
+            <Button variant="primary" size="sm" iconLeft={<Plus size={16} />} onClick={openCreate} {...action("create-api-key")}>
+              Create API key
+            </Button>
+          </>
         }
       />
 

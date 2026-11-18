@@ -4,6 +4,7 @@ import { ArrowRight, ShieldCheck } from "lucide-react";
 import { BRAND } from "@/lib/brand";
 import { LandingHeroVisual } from "./LandingHeroVisual";
 import { ShortlistDemo, TrackerDemo } from "./LandingDemos";
+import { SiteFooter, SiteHeader } from "@/components/marketing/SiteChrome";
 
 const TITLE = `${BRAND.name} — creator campaigns from pitch to payout`;
 const DESCRIPTION =
@@ -97,47 +98,7 @@ export default function Home() {
         Skip to content
       </a>
 
-      <header className="lp-header">
-        <div className="lp-shell lp-header-row">
-          <div className="lp-brand">
-            <span className="lp-brand-mark" aria-hidden>
-              {BRAND.short}
-            </span>
-            <span className="lp-brand-name">
-              {BRAND.name}
-              <a href={BRAND.umbrellaUrl} className="lp-brand-by lp-hide-sm">
-                by {BRAND.umbrella}
-              </a>
-            </span>
-          </div>
-          <nav aria-label="Primary" className="lp-nav">
-            <a href="#product" className="lp-nav-link lp-hide-sm">
-              Product
-            </a>
-            <a href="#how" className="lp-nav-link lp-hide-sm">
-              How it works
-            </a>
-            <Link href="/explore" className="lp-nav-link lp-hide-sm">
-              Marketplace
-            </Link>
-            <Link href="/about" className="lp-nav-link lp-hide-sm">
-              About
-            </Link>
-            <Link href="/privacy" className="lp-nav-link lp-hide-sm">
-              Privacy
-            </Link>
-            <Link href="/terms" className="lp-nav-link lp-hide-sm">
-              Terms
-            </Link>
-            <Link href="/login" className="lp-nav-link" data-strong>
-              Sign in
-            </Link>
-            <Link href="/signup" className="lp-btn lp-btn-primary lp-btn-sm">
-              Get started
-            </Link>
-          </nav>
-        </div>
-      </header>
+      <SiteHeader onHome />
 
       <main id="content">
         <section className="lp-hero-wrap lp-hero" aria-labelledby="hero-title">
@@ -278,41 +239,7 @@ export default function Home() {
         </section>
       </main>
 
-      <footer className="lp-footer">
-        <div className="lp-shell lp-footer-row">
-          <div>
-            <p className="lp-brand">
-              <span className="lp-brand-mark" aria-hidden>
-                {BRAND.short}
-              </span>
-              <span className="lp-brand-name">{BRAND.name}</span>
-            </p>
-            <p className="lp-footer-note">
-              A <a href={BRAND.umbrellaUrl}>{BRAND.umbrella}</a> product. {BRAND.jurisdiction}.
-            </p>
-          </div>
-          <nav aria-label="Footer" className="lp-footer-nav">
-            <Link href="/privacy" className="lp-nav-link">
-              Privacy Policy
-            </Link>
-            <Link href="/terms" className="lp-nav-link">
-              Terms of Service
-            </Link>
-            <Link href="/data-deletion" className="lp-nav-link">
-              Data deletion
-            </Link>
-            <Link href="/about" className="lp-nav-link">
-              About
-            </Link>
-            <a href={`mailto:${BRAND.contactEmail}`} className="lp-nav-link">
-              Contact
-            </a>
-            <Link href="/login" className="lp-nav-link">
-              Sign in
-            </Link>
-          </nav>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

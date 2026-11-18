@@ -105,7 +105,7 @@ describe("robots.txt and sitemap.xml", () => {
 
   it("the sitemap lists the pages a reviewer starts from", () => {
     const paths = sitemap().map((e) => new URL(e.url).pathname);
-    expect(paths).toEqual(["/", "/explore", "/about", "/privacy", "/terms", "/data-deletion"]);
+    expect(paths).toEqual(["/", "/explore", "/mcp", "/about", "/privacy", "/terms", "/data-deletion"]);
     for (const p of paths) expect(signedOut(p)).toBe(true);
   });
 
