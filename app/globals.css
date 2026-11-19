@@ -3684,6 +3684,13 @@ h1, h2, h3, h4, h5, h6 {
   font-size: var(--cc-t-12);
   color: var(--cc-text-muted);
 }
+/* Dashboard tiles: a caption row stands as tall as the 22px trend pill, so
+   the row (and the card under it) is the same height whether or not the
+   period has a previous one to compare against. Measured on prod: the pill's
+   presence alone moved the Views over time card 4px (CLS 0.056). */
+.cc-dash-tiles .cc-metric-footer {
+  min-height: 22px;
+}
 
 /* Payouts: the row their balance banner holds. Right-aligned because that is
    where their New Payout sits -- 1160..1560 on the banner's right half. */

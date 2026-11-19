@@ -93,7 +93,7 @@ export function OverviewSection({
   return (
     <div className="flex flex-col gap-6">
       {widgets.includes("kpi_grid") && (
-        <div className="cc-tiles-balanced" aria-busy={pending}>
+        <div className="cc-tiles-balanced cc-dash-tiles" aria-busy={pending}>
           <MetricTile
             fitTo={tileFit}
             metric="activeCampaigns"
