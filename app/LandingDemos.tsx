@@ -8,6 +8,7 @@ import { Sparkline } from "@/components/ds/Sparkline";
 import { PlatformTag, StatusBadge, type StatusTone } from "@/components/ds/StatusBadge";
 import { formatCompact, formatFull } from "@/lib/format";
 import { statusFor, type TrackerStatus } from "@/lib/trackers/metrics";
+import { CountUp } from "./LandingMotion";
 
 type DemoWindow = "24h" | "7d" | "30d";
 
@@ -59,6 +60,8 @@ const demoBadge = <StatusBadge tone="neutral">Demo data</StatusBadge>;
 
 export function TrackerDemo() {
   const [win, setWin] = useState<DemoWindow>("7d");
+  /* Lines redraw only after someone changes the window, never on load. */
+  const [touched, setTouched] = useState(false);
   const current = WINDOWS.find((w) => w.key === win) ?? WINDOWS[1];
 
   return (
@@ -75,7 +78,10 @@ export function TrackerDemo() {
             type="button"
             className="cc-segmented-btn"
             aria-pressed={win === w.key}
-            onClick={() => setWin(w.key)}
+            onClick={() => {
+              setWin(w.key);
+              setTouched(true);
+            }}
           >
             {w.label}
           </button>
@@ -97,11 +103,13 @@ export function TrackerDemo() {
                 <p className="mb-row-title">{s.title}</p>
                 <p className="mb-row-sub">{s.artist}</p>
               </div>
-              <span className="mb-row-spark">
+              <span className="mb-row-spark" key={touched ? win : "load"} data-draw={touched ? "" : undefined}>
                 <Sparkline values={values} width={88} height={28} />
               </span>
               <div className="mb-row-figs">
-                <p className="mb-row-title">{formatFull(last)} uses</p>
+                <p className="mb-row-title">
+                  <CountUp value={last} format={formatFull} /> uses
+                </p>
                 <p className="mb-row-sub">
                   {added >= 0 ? "+" : "−"}
                   {formatFull(Math.abs(added))} in {current.label}

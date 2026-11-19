@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { ArrowRight } from "lucide-react";
@@ -6,7 +7,8 @@ import { LandingHeroVisual } from "./LandingHeroVisual";
 import { ShortlistDemo, TrackerDemo } from "./LandingDemos";
 import { SiteFooter, SiteHeader } from "@/components/marketing/SiteChrome";
 import { PlatformGlyph } from "@/components/ui/PlatformGlyph";
-import { StageArt, type StageKey } from "./LandingStageArt";
+import type { StageKey } from "./LandingStageArt";
+import { MotionRoot, StageStrip } from "./LandingMotion";
 
 const TITLE = `${BRAND.name} — creator campaigns from pitch to payout`;
 const DESCRIPTION =
@@ -63,6 +65,20 @@ const CONNECTIONS = [
   },
 ];
 
+/* Each word rises out of its own line box, one after the other. The words stay
+   in one heading, so it reads as a sentence to everything but the eye. */
+function MaskWords({ text }: { text: string }) {
+  const words = text.split(" ");
+  return words.map((w, i) => (
+    <Fragment key={i}>
+      <span className="mb-word">
+        <span style={{ animationDelay: `${60 + i * 55}ms` }}>{w}</span>
+      </span>
+      {i < words.length - 1 ? " " : null}
+    </Fragment>
+  ));
+}
+
 export default function Home() {
   return (
     <div className="lp-page mb-page">
@@ -72,12 +88,13 @@ export default function Home() {
 
       <SiteHeader onHome />
 
+      <MotionRoot>
       <main id="content">
         <section className="mb-hero" aria-labelledby="hero-title">
           <div className="mb-shell mb-hero-grid">
             <div className="mb-hero-copy">
-              <h1 id="hero-title" className="mb-display mb-rise">
-                Run creator campaigns from pitch to payout.
+              <h1 id="hero-title" className="mb-display">
+                <MaskWords text="Run creator campaigns from pitch to payout." />
               </h1>
               <p className="mb-hero-lead mb-rise mb-rise-2">
                 For agencies and labels: brief creators, track their posts, pay on verified
@@ -115,18 +132,7 @@ export default function Home() {
                 Five stages. One record.
               </h2>
             </div>
-            <ol className="mb-stages">
-              {STAGES.map((s, i) => (
-                <li key={s.name} className="mb-stage">
-                  <span className="mb-stage-n" aria-hidden>
-                    {i + 1}
-                  </span>
-                  <h3 className="mb-stage-name">{s.name}</h3>
-                  <StageArt stage={s.key} />
-                  <p className="mb-stage-text">{s.lead}</p>
-                </li>
-              ))}
-            </ol>
+            <StageStrip stages={STAGES} />
           </div>
         </section>
 
@@ -197,6 +203,7 @@ export default function Home() {
           </div>
         </section>
       </main>
+      </MotionRoot>
 
       <SiteFooter />
     </div>

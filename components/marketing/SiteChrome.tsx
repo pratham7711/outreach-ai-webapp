@@ -89,7 +89,11 @@ export function SiteFooter() {
           </nav>
         </div>
         <p className="mb-footer-word" aria-hidden>
-          {BRAND.umbrella}
+          {Array.from(BRAND.umbrella).map((ch, i) => (
+            <span key={i} style={{ transitionDelay: `${i * 28}ms` }}>
+              {ch === " " ? "\u00a0" : ch}
+            </span>
+          ))}
         </p>
         <div className="mb-footer-base">
           <span>

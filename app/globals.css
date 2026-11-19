@@ -12665,7 +12665,23 @@ a.cc-platform-chip[data-problem]:hover {
 .cc-sparkline {
   flex-shrink: 0;
   overflow: visible;
+  transition: color 200ms ease;
 }
+.cc-sparkline-area {
+  fill: currentColor;
+  opacity: 0;
+  transition: opacity 220ms ease;
+}
+.cc-sparkline-line { transition: stroke-width 200ms ease; }
+/* Pointing at a row says which way its line went: green up, red down. */
+:is(.cc-dt > tbody > tr, .mb-row, .mb-stage):is(:hover, :focus-within) .cc-sparkline[data-dir="up"] {
+  color: var(--cc-success-fg);
+}
+:is(.cc-dt > tbody > tr, .mb-row, .mb-stage):is(:hover, :focus-within) .cc-sparkline[data-dir="down"] {
+  color: var(--cc-danger-fg);
+}
+:is(.cc-dt > tbody > tr, .mb-row, .mb-stage):is(:hover, :focus-within) .cc-sparkline-area { opacity: 0.14; }
+:is(.cc-dt > tbody > tr, .mb-row, .mb-stage):is(:hover, :focus-within) .cc-sparkline-line { stroke-width: 2.25; }
 /* Trackers' Uses cell: the same trend, right-aligned with its column. */
 .cc-sound-trend {
   justify-content: flex-end;
@@ -13722,6 +13738,114 @@ a.cc-platform-chip[data-problem]:hover {
 @keyframes mb-rise {
   from { transform: translateY(18px); opacity: 0.25; }
   to { transform: none; opacity: 1; }
+}
+
+/* Interaction. The headline's words rise out of their own line boxes; the
+   stage rules ink in as the strip arrives (LandingMotion); everything else
+   answers a pointer. Movement sits behind no-preference, colour does not. */
+.mb-word {
+  display: inline-block;
+  overflow: hidden;
+  padding-block: 0.06em;
+  margin-block: -0.06em;
+  vertical-align: top;
+}
+.mb-word > span { display: inline-block; }
+
+.mb-stage { border-top-color: var(--cc-border); }
+.mb-stage-rule {
+  position: absolute;
+  top: -2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--cc-text);
+  transform-origin: left center;
+}
+.mb-stage-n { overflow: hidden; padding-block: 0.06em; margin-block: -0.06em; }
+.mb-stage-n > span { display: block; }
+.mb-stage-art {
+  transition: border-color 200ms ease, box-shadow 260ms cubic-bezier(0.16, 1, 0.3, 1), transform 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.mb-stage:hover .mb-stage-art {
+  border-color: var(--cc-text);
+  box-shadow: 0 18px 36px -22px rgba(10, 10, 10, 0.45);
+}
+.mb-art-list svg { transition: color 200ms ease; }
+.mb-stage:hover .mb-art-list svg { color: var(--cc-success-fg); }
+
+.mb-row { position: relative; isolation: isolate; }
+.mb-row::before {
+  content: "";
+  position: absolute;
+  inset: 0 calc(var(--cc-sp-4) * -1);
+  z-index: -1;
+  border-radius: var(--cc-r-sm);
+  background: var(--cc-hover-bg);
+  opacity: 0;
+  transition: opacity 180ms ease, background-color 240ms ease;
+}
+.mb-row:hover::before { opacity: 1; }
+.mb-person[data-decision="APPROVED"]::before { opacity: 1; background: var(--cc-success-bg); }
+.mb-person[data-decision="REJECTED"]::before { opacity: 1; background: var(--cc-danger-bg); }
+
+.mb-read-glyph { transition: transform 320ms cubic-bezier(0.16, 1, 0.3, 1); }
+
+.mb-nav-link, .mb-footer-col a {
+  background-image: linear-gradient(currentColor, currentColor);
+  background-repeat: no-repeat;
+  background-size: 0% 1px;
+  background-position: 0 calc(50% + 0.85em);
+  transition: color 160ms ease, background-size 280ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.mb-nav-link:hover, .mb-nav-link:focus-visible,
+.mb-footer-col a:hover, .mb-footer-col a:focus-visible { background-size: 100% 1px; }
+.mb-footer-col a:hover { text-decoration: none; }
+
+.mb-footer-word > span {
+  display: inline-block;
+  transition: transform 520ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .mb-word > span { animation: mb-word 900ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .mb-hero-lead.mb-rise { animation-delay: 360ms; }
+  .mb-actions.mb-rise, .mb-connects.mb-rise { animation-delay: 460ms; }
+
+  .mb-stage:hover .mb-stage-art { transform: translateY(-4px); }
+  .mb-art-faces .mb-avatar { transition: transform 360ms cubic-bezier(0.16, 1, 0.3, 1); }
+  .mb-stage:hover .mb-art-faces .mb-avatar:nth-child(2) { transform: translateX(5px); }
+  .mb-stage:hover .mb-art-faces .mb-avatar:nth-child(3) { transform: translateX(10px); }
+  .mb-stage:hover .mb-art-faces .mb-avatar:nth-child(4) { transform: translateX(15px); }
+  .mb-stage:hover .mb-art-faces .mb-avatar:nth-child(5) { transform: translateX(20px); }
+  .mb-stage:hover .mb-art-glyph { animation: mb-pop 480ms cubic-bezier(0.16, 1, 0.3, 1); }
+  .mb-stage:hover .mb-art-row .cc-status-badge { animation: mb-stamp 420ms cubic-bezier(0.16, 1, 0.3, 1); }
+  .mb-stage:hover .mb-art-track .cc-sparkline-line,
+  .mb-row-spark[data-draw] .cc-sparkline-line {
+    stroke-dasharray: 1;
+    animation: mb-draw 760ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .mb-read:hover .mb-read-glyph { transform: translateY(-4px) rotate(-6deg) scale(1.08); }
+  .mb-footer-word:hover > span { transform: translateY(-0.08em); }
+  .mb-hero-card { will-change: transform; }
+}
+@keyframes mb-word {
+  from { transform: translateY(105%); }
+  to { transform: none; }
+}
+@keyframes mb-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes mb-pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.25) rotate(-8deg); }
+  100% { transform: scale(1); }
+}
+@keyframes mb-stamp {
+  0% { transform: scale(1.35) rotate(-6deg); opacity: 0.4; }
+  100% { transform: none; opacity: 1; }
 }
 
 /* Agency sign-in and sign-up: the homepage's ink half beside a plain form. */

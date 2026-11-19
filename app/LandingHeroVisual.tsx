@@ -1,12 +1,16 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useState, type PointerEvent } from "react";
 import dynamic from "next/dynamic";
 import { BarChart3 } from "lucide-react";
-import { useReducedMotion } from "framer-motion";
+import { m, useMotionValue, useReducedMotion, useSpring } from "framer-motion";
 import { StatusBadge } from "@/components/ds/StatusBadge";
 import { formatFull } from "@/lib/format";
 import { DAYS, PLATFORMS, lastViews, type Filter } from "./landingHeroData";
+import { CountUp } from "./LandingMotion";
+
+const TILT = 3;
+const SPRING = { stiffness: 160, damping: 20, mass: 0.6 };
 
 /* Client-only and after first paint: recharts is ~85 KB gzipped and was the
    largest single thing on the landing page's first load. `.mb-chart` has a fixed
@@ -20,6 +24,23 @@ export function LandingHeroVisual() {
   const [filter, setFilter] = useState<Filter>("all");
   const gradientBase = useId().replace(/:/g, "");
   const [narrow, setNarrow] = useState(false);
+  const rotateX = useSpring(useMotionValue(0), SPRING);
+  const rotateY = useSpring(useMotionValue(0), SPRING);
+
+  /* The card leans toward a mouse pointer, a few degrees at most, so it reads
+     as an object lifted off the page. Touch and reduced motion get none. */
+  const lean = (e: PointerEvent<HTMLElement>) => {
+    if (reduced || e.pointerType !== "mouse") return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width - 0.5;
+    const y = (e.clientY - r.top) / r.height - 0.5;
+    rotateY.set(x * TILT * 2);
+    rotateX.set(-y * TILT * 2);
+  };
+  const settle = () => {
+    rotateX.set(0);
+    rotateY.set(0);
+  };
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 479px)");
@@ -44,7 +65,12 @@ export function LandingHeroVisual() {
   ];
 
   return (
-    <figure className="cc-section-card mb-app-card mb-hero-card">
+    <m.figure
+      className="cc-section-card mb-app-card mb-hero-card"
+      style={{ rotateX, rotateY, transformPerspective: 1400 }}
+      onPointerMove={lean}
+      onPointerLeave={settle}
+    >
       <div className="cc-section-card-head">
         <div className="cc-section-card-heading">
           <BarChart3 aria-hidden="true" className="cc-section-card-icon" strokeWidth={2} />
@@ -76,15 +102,21 @@ export function LandingHeroVisual() {
         <dl className="mb-kpis">
           <div>
             <dt className="cc-metric-label">Views</dt>
-            <dd className="mb-kpi-value">{formatFull(views)}</dd>
+            <dd className="mb-kpi-value">
+              <CountUp value={views} format={formatFull} />
+            </dd>
           </div>
           <div>
             <dt className="cc-metric-label">Engagements</dt>
-            <dd className="mb-kpi-value">{formatFull(engagements)}</dd>
+            <dd className="mb-kpi-value">
+              <CountUp value={engagements} format={formatFull} />
+            </dd>
           </div>
           <div>
             <dt className="cc-metric-label">Posts tracked</dt>
-            <dd className="mb-kpi-value">{posts}</dd>
+            <dd className="mb-kpi-value">
+              <CountUp value={posts} format={String} />
+            </dd>
           </div>
         </dl>
 
@@ -112,6 +144,6 @@ export function LandingHeroVisual() {
           {summary}
         </figcaption>
       </div>
-    </figure>
+    </m.figure>
   );
 }
