@@ -141,16 +141,23 @@ export function SectionCardSkeleton({ title, lines = 3, height }: { title: strin
  * height match and nothing shifts when the figures arrive. Pass the count the
  * page will render -- the dashboard drew 2 placeholders and then 4 tiles.
  */
-export function TileGridSkeleton({ count = 4, style, footer = false }: { count?: number; style?: React.CSSProperties; footer?: boolean }) {
+type TileFooter = "line" | "delta" | null;
+
+/**
+ * `footer`: true gives every tile a caption line; an array sets each tile's
+ * own -- "line" for an 18px caption, "delta" for the 22px trend pill.
+ */
+export function TileGridSkeleton({ count = 4, style, footer = false }: { count?: number; style?: React.CSSProperties; footer?: boolean | TileFooter[] }) {
+  const footerOf = (i: number): TileFooter => (Array.isArray(footer) ? (footer[i] ?? null) : footer ? "line" : null);
   return (
     <div className="cc-tiles-balanced" style={style} aria-hidden="true">
       {Array.from({ length: count }).map((_, i) => (
         <div key={i} className="cc-metric-tile">
           <Skeleton width={96} height={14} style={{ margin: "3px 0" }} />
           <Skeleton width={120} height={26} style={{ margin: "3px 0" }} />
-          {footer ? (
+          {footerOf(i) ? (
             <div className="cc-metric-footer">
-              <Skeleton width={140} height={12} style={INLINE} />
+              {footerOf(i) === "delta" ? <Skeleton width={60} height={22} radius={999} /> : <Skeleton width={140} height={12} style={INLINE} />}
             </div>
           ) : null}
         </div>
@@ -301,7 +308,7 @@ export function DashboardSkeleton() {
         tabs={[{ label: "Overview", icon: true }, { label: "Performance", icon: true }, { label: "Activity", icon: true }]}
       />
       <div className="flex flex-col gap-6" aria-hidden="true">
-        <TileGridSkeleton count={4} footer />
+        <TileGridSkeleton count={4} footer={[null, "delta", "line", "delta"]} />
         <SectionCardSkeleton title="Views over time" height={400} />
       </div>
     </div>

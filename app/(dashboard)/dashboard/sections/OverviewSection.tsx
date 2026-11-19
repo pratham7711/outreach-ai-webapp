@@ -67,14 +67,19 @@ export function OverviewSection({
      showed the 6M totals under a 7-day heading for as long as the request
      took. Any request in flight now blanks the tiles. */
   const pending = loading;
+  const inline = { display: "inline-block", verticalAlign: "middle" } as const;
   const tileValue = (value: React.ReactNode) =>
-    pending ? <Skeleton width={96} height={28} /> : value;
+    pending ? <Skeleton width={96} height={28} style={{ display: "inline-block", verticalAlign: "top" }} /> : value;
   /* While a request is out, the row keeps the shape it will have: the two
      platform tiles stay unless the last answer had none, and the tiles that
      carry a caption keep a line for it. Measured on /dashboard: two tiles at
      98px became four at 131px when the figures landed (CLS 0.102). */
   const showPlatformTiles = pending ? !s || platforms.length > 0 : platforms.length > 0;
-  const footerLine = <Skeleton width={140} height={12} style={{ display: "inline-block", verticalAlign: "middle" }} />;
+  const footerLine = <Skeleton width={140} height={12} style={inline} />;
+  /* The delta pill is 22px against the caption line's 18px, and the row
+     stretches to its tallest tile, so the tiles that will carry a delta hold
+     a pill of that height while pending. */
+  const deltaPill = <Skeleton width={60} height={22} radius={999} />;
   /* The tiles share one figure size, set by the longest of them. */
   const tileFit = pending || !s
     ? 0
@@ -105,7 +110,7 @@ export function OverviewSection({
             how="Counts each creator once, however many posts or campaigns they have in the range chosen above. Posts nobody could attribute to a creator are not counted."
             value={tileValue(String(s ? s.totalCreators : fallbackCreatorCount))}
             delta={pending || !s ? undefined : countDelta(s.totalCreators, previous?.summary?.totalCreators, vsLabel)}
-            footer={pending ? footerLine : undefined}
+            footer={pending ? deltaPill : undefined}
           />
           {/* Both come from the same platform rollup, so they are either
               genuinely measured together or genuinely absent together — and
@@ -137,6 +142,7 @@ export function OverviewSection({
                 how="Counts tracked posts with a publish date inside the range chosen above, whether or not they are still live."
                 value={tileValue(formatNumber(totalPosts))}
                 delta={pending ? undefined : countDelta(totalPosts, prevPosts, vsLabel)}
+                footer={pending ? deltaPill : undefined}
               />
             </>
           )}
