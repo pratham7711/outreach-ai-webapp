@@ -6,7 +6,6 @@ import Link from "next/link";
 import { Input } from "@pratham7711/ui";
 import { Button } from "@/components/ds";
 import { Field } from "@/components/ds/Field";
-import { BRAND } from "@/lib/brand";
 import { AuthPlatforms } from "@/components/auth/AuthBrand";
 import { AuthForm, AuthNotice, AuthShell, PasswordField } from "@/components/auth/AuthShell";
 import { CALLBACK_PARAM, safeCallbackPath } from "@/lib/callbackPath";
@@ -93,8 +92,8 @@ export default function LoginPage() {
 
   return (
     <AuthShell
+      showcase
       title="Sign in"
-      subtitle={`Welcome back to ${BRAND.name}`}
       footer={
         <>
           Don&apos;t have an account? <Link href="/signup">Sign up</Link>

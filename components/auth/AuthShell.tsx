@@ -7,6 +7,17 @@ import { Input } from "@pratham7711/ui";
 import { Banner, type BannerTone } from "@/components/ds/Banner";
 import { Field } from "@/components/ds/Field";
 import { AuthBrand } from "./AuthBrand";
+import { AuthShowcase } from "./AuthShowcase";
+
+function AuthBackdrop({ showcase, children }: { showcase?: boolean; children: ReactNode }) {
+  if (!showcase) return <div className="cc-auth">{children}</div>;
+  return (
+    <div className="cc-auth" data-showcase>
+      <AuthShowcase />
+      <div className="cc-auth__main">{children}</div>
+    </div>
+  );
+}
 
 /**
  * The one signed-out card: brand centred above, then a 400px card whose title
@@ -22,6 +33,7 @@ export function AuthShell({
   children,
   footer,
   below,
+  showcase,
 }: {
   title: ReactNode;
   subtitle?: ReactNode;
@@ -32,9 +44,11 @@ export function AuthShell({
   footer?: ReactNode;
   /** Under the card, outside it. */
   below?: ReactNode;
+  /** The agency pages' ink half beside the form (sign-in, sign-up). */
+  showcase?: boolean;
 }) {
   return (
-    <div className="cc-auth">
+    <AuthBackdrop showcase={showcase}>
       <motion.div
         className="cc-auth__panel"
         initial={{ opacity: 0, y: 16 }}
@@ -59,7 +73,7 @@ export function AuthShell({
         </div>
         {below ? <div className="cc-auth__below">{below}</div> : null}
       </motion.div>
-    </div>
+    </AuthBackdrop>
   );
 }
 
@@ -68,9 +82,17 @@ export function AuthShell({
  * states (checking, failed, the form) and so lay out their own header. Their
  * titles use `.cc-auth__title` / `.cc-auth__sub`.
  */
-export function AuthFrame({ children, below }: { children: ReactNode; below?: ReactNode }) {
+export function AuthFrame({
+  children,
+  below,
+  showcase,
+}: {
+  children: ReactNode;
+  below?: ReactNode;
+  showcase?: boolean;
+}) {
   return (
-    <div className="cc-auth">
+    <AuthBackdrop showcase={showcase}>
       <motion.div
         className="cc-auth__panel"
         initial={{ opacity: 0, y: 16 }}
@@ -83,7 +105,7 @@ export function AuthFrame({ children, below }: { children: ReactNode; below?: Re
         <div className="cc-auth__card">{children}</div>
         {below ? <div className="cc-auth__below">{below}</div> : null}
       </motion.div>
-    </div>
+    </AuthBackdrop>
   );
 }
 

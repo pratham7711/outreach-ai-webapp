@@ -8,7 +8,6 @@ import { Button } from "@/components/ds";
 import { Field } from "@/components/ds/Field";
 import { AuthFrame } from "@/components/auth/AuthShell";
 import { Eye, EyeOff, Building2, Sparkles } from "lucide-react";
-import { BRAND } from "@/lib/brand";
 
 type OrgTypeChoice = "AGENCY" | "BRAND";
 
@@ -85,13 +84,10 @@ export default function SignupPage() {
   };
 
   return (
-    <AuthFrame>
+    <AuthFrame showcase>
           <h1 className="cc-auth__title">
             Create your account
           </h1>
-          <p className="cc-auth__sub">
-            Set up your workspace on {BRAND.name}
-          </p>
 
           {error && (
             <motion.div
