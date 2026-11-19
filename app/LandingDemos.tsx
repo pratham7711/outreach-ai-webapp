@@ -65,7 +65,6 @@ export function TrackerDemo() {
     <SectionCard
       icon={Music}
       title="Sound trackers"
-      description="How many videos use each TikTok sound, read on a schedule."
       action={demoBadge}
       className="mb-app-card"
     >
@@ -113,10 +112,6 @@ export function TrackerDemo() {
           );
         })}
       </ul>
-      <p className="mb-caption">
-        Status follows the rule the app uses: viral at 100 or more new uses an hour across the
-        window, trending at 10 or more, declining when uses fall.
-      </p>
     </SectionCard>
   );
 }
@@ -149,7 +144,6 @@ export function ShortlistDemo() {
     <SectionCard
       icon={ListChecks}
       title="Shared shortlist"
-      description="Your client gets one link, approves or declines each creator, and the answer lands on your list."
       action={demoBadge}
       className="mb-app-card"
     >

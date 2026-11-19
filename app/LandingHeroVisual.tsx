@@ -108,8 +108,8 @@ export function LandingHeroVisual() {
           ))}
         </ul>
 
-        <figcaption className="mb-caption" aria-live="polite">
-          Demo data, invented for this preview. {summary}
+        <figcaption className="sr-only" aria-live="polite">
+          {summary}
         </figcaption>
       </div>
     </figure>

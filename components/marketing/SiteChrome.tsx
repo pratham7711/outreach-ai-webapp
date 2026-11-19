@@ -60,28 +60,41 @@ export function SiteFooter() {
   return (
     <footer className="mb-footer">
       <div className="mb-shell">
-        <div className="mb-footer-top">
-          <div>
+        <div className="mb-footer-grid">
+          <div className="mb-footer-lead">
             <p className="mb-brand">
               <span className="mb-mark" aria-hidden>
                 {BRAND.short}
               </span>
               <span className="mb-brand-name">{BRAND.name}</span>
             </p>
-            <p className="mb-footer-note">
-              A <a href={BRAND.umbrellaUrl}>{BRAND.umbrella}</a> product. {BRAND.jurisdiction}.
-            </p>
           </div>
-          <nav aria-label="Footer" className="mb-footer-nav">
+          <nav aria-label="Product" className="mb-footer-col">
+            <p className="mb-footer-label">Product</p>
             <Link href="/explore">Marketplace</Link>
             <Link href="/mcp">MCP</Link>
+            <Link href="/login">Sign in</Link>
+          </nav>
+          <nav aria-label="Company" className="mb-footer-col">
+            <p className="mb-footer-label">Company</p>
             <Link href="/about">About</Link>
+            <a href={`mailto:${BRAND.contactEmail}`}>Contact</a>
+            <a href={BRAND.umbrellaUrl}>{BRAND.umbrella}</a>
+          </nav>
+          <nav aria-label="Legal" className="mb-footer-col">
+            <p className="mb-footer-label">Legal</p>
             <Link href="/privacy">Privacy Policy</Link>
             <Link href="/terms">Terms of Service</Link>
             <Link href="/data-deletion">Data deletion</Link>
-            <a href={`mailto:${BRAND.contactEmail}`}>Contact</a>
-            <Link href="/login">Sign in</Link>
           </nav>
+        </div>
+        <p className="mb-footer-word" aria-hidden>
+          {BRAND.umbrella}
+        </p>
+        <div className="mb-footer-base">
+          <span>
+            A {BRAND.umbrella} product · {BRAND.jurisdiction}
+          </span>
         </div>
       </div>
     </footer>
