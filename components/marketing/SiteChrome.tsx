@@ -9,51 +9,45 @@ import { BRAND } from "@/lib/brand";
 export function SiteHeader({ onHome = false, current }: { onHome?: boolean; current?: "mcp" }) {
   const anchor = (id: string) => (onHome ? `#${id}` : `/#${id}`);
   return (
-    <header className="lp-header">
-      <div className="lp-shell lp-header-row">
-        <div className="lp-brand">
-          <span className="lp-brand-mark" aria-hidden>
+    <header className="mb-header">
+      <div className="mb-shell mb-header-row">
+        <div className="mb-brand">
+          <span className="mb-mark" aria-hidden>
             {BRAND.short}
           </span>
-          <span className="lp-brand-name">
-            {onHome ? BRAND.name : <Link href="/" className="lp-brand-home">{BRAND.name}</Link>}
-            <a href={BRAND.umbrellaUrl} className="lp-brand-by lp-hide-sm">
+          <span className="mb-brand-name">
+            {onHome ? BRAND.name : <Link href="/" className="mb-brand-home">{BRAND.name}</Link>}
+            <a href={BRAND.umbrellaUrl} className="mb-brand-by mb-hide-md">
               by {BRAND.umbrella}
             </a>
           </span>
         </div>
-        <nav aria-label="Primary" className="lp-nav">
-          <a href={anchor("product")} className="lp-nav-link lp-hide-sm">
-            Product
-          </a>
-          <a href={anchor("how")} className="lp-nav-link lp-hide-sm">
+        <nav aria-label="Primary" className="mb-nav">
+          <a href={anchor("how")} className="mb-nav-link mb-hide-md">
             How it works
           </a>
-          <Link href="/explore" className="lp-nav-link lp-hide-sm">
+          <a href={anchor("product")} className="mb-nav-link mb-hide-md">
+            Product
+          </a>
+          <Link href="/explore" className="mb-nav-link mb-hide-md">
             Marketplace
           </Link>
           <Link
             href="/mcp"
-            className="lp-nav-link lp-nav-mcp"
+            className="mb-nav-link"
             aria-current={current === "mcp" ? "page" : undefined}
             data-testid="nav-mcp"
           >
             MCP
-            <span className="lp-nav-new">New</span>
+            <span className="mb-nav-new">New</span>
           </Link>
-          <Link href="/about" className="lp-nav-link lp-hide-sm">
+          <Link href="/about" className="mb-nav-link mb-hide-md">
             About
           </Link>
-          <Link href="/privacy" className="lp-nav-link lp-hide-sm">
-            Privacy
-          </Link>
-          <Link href="/terms" className="lp-nav-link lp-hide-sm">
-            Terms
-          </Link>
-          <Link href="/login" className="lp-nav-link" data-strong>
+          <Link href="/login" className="mb-nav-link mb-nav-signin">
             Sign in
           </Link>
-          <Link href="/signup" className="lp-btn lp-btn-primary lp-btn-sm">
+          <Link href="/signup" className="mb-btn mb-btn-light mb-btn-sm">
             Get started
           </Link>
         </nav>
@@ -64,42 +58,31 @@ export function SiteHeader({ onHome = false, current }: { onHome?: boolean; curr
 
 export function SiteFooter() {
   return (
-    <footer className="lp-footer">
-      <div className="lp-shell lp-footer-row">
-        <div>
-          <p className="lp-brand">
-            <span className="lp-brand-mark" aria-hidden>
-              {BRAND.short}
-            </span>
-            <span className="lp-brand-name">{BRAND.name}</span>
-          </p>
-          <p className="lp-footer-note">
-            A <a href={BRAND.umbrellaUrl}>{BRAND.umbrella}</a> product. {BRAND.jurisdiction}.
-          </p>
+    <footer className="mb-footer">
+      <div className="mb-shell">
+        <div className="mb-footer-top">
+          <div>
+            <p className="mb-brand">
+              <span className="mb-mark" aria-hidden>
+                {BRAND.short}
+              </span>
+              <span className="mb-brand-name">{BRAND.name}</span>
+            </p>
+            <p className="mb-footer-note">
+              A <a href={BRAND.umbrellaUrl}>{BRAND.umbrella}</a> product. {BRAND.jurisdiction}.
+            </p>
+          </div>
+          <nav aria-label="Footer" className="mb-footer-nav">
+            <Link href="/explore">Marketplace</Link>
+            <Link href="/mcp">MCP</Link>
+            <Link href="/about">About</Link>
+            <Link href="/privacy">Privacy Policy</Link>
+            <Link href="/terms">Terms of Service</Link>
+            <Link href="/data-deletion">Data deletion</Link>
+            <a href={`mailto:${BRAND.contactEmail}`}>Contact</a>
+            <Link href="/login">Sign in</Link>
+          </nav>
         </div>
-        <nav aria-label="Footer" className="lp-footer-nav">
-          <Link href="/mcp" className="lp-nav-link">
-            MCP
-          </Link>
-          <Link href="/privacy" className="lp-nav-link">
-            Privacy Policy
-          </Link>
-          <Link href="/terms" className="lp-nav-link">
-            Terms of Service
-          </Link>
-          <Link href="/data-deletion" className="lp-nav-link">
-            Data deletion
-          </Link>
-          <Link href="/about" className="lp-nav-link">
-            About
-          </Link>
-          <a href={`mailto:${BRAND.contactEmail}`} className="lp-nav-link">
-            Contact
-          </a>
-          <Link href="/login" className="lp-nav-link">
-            Sign in
-          </Link>
-        </nav>
       </div>
     </footer>
   );

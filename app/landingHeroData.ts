@@ -5,10 +5,12 @@
 export type Platform = "tiktok" | "instagram" | "youtube";
 export type Filter = "all" | Platform;
 
-export const PLATFORMS: { key: Platform; label: string; tone: string; color: string; posts: number; engagements: number }[] = [
-  { key: "tiktok", label: "TikTok", tone: "lp-tone-blue", color: "var(--cc-landing-tiktok)", posts: 8, engagements: 96000 },
-  { key: "instagram", label: "Instagram", tone: "lp-tone-pink", color: "var(--cc-landing-instagram)", posts: 5, engagements: 38400 },
-  { key: "youtube", label: "YouTube", tone: "lp-tone-orange", color: "var(--cc-landing-youtube)", posts: 2, engagements: 15600 },
+/* Series colours are the app's own categorical set (--cc-cat-*), the one its
+   dashboard and analytics charts draw platforms in. */
+export const PLATFORMS: { key: Platform; label: string; enumKey: string; color: string; posts: number; engagements: number }[] = [
+  { key: "tiktok", label: "TikTok", enumKey: "TIKTOK", color: "var(--cc-cat-1)", posts: 8, engagements: 96000 },
+  { key: "instagram", label: "Instagram", enumKey: "INSTAGRAM", color: "var(--cc-cat-2)", posts: 5, engagements: 38400 },
+  { key: "youtube", label: "YouTube", enumKey: "YOUTUBE", color: "var(--cc-cat-3)", posts: 2, engagements: 15600 },
 ];
 
 const VIEWS: Record<Platform, number[]> = {
@@ -27,7 +29,7 @@ export const DATA = VIEWS.tiktok.map((_, i) => ({
 export const DAYS = DATA.length;
 export const TICKS_WIDE = DATA.filter((d) => d.day % 2 === 1).map((d) => d.day);
 export const TICKS_NARROW = [1, 8, 15];
-export const AXIS = { fontSize: 12, fill: "var(--cc-landing-muted)" } as const;
+export const AXIS = { fontSize: 12, fill: "var(--cc-text-muted)" } as const;
 
 export function lastViews(key: Platform): number {
   return VIEWS[key][VIEWS[key].length - 1];

@@ -26,9 +26,9 @@ function ChartTooltip({
     <div className="lp-tooltip">
       <p className="lp-tooltip-title">Day {label} · views to date</p>
       {rows.map((p) => (
-        <div key={p.key} className={`lp-tooltip-row ${p.tone}`}>
+        <div key={p.key} className="lp-tooltip-row">
           <span>
-            <span className="lp-dot" aria-hidden />
+            <span className="mb-dot" style={{ background: p.color }} aria-hidden />
             {p.label}
           </span>
           <strong>{formatFull(value(p.key))}</strong>

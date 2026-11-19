@@ -2,6 +2,10 @@
 
 import { useState } from "react";
 import { Check, ListChecks, Music, X } from "lucide-react";
+import { Button } from "@/components/ds/Button";
+import { SectionCard } from "@/components/ds/SectionCard";
+import { Sparkline } from "@/components/ds/Sparkline";
+import { PlatformTag, StatusBadge, type StatusTone } from "@/components/ds/StatusBadge";
 import { formatCompact, formatFull } from "@/lib/format";
 import { statusFor, type TrackerStatus } from "@/lib/trackers/metrics";
 
@@ -13,11 +17,10 @@ const WINDOWS: { key: DemoWindow; label: string; hours: number }[] = [
   { key: "30d", label: "30 days", hours: 30 * 24 },
 ];
 
-const SOUNDS: { title: string; artist: string; tone: string; series: Record<DemoWindow, number[]> }[] = [
+const SOUNDS: { title: string; artist: string; series: Record<DemoWindow, number[]> }[] = [
   {
     title: "Demo Song",
     artist: "Demo Artist",
-    tone: "lp-tone-blue",
     series: {
       "24h": [45700, 46100, 46500, 46900, 47400, 47800, 48200],
       "7d": [30000, 32800, 35500, 38300, 41000, 43500, 45900, 48200],
@@ -27,7 +30,6 @@ const SOUNDS: { title: string; artist: string; tone: string; series: Record<Demo
   {
     title: "Sample Hook (Sped Up)",
     artist: "Sample Band",
-    tone: "lp-tone-pink",
     series: {
       "24h": [12500, 12570, 12640, 12700, 12770, 12840, 12900],
       "7d": [8800, 9400, 10000, 10600, 11200, 11800, 12400, 12900],
@@ -37,7 +39,6 @@ const SOUNDS: { title: string; artist: string; tone: string; series: Record<Demo
   {
     title: "Placeholder Anthem",
     artist: "Test Artist",
-    tone: "lp-tone-orange",
     series: {
       "24h": [31620, 31600, 31580, 31560, 31540, 31520, 31500],
       "7d": [31300, 31380, 31450, 31520, 31580, 31620, 31600, 31500],
@@ -46,60 +47,34 @@ const SOUNDS: { title: string; artist: string; tone: string; series: Record<Demo
   },
 ];
 
-const STATUS: Record<TrackerStatus, { label: string; tone: string }> = {
-  viral: { label: "Viral", tone: "lp-tone-green" },
-  trending: { label: "Trending", tone: "lp-tone-blue" },
-  stable: { label: "Stable", tone: "" },
-  declining: { label: "Declining", tone: "lp-tone-orange" },
-  unknown: { label: "Waiting", tone: "" },
+const STATUS: Record<TrackerStatus, { label: string; tone: StatusTone }> = {
+  viral: { label: "Viral", tone: "success" },
+  trending: { label: "Trending", tone: "info" },
+  stable: { label: "Stable", tone: "neutral" },
+  declining: { label: "Declining", tone: "warning" },
+  unknown: { label: "Waiting", tone: "neutral" },
 };
 
-function sparkPath(values: number[], w: number, h: number): { line: string; area: string } {
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const span = max - min || 1;
-  const step = w / (values.length - 1);
-  const pts = values.map((v, i) => [i * step, h - 3 - ((v - min) / span) * (h - 6)] as const);
-  const line = pts.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
-  return { line, area: `${line} L${w} ${h} L0 ${h} Z` };
-}
-
-function CardHead({ icon, tone, title, sub }: { icon: React.ReactNode; tone: string; title: string; sub: string }) {
-  return (
-    <>
-      <div className="lp-card-head">
-        <div className="lp-card-title-row">
-          <span className={`lp-icon-tile ${tone}`} aria-hidden>
-            {icon}
-          </span>
-          <h3 className="lp-h3">{title}</h3>
-        </div>
-        <span className="lp-demo-badge">Demo data</span>
-      </div>
-      <p className="lp-card-sub">{sub}</p>
-    </>
-  );
-}
+const demoBadge = <StatusBadge tone="neutral">Demo data</StatusBadge>;
 
 export function TrackerDemo() {
   const [win, setWin] = useState<DemoWindow>("7d");
   const current = WINDOWS.find((w) => w.key === win) ?? WINDOWS[1];
 
   return (
-    <article className="lp-card lp-tone-blue">
-      <CardHead
-        icon={<Music size={20} />}
-        tone="lp-tone-blue"
-        title="Sound trackers"
-        sub="Track a TikTok sound and see how many videos use it, read on a schedule."
-      />
-
-      <div className="lp-seg" role="group" aria-label="Change window">
+    <SectionCard
+      icon={Music}
+      title="Sound trackers"
+      description="How many videos use each TikTok sound, read on a schedule."
+      action={demoBadge}
+      className="mb-app-card"
+    >
+      <div role="group" aria-label="Change window" className="cc-segmented mb-seg">
         {WINDOWS.map((w) => (
           <button
             key={w.key}
             type="button"
-            className="lp-seg-btn lp-tone-blue"
+            className="cc-segmented-btn"
             aria-pressed={win === w.key}
             onClick={() => setWin(w.key)}
           >
@@ -108,54 +83,51 @@ export function TrackerDemo() {
         ))}
       </div>
 
-      <ul className="lp-sounds">
+      <ul className="mb-rows">
         {SOUNDS.map((s) => {
           const values = s.series[win];
-          const first = values[0];
           const last = values[values.length - 1];
-          const added = last - first;
+          const added = last - values[0];
           const status = STATUS[statusFor(added / current.hours)];
-          const { line, area } = sparkPath(values, 96, 32);
           return (
-            <li key={s.title} className={`lp-sound ${s.tone}`}>
-              <span className="lp-sound-cover" aria-hidden>
-                <Music size={18} />
+            <li key={s.title} className="mb-row">
+              <span className="mb-cover" aria-hidden>
+                <Music size={16} />
               </span>
-              <div className="lp-sound-meta">
-                <p className="lp-sound-title">{s.title}</p>
-                <p className="lp-sound-artist">{s.artist}</p>
+              <div className="mb-row-meta">
+                <p className="mb-row-title">{s.title}</p>
+                <p className="mb-row-sub">{s.artist}</p>
               </div>
-              <svg className="lp-spark" viewBox="0 0 96 32" aria-hidden>
-                <path d={area} fill="var(--lp-soft)" />
-                <path d={line} fill="none" stroke="var(--lp-c)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              <div className="lp-sound-figs">
-                <p className="lp-sound-uses">{formatFull(last)} uses</p>
-                <p className="lp-sound-delta" data-falling={added < 0 || undefined}>
+              <span className="mb-row-spark">
+                <Sparkline values={values} width={88} height={28} />
+              </span>
+              <div className="mb-row-figs">
+                <p className="mb-row-title">{formatFull(last)} uses</p>
+                <p className="mb-row-sub">
                   {added >= 0 ? "+" : "−"}
                   {formatFull(Math.abs(added))} in {current.label}
                 </p>
               </div>
-              <span className={`lp-status ${status.tone}`}>{status.label}</span>
+              <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
             </li>
           );
         })}
       </ul>
-      <p className="lp-caption">
+      <p className="mb-caption">
         Status follows the rule the app uses: viral at 100 or more new uses an hour across the
         window, trending at 10 or more, declining when uses fall.
       </p>
-    </article>
+    </SectionCard>
   );
 }
 
 type Decision = "PENDING" | "APPROVED" | "REJECTED";
 
-const PEOPLE: { handle: string; initials: string; platform: string; tone: string; followers: number; start: Decision }[] = [
-  { handle: "@demo.creator", initials: "DC", platform: "TikTok", tone: "lp-tone-blue", followers: 182000, start: "APPROVED" },
-  { handle: "@sample.sounds", initials: "SS", platform: "Instagram", tone: "lp-tone-pink", followers: 64000, start: "PENDING" },
-  { handle: "@test.dances", initials: "TD", platform: "TikTok", tone: "lp-tone-blue", followers: 410000, start: "PENDING" },
-  { handle: "@placeholder.vlogs", initials: "PV", platform: "YouTube", tone: "lp-tone-orange", followers: 95000, start: "PENDING" },
+const PEOPLE: { handle: string; initials: string; platform: string; followers: number; start: Decision }[] = [
+  { handle: "@demo.creator", initials: "DC", platform: "TIKTOK", followers: 182000, start: "APPROVED" },
+  { handle: "@sample.sounds", initials: "SS", platform: "INSTAGRAM", followers: 64000, start: "PENDING" },
+  { handle: "@test.dances", initials: "TD", platform: "TIKTOK", followers: 410000, start: "PENDING" },
+  { handle: "@placeholder.vlogs", initials: "PV", platform: "YOUTUBE", followers: 95000, start: "PENDING" },
 ];
 
 const INITIAL = Object.fromEntries(PEOPLE.map((p) => [p.handle, p.start])) as Record<string, Decision>;
@@ -174,16 +146,15 @@ export function ShortlistDemo() {
     setDecisions((prev) => ({ ...prev, [handle]: prev[handle] === d ? "PENDING" : d }));
 
   return (
-    <article className="lp-card lp-tone-pink">
-      <CardHead
-        icon={<ListChecks size={20} />}
-        tone="lp-tone-pink"
-        title="Shared shortlists"
-        sub="Send a client one link. They approve or decline each creator, and the decision comes back to your list."
-      />
-
-      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-        <p className="lp-tally" aria-live="polite">
+    <SectionCard
+      icon={ListChecks}
+      title="Shared shortlist"
+      description="Your client gets one link, approves or declines each creator, and the answer lands on your list."
+      action={demoBadge}
+      className="mb-app-card"
+    >
+      <div className="mb-tally-row">
+        <p className="mb-tally" aria-live="polite">
           <span>
             <strong>{approved}</strong> approved
           </span>
@@ -195,60 +166,57 @@ export function ShortlistDemo() {
           </span>
         </p>
         {changed && (
-          <button type="button" className="lp-reset" onClick={() => setDecisions(INITIAL)}>
+          <Button size="sm" variant="ghost" onClick={() => setDecisions(INITIAL)}>
             Reset demo
-          </button>
+          </Button>
         )}
       </div>
-      <div className="lp-meter" aria-hidden>
-        <span className="lp-meter-approved" style={{ width: pct(approved) }} />
-        <span className="lp-meter-declined" style={{ width: pct(declined) }} />
+      <div className="mb-meter" aria-hidden>
+        <span className="mb-meter-approved" style={{ width: pct(approved) }} />
+        <span className="mb-meter-declined" style={{ width: pct(declined) }} />
       </div>
 
-      <ul className="lp-people">
+      <ul className="mb-rows">
         {PEOPLE.map((p) => {
           const d = decisions[p.handle];
           return (
-            <li key={p.handle} className={`lp-person ${p.tone}`} data-decision={d}>
-              <span className="lp-avatar" aria-hidden>
+            <li key={p.handle} className="mb-row mb-person" data-decision={d}>
+              <span className="mb-avatar" aria-hidden>
                 {p.initials}
               </span>
-              <div className="lp-person-meta">
-                <p className="lp-person-handle">{p.handle}</p>
-                <p className="lp-person-sub">
-                  <span className="lp-chip">
-                    <span className="lp-dot" aria-hidden />
-                    {p.platform}
-                  </span>
-                  {formatCompact(p.followers)} followers
+              <div className="mb-row-meta">
+                <p className="mb-row-title">{p.handle}</p>
+                <p className="mb-row-sub mb-person-sub">
+                  <PlatformTag platform={p.platform} />
+                  <span>{formatCompact(p.followers)} followers</span>
                 </p>
               </div>
-              <div className="lp-person-actions">
-                <button
-                  type="button"
-                  className="lp-verdict"
-                  data-verdict="APPROVED"
+              <div className="mb-person-actions">
+                <Button
+                  size="sm"
+                  variant={d === "APPROVED" ? "primary" : "secondary"}
                   aria-pressed={d === "APPROVED"}
+                  iconLeft={<Check size={15} aria-hidden="true" />}
                   onClick={() => decide(p.handle, "APPROVED")}
                 >
-                  <Check size={16} aria-hidden /> {d === "APPROVED" ? "Approved" : "Approve"}
+                  {d === "APPROVED" ? "Approved" : "Approve"}
                   <span className="sr-only"> {p.handle}</span>
-                </button>
-                <button
-                  type="button"
-                  className="lp-verdict"
-                  data-verdict="REJECTED"
+                </Button>
+                <Button
+                  size="sm"
+                  variant={d === "REJECTED" ? "danger" : "secondary"}
                   aria-pressed={d === "REJECTED"}
+                  iconLeft={<X size={15} aria-hidden="true" />}
                   onClick={() => decide(p.handle, "REJECTED")}
                 >
-                  <X size={16} aria-hidden /> {d === "REJECTED" ? "Declined" : "Decline"}
+                  {d === "REJECTED" ? "Declined" : "Decline"}
                   <span className="sr-only"> {p.handle}</span>
-                </button>
+                </Button>
               </div>
             </li>
           );
         })}
       </ul>
-    </article>
+    </SectionCard>
   );
 }

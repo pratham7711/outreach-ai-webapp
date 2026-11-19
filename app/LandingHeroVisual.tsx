@@ -2,16 +2,19 @@
 
 import { useEffect, useId, useState } from "react";
 import dynamic from "next/dynamic";
+import { BarChart3 } from "lucide-react";
 import { useReducedMotion } from "framer-motion";
+import { StatusBadge } from "@/components/ds/StatusBadge";
 import { formatFull } from "@/lib/format";
 import { DAYS, PLATFORMS, lastViews, type Filter } from "./landingHeroData";
 
 /* Client-only and after first paint: recharts is ~85 KB gzipped and was the
-   largest single thing on the landing page's first load. `.lp-chart` has a fixed
+   largest single thing on the landing page's first load. `.mb-chart` has a fixed
    height in globals.css, so the empty box until it arrives is already the
    chart's size and nothing below it moves. */
 const LandingHeroChart = dynamic(() => import("./LandingHeroChart"), { ssr: false });
 
+/** The hero's app card: the campaign views chart as the app draws it. */
 export function LandingHeroVisual() {
   const reduced = useReducedMotion();
   const [filter, setFilter] = useState<Filter>("all");
@@ -35,65 +38,80 @@ export function LandingHeroVisual() {
     .map((p) => `${p.label} ${formatFull(lastViews(p.key))}`)
     .join(", ")}.`;
 
-  const options: { key: Filter; label: string; tone: string }[] = [
-    { key: "all", label: "All platforms", tone: "lp-tone-violet" },
-    ...PLATFORMS.map((p) => ({ key: p.key, label: p.label, tone: p.tone })),
+  const options: { key: Filter; label: string }[] = [
+    { key: "all", label: "All" },
+    ...PLATFORMS.map((p) => ({ key: p.key, label: p.label })),
   ];
 
   return (
-    <figure className="lp-card lp-card-elevated lp-rise lp-rise-3">
-      <div className="lp-card-head lp-card-head-spaced">
-        <div style={{ minWidth: 0 }}>
-          <p className="lp-kpi-label">Campaign · Summer single launch</p>
-          <p className="lp-h3">Views across every tracked post</p>
+    <figure className="cc-section-card mb-app-card mb-hero-card">
+      <div className="cc-section-card-head">
+        <div className="cc-section-card-heading">
+          <BarChart3 aria-hidden="true" className="cc-section-card-icon" strokeWidth={2} />
+          <div className="cc-section-card-headtext">
+            <p className="cc-section-card-title">Views across every tracked post</p>
+            <p className="cc-section-card-desc">Campaign · Summer single launch</p>
+          </div>
         </div>
-        <span className="lp-demo-badge">Demo data</span>
+        <div className="cc-section-card-action">
+          <StatusBadge tone="neutral">Demo data</StatusBadge>
+        </div>
       </div>
 
-      <div className="lp-seg lp-seg-quad" role="group" aria-label="Show platform">
-        {options.map((o) => (
-          <button
-            key={o.key}
-            type="button"
-            className={`lp-seg-btn ${o.tone}`}
-            aria-pressed={filter === o.key}
-            onClick={() => setFilter(o.key)}
-          >
-            {o.key !== "all" && <span className="lp-dot" aria-hidden />}
-            {o.label}
-          </button>
-        ))}
+      <div className="cc-section-card-body" data-padded>
+        <div role="group" aria-label="Show platform" className="cc-segmented mb-seg">
+          {options.map((o) => (
+            <button
+              key={o.key}
+              type="button"
+              className="cc-segmented-btn"
+              aria-pressed={filter === o.key}
+              onClick={() => setFilter(o.key)}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+
+        <dl className="mb-kpis">
+          <div>
+            <dt className="cc-metric-label">Views</dt>
+            <dd className="mb-kpi-value">{formatFull(views)}</dd>
+          </div>
+          <div>
+            <dt className="cc-metric-label">Engagements</dt>
+            <dd className="mb-kpi-value">{formatFull(engagements)}</dd>
+          </div>
+          <div>
+            <dt className="cc-metric-label">Posts tracked</dt>
+            <dd className="mb-kpi-value">{posts}</dd>
+          </div>
+        </dl>
+
+        <div className="mb-chart">
+          <LandingHeroChart
+            shown={shown}
+            filter={filter}
+            narrow={narrow}
+            reduced={reduced}
+            summary={summary}
+            gradientBase={gradientBase}
+          />
+        </div>
+
+        <ul className="mb-legend" aria-hidden="true">
+          {shown.map((p) => (
+            <li key={p.key}>
+              <span className="mb-dot" style={{ background: p.color }} />
+              {p.label}
+            </li>
+          ))}
+        </ul>
+
+        <figcaption className="mb-caption" aria-live="polite">
+          Demo data, invented for this preview. {summary}
+        </figcaption>
       </div>
-
-      <dl className="lp-kpis">
-        <div>
-          <dt className="lp-kpi-label">Views</dt>
-          <dd className="lp-kpi-value">{formatFull(views)}</dd>
-        </div>
-        <div>
-          <dt className="lp-kpi-label">Engagements</dt>
-          <dd className="lp-kpi-value">{formatFull(engagements)}</dd>
-        </div>
-        <div>
-          <dt className="lp-kpi-label">Posts tracked</dt>
-          <dd className="lp-kpi-value">{posts}</dd>
-        </div>
-      </dl>
-
-      <div className="lp-chart">
-        <LandingHeroChart
-          shown={shown}
-          filter={filter}
-          narrow={narrow}
-          reduced={reduced}
-          summary={summary}
-          gradientBase={gradientBase}
-        />
-      </div>
-
-      <figcaption className="lp-caption" aria-live="polite">
-        Demo data, invented for this preview. {summary}
-      </figcaption>
     </figure>
   );
 }
