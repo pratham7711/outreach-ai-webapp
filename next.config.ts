@@ -102,6 +102,8 @@ const nextConfig: NextConfig = {
   */
   serverExternalPackages: ["@sparticuz/chromium", "playwright-core"],
   outputFileTracingIncludes: {
+    /* The marketplace share images read Satoshi from lib/og at request time. */
+    "/explore/**": ["./lib/og/*.ttf"],
     /* Every route that can reach a browser reader needs the binary traced into
        its own bundle -- tracing is per-route, so adding a second reader without
        adding it here ships a function that crashes on the dynamic import rather

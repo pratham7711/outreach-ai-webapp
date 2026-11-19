@@ -2,6 +2,7 @@ import { ImageResponse } from "next/og";
 import { fetchMarketplaceDetail } from "@/lib/marketplace/public";
 import { formatMoney } from "../format";
 import { BRAND, POWERED_BY } from "@/lib/brand";
+import { OG_INK, OG_MUTED, OG_RULE, OgBrandRow, ogFonts } from "@/lib/og/brand";
 
 export const runtime = "nodejs";
 export const alt = `Creator campaign on ${BRAND.name}`;
@@ -30,33 +31,25 @@ export default async function Image({ params }: { params: Promise<{ slug: string
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
-          padding: 72,
-          background: "linear-gradient(135deg, #EEF2FF 0%, #F5F3FF 45%, #FFFFFF 100%)",
-          fontFamily: "sans-serif",
+          padding: "72px 80px",
+          background: OG_INK,
+          color: "#FFFFFF",
+          fontFamily: "Satoshi",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+        <div style={{ display: "flex", fontSize: 30, fontWeight: 900, color: OG_MUTED }}>{orgName}</div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
           <div
             style={{
-              width: 56,
-              height: 56,
-              borderRadius: 14,
-              background: "#5B5BD6",
               display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "white",
-              fontSize: 30,
-              fontWeight: 800,
+              fontSize: 72,
+              fontWeight: 900,
+              lineHeight: 1,
+              letterSpacing: "-0.03em",
+              maxWidth: 1040,
             }}
           >
-            {orgName.charAt(0).toUpperCase()}
-          </div>
-          <div style={{ fontSize: 28, fontWeight: 700, color: "#1C2048" }}>{orgName}</div>
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-          <div style={{ fontSize: 66, fontWeight: 800, color: "#1C2048", lineHeight: 1.1, maxWidth: 980 }}>
             {title}
           </div>
           <div
@@ -64,22 +57,33 @@ export default async function Image({ params }: { params: Promise<{ slug: string
               display: "flex",
               alignSelf: "flex-start",
               padding: "12px 24px",
-              borderRadius: 16,
-              fontSize: 34,
-              fontWeight: 700,
-              background: "#5B5BD6",
-              color: "white",
+              borderRadius: 12,
+              fontSize: 32,
+              fontWeight: 900,
+              background: "#FFFFFF",
+              color: OG_INK,
             }}
           >
             {rateHeadline}
           </div>
         </div>
 
-        <div style={{ fontSize: 26, fontWeight: 600, color: "#9097B4" }}>
-          {POWERED_BY}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            borderTop: `1px solid ${OG_RULE}`,
+            paddingTop: 24,
+            fontSize: 24,
+            fontWeight: 500,
+            color: OG_MUTED,
+          }}
+        >
+          <OgBrandRow size={44} label={POWERED_BY} />
         </div>
       </div>
     ),
-    { ...size }
+    { ...size, fonts: await ogFonts() }
   );
 }

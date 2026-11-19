@@ -18,7 +18,7 @@ const DESCRIPTION = `Connect ${BRAND.name} to Claude and ask about campaigns, po
 export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
-  openGraph: { title: TITLE, description: DESCRIPTION, type: "website" },
+  openGraph: { title: TITLE, description: DESCRIPTION, type: "website", images: [{ url: "/landing/og.jpg", width: 1200, height: 630, alt: BRAND.name }] },
 };
 
 export default async function McpPage() {
