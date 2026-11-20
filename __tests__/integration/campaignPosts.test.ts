@@ -12,6 +12,7 @@ jest.mock('@/lib/db', () => ({
     $transaction: jest.fn(),
     $queryRaw: jest.fn(),
     creatorSocialAccount: { findFirst: jest.fn() },
+    creatorProfileLink: { findMany: jest.fn().mockResolvedValue([]) },
     activation: { findFirst: jest.fn() },
     post: { findMany: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn(), count: jest.fn() },
     viewFraudFlag: { findMany: jest.fn() },
@@ -21,6 +22,7 @@ jest.mock('@/lib/db', () => ({
 }));
 
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
+jest.mock('@/lib/creators/rosterTables', () => ({ rosterTablesReady: jest.fn().mockResolvedValue(false) }));
 
 /* A TikTok link is the only form that carries both a post id and a handle --
    YouTube's watch?v= names no channel and its /@handle/ form names no video --
@@ -482,6 +484,36 @@ describe('POST /api/campaigns/[id]/posts', () => {
 
     expect(res.status).toBe(201);
     expect(mockDb.post.create).toHaveBeenCalled();
+  });
+
+  /* A creator the add found through a roster profile link has to pass the
+     author check on that same link. The lookup read three places and the check
+     two, so a YouTube Short by @sor_fx_ -- filed on a creator whose own handle
+     is another spelling, with the channel as a profile link -- showed as
+     matched in the dialog and was then refused by the save. */
+  it('accepts an author that matches the creator only through a roster profile link', async () => {
+    const { rosterTablesReady } = jest.requireMock('@/lib/creators/rosterTables');
+    rosterTablesReady.mockResolvedValue(true);
+    mockAuthor.mockResolvedValue({ handle: 'sor_fx_', name: 'SOR FX' });
+    mockDb.creator.findFirst.mockResolvedValue({
+      id: 'c1', orgId: 'org-1', name: 'SOR FX', handle: 'sorfx', deletedAt: null, socialAccounts: [],
+    });
+    mockDb.creatorProfileLink.findMany.mockResolvedValue([{ handle: '@sor_fx_' }]);
+    mockDb.post.create.mockResolvedValue({ id: 'post-new', creator: { id: 'c1', handle: 'sorfx' } });
+
+    const req = makeRequest('http://localhost/api/campaigns/camp-1/posts', {
+      method: 'POST',
+      body: JSON.stringify({ postUrl: 'https://www.youtube.com/shorts/V5lDzFif-qE' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await POST(req, makeParams('camp-1'));
+
+    expect(res.status).toBe(201);
+    expect(mockDb.creatorProfileLink.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ orgId: 'org-1', creatorId: 'c1', platform: 'YOUTUBE' }) }),
+    );
+    expect(mockDb.post.create).toHaveBeenCalled();
+    rosterTablesReady.mockResolvedValue(false);
   });
 
   // The roster spelling and the connected account's spelling are one person.

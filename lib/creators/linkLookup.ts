@@ -39,3 +39,24 @@ export async function creatorsByProfileLink(
   });
   return rows.map((r) => r.creator);
 }
+
+/**
+ * The handles a creator's roster profile links hold, on one platform when one
+ * is known. The author check on Add post compares against these as well as the
+ * Creator row and its connected accounts, because findCreatorByHandle matches
+ * on all three: a creator found through a profile link and then refused for
+ * not being that handle was a post the dialog showed as matched and the save
+ * turned down.
+ */
+export async function profileLinkHandles(
+  orgId: string,
+  creatorId: string,
+  platform?: Platform,
+): Promise<string[]> {
+  if (!(await rosterTablesReady())) return [];
+  const rows = await db.creatorProfileLink.findMany({
+    where: { orgId, creatorId, ...(platform ? { platform } : {}) },
+    select: { handle: true },
+  });
+  return rows.map((r) => r.handle);
+}

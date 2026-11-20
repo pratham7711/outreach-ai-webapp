@@ -26,6 +26,7 @@ import {
   handleMatchesCreator,
 } from "@/lib/posts/addPostChecks";
 import { resolveAuthorFromPlatform } from "@/lib/platforms/postAuthor";
+import { profileLinkHandles } from "@/lib/creators/linkLookup";
 import { matchFacebookPost } from "@/lib/platforms/facebookPost";
 import { hasPermission } from "@/lib/rbac";
 import { getUnattributedCreator, isUnattributedCreator } from "@/lib/posts/unattributedCreator";
@@ -447,6 +448,7 @@ export async function POST(
         ...creator.socialAccounts
           .filter((a) => !detected?.platform || a.platform === detected.platform)
           .map((a) => a.handle),
+        ...(await profileLinkHandles(orgId, creator.id, detected?.platform)),
       ];
       if (!handleMatchesCreator(resolvedHandle, known)) {
         return NextResponse.json(
