@@ -57,3 +57,38 @@ it("shows the note, with where the link goes, when there is no figure", () => {
   expect(screen.getByText(/Add the Spotify link in the campaign's audio settings\./)).toBeInTheDocument();
   expect(screen.queryByTestId("spotify-track-source")).toBeNull();
 });
+
+describe("an album", () => {
+  const album = streams({
+    kind: "album",
+    trackSource: "linked",
+    track: { id: "4aawyAB9vmqN3uQ7FjRGTy", url: "https://open.spotify.com/album/4aawyAB9vmqN3uQ7FjRGTy", name: "Phonk Pack", artists: "Ava Reyes" },
+    totalPlays: 41_050,
+    versions: [
+      { id: "1aaaaaaaaaaaaaaaaaaaaa", name: "Original", url: "https://open.spotify.com/track/1aaaaaaaaaaaaaaaaaaaaa", totalPlays: 41_050, lastDay: 50, sinceFirst: 50 },
+      { id: "2bbbbbbbbbbbbbbbbbbbbb", name: "Slowed + Reverb", url: "https://open.spotify.com/track/2bbbbbbbbbbbbbbbbbbbbb", totalPlays: null, lastDay: null, sinceFirst: null },
+    ],
+  });
+
+  it("says the figure adds up every track, and lists each one with its own numbers", () => {
+    render(<SpotifyStreamsCard streams={album} />);
+    expect(screen.getByTestId("spotify-track-source")).toHaveTextContent("Album · all 2 tracks added up");
+    const table = screen.getByTestId("spotify-album-versions");
+    expect(table).toHaveTextContent("Original");
+    expect(table).toHaveTextContent("41,050");
+    expect(table).toHaveTextContent("+50");
+    expect(screen.getByRole("link", { name: "Slowed + Reverb" })).toHaveAttribute("href", "https://open.spotify.com/track/2bbbbbbbbbbbbbbbbbbbbb");
+    expect(table).toHaveTextContent("Count hidden by Spotify");
+  });
+
+  it("lists the tracks on the share report too", () => {
+    render(<SpotifyStreamsCard streams={{ ...album, trackSource: null }} variant="report" />);
+    expect(screen.getByText(/Album · all 2 tracks added up/)).toBeInTheDocument();
+    expect(screen.getByTestId("spotify-album-versions")).toHaveTextContent("Slowed + Reverb");
+  });
+
+  it("shows no track list for a single track", () => {
+    render(<SpotifyStreamsCard streams={streams()} />);
+    expect(screen.queryByTestId("spotify-album-versions")).toBeNull();
+  });
+});

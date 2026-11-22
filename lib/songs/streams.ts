@@ -3,6 +3,10 @@ import { spotifyTrackUrl } from "@/lib/platforms/spotifyWeb";
 import { isMissingSongStreamTable } from "./streamSnapshotDdl";
 import { HIDDEN_COUNT_FAILURE, OPEN_CAMPAIGN_STATUSES } from "./streamSnapshot";
 import { withSongLinkColumns } from "./songLinks";
+import { readSongAlbum } from "./songAlbums";
+import { isMissingSongAlbumTable } from "./songAlbumDdl";
+import { albumFigures, type AlbumVersion } from "./albumStreams";
+import { spotifyAlbumLink } from "./spotifyLink";
 
 /**
  * The Spotify card's data: the promoted song's play count as the daily cron
@@ -23,6 +27,13 @@ import { withSongLinkColumns } from "./songLinks";
 
 export type CampaignStreams = {
   songTitle: string;
+  /**
+   * "album" when the song is tracked by a linked album: `track` is then the
+   * album, every figure is the sum over its tracks, and `versions` lists each
+   * track. Absent on a payload cached before albums, which is a track.
+   */
+  kind?: "track" | "album";
+  versions?: AlbumVersion[] | null;
   track: { id: string; url: string; name: string; artists: string } | null;
   /**
    * "linked" when the track read is the one linked on the campaign
@@ -185,11 +196,60 @@ export async function loadCampaignStreams(campaignId: string, orgId: string): Pr
     throw e;
   }
 
-  const figures = streamFigures(rows);
   const open = (OPEN_CAMPAIGN_STATUSES as readonly string[]).includes(campaign.status);
+
+  const { album } = await readSongAlbum(orgId, song.id);
+  if (album) {
+    let trackRows: Parameters<typeof albumFigures>[0] = [];
+    try {
+      trackRows = await db.songStreamTrackReading.findMany({
+        where: { songId: song.id, orgId, albumId: album.albumId },
+        orderBy: { day: "desc" },
+        take: 400 * 60,
+        select: { day: true, trackId: true, trackName: true, position: true, playCount: true },
+      });
+    } catch (e) {
+      if (!isMissingSongAlbumTable(e)) throw e;
+    }
+    const a = albumFigures(trackRows);
+    if (a.totalPlays === null && !open) return null;
+    /* The day's song row says why there is no figure (a failed or hidden read). */
+    const newest = rows[0];
+    const note =
+      a.totalPlays !== null
+        ? null
+        : !newest || newest.spotifyTrackId
+          ? "Spotify is read once a day; this album's first reading has not happened yet."
+          : isHiddenCount(newest)
+            ? "Spotify isn't showing play counts for this album's tracks yet (it hides counts for small or new tracks). Daily streams start the day it does."
+            : "Spotify did not give the album's tracks at the last reading.";
+    return {
+      songTitle: song.title,
+      kind: "album",
+      versions: a.versions,
+      track: {
+        id: album.albumId,
+        url: spotifyAlbumLink(album.albumId),
+        name: album.albumName ?? "",
+        artists: album.albumArtists ?? "",
+      },
+      trackSource: "linked",
+      totalPlays: a.totalPlays,
+      latestDay: a.latestDay,
+      lastDay: a.lastDay,
+      sinceFirst: a.sinceFirst,
+      daily: a.daily,
+      plays: a.plays,
+      note,
+    };
+  }
+
+  const figures = streamFigures(rows);
   if (figures.totalPlays === null && !open) return null;
   return {
     songTitle: song.title,
+    kind: "track",
+    versions: null,
     ...figures,
     trackSource: figures.track ? (linked && figures.track.id === linked ? "linked" : "matched") : null,
     note: figures.totalPlays === null ? noteFor(rows[0], { trackId: linked, ready: linkReady }) : null,

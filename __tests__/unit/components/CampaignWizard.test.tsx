@@ -379,22 +379,22 @@ describe("CampaignWizard — Spotify link", () => {
     expect(spotifyField()).toHaveAttribute("placeholder", "https://open.spotify.com/track/\u2026");
     expect(
       screen.getByText(
-        "Optional. The song's Spotify track link. We read its play count once a day. Leave it empty and we match the track by title and artist."
+        "Optional. A track link, or an album link to add up every version on it. Read once a day; left empty, we match the track by title and artist."
       )
     ).toBeInTheDocument();
     expect(create()).not.toBeDisabled();
   });
 
-  it("leaves an album link out with why, asks nobody, and keeps Create open", async () => {
+  it("leaves a playlist link out with why, asks nobody, and keeps Create open", async () => {
     const fetchMock = api();
     openWithSound();
-    fireEvent.change(spotifyField(), { target: { value: `https://open.spotify.com/album/${TRACK}` } });
+    fireEvent.change(spotifyField(), { target: { value: `https://open.spotify.com/playlist/${TRACK}` } });
     await act(async () => {
       fireEvent.blur(spotifyField());
     });
     expect(spotifyField()).toHaveValue("");
     expect(screen.getByTestId("audio-link-not-added")).toHaveTextContent(
-      "Not added. That's an album link. Open the song and copy its link."
+      "Not added. That's a playlist link. Open the song and copy its link."
     );
     expect(screen.queryByRole("alert")).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
@@ -425,7 +425,7 @@ describe("CampaignWizard — Spotify link", () => {
       fireEvent.blur(spotifyField());
     });
     expect(spotifyField()).toHaveValue("");
-    expect(screen.getByTestId("audio-link-not-added")).toHaveTextContent("Not added. Spotify has no track at that link.");
+    expect(screen.getByTestId("audio-link-not-added")).toHaveTextContent("Not added. Spotify has no track or album at that link.");
     expect(create()).not.toBeDisabled();
     // Typing again clears the line: it described the link that was left out.
     fireEvent.change(spotifyField(), { target: { value: "h" } });

@@ -75,7 +75,7 @@ const NOT_ADDED: Record<string, string> = {
   instagram_audio_no_count:
     "That's original audio. Instagram doesn't show how many reels use original audio, so there's nothing to track. Songs from Instagram's music library show it.",
   instagram_audio_not_found: "Instagram has no audio at that link.",
-  not_found: "Spotify has no track at that link.",
+  not_found: "Spotify has no track or album at that link.",
   ...SPOTIFY_LINK_ERRORS,
 };
 

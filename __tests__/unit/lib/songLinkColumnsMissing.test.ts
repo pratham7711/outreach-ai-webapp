@@ -225,7 +225,7 @@ describe("the Performance tab", () => {
     const res = await campaignPerformance(req("/api/campaigns/camp-1/performance?only=audio"), params);
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.spotify).toEqual({ ready: false, trackId: null, url: null });
+    expect(body.spotify).toEqual({ ready: false, albumsReady: true, trackId: null, albumId: null, url: null });
     expect(body.instagramReady).toBe(false);
     expect(refusedWrites()).toEqual([]);
   });

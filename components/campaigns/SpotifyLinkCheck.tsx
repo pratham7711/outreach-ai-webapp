@@ -12,19 +12,27 @@ import { SPOTIFY_LINK_ERRORS, parseSpotifyLink } from "@/lib/songs/spotifyLink";
  * The link is checked when the field is left or a link is pasted, never on
  * every keystroke: it is a round trip to Spotify (GET /api/songs/spotify-check),
  * and a half-typed URL is not worth one. What a link visibly is not -- an
- * album, a playlist, another site -- is said at once, by the same parser the
+ * playlist, an artist, another site -- is said at once, by the same parser the
  * server runs, without asking anybody.
  */
 
 export const SPOTIFY_LINK_LABEL = "Spotify link";
 export const SPOTIFY_LINK_PLACEHOLDER = "https://open.spotify.com/track/…";
 export const SPOTIFY_LINK_HINT =
-  "Optional. The song's Spotify track link. We read its play count once a day. Leave it empty and we match the track by title and artist.";
+  "Optional. A track link, or an album link to add up every version on it. Read once a day; left empty, we match the track by title and artist.";
 
 export type SpotifyCheck =
   | { status: "idle" }
   | { status: "checking"; raw: string }
-  | { status: "found"; raw: string; trackId: string; url: string; title: string | null; thumbnailUrl: string | null }
+  | {
+      status: "found";
+      raw: string;
+      kind: "track" | "album";
+      id: string;
+      url: string;
+      title: string | null;
+      thumbnailUrl: string | null;
+    }
   /** The link is no good: not a track, or Spotify has no such track. Blocks a save.
    *  `reason` is the parser's or the route's code. */
   | { status: "refused"; raw: string; message: string; reason: string | null }
@@ -73,11 +81,13 @@ export function useSpotifyLinkCheck() {
     try {
       const res = await fetch(`/api/songs/spotify-check?url=${encodeURIComponent(raw)}`, { cache: "no-store" });
       const body = await res.json().catch(() => null);
-      if (res.ok && typeof body?.trackId === "string") {
+      const album = body?.kind === "album" && typeof body?.albumId === "string";
+      if (res.ok && (album || typeof body?.trackId === "string")) {
         return settle({
           status: "found",
           raw,
-          trackId: body.trackId,
+          kind: album ? "album" : "track",
+          id: album ? body.albumId : body.trackId,
           url: body.url,
           title: typeof body.title === "string" ? body.title : null,
           thumbnailUrl: typeof body.thumbnailUrl === "string" ? body.thumbnailUrl : null,
@@ -116,7 +126,7 @@ export function useSpotifyLinkCheck() {
 }
 
 /**
- * Under the field: the track the link names (cover, title, "on Spotify"),
+ * Under the field: the track or album the link names (cover, title, "on Spotify"),
  * then the error, the check in progress, or the hint. `localError` is the
  * live parse of what is typed; it wins over an older answer.
  */
@@ -181,9 +191,11 @@ export function SpotifyLinkStatus({
                 overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0,
               }}
             >
-              {check.title ?? "Spotify track"}
+              {check.title ?? (check.kind === "album" ? "Spotify album" : "Spotify track")}
             </span>
-            <span style={{ color: "var(--cc-text-muted)", flexShrink: 0 }}>on Spotify</span>
+            <span style={{ color: "var(--cc-text-muted)", flexShrink: 0 }}>
+              {check.kind === "album" ? "album on Spotify · every track counted" : "on Spotify"}
+            </span>
           </span>
         </a>
       )}

@@ -15,9 +15,19 @@ import type { SpotifyReader } from "@/lib/platforms/spotifyWeb";
 
 const ID = "0AbCdEfGhIjKlMnOpQrStU";
 
-function reader(playCount: number | null): SpotifyReader & { track: jest.Mock; search: jest.Mock; close: jest.Mock } {
+function reader(playCount: number | null): SpotifyReader & { track: jest.Mock; search: jest.Mock; album: jest.Mock; close: jest.Mock } {
   return {
     track: jest.fn(async (id: string) => ({ id, name: "Song", artists: ["A"], playCount })),
+    album: jest.fn(async (id: string) => ({
+      id,
+      name: "Pack",
+      artists: ["A"],
+      totalTracks: 2,
+      tracks: [
+        { id: ID, name: "Original", position: 1001, playCount },
+        { id: "1ZyXwVuTsRqPoNmLkJiHgF", name: "Slowed", position: 1002, playCount: 0 },
+      ],
+    })),
     search: jest.fn(async () => [{ id: ID, name: "Song", artists: ["A"] }]),
     close: jest.fn(async () => {}),
   };
@@ -51,4 +61,13 @@ it("opens the anonymous web-player reader when given none", async () => {
   const r = reader(7);
   mockCreateReader.mockReturnValue(r);
   expect(await openSpotifyReads().readSpotifyTrack(ID)).toMatchObject({ playCount: 7 });
+});
+
+it("applies the hidden-count rule to each track of an album", async () => {
+  const reads = openSpotifyReads({ reader: reader(42) });
+  const album = await reads.readSpotifyAlbum(ID);
+  expect(album?.tracks.map((t) => [t.playCount, t.countHidden])).toEqual([
+    [42, false],
+    [null, true],
+  ]);
 });

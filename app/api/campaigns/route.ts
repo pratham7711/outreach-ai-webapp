@@ -15,6 +15,7 @@ import { setSongSound } from "@/lib/songs/songSounds";
 import { resolveSpotifyLink } from "@/lib/songs/spotifyLinkResolve";
 import { songLinksReady } from "@/lib/songs/songLinks";
 import { applySongSpotifyLink } from "@/lib/songs/spotifyLinkApply";
+import type { SpotifyRef } from "@/lib/songs/spotifyLink";
 import { primeSongAudio } from "@/lib/sounds/snapshot";
 import { captureCampaignThumbnail } from "@/lib/campaigns/thumbnailCopy";
 import { CAMPAIGN_STATUSES, CAMPAIGN_TYPES, campaignFilterSchema, campaignWhere } from "@/lib/listFilters";
@@ -285,13 +286,13 @@ export async function POST(request: NextRequest) {
 
     /* The Spotify link the same way: a bad one is a 400 that names it, before
        anything is written. */
-    let spotifyTrackId: string | null = null;
+    let spotifyRef: SpotifyRef | null = null;
     if (spotifyUrl) {
       const link = await resolveSpotifyLink(spotifyUrl);
       if (!link.ok) {
         return NextResponse.json({ error: link.reason, message: link.message }, { status: 400 });
       }
-      spotifyTrackId = link.trackId;
+      spotifyRef = link.ref;
     }
 
     /* Whether the song's link columns exist yet -- asked before the
@@ -299,7 +300,7 @@ export async function POST(request: NextRequest) {
        campaign down too. Without them the campaign is still created: an
        Instagram audio on its own goes where it always went, and only a second
        link that has nowhere to go is reported unsaved. */
-    const linksReady = spotifyTrackId || instagramAudio ? await songLinksReady(orgId) : false;
+    const linksReady = spotifyRef || instagramAudio ? await songLinksReady(orgId) : false;
     /* The same question for the rules table, for the same reason. */
     const rulesReady = setup?.rules ? await rulesTableReady() : false;
     /* And for the table a YouTube audio links through. Without it the campaign
@@ -319,7 +320,7 @@ export async function POST(request: NextRequest) {
         ? await ensureSongForAudio(tx, orgId, audio, title, { linksReady })
         : instagramAudio
           ? await ensureSongForAudio(tx, orgId, instagramAudio, title, { linksReady })
-          : spotifyTrackId && linksReady
+          : spotifyRef && linksReady
             ? await createSongForSpotifyLink(tx, orgId, title)
             : null;
 
@@ -437,10 +438,10 @@ export async function POST(request: NextRequest) {
        campaign with it. "unavailable" is that column missing; the form says
        the link did not save and points at Settings. */
     let spotifyLinked: boolean | undefined;
-    if (spotifyTrackId) {
+    if (spotifyRef) {
       spotifyLinked =
         linksReady && campaign.songId
-          ? (await applySongSpotifyLink(orgId, campaign.songId, spotifyTrackId, campaign.status)) !== "unavailable"
+          ? (await applySongSpotifyLink(orgId, campaign.songId, spotifyRef, campaign.status)) !== "unavailable"
           : false;
     }
 

@@ -6,6 +6,7 @@ import { openSpotifyReads, type SpotifyReads } from "./spotifyReads";
 import { isMissingSongStreamTable } from "./streamSnapshotDdl";
 import { isMissingSongLinkColumn } from "./songLinkDdl";
 import { NOT_REMOVED } from "@/lib/posts/removed";
+import { noteSongAlbumName, readSongAlbum, readSongAlbums, type SongAlbumLink } from "./songAlbums";
 
 /**
  * Once a day, each promoted song's Spotify play count.
@@ -28,6 +29,12 @@ import { NOT_REMOVED } from "@/lib/posts/removed";
  * fires twice in the morning (lib/ops/cronJobs) only so a run that ran out of
  * time gets finished: the second pass sees the first one's rows and reads
  * nothing twice.
+ *
+ * A song linked to an album (SongSpotifyAlbum) reads that album's page instead:
+ * one page, every track's count. Each track gets its own reading
+ * (SongStreamTrackReading) and the day's row carries their sum, with no track
+ * id -- the card works its figures out from the per-track readings
+ * (lib/songs/albumStreams.ts).
  *
  * Before the table exists the cron returns without opening a browser:
  * deploying the code first makes no Spotify call at all. Only the admin dry run
@@ -79,6 +86,80 @@ type Outcome =
   | { kind: "hidden"; trackId: string; trackName: string; trackArtists: string; searched: boolean }
   | { kind: "no-match"; failure: string }
   | { kind: "failed"; trackId: string | null; failure: string; searched: boolean };
+
+type AlbumOutcome =
+  | {
+      kind: "album";
+      albumId: string;
+      name: string;
+      artists: string;
+      tracks: { id: string; name: string; position: number; playCount: number | null }[];
+      /** The sum of the counts Spotify shows; null when it shows none. */
+      total: number | null;
+    }
+  | { kind: "album-failed"; albumId: string; failure: string };
+
+export const NO_ALBUM_TRACKS_FAILURE = "album page gave no tracks";
+
+async function readAlbum(reads: SpotifyReads, albumId: string): Promise<AlbumOutcome> {
+  const reading = await reads.readSpotifyAlbum(albumId);
+  if (!reading) return { kind: "album-failed", albumId, failure: "album page gave no album" };
+  if (!reading.tracks.length) return { kind: "album-failed", albumId, failure: NO_ALBUM_TRACKS_FAILURE };
+  const counted = reading.tracks.filter((t) => t.playCount !== null);
+  return {
+    kind: "album",
+    albumId,
+    name: reading.name,
+    artists: reading.artists.join(", "),
+    tracks: reading.tracks.map(({ id, name, position, playCount }) => ({ id, name, position, playCount })),
+    total: counted.length ? counted.reduce((sum, t) => sum + (t.playCount ?? 0), 0) : null,
+  };
+}
+
+/** The day's song row for an album: the album's name and its total, never a track id. */
+function albumRowFor(outcome: AlbumOutcome) {
+  if (outcome.kind === "album-failed") {
+    return { spotifyTrackId: null, trackName: null, trackArtists: null, playCount: null, failure: outcome.failure };
+  }
+  return {
+    spotifyTrackId: null,
+    trackName: outcome.name,
+    trackArtists: outcome.artists,
+    playCount: outcome.total === null ? null : BigInt(outcome.total),
+    failure: outcome.total === null ? HIDDEN_COUNT_FAILURE : null,
+  };
+}
+
+async function writeAlbumDay(songId: string, orgId: string, day: Date, outcome: AlbumOutcome, nowMs: number) {
+  const row = albumRowFor(outcome);
+  const recordedAt = new Date(nowMs);
+  await db.$transaction([
+    db.songStreamSnapshot.upsert({
+      where: { songId_day: { songId, day } },
+      create: { songId, orgId, day, ...row },
+      update: { ...row, recordedAt },
+    }),
+    db.songStreamTrackReading.deleteMany({ where: { songId, orgId, day } }),
+    ...(outcome.kind === "album"
+      ? [
+          db.songStreamTrackReading.createMany({
+            data: outcome.tracks.map((t) => ({
+              songId,
+              orgId,
+              day,
+              albumId: outcome.albumId,
+              trackId: t.id,
+              trackName: t.name,
+              position: t.position,
+              playCount: t.playCount === null ? null : BigInt(t.playCount),
+              recordedAt,
+            })),
+          }),
+        ]
+      : []),
+  ]);
+  if (outcome.kind === "album") await noteSongAlbumName(orgId, songId, outcome.albumId, outcome.name, outcome.artists);
+}
 
 /** The failure a row carries when Spotify answered for the track but shows no count. */
 export const HIDDEN_COUNT_FAILURE = "play count hidden by Spotify";
@@ -295,6 +376,9 @@ export async function snapshotSongStreams(options: StreamSweepOptions = {}): Pro
   result.due = due.length;
   if (!due.length) return result;
 
+  /* Empty while the album tables are missing: every song reads as before. */
+  const albums: Map<string, SongAlbumLink> = result.tableReady ? await readSongAlbums(due.map((s) => s.id)) : new Map();
+
   const reads = openSpotifyReads({ reader: options.reader });
   let errorsInARow = 0;
   try {
@@ -304,6 +388,32 @@ export async function snapshotSongStreams(options: StreamSweepOptions = {}): Pro
         break;
       }
       if (i > 0) await pause(gapMs);
+
+      const album = albums.get(song.id);
+      if (album) {
+        let albumOutcome: AlbumOutcome;
+        try {
+          albumOutcome = await readAlbum(reads, album.albumId);
+          errorsInARow = 0;
+        } catch (e) {
+          errorsInARow++;
+          albumOutcome = {
+            kind: "album-failed",
+            albumId: album.albumId,
+            failure: `read failed: ${e instanceof Error ? e.message.split("\n")[0] : String(e)}`.slice(0, 200),
+          };
+        }
+        if (albumOutcome.kind === "album-failed") {
+          result.failed++;
+          note(albumOutcome.failure);
+        } else if (albumOutcome.total === null) {
+          result.hidden++;
+        } else {
+          result.read++;
+        }
+        if (!dryRun) await writeAlbumDay(song.id, song.orgId, day, albumOutcome, nowMs);
+        continue;
+      }
 
       /* A linked track is the song's track, full stop. Without a link, a track
          found on an earlier day is reused, so a song is searched once, not
@@ -418,6 +528,34 @@ export async function primeSongStreams(
     throw e;
   }
   if (!song) return "not-due";
+
+  /* An album link reads the album: every track, and their sum on the day's row. */
+  const { album } = await readSongAlbum(orgId, songId);
+  if (album) {
+    try {
+      const done = await db.songStreamTrackReading.count({ where: { songId, orgId, day, albumId: album.albumId } });
+      if (done > 0) return "already-read";
+    } catch (e) {
+      if (isMissingSongStreamTable(e)) return "not-ready";
+      throw e;
+    }
+    const reads = openSpotifyReads({ reader: options.reader });
+    let albumOutcome: AlbumOutcome;
+    try {
+      albumOutcome = await readAlbum(reads, album.albumId);
+    } catch (e) {
+      createLogger({ context: { job: "prime-song-streams" } }).warn("first spotify album read failed", {
+        songId,
+        error: e instanceof Error ? e.message.split("\n")[0] : String(e),
+      });
+      return "read-failed";
+    } finally {
+      if (!options.reader) await reads.close().catch(() => {});
+    }
+    await writeAlbumDay(songId, orgId, day, albumOutcome, nowMs);
+    return albumOutcome.kind === "album-failed" ? "no-count" : albumOutcome.total === null ? "hidden" : "read";
+  }
+
   const linked = song.spotifyTrackId;
   if (!linked) return "no-link";
 

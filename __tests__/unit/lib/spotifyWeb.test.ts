@@ -10,6 +10,7 @@ import {
   answersAsk,
   createSpotifyReader,
   isSpotifyTrackId,
+  parseAlbum,
   parseSearchTracks,
   parseTrack,
   spotifyTrackUrl,
@@ -94,7 +95,62 @@ describe("track ids", () => {
   });
 });
 
+describe("parseAlbum", () => {
+  /* The shape getAlbum answered on 2026-11-22 for a public album, cut to two tracks. */
+  const ALBUM = "4aawyAB9vmqN3uQ7FjRGTy";
+  const answer = (items: unknown[], totalCount = items.length) => ({
+    data: {
+      albumUnion: {
+        uri: `spotify:album:${ALBUM}`,
+        name: "Global Warming",
+        type: "ALBUM",
+        artists: { items: [{ profile: { name: "Pitbull" } }] },
+        tracksV2: { totalCount, items },
+      },
+    },
+  });
+  const item = (id: string, name: string, n: number, playcount: unknown, disc = 1) => ({
+    track: { uri: `spotify:track:${id}`, name, trackNumber: n, discNumber: disc, playcount },
+  });
+
+  it("lists every track with its own count, in album order", () => {
+    const out = parseAlbum(answer([item("2iblMMIgSznA464mNov7A8", "Don't Stop the Party", 2, "303987493"), item("6OmhkSOpvYBokMKQxpIGx2", "Global Warming", 1, "10833441")]));
+    expect(out).toEqual({
+      id: ALBUM,
+      name: "Global Warming",
+      artists: ["Pitbull"],
+      totalTracks: 2,
+      tracks: [
+        { id: "6OmhkSOpvYBokMKQxpIGx2", name: "Global Warming", position: 1001, playCount: 10_833_441 },
+        { id: "2iblMMIgSznA464mNov7A8", name: "Don't Stop the Party", position: 1002, playCount: 303_987_493 },
+      ],
+    });
+  });
+
+  it("keeps Spotify's own track total when the page lists fewer, and drops a track it cannot name", () => {
+    const out = parseAlbum(answer([item("6OmhkSOpvYBokMKQxpIGx2", "A", 1, "5"), { track: { uri: "spotify:track:bad", name: "B" } }], 60));
+    expect(out?.totalTracks).toBe(60);
+    expect(out?.tracks.map((t) => t.id)).toEqual(["6OmhkSOpvYBokMKQxpIGx2"]);
+  });
+
+  it("gives no count, never 0, for a count it cannot read", () => {
+    expect(parseAlbum(answer([item("6OmhkSOpvYBokMKQxpIGx2", "A", 1, "n/a")]))?.tracks[0].playCount).toBeNull();
+  });
+
+  it("is null for an answer with no album", () => {
+    expect(parseAlbum({ data: {} })).toBeNull();
+    expect(parseAlbum(null)).toBeNull();
+  });
+});
+
 describe("answersAsk", () => {
+  it("takes only the album's first page of tracks", () => {
+    const ask = { kind: "album" as const, albumId: "4aawyAB9vmqN3uQ7FjRGTy" };
+    expect(answersAsk(ask, { operationName: "getAlbum", variables: { uri: "spotify:album:4aawyAB9vmqN3uQ7FjRGTy", offset: 0 } })).toBe(true);
+    expect(answersAsk(ask, { operationName: "getAlbum", variables: { uri: "spotify:album:4aawyAB9vmqN3uQ7FjRGTy", offset: 50 } })).toBe(false);
+    expect(answersAsk(ask, { operationName: "getAlbum", variables: { uri: "spotify:album:0AbCdEfGhIjKlMnOpQrStU", offset: 0 } })).toBe(false);
+  });
+
   it("takes a search answer only for the same search term", () => {
     const ask = { kind: "search" as const, query: "Neon Skyline Ava Reyes" };
     expect(answersAsk(ask, { operationName: "searchTracks", variables: { searchTerm: "Neon Skyline Ava Reyes" } })).toBe(true);

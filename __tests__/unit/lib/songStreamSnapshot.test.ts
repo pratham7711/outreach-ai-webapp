@@ -12,6 +12,12 @@ const mockFindFirst = jest.fn();
 const mockFindUnique = jest.fn();
 const mockUpsert = jest.fn();
 const mockCreateReader = jest.fn();
+const mockAlbums = jest.fn();
+const mockAlbumFirst = jest.fn();
+const mockAlbumUpdate = jest.fn();
+const mockTrackDelete = jest.fn();
+const mockTrackCreate = jest.fn();
+const mockTrackCount = jest.fn();
 
 jest.mock("@/lib/db", () => ({
   db: {
@@ -20,6 +26,17 @@ jest.mock("@/lib/db", () => ({
       upsert: (...a: unknown[]) => mockUpsert(...a),
       findUnique: (...a: unknown[]) => mockFindUnique(...a),
     },
+    songSpotifyAlbum: {
+      findMany: (...a: unknown[]) => mockAlbums(...a),
+      findFirst: (...a: unknown[]) => mockAlbumFirst(...a),
+      updateMany: (...a: unknown[]) => mockAlbumUpdate(...a),
+    },
+    songStreamTrackReading: {
+      deleteMany: (...a: unknown[]) => mockTrackDelete(...a),
+      createMany: (...a: unknown[]) => mockTrackCreate(...a),
+      count: (...a: unknown[]) => mockTrackCount(...a),
+    },
+    $transaction: (ops: Promise<unknown>[]) => Promise.all(ops),
   },
 }));
 jest.mock("@/lib/platforms/spotifyWeb", () => ({
@@ -64,6 +81,91 @@ const run = (r: SpotifyReader, over: Record<string, unknown> = {}) =>
 beforeEach(() => {
   jest.clearAllMocks();
   mockUpsert.mockResolvedValue({});
+  mockAlbums.mockResolvedValue([]);
+  mockAlbumFirst.mockResolvedValue(null);
+  mockAlbumUpdate.mockResolvedValue({ count: 1 });
+  mockTrackDelete.mockResolvedValue({ count: 0 });
+  mockTrackCreate.mockResolvedValue({ count: 0 });
+  mockTrackCount.mockResolvedValue(0);
+});
+
+const ALBUM = "4aawyAB9vmqN3uQ7FjRGTy";
+const T1 = "1aaaaaaaaaaaaaaaaaaaaa";
+const T2 = "2bbbbbbbbbbbbbbbbbbbbb";
+const T3 = "3ccccccccccccccccccccc";
+const albumReading = (counts: (number | null)[]) => ({
+  id: ALBUM,
+  name: "Phonk Pack",
+  artists: ["Ava Reyes"],
+  totalTracks: counts.length,
+  tracks: counts.map((c, i) => ({ id: [T1, T2, T3][i], name: ["Original", "Slowed", "Sped Up"][i], position: 1001 + i, playCount: c })),
+});
+
+describe("a song linked to an album", () => {
+  it("reads the album page once, never a track or a search, and stores each track and the sum", async () => {
+    mockFindMany.mockResolvedValue([dueSong({ spotifyTrackId: null })]);
+    mockAlbums.mockResolvedValue([{ songId: "song-1", albumId: ALBUM, albumName: null, albumArtists: null }]);
+    const album = jest.fn(async () => albumReading([1000, 250, 0]));
+    const r = reader({ album } as never);
+    const out = await run(r);
+    expect(out).toMatchObject({ due: 1, read: 1, failed: 0 });
+    expect(album).toHaveBeenCalledWith(ALBUM);
+    expect(r.track).not.toHaveBeenCalled();
+    expect(r.search).not.toHaveBeenCalled();
+    expect(mockUpsert.mock.calls[0][0].create).toMatchObject({
+      spotifyTrackId: null,
+      trackName: "Phonk Pack",
+      trackArtists: "Ava Reyes",
+      playCount: BigInt(1250),
+      failure: null,
+    });
+    expect(mockTrackDelete).toHaveBeenCalledWith({ where: { songId: "song-1", orgId: "org-1", day: utcDay(NOW) } });
+    // A track Spotify shows 0 for is stored as no count, never as 0.
+    expect(mockTrackCreate.mock.calls[0][0].data.map((d: { trackId: string; playCount: bigint | null }) => [d.trackId, d.playCount])).toEqual([
+      [T1, BigInt(1000)],
+      [T2, BigInt(250)],
+      [T3, null],
+    ]);
+    expect(mockAlbumUpdate).toHaveBeenCalledWith({
+      where: { songId: "song-1", orgId: "org-1", albumId: ALBUM },
+      data: { albumName: "Phonk Pack", albumArtists: "Ava Reyes" },
+    });
+  });
+
+  it("says a hidden album is hidden when Spotify shows no track's count", async () => {
+    mockFindMany.mockResolvedValue([dueSong()]);
+    mockAlbums.mockResolvedValue([{ songId: "song-1", albumId: ALBUM, albumName: null, albumArtists: null }]);
+    const out = await run(reader({ album: jest.fn(async () => albumReading([0, 0])) } as never));
+    expect(out).toMatchObject({ read: 0, hidden: 1 });
+    expect(mockUpsert.mock.calls[0][0].create).toMatchObject({ playCount: null, failure: HIDDEN_COUNT_FAILURE });
+  });
+
+  it("records a failed album read as the day's answer, with no track rows", async () => {
+    mockFindMany.mockResolvedValue([dueSong()]);
+    mockAlbums.mockResolvedValue([{ songId: "song-1", albumId: ALBUM, albumName: null, albumArtists: null }]);
+    const out = await run(reader({ album: jest.fn(async () => { throw new Error("spotify getAlbum: timed out"); }) } as never));
+    expect(out).toMatchObject({ failed: 1 });
+    expect(mockUpsert.mock.calls[0][0].create.failure).toMatch(/^read failed: spotify getAlbum/);
+    expect(mockTrackCreate).not.toHaveBeenCalled();
+  });
+
+  it("takes the first reading of a newly linked album", async () => {
+    mockFindFirst.mockResolvedValue({ title: "Neon Skyline", artist: "", isrc: null, spotifyTrackId: null, sound: null });
+    mockAlbumFirst.mockResolvedValue({ albumId: ALBUM, albumName: null, albumArtists: null });
+    const album = jest.fn(async () => albumReading([10, 20, 30]));
+    expect(await primeSongStreams("org-1", "song-1", { reader: reader({ album } as never), nowMs: NOW })).toBe("read");
+    expect(mockUpsert.mock.calls[0][0].create.playCount).toBe(BigInt(60));
+    expect(mockTrackCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not read an album twice on one day", async () => {
+    mockFindFirst.mockResolvedValue({ title: "Neon Skyline", artist: "", isrc: null, spotifyTrackId: null, sound: null });
+    mockAlbumFirst.mockResolvedValue({ albumId: ALBUM, albumName: null, albumArtists: null });
+    mockTrackCount.mockResolvedValue(3);
+    const album = jest.fn();
+    expect(await primeSongStreams("org-1", "song-1", { reader: reader({ album } as never), nowMs: NOW })).toBe("already-read");
+    expect(album).not.toHaveBeenCalled();
+  });
 });
 
 it("opens no browser and reads nothing while the table does not exist", async () => {

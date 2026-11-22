@@ -35,7 +35,28 @@ export type SpotifyTrackHit = { id: string; name: string; artists: string[] };
 
 export type SpotifyTrackReading = SpotifyTrackHit & { playCount: number | null };
 
-export type SpotifyAsk = { kind: "search"; query: string } | { kind: "track"; trackId: string };
+/** One track of an album as its page lists it. `playCount` follows parseTrack's rule. */
+export type SpotifyAlbumTrack = { id: string; name: string; position: number; playCount: number | null };
+
+/**
+ * An album, EP or single page: every track on it with its own count, from the
+ * one getAlbum answer the page asks for. Measured 2026-11-22, logged out: an
+ * 18-track album answered all 18 counts in that single call. `totalTracks` is
+ * Spotify's count; the page asks for the first 50, so an album longer than
+ * that lists fewer tracks than it says it has.
+ */
+export type SpotifyAlbumReading = {
+  id: string;
+  name: string;
+  artists: string[];
+  totalTracks: number;
+  tracks: SpotifyAlbumTrack[];
+};
+
+export type SpotifyAsk =
+  | { kind: "search"; query: string }
+  | { kind: "track"; trackId: string }
+  | { kind: "album"; albumId: string };
 
 type Answer = { status: number; json: unknown };
 
@@ -47,6 +68,10 @@ export function isSpotifyTrackId(id: string): boolean {
 
 export function spotifyTrackUrl(trackId: string): string {
   return `https://open.spotify.com/track/${trackId}`;
+}
+
+export function spotifyAlbumUrl(albumId: string): string {
+  return `https://open.spotify.com/album/${albumId}`;
 }
 
 function names(list: unknown): string[] {
@@ -78,22 +103,50 @@ export function parseSearchTracks(json: unknown): SpotifyTrackHit[] {
 export function parseTrack(json: unknown): SpotifyTrackReading | null {
   const t = (json as { data?: { trackUnion?: Record<string, unknown> } })?.data?.trackUnion;
   if (!t || typeof t.id !== "string" || !isSpotifyTrackId(t.id) || typeof t.name !== "string") return null;
-  const raw = t.playcount;
-  const n = typeof raw === "string" && /^\d+$/.test(raw) ? Number(raw) : typeof raw === "number" ? raw : NaN;
   return {
     id: t.id,
     name: t.name,
     artists: [...names(t.firstArtist), ...names(t.otherArtists)],
-    playCount: Number.isSafeInteger(n) && n >= 0 ? n : null,
+    playCount: countOf(t.playcount),
   };
+}
+
+function countOf(raw: unknown): number | null {
+  const n = typeof raw === "string" && /^\d+$/.test(raw) ? Number(raw) : typeof raw === "number" ? raw : NaN;
+  return Number.isSafeInteger(n) && n >= 0 ? n : null;
+}
+
+/**
+ * A getAlbum answer: the album and its tracks in album order (disc, then
+ * track number). A track without a readable id or name is left out rather
+ * than counted as nothing.
+ */
+export function parseAlbum(json: unknown): SpotifyAlbumReading | null {
+  const a = (json as { data?: { albumUnion?: Record<string, unknown> } })?.data?.albumUnion;
+  if (!a || typeof a.uri !== "string" || typeof a.name !== "string") return null;
+  const id = a.uri.replace(/^spotify:album:/, "");
+  if (!TRACK_ID.test(id)) return null;
+  const list = (a.tracksV2 ?? a.tracks) as { totalCount?: unknown; items?: unknown[] } | undefined;
+  const tracks: SpotifyAlbumTrack[] = [];
+  for (const entry of Array.isArray(list?.items) ? list.items : []) {
+    const t = (entry as { track?: Record<string, unknown> })?.track;
+    const tid = typeof t?.uri === "string" ? t.uri.replace(/^spotify:track:/, "") : "";
+    if (!t || !TRACK_ID.test(tid) || typeof t.name !== "string") continue;
+    const disc = typeof t.discNumber === "number" ? t.discNumber : 1;
+    const num = typeof t.trackNumber === "number" ? t.trackNumber : tracks.length + 1;
+    tracks.push({ id: tid, name: t.name, position: disc * 1000 + num, playCount: countOf(t.playcount) });
+  }
+  tracks.sort((x, y) => x.position - y.position);
+  const total = typeof list?.totalCount === "number" ? list.totalCount : tracks.length;
+  return { id, name: a.name, artists: names(a.artists), totalTracks: total, tracks };
 }
 
 const BLOCKED = new Set(["image", "media", "font"]);
 
 function pageUrl(ask: SpotifyAsk): string {
-  return ask.kind === "track"
-    ? spotifyTrackUrl(ask.trackId)
-    : `https://open.spotify.com/search/${encodeURIComponent(ask.query)}/tracks`;
+  if (ask.kind === "track") return spotifyTrackUrl(ask.trackId);
+  if (ask.kind === "album") return spotifyAlbumUrl(ask.albumId);
+  return `https://open.spotify.com/search/${encodeURIComponent(ask.query)}/tracks`;
 }
 
 type PageRoute = { request: () => { resourceType: () => string }; abort: () => Promise<void>; continue: () => Promise<void> };
@@ -114,6 +167,14 @@ type SpotifyPage = {
 /** Whether a pathfinder call is the answer this read is waiting for. */
 export function answersAsk(ask: SpotifyAsk, body: { operationName?: unknown; variables?: Record<string, unknown> }): boolean {
   if (ask.kind === "track") return body.operationName === "getTrack" && body.variables?.uri === `spotify:track:${ask.trackId}`;
+  /* The first page of tracks only: scrolling an album asks again with a later offset. */
+  if (ask.kind === "album") {
+    return (
+      body.operationName === "getAlbum" &&
+      body.variables?.uri === `spotify:album:${ask.albumId}` &&
+      (body.variables?.offset ?? 0) === 0
+    );
+  }
   return body.operationName === "searchTracks" && body.variables?.searchTerm === ask.query;
 }
 
@@ -144,7 +205,8 @@ async function readOnce(page: SpotifyPage, ask: SpotifyAsk, timeoutMs: number): 
   page.on("response", onResponse);
   try {
     await page.goto(pageUrl(ask), { waitUntil: "domcontentloaded", timeout: timeoutMs });
-    return await withTimeout(answer, timeoutMs, `spotify ${ask.kind === "track" ? "getTrack" : "searchTracks"}`);
+    const op = ask.kind === "track" ? "getTrack" : ask.kind === "album" ? "getAlbum" : "searchTracks";
+    return await withTimeout(answer, timeoutMs, `spotify ${op}`);
   } finally {
     page.off("response", onResponse);
   }
@@ -153,6 +215,7 @@ async function readOnce(page: SpotifyPage, ask: SpotifyAsk, timeoutMs: number): 
 export type SpotifyReader = {
   search: (query: string) => Promise<SpotifyTrackHit[]>;
   track: (trackId: string) => Promise<SpotifyTrackReading | null>;
+  album: (albumId: string) => Promise<SpotifyAlbumReading | null>;
   close: () => Promise<void>;
 };
 
@@ -220,6 +283,10 @@ export function createSpotifyReader(
     async track(trackId) {
       if (!isSpotifyTrackId(trackId)) return null;
       return parseTrack((await ask({ kind: "track", trackId })).json);
+    },
+    async album(albumId) {
+      if (!isSpotifyTrackId(albumId)) return null;
+      return parseAlbum((await ask({ kind: "album", albumId })).json);
     },
     async close() {
       const dead = open;

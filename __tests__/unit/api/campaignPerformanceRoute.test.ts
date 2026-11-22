@@ -15,6 +15,7 @@ jest.mock("@/lib/reports/campaignPerformance", () => ({
 }));
 jest.mock("@/lib/songs/songLinks", () => ({ readSongSpotifyLink: jest.fn(), songLinksReady: jest.fn() }));
 jest.mock("@/lib/songs/songSounds", () => ({ readSongSounds: jest.fn(), readSongSoundIds: jest.fn() }));
+jest.mock("@/lib/songs/songAlbums", () => ({ readSongAlbum: jest.fn(async () => ({ ready: true, album: null })) }));
 
 import { GET } from "@/app/api/campaigns/[id]/performance/route";
 import { db } from "@/lib/db";
@@ -57,7 +58,7 @@ it("answers ?only=audio from the audio loader alone, without the chart", async (
     instagramAudio: null,
     instagramReady: true,
     sharedWith: 0,
-    spotify: { ready: true, trackId: null, url: null },
+    spotify: { ready: true, albumsReady: true, trackId: null, albumId: null, url: null },
     youtubeAudio: null,
   });
   expect(readSongSpotifyLink).not.toHaveBeenCalled();
@@ -71,7 +72,7 @@ it("holds the Spotify field on a campaign with no song while the link column doe
   (songLinksReady as jest.Mock).mockResolvedValue(false);
   const body = await (await GET(req("?only=audio"), params)).json();
   expect(songLinksReady).toHaveBeenCalledWith("org-1");
-  expect(body.spotify).toEqual({ ready: false, trackId: null, url: null });
+  expect(body.spotify).toEqual({ ready: false, albumsReady: true, trackId: null, albumId: null, url: null });
 });
 
 it("hands Settings the song's linked Spotify track, and says when a link cannot be stored yet", async () => {
@@ -79,11 +80,17 @@ it("hands Settings the song's linked Spotify track, and says when a link cannot 
   (readSongSpotifyLink as jest.Mock).mockResolvedValue({ ready: true, trackId: "4uLU6hMCjMI75M1A2tKUQC" });
   let body = await (await GET(req("?only=audio"), params)).json();
   expect(readSongSpotifyLink).toHaveBeenCalledWith("org-1", "song-1");
-  expect(body.spotify).toEqual({ ready: true, trackId: "4uLU6hMCjMI75M1A2tKUQC", url: "https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC" });
+  expect(body.spotify).toEqual({
+    ready: true,
+    albumsReady: true,
+    trackId: "4uLU6hMCjMI75M1A2tKUQC",
+    albumId: null,
+    url: "https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC",
+  });
 
   (readSongSpotifyLink as jest.Mock).mockResolvedValue({ ready: false, trackId: null });
   body = await (await GET(req("?only=audio"), params)).json();
-  expect(body.spotify).toEqual({ ready: false, trackId: null, url: null });
+  expect(body.spotify).toEqual({ ready: false, albumsReady: true, trackId: null, albumId: null, url: null });
 });
 
 it("hands Settings both sounds, whether the Instagram slot can be written, and how many campaigns share the song", async () => {

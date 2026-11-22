@@ -407,6 +407,8 @@ model Song {
   instagramSound TikTokSound?         @relation("SongInstagramSound", fields: [instagramSoundId], references: [id])
   streamReadings SongStreamSnapshot[]
   soundLinks     SongSoundLink[]
+  spotifyAlbum   SongSpotifyAlbum?
+  trackReadings  SongStreamTrackReading[]
 
   @@index([orgId])
   @@index([orgId, deletedAt])
@@ -487,6 +489,48 @@ model SongStreamSnapshot {
   song Song @relation(fields: [songId], references: [id], onDelete: Cascade)
 
   @@unique([songId, day])
+}
+
+/// The Spotify album a song is tracked by, instead of one track: every track on
+/// it is read daily and the campaign's figure is their sum -- for a release
+/// whose versions (original, slowed, sped up, reverb) sit on one album, EP or
+/// single. A song has this row or Song.spotifyTrackId, never both
+/// (lib/songs/songAlbums.ts). DDL: lib/songs/songAlbumDdl.ts.
+model SongSpotifyAlbum {
+  songId       String   @id
+  orgId        String
+  albumId      String
+  /// Refreshed from each reading; null until the first.
+  albumName    String?
+  albumArtists String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
+
+  song Song @relation(fields: [songId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+}
+
+/// One reading a day of one track on a song's linked album, written beside
+/// that day's SongStreamSnapshot row (which carries the album total). A null
+/// count is a count Spotify hides.
+model SongStreamTrackReading {
+  id         String   @id @default(cuid())
+  songId     String
+  orgId      String
+  day        DateTime @db.Date
+  albumId    String
+  trackId    String
+  trackName  String?
+  /// Album order: disc * 1000 + track number.
+  position   Int      @default(0)
+  playCount  BigInt?
+  recordedAt DateTime @default(now())
+
+  song Song @relation(fields: [songId], references: [id], onDelete: Cascade)
+
+  @@unique([songId, day, trackId])
+  @@index([songId, albumId, day])
 }
 
 /// What a campaign asks of its creators beyond the free-text brief, and when

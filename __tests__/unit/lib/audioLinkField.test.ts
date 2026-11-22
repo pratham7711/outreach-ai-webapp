@@ -42,7 +42,7 @@ describe("audioFieldFor — the field a pasted link belongs in", () => {
 describe("what is said about a link", () => {
   it("names original audio in a line, and falls back to the route's words for an unknown code", () => {
     expect(notAddedReason("instagram_audio_no_count", "x")).toMatch(/^That's original audio\./);
-    expect(notAddedReason("album", "x")).toBe("That's an album link. Open the song and copy its link.");
+    expect(notAddedReason("playlist", "x")).toBe("That's a playlist link. Open the song and copy its link.");
     expect(notAddedReason("something_new", "The route's own sentence.")).toBe("The route's own sentence.");
     expect(notAddedReason(null, "Fallback.")).toBe("Fallback.");
   });
@@ -50,8 +50,8 @@ describe("what is said about a link", () => {
   it("says where a moved link came from, and when it replaced one", () => {
     expect(movedNotice("TIKTOK", false)).toEqual({ tone: "moved", text: "Moved here from TikTok sound." });
     expect(movedNotice("SPOTIFY", true).text).toBe("Moved here from Spotify link, in place of the link that was here.");
-    expect(droppedNotice("not_found", "x")).toEqual({ tone: "dropped", text: "Spotify has no track at that link." });
-    expect(droppedNotice("not_found", "x", true).text).toBe("Spotify has no track at that link. The link already in this field stays.");
+    expect(droppedNotice("not_found", "x")).toEqual({ tone: "dropped", text: "Spotify has no track or album at that link." });
+    expect(droppedNotice("not_found", "x", true).text).toBe("Spotify has no track or album at that link. The link already in this field stays.");
   });
 
   it("leaves a link out only for what is true of the link, not of the moment", () => {

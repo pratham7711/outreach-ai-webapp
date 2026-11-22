@@ -42,15 +42,25 @@ it("confirms a track with Spotify and returns its id, canonical link, title and 
   fetchMock.mockResolvedValue(new Response(JSON.stringify({ title: "Thriller", thumbnail_url: "https://i.scdn.co/image/ab67" }), { status: 200 }));
   expect(await call(`${TRACK}?si=abc`)).toEqual({
     status: 200,
-    body: { trackId: ID, url: TRACK, title: "Thriller", thumbnailUrl: "https://i.scdn.co/image/ab67" },
+    body: { kind: "track", trackId: ID, url: TRACK, title: "Thriller", thumbnailUrl: "https://i.scdn.co/image/ab67" },
   });
   expect(String(fetchMock.mock.calls[0][0])).toBe(`https://open.spotify.com/oembed?url=${encodeURIComponent(TRACK)}`);
 });
 
-it("refuses an album link itself, before Spotify (whose oEmbed would answer for it) is asked", async () => {
-  expect(await call(`https://open.spotify.com/album/${ID}`)).toEqual({
+it("confirms an album the same way, as an album", async () => {
+  fetchMock.mockResolvedValue(new Response(JSON.stringify({ title: "Phonk Pack", thumbnail_url: "https://i.scdn.co/image/ab68" }), { status: 200 }));
+  const ALBUM = `https://open.spotify.com/album/${ID}`;
+  expect(await call(`${ALBUM}?si=1`)).toEqual({
+    status: 200,
+    body: { kind: "album", albumId: ID, url: ALBUM, title: "Phonk Pack", thumbnailUrl: "https://i.scdn.co/image/ab68" },
+  });
+  expect(String(fetchMock.mock.calls[0][0])).toBe(`https://open.spotify.com/oembed?url=${encodeURIComponent(ALBUM)}`);
+});
+
+it("refuses a playlist link itself, before Spotify (whose oEmbed would answer for it) is asked", async () => {
+  expect(await call(`https://open.spotify.com/playlist/${ID}`)).toEqual({
     status: 400,
-    body: { error: "album", message: "That's an album link. Open the song and copy its link." },
+    body: { error: "playlist", message: "That's a playlist link. Open the song and copy its link." },
   });
   expect(fetchMock).not.toHaveBeenCalled();
 });
@@ -58,7 +68,7 @@ it("refuses an album link itself, before Spotify (whose oEmbed would answer for 
 it("refuses anything that is not a Spotify link, and an empty one", async () => {
   expect(await call("https://example.com/x")).toEqual({
     status: 400,
-    body: { error: "not_track", message: "That isn't a Spotify track link." },
+    body: { error: "not_track", message: "That isn't a Spotify track or album link." },
   });
   expect((await call()).status).toBe(400);
 });
@@ -76,7 +86,7 @@ it("follows a short link to the track before asking Spotify about it", async () 
     .mockResolvedValueOnce(new Response(JSON.stringify({ title: "Thriller" }), { status: 200 }));
   expect(await call("https://spotify.link/AbC123")).toEqual({
     status: 200,
-    body: { trackId: ID, url: TRACK, title: "Thriller", thumbnailUrl: null },
+    body: { kind: "track", trackId: ID, url: TRACK, title: "Thriller", thumbnailUrl: null },
   });
   expect(String(fetchMock.mock.calls[0][0])).toBe("https://spotify.link/AbC123");
 });

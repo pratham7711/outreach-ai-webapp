@@ -22,6 +22,8 @@ import { clearSongSound, readSongSounds, setSongSound } from "@/lib/songs/songSo
 import { resolveSpotifyLink } from "@/lib/songs/spotifyLinkResolve";
 import { SPOTIFY_LINK_UNAVAILABLE, readSongSpotifyLink, songLinksReady, type SpotifyLinkSave } from "@/lib/songs/songLinks";
 import { applySongSpotifyLink } from "@/lib/songs/spotifyLinkApply";
+import { songAlbumsReady } from "@/lib/songs/songAlbums";
+import type { SpotifyRef } from "@/lib/songs/spotifyLink";
 import { ROSTER_CREATOR_SELECT, buildRoster, summarizeCampaignPosts } from "@/lib/campaigns/detailSummary";
 import { withoutImportCopy } from "@/lib/serialization/importCopy";
 import { followersTimesFor } from "@/lib/creators/followersTimes";
@@ -293,16 +295,16 @@ export async function PATCH(
        that says so -- either way the campaign is left exactly as it was,
        rather than half-saved without the link the operator just pressed Save
        for. `undefined` means the body did not mention it. */
-    let spotifyTrackId: string | null | undefined;
+    let spotifyRef: SpotifyRef | null | undefined;
     if (spotifyUrl !== undefined) {
       if (spotifyUrl) {
         const link = await resolveSpotifyLink(spotifyUrl);
         if (!link.ok) return NextResponse.json({ error: link.reason, message: link.message }, { status: 400 });
-        spotifyTrackId = link.trackId;
+        spotifyRef = link.ref;
       } else {
-        spotifyTrackId = null;
+        spotifyRef = null;
       }
-      if (!(await songLinksReady(orgId))) {
+      if (!(await songLinksReady(orgId)) || (spotifyRef?.kind === "album" && !(await songAlbumsReady()))) {
         return NextResponse.json({ error: "spotify_link_unavailable", message: SPOTIFY_LINK_UNAVAILABLE }, { status: 503 });
       }
     }
@@ -392,9 +394,9 @@ export async function PATCH(
        pointing at. A campaign with no song gets one for the link, as a
        campaign created with only a Spotify link does. */
     let spotifySongId: string | null = null;
-    if (spotifyTrackId !== undefined) {
+    if (spotifyRef !== undefined) {
       spotifySongId = audioSongId ?? (rest.songId !== undefined ? rest.songId : existing.songId);
-      if (!spotifySongId && spotifyTrackId) {
+      if (!spotifySongId && spotifyRef) {
         spotifySongId = await createSongForSpotifyLink(db, orgId, rest.title ?? existing.title);
       }
     }
@@ -513,8 +515,8 @@ export async function PATCH(
        route; the first reading, when the link changed on an open campaign, is
        scheduled in there. */
     let spotifySaved: SpotifyLinkSave | null = null;
-    if (spotifyTrackId !== undefined && spotifySongId) {
-      spotifySaved = await applySongSpotifyLink(orgId, spotifySongId, spotifyTrackId, campaign.status);
+    if (spotifyRef !== undefined && spotifySongId) {
+      spotifySaved = await applySongSpotifyLink(orgId, spotifySongId, spotifyRef, campaign.status);
     }
 
     /* A new picture is copied while its link still draws (lib/campaigns/
@@ -548,7 +550,7 @@ export async function PATCH(
         status: campaign.status,
         campaignType: campaign.campaignType,
         budget: campaign.budget,
-        ...(spotifyTrackId !== undefined ? { spotifyTrackId } : {}),
+        ...(spotifyRef !== undefined ? { spotifyLink: spotifyRef } : {}),
       },
     });
 
@@ -558,7 +560,12 @@ export async function PATCH(
     return NextResponse.json({
       ...campaign,
       typeConfig: withoutImportCopy(campaign.typeConfig),
-      ...(spotifyTrackId !== undefined ? { spotifyTrackId: spotifySongId ? spotifyTrackId : null } : {}),
+      ...(spotifyRef !== undefined
+        ? {
+            spotifyTrackId: spotifySongId && spotifyRef?.kind === "track" ? spotifyRef.id : null,
+            spotifyAlbumId: spotifySongId && spotifyRef?.kind === "album" ? spotifyRef.id : null,
+          }
+        : {}),
     });
   } catch (error) {
     console.error("Failed to update campaign:", error);

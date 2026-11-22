@@ -89,10 +89,10 @@ beforeEach(() => {
 });
 
 describe("POST /api/campaigns", () => {
-  it("refuses an album link by name, before anything is written", async () => {
-    const res = await createCampaign(req("/api/campaigns", { title: "Launch", audioUrl, spotifyUrl: `https://open.spotify.com/album/${TRACK}` }));
+  it("refuses a playlist link by name, before anything is written", async () => {
+    const res = await createCampaign(req("/api/campaigns", { title: "Launch", audioUrl, spotifyUrl: `https://open.spotify.com/playlist/${TRACK}` }));
     expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: "album", message: "That's an album link. Open the song and copy its link." });
+    expect(await res.json()).toEqual({ error: "playlist", message: "That's a playlist link. Open the song and copy its link." });
     expect(fake.sql).not.toContain("BEGIN");
     expect(writes()).toEqual([]);
   });
@@ -180,6 +180,32 @@ describe("PATCH /api/campaigns/[id]", () => {
     expect(fake.tables.Song[0].spotifyTrackId).toBe(TRACK);
     await runAfter();
     expect(mockPrime).toHaveBeenCalledTimes(1);
+  });
+
+  it("links an album in place of the track, and schedules its first reading", async () => {
+    fake.reset({ Campaign: [campaignRow()], Song: [songRow({ spotifyTrackId: OTHER })] });
+    const res = await updateCampaign(
+      req("/api/campaigns/camp-1", { spotifyUrl: `https://open.spotify.com/album/${TRACK}?si=1` }, "PATCH"),
+      params
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ spotifyTrackId: null, spotifyAlbumId: TRACK });
+    expect(fake.tables.Song[0].spotifyTrackId).toBeNull();
+    expect(fake.tables.SongSpotifyAlbum).toEqual([expect.objectContaining({ songId: "song-1", orgId: "org-1", albumId: TRACK })]);
+    await runAfter();
+    expect(mockPrime).toHaveBeenCalledWith("org-1", "song-1");
+  });
+
+  it("drops the album when a track is linked instead", async () => {
+    fake.reset({
+      Campaign: [campaignRow()],
+      Song: [songRow()],
+      SongSpotifyAlbum: [{ songId: "song-1", orgId: "org-1", albumId: OTHER }],
+    });
+    const res = await updateCampaign(req("/api/campaigns/camp-1", { spotifyUrl }, "PATCH"), params);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ spotifyTrackId: TRACK, spotifyAlbumId: null });
+    expect(fake.sql.some((q) => /^DELETE FROM "public"\."SongSpotifyAlbum"/.test(q))).toBe(true);
   });
 
   it("clears the link with an empty field, and reads nothing", async () => {

@@ -1,5 +1,6 @@
 import {
   createSpotifyReader,
+  type SpotifyAlbumReading,
   type SpotifyReader,
   type SpotifyTrackHit,
   type SpotifyTrackReading,
@@ -31,8 +32,14 @@ export type SpotifyPlayCountReading = SpotifyTrackReading & {
   countHidden: boolean;
 };
 
+/** An album's tracks under the same rule: a track Spotify shows 0 for has no count. */
+export type SpotifyAlbumPlayCounts = Omit<SpotifyAlbumReading, "tracks"> & {
+  tracks: (SpotifyAlbumReading["tracks"][number] & { countHidden: boolean })[];
+};
+
 export type SpotifyReads = {
   readSpotifyTrack: (trackId: string) => Promise<SpotifyPlayCountReading | null>;
+  readSpotifyAlbum: (albumId: string) => Promise<SpotifyAlbumPlayCounts | null>;
   searchSpotifyTracks: (query: string) => Promise<SpotifyTrackHit[]>;
   close: () => Promise<void>;
 };
@@ -42,6 +49,14 @@ export function withPublishedCount(reading: SpotifyTrackReading | null): Spotify
   if (!reading) return null;
   const hidden = reading.playCount === 0;
   return { ...reading, playCount: hidden ? null : reading.playCount, countHidden: hidden };
+}
+
+export function withPublishedAlbumCounts(reading: SpotifyAlbumReading | null): SpotifyAlbumPlayCounts | null {
+  if (!reading) return null;
+  return {
+    ...reading,
+    tracks: reading.tracks.map((t) => ({ ...t, playCount: t.playCount === 0 ? null : t.playCount, countHidden: t.playCount === 0 })),
+  };
 }
 
 /**
@@ -54,6 +69,9 @@ export function openSpotifyReads(opts: { reader?: SpotifyReader } = {}): Spotify
   return {
     async readSpotifyTrack(trackId) {
       return withPublishedCount(await reader.track(trackId));
+    },
+    async readSpotifyAlbum(albumId) {
+      return withPublishedAlbumCounts(await reader.album(albumId));
     },
     async searchSpotifyTracks(query) {
       return reader.search(query);

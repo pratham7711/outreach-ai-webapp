@@ -7,7 +7,8 @@ import { storedSoundCoverVersions } from "@/lib/sounds/coverStore";
 import { soundCoverPath } from "@/lib/postMedia";
 import { readSongSpotifyLink, songLinksReady } from "@/lib/songs/songLinks";
 import { readSongSoundIds, readSongSounds } from "@/lib/songs/songSounds";
-import { spotifyTrackLink } from "@/lib/songs/spotifyLink";
+import { spotifyAlbumLink, spotifyTrackLink } from "@/lib/songs/spotifyLink";
+import { readSongAlbum } from "@/lib/songs/songAlbums";
 
 /**
  * The audio card's cover from our own copy where there is one
@@ -55,7 +56,7 @@ export async function GET(
          many other campaigns promote the same song, which every change in the
          panel reaches too. */
       const songId = campaign.song?.id ?? null;
-      const [audios, link, sounds, sharedWith] = await Promise.all([
+      const [audios, link, sounds, sharedWith, album] = await Promise.all([
         loadCampaignAudio(campaign.id, campaign.orgId, { series: false }),
         /* No song yet: a save would create one, which needs the column too. */
         songId
@@ -65,6 +66,7 @@ export async function GET(
         songId
           ? db.campaign.count({ where: { orgId: campaign.orgId, songId, deletedAt: null, id: { not: campaign.id } } })
           : 0,
+        songId ? readSongAlbum(campaign.orgId, songId) : { ready: true, album: null },
       ]);
       return NextResponse.json({
         audio: await withStoredCover(audios.audio, sounds.tiktok?.id, campaign.orgId),
@@ -75,10 +77,18 @@ export async function GET(
            TikTok sound yet. */
         instagramReady: sounds.ready,
         sharedWith,
+        /* A song carries a track or an album, never both; an album wins if a
+           stale track were ever left beside it, as the daily read does. */
         spotify: {
           ready: link.ready,
-          trackId: link.trackId,
-          url: link.trackId ? spotifyTrackLink(link.trackId) : null,
+          albumsReady: album.ready,
+          trackId: album.album ? null : link.trackId,
+          albumId: album.album?.albumId ?? null,
+          url: album.album
+            ? spotifyAlbumLink(album.album.albumId)
+            : link.trackId
+              ? spotifyTrackLink(link.trackId)
+              : null,
         },
       });
     }

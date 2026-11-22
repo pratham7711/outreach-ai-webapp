@@ -3,7 +3,9 @@ import {
   SPOTIFY_OPEN_HOST,
   SPOTIFY_SHORT_HOSTS,
   parseSpotifyLink,
+  spotifyRefOf,
   type SpotifyLinkReason,
+  type SpotifyRef,
 } from "./spotifyLink";
 
 /**
@@ -11,13 +13,14 @@ import {
  * asking Spotify whether the track exists.
  *
  * Both run before anything is stored, and neither is the play count -- that is
- * still read once a day by the cron (lib/songs/streamSnapshot.ts).
+ * still read once a day by the cron (lib/songs/streamSnapshot.ts). A link may
+ * name a track or an album; `ref` says which.
  */
 
 type Fetch = typeof fetch;
 
 export type SpotifyLinkResolution =
-  | { ok: true; trackId: string; url: string }
+  | { ok: true; ref: SpotifyRef; url: string }
   | { ok: false; reason: SpotifyLinkReason; message: string };
 
 const MAX_HOPS = 5;
@@ -47,7 +50,8 @@ export async function resolveSpotifyLink(
   opts: { fetchImpl?: Fetch; budgetMs?: number } = {}
 ): Promise<SpotifyLinkResolution> {
   const parsed = parseSpotifyLink(raw);
-  if (parsed.kind === "track") return { ok: true, trackId: parsed.trackId, url: parsed.url };
+  if (parsed.kind === "track") return { ok: true, ref: { kind: "track", id: parsed.trackId }, url: parsed.url };
+  if (parsed.kind === "album") return { ok: true, ref: { kind: "album", id: parsed.albumId }, url: parsed.url };
   if (parsed.kind === "invalid") return refuse(parsed.reason);
 
   const fetchImpl = opts.fetchImpl ?? fetch;
@@ -75,7 +79,8 @@ export async function resolveSpotifyLink(
     if (next.protocol !== "https:" || !FOLLOWABLE.has(host)) return refuse("short_link_unresolvable");
     if (host === SPOTIFY_OPEN_HOST) {
       const landed = parseSpotifyLink(next.toString());
-      if (landed.kind === "track") return { ok: true, trackId: landed.trackId, url: landed.url };
+      const ref = spotifyRefOf(landed);
+      if (ref && (landed.kind === "track" || landed.kind === "album")) return { ok: true, ref, url: landed.url };
       return refuse(landed.kind === "invalid" ? landed.reason : "short_link_unresolvable");
     }
     current = next.toString();
@@ -92,8 +97,8 @@ const OEMBED_TIMEOUT_MS = 5_000;
 /**
  * Whether Spotify has this track, from its public oEmbed endpoint: one small
  * JSON answer with the track's title and cover (measured 2026-10-25 at about
- * 0.3 s). It answers for an album link too, which is why the link is parsed as
- * a track first and this only ever sees a track URL.
+ * 0.3 s). It answers for an album link the same way (the album's name and
+ * cover); the link is parsed first, so this only ever sees a track or album URL.
  *
  * 404 means Spotify said there is no such track (a 400 is the same answer for
  * an id it cannot read); 502 means it did not answer, which is not evidence

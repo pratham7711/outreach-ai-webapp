@@ -8,12 +8,20 @@
  */
 const mockCampaign = jest.fn();
 const mockReadings = jest.fn();
+const mockAlbum = jest.fn();
+const mockTrackRows = jest.fn();
 jest.mock("@/lib/db", () => ({
   db: {
     campaign: { findUnique: (...a: unknown[]) => mockCampaign(...a) },
     songStreamSnapshot: { findMany: (...a: unknown[]) => mockReadings(...a) },
+    songSpotifyAlbum: { findFirst: (...a: unknown[]) => mockAlbum(...a) },
+    songStreamTrackReading: { findMany: (...a: unknown[]) => mockTrackRows(...a) },
   },
 }));
+beforeEach(() => {
+  mockAlbum.mockReset().mockResolvedValue(null);
+  mockTrackRows.mockReset().mockResolvedValue([]);
+});
 
 import { ADD_LINK_NOTE, HIDDEN_COUNT_NOTE, loadCampaignStreams, streamFigures, type StreamRow } from "@/lib/songs/streams";
 import { HIDDEN_COUNT_FAILURE } from "@/lib/songs/streamSnapshot";
@@ -203,6 +211,34 @@ describe("loadCampaignStreams", () => {
     // Linked since, but the newest counted reading is still the matched track.
     mockCampaign.mockResolvedValue(camp({ song: { id: "song-1", title: "Neon Skyline", deletedAt: null, spotifyTrackId: B } }));
     expect((await loadCampaignStreams("camp-1", "org-1"))?.trackSource).toBe("matched");
+  });
+
+  it("serves a linked album as one figure over all its tracks, with each track listed", async () => {
+    mockCampaign.mockResolvedValue(camp({ song: { id: "song-1", title: "Neon Skyline", deletedAt: null, spotifyTrackId: null } }));
+    mockReadings.mockResolvedValue([r("2026-10-15", 1100, { spotifyTrackId: null, trackName: "Phonk Pack" })]);
+    mockAlbum.mockResolvedValue({ albumId: B, albumName: "Phonk Pack", albumArtists: "Ava Reyes" });
+    const t = (day: string, trackId: string, n: number) => ({
+      day: new Date(`${day}T00:00:00Z`), trackId, trackName: trackId === A ? "Original" : "Slowed", position: trackId === A ? 1001 : 1002, playCount: BigInt(n),
+    });
+    mockTrackRows.mockResolvedValue([t("2026-10-15", A, 800), t("2026-10-15", B, 300), t("2026-10-14", A, 700), t("2026-10-14", B, 250)]);
+    const out = await loadCampaignStreams("camp-1", "org-1");
+    expect(mockTrackRows.mock.calls[0][0].where).toEqual({ songId: "song-1", orgId: "org-1", albumId: B });
+    expect(out).toMatchObject({
+      kind: "album",
+      track: { id: B, url: `https://open.spotify.com/album/${B}`, name: "Phonk Pack", artists: "Ava Reyes" },
+      trackSource: "linked",
+      totalPlays: 1100,
+      lastDay: 150,
+      note: null,
+    });
+    expect(out?.versions?.map((v) => [v.name, v.totalPlays, v.lastDay])).toEqual([["Original", 800, 100], ["Slowed", 300, 50]]);
+  });
+
+  it("says an album's first reading is still to come", async () => {
+    mockCampaign.mockResolvedValue(camp({ song: { id: "song-1", title: "Neon Skyline", deletedAt: null, spotifyTrackId: null } }));
+    mockReadings.mockResolvedValue([]);
+    mockAlbum.mockResolvedValue({ albumId: B, albumName: null, albumArtists: null });
+    expect((await loadCampaignStreams("camp-1", "org-1"))?.note).toBe("Spotify is read once a day; this album's first reading has not happened yet.");
   });
 
   it("says where the link goes when no track was found and none is linked", async () => {

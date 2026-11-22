@@ -28,6 +28,58 @@ export const TRACK_SOURCE_LABEL = {
   matched: "Matched by title and artist",
 } as const;
 
+/** The line under an album's name: what its figures add up. */
+export function albumSourceLabel(count: number): string {
+  return `Album · all ${count} ${count === 1 ? "track" : "tracks"} added up`;
+}
+
+/**
+ * Each track of a linked album -- the versions of the release -- with its
+ * own total and streams, in album order. Only figures Spotify gave: a track
+ * whose count it hides says so instead of showing a number.
+ */
+function AlbumVersions({ versions }: { versions: NonNullable<CampaignStreams["versions"]> }) {
+  const cell: React.CSSProperties = { padding: "8px 6px", borderTop: "1px solid var(--cc-border)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" };
+  const head: React.CSSProperties = { padding: "6px 6px", fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)", textAlign: "right", verticalAlign: "bottom" };
+  return (
+    <div data-testid="spotify-album-versions" style={{ marginTop: 16, overflowX: "auto" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "var(--cc-t-13)", color: "var(--cc-text)" }}>
+        <caption style={{ textAlign: "left", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", padding: "0 0 6px" }}>
+          Tracks on the album
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col" style={{ ...head, textAlign: "left" }}>Track</th>
+            <th scope="col" style={head}>Total plays</th>
+            <th scope="col" style={head}>Last day</th>
+            <th scope="col" style={head}>Since tracking began</th>
+          </tr>
+        </thead>
+        <tbody>
+          {versions.map((v) => (
+            <tr key={v.id}>
+              <th scope="row" style={{ ...cell, fontWeight: 400, textAlign: "left", whiteSpace: "normal", minWidth: 110 }}>
+                <a href={v.url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--cc-text)", textDecoration: "none" }}>
+                  {v.name || "Untitled track"}
+                </a>
+              </th>
+              {v.totalPlays === null ? (
+                <td colSpan={3} style={{ ...cell, textAlign: "right", color: "var(--cc-text-muted)" }}>Count hidden by Spotify</td>
+              ) : (
+                <>
+                  <td style={{ ...cell, textAlign: "right" }}>{formatFull(v.totalPlays)}</td>
+                  <td style={{ ...cell, textAlign: "right" }}>{signed(v.lastDay)}</td>
+                  <td style={{ ...cell, textAlign: "right" }}>{signed(v.sinceFirst)}</td>
+                </>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 type Variant = "dashboard" | "report";
 
 /** "14 Oct", from a YYYY-MM-DD that is already a UTC day. */
@@ -239,6 +291,7 @@ export function SpotifyStreamsCard({
   const canSwitch = hasBars && allPlays.length >= 2;
   const showTotal = canSwitch && mode === "cumulative";
   const track = streams.track;
+  const versions = streams.kind === "album" ? (streams.versions ?? []) : [];
 
   if (variant === "report") {
     return (
@@ -252,7 +305,9 @@ export function SpotifyStreamsCard({
               </span>
               <span className="spr-audio-names">
                 <span className="spr-audio-track">{track.name || streams.songTitle}</span>
-                <span className="spr-audio-artist">{track.artists}</span>
+                <span className="spr-audio-artist">
+                  {streams.kind === "album" ? [track.artists, albumSourceLabel(versions.length)].filter(Boolean).join(" · ") : track.artists}
+                </span>
               </span>
             </a>
           ) : null}
@@ -294,6 +349,7 @@ export function SpotifyStreamsCard({
         ) : (
           <p className="spr-note">Daily streams appear once Spotify has been read two days in a row.</p>
         )}
+        {versions.length ? <AlbumVersions versions={versions} /> : null}
       </section>
     );
   }
@@ -351,7 +407,7 @@ export function SpotifyStreamsCard({
                         data-testid="spotify-track-source"
                         style={{ fontSize: "var(--cc-t-12)", color: "var(--audio-tile-ink-muted, var(--cc-text-muted))", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
                       >
-                        {TRACK_SOURCE_LABEL[streams.trackSource]}
+                        {streams.kind === "album" ? albumSourceLabel(versions.length) : TRACK_SOURCE_LABEL[streams.trackSource]}
                       </div>
                     ) : null}
                   </div>
@@ -401,6 +457,7 @@ export function SpotifyStreamsCard({
                 Daily streams appear once Spotify has been read two days in a row.
               </p>
             )}
+            {versions.length ? <AlbumVersions versions={versions} /> : null}
           </>
         )}
       </div>

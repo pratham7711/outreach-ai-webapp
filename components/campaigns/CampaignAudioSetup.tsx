@@ -84,8 +84,8 @@ type CurrentAudio = {
   usesRounded: boolean;
 };
 
-/** The song's linked Spotify track, from ?only=audio. `ready: false` while the database cannot store one. */
-type SavedSpotifyLink = { ready: boolean; trackId: string | null; url: string | null };
+/** The song's linked Spotify track or album, from ?only=audio. `ready: false` while the database cannot store one. */
+type SavedSpotifyLink = { ready: boolean; trackId: string | null; albumId: string | null; url: string | null };
 
 const STEP_LABELS = ["Link", "Confirm", "Tracking"];
 
@@ -583,12 +583,16 @@ function SoundSlot({
 }
 
 
-/** The track id a value names, "" for empty, null when only the server can tell (a short link) or it is not a track. */
-function linkedTrackOf(value: string): string | null {
+/** "track:<id>" or "album:<id>" for what a value names, "" for empty, null when only the server can tell (a short link) or it names neither. */
+function linkedRefOf(value: string): string | null {
   const raw = value.trim();
   if (!raw) return "";
   const parsed = parseSpotifyLink(raw);
-  return parsed.kind === "track" ? parsed.trackId : null;
+  return parsed.kind === "track" ? `track:${parsed.trackId}` : parsed.kind === "album" ? `album:${parsed.albumId}` : null;
+}
+
+function savedRefOf(saved: SavedSpotifyLink): string {
+  return saved.albumId ? `album:${saved.albumId}` : saved.trackId ? `track:${saved.trackId}` : "";
 }
 
 function SpotifyLinkSettings({
@@ -623,7 +627,7 @@ function SpotifyLinkSettings({
   /* Unchanged when it names the saved track (a pasted ?si= copy of the same
      link included), or both are empty. A short link is never "unchanged":
      only the server can say where it goes. */
-  const unchanged = linkedTrackOf(value) === (saved.trackId ?? "");
+  const unchanged = linkedRefOf(value) === savedRefOf(saved);
   const canSave = saved.ready && !busy && !unchanged && !refused && spotify.check.status !== "checking";
 
   /* Back to the saved link, shown as found, after a paste that is not kept. */
@@ -641,7 +645,7 @@ function SpotifyLinkSettings({
     const to = audioFieldFor(link);
     if (to === null) {
       restoreSaved();
-      setNotice(droppedNotice("not_tiktok", "That isn't a Spotify track link.", Boolean(saved.url)));
+      setNotice(droppedNotice("not_tiktok", "That isn't a Spotify track or album link.", Boolean(saved.url)));
       return;
     }
     if (to !== "SPOTIFY") {
@@ -663,7 +667,7 @@ function SpotifyLinkSettings({
       setValue(link);
       setDone(null);
       setError(null);
-      setNotice(movedNotice(from, Boolean(saved.url) && linkedTrackOf(link) !== saved.trackId));
+      setNotice(movedNotice(from, Boolean(saved.url) && linkedRefOf(link) !== savedRefOf(saved)));
       void place(link, true);
       return true;
     },
@@ -685,7 +689,13 @@ function SpotifyLinkSettings({
         setError(json?.message ?? json?.error ?? "That link could not be saved.");
         return;
       }
-      setDone(next ? "Saved. Its play count is read once a day." : "Removed. The track is matched by title and artist again.");
+      setDone(
+        !next
+          ? "Removed. The track is matched by title and artist again."
+          : linkedRefOf(next)?.startsWith("album:") || json?.spotifyAlbumId
+            ? "Saved. Every track on the album is read once a day."
+            : "Saved. Its play count is read once a day."
+      );
       await onSaved();
     } catch {
       setError("That link could not be saved.");
@@ -696,7 +706,7 @@ function SpotifyLinkSettings({
 
   return (
     <section aria-labelledby="audio-setup-spotify-h" style={sectionStyle}>
-      <h4 id="audio-setup-spotify-h" style={headingStyle}>Spotify track</h4>
+      <h4 id="audio-setup-spotify-h" style={headingStyle}>Spotify</h4>
       {/* The section heading says what this is; the label stays for the input's name. */}
       <label htmlFor="audio-setup-spotify" className="sr-only">{SPOTIFY_LINK_LABEL}</label>
       {/* Save sits on the field, as Import does on the sound link in the New
@@ -758,7 +768,7 @@ export function CampaignAudioSetup({ campaignId }: { campaignId: string }) {
      sound still shows, it just cannot be joined by the other platform's. */
   const [slotsReady, setSlotsReady] = useState(true);
   const [sharedWith, setSharedWith] = useState(0);
-  const [spotifyLink, setSpotifyLink] = useState<SavedSpotifyLink>({ ready: true, trackId: null, url: null });
+  const [spotifyLink, setSpotifyLink] = useState<SavedSpotifyLink>({ ready: true, trackId: null, albumId: null, url: null });
   const [loaded, setLoaded] = useState(false);
   const receivers = {
     TIKTOK: useRef<LinkReceiver>(null),
@@ -796,6 +806,7 @@ export function CampaignAudioSetup({ campaignId }: { campaignId: string }) {
       setSpotifyLink({
         ready: data?.spotify?.ready !== false,
         trackId: typeof data?.spotify?.trackId === "string" ? data.spotify.trackId : null,
+        albumId: typeof data?.spotify?.albumId === "string" ? data.spotify.albumId : null,
         url: typeof data?.spotify?.url === "string" ? data.spotify.url : null,
       });
     } finally {

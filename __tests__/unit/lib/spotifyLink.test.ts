@@ -1,10 +1,10 @@
 /**
  * @jest-environment node
  *
- * A pasted Spotify link, and only a track. What matters is the paste people
- * actually make -- a regional page, a share link with ?si=, the app's short
- * link -- and the near misses that name the wrong thing: the album the song is
- * on, a playlist, the artist.
+ * A pasted Spotify link: a track, or an album whose tracks are all counted.
+ * What matters is the paste people actually make -- a regional page, a share
+ * link with ?si=, the app's short link -- and the near misses that name the
+ * wrong thing: a playlist, the artist.
  */
 import { SPOTIFY_LINK_ERRORS, parseSpotifyLink } from "@/lib/songs/spotifyLink";
 import { checkSpotifyTrack, resolveSpotifyLink } from "@/lib/songs/spotifyLinkResolve";
@@ -29,9 +29,15 @@ describe("parseSpotifyLink", () => {
   });
 
   it.each([
-    [`https://open.spotify.com/album/${ID}`, "album", "That's an album link. Open the song and copy its link."],
-    [`https://open.spotify.com/intl-fr/album/${ID}?si=1`, "album", "That's an album link. Open the song and copy its link."],
-    [`spotify:album:${ID}`, "album", "That's an album link. Open the song and copy its link."],
+    `https://open.spotify.com/album/${ID}`,
+    `https://open.spotify.com/intl-fr/album/${ID}?si=1`,
+    `https://open.spotify.com/embed/album/${ID}`,
+    `spotify:album:${ID}`,
+  ])("reads %s as an album, whose tracks are all counted", (link) => {
+    expect(parseSpotifyLink(link)).toEqual({ kind: "album", albumId: ID, url: `https://open.spotify.com/album/${ID}` });
+  });
+
+  it.each([
     [`https://open.spotify.com/playlist/${ID}`, "playlist", "That's a playlist link. Open the song and copy its link."],
     [`https://open.spotify.com/artist/${ID}`, "artist", "That's an artist link. Open the song and copy its link."],
     [`https://open.spotify.com/episode/${ID}`, "episode", "That's a podcast episode link. Open the song and copy its link."],
@@ -58,7 +64,7 @@ describe("parseSpotifyLink", () => {
   });
 
   it("says the generic refusal in the words the form shows", () => {
-    expect(SPOTIFY_LINK_ERRORS.not_track).toBe("That isn't a Spotify track link.");
+    expect(SPOTIFY_LINK_ERRORS.not_track).toBe("That isn't a Spotify track or album link.");
   });
 
   it("leaves a short link to be followed, always over https", () => {
@@ -87,7 +93,7 @@ function hops(table: Record<string, { status: number; location?: string }>) {
 describe("resolveSpotifyLink", () => {
   it("answers a track link without any request", async () => {
     const { fetchImpl, asked } = hops({});
-    expect(await resolveSpotifyLink(`${TRACK}?si=1`, { fetchImpl })).toEqual({ ok: true, trackId: ID, url: TRACK });
+    expect(await resolveSpotifyLink(`${TRACK}?si=1`, { fetchImpl })).toEqual({ ok: true, ref: { kind: "track", id: ID }, url: TRACK });
     expect(asked).toEqual([]);
   });
 
@@ -96,18 +102,18 @@ describe("resolveSpotifyLink", () => {
       "https://spotify.link/AbCdEf123": { status: 307, location: "https://spotify.app.link/AbCdEf123?_p=c1" },
       "https://spotify.app.link/AbCdEf123?_p=c1": { status: 307, location: `https://open.spotify.com/track/${ID}?si=z&_branch_match_id=9` },
     });
-    expect(await resolveSpotifyLink("https://spotify.link/AbCdEf123", { fetchImpl })).toEqual({ ok: true, trackId: ID, url: TRACK });
+    expect(await resolveSpotifyLink("https://spotify.link/AbCdEf123", { fetchImpl })).toEqual({ ok: true, ref: { kind: "track", id: ID }, url: TRACK });
     expect(asked).toEqual(["https://spotify.link/AbCdEf123", "https://spotify.app.link/AbCdEf123?_p=c1"]);
   });
 
-  it("names an album the short link leads to as an album", async () => {
+  it("takes an album the short link leads to as an album", async () => {
     const { fetchImpl } = hops({
       "https://spotify.link/Alb": { status: 302, location: `https://open.spotify.com/album/${ID}` },
     });
-    expect(await resolveSpotifyLink("https://spotify.link/Alb", { fetchImpl })).toMatchObject({
-      ok: false,
-      reason: "album",
-      message: "That's an album link. Open the song and copy its link.",
+    expect(await resolveSpotifyLink("https://spotify.link/Alb", { fetchImpl })).toEqual({
+      ok: true,
+      ref: { kind: "album", id: ID },
+      url: `https://open.spotify.com/album/${ID}`,
     });
   });
 

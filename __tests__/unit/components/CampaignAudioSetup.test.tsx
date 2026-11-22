@@ -116,7 +116,7 @@ describe("CampaignAudioSetup — a campaign with no sound", () => {
     fireEvent.change(screen.getByLabelText("Instagram audio link"), { target: { value: spotifyUrl } });
     fireEvent.click(screen.getByRole("button", { name: /continue/i }));
     await waitFor(() => expect(screen.getByLabelText("Spotify link")).toHaveValue(spotifyUrl));
-    expect(within(section("Spotify track")).getByTestId("audio-link-moved")).toHaveTextContent(
+    expect(within(section("Spotify")).getByTestId("audio-link-moved")).toHaveTextContent(
       "Moved here from Instagram audio."
     );
     expect(screen.getByRole("button", { name: /add instagram audio/i })).toBeInTheDocument();
