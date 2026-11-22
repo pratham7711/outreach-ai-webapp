@@ -153,8 +153,8 @@ test.describe('Campaign audio in the New Campaign form', () => {
     await expect(page.getByTestId('instagram-audio-found')).toContainText('Runaway');
 
     await page.getByTestId('wz-audio-chip-spotify').click();
-    await paste(page.getByLabel('Spotify link', { exact: true }), `https://open.spotify.com/album/69bRMupnNveGN0PbZNoctn`);
-    await expect(page.getByText("That's an album link. Open the song and copy its link.")).toBeVisible();
+    await paste(page.getByLabel('Spotify link', { exact: true }), `https://open.spotify.com/playlist/69bRMupnNveGN0PbZNoctn`);
+    await expect(page.getByText("That's a playlist link. Open the song and copy its link.")).toBeVisible();
     await expect(page.getByLabel('Spotify link', { exact: true })).toHaveValue('');
     await expect(create).toBeEnabled();
   });
@@ -168,7 +168,7 @@ test.describe('Campaign audio in settings', () => {
   test('hands a link to its own section, and leaves out what cannot be tracked', async ({ page }) => {
     await answerChecks(page);
     const tiktokSection = page.getByRole('region', { name: 'TikTok sound' });
-    const spotifySection = page.getByRole('region', { name: 'Spotify track' });
+    const spotifySection = page.getByRole('region', { name: 'Spotify', exact: true });
     await expect(tiktokSection).toBeVisible({ timeout: 20000 });
     await expect(page.getByRole('region', { name: 'Instagram audio' })).toBeVisible();
     await expect(page.getByRole('region', { name: 'YouTube audio' })).toBeVisible();
