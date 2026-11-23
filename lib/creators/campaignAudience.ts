@@ -46,6 +46,18 @@ export type CampaignAudience = {
   basis: Record<CampaignAudienceBasis, number>;
   /** Creators with posts here and no reading at all. */
   uncoveredCreatorIds: string[];
+  /** Each creator's part of it, largest first. */
+  creators: CampaignAudienceCreator[];
+};
+
+export type CampaignAudienceCreator = {
+  creatorId: string;
+  posts: number;
+  coveredPosts: number;
+  weight: number;
+  /** The country most of this creator's estimated audience was in. */
+  topCountry: { key: string; share: number } | null;
+  women: number | null;
 };
 
 const DAY_MS = 86_400_000;
@@ -55,9 +67,16 @@ function dayMs(d: Date | string): number {
   return Date.parse(`${iso}T00:00:00Z`);
 }
 
-function sharesOf(mix: AudienceMix, breakdown: AudienceBreakdown): Map<string, number> {
+/**
+ * Each row's share of the audience. Instagram lists only the top 45 cities,
+ * so cities are measured against the country total (which covers nearly
+ * everyone) rather than against themselves, or the top city would read as
+ * a third of the audience when it is a sixth.
+ */
+export function sharesOf(mix: AudienceMix, breakdown: AudienceBreakdown): Map<string, number> {
   const rows = mix[breakdown];
-  const total = rows.reduce((a, r) => a + r.value, 0);
+  const own = rows.reduce((a, r) => a + r.value, 0);
+  const total = breakdown === "city" ? Math.max(own, mix.country.reduce((a, r) => a + r.value, 0)) : own;
   const out = new Map<string, number>();
   if (total <= 0) return out;
   for (const r of rows) out.set(r.key, r.value / total);
@@ -102,16 +121,24 @@ export function campaignAudience(
   let coveredWeight = 0;
   let totalWeight = 0;
   let coveredPosts = 0;
+  const perCreator = new Map<string, { posts: number; coveredPosts: number; weight: number; country: Map<string, number>; gender: Map<string, number> }>();
 
   for (const post of posts) {
     const weight = Number.isFinite(post.weight) && post.weight > 0 ? post.weight : 0;
     totalWeight += weight;
+    const mine = perCreator.get(post.creatorId) ?? { posts: 0, coveredPosts: 0, weight: 0, country: new Map(), gender: new Map() };
+    perCreator.set(post.creatorId, mine);
+    mine.posts++;
+    mine.weight += weight;
     const picked = pickAudience(readingsByCreator.get(post.creatorId) ?? [], post.postedAt);
     if (!picked) {
       uncovered.add(post.creatorId);
       continue;
     }
     coveredPosts++;
+    mine.coveredPosts++;
+    for (const [key, share] of sharesOf(picked.mix, "country")) mine.country.set(key, (mine.country.get(key) ?? 0) + share * weight);
+    for (const [key, share] of sharesOf(picked.mix, "gender")) mine.gender.set(key, (mine.gender.get(key) ?? 0) + share * weight);
     basis[picked.basis]++;
     coveredWeight += weight;
     if (weight === 0) continue;
@@ -137,7 +164,24 @@ export function campaignAudience(
     posts.filter((p) => pickAudience(readingsByCreator.get(p.creatorId) ?? [], p.postedAt)).map((p) => p.creatorId),
   );
 
+  const creators: CampaignAudienceCreator[] = [...perCreator.entries()]
+    .map(([creatorId, c]) => {
+      const countryTotal = [...c.country.values()].reduce((a, v) => a + v, 0);
+      const top = [...c.country.entries()].sort((a, b) => b[1] - a[1])[0];
+      const genderTotal = [...c.gender.values()].reduce((a, v) => a + v, 0);
+      return {
+        creatorId,
+        posts: c.posts,
+        coveredPosts: c.coveredPosts,
+        weight: Math.round(c.weight),
+        topCountry: top && countryTotal > 0 ? { key: top[0], share: top[1] / countryTotal } : null,
+        women: genderTotal > 0 ? (c.gender.get("F") ?? 0) / genderTotal : null,
+      };
+    })
+    .sort((a, b) => b.weight - a.weight);
+
   return {
+    creators,
     breakdowns,
     coveredWeight: Math.round(coveredWeight),
     totalWeight: Math.round(totalWeight),

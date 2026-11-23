@@ -186,16 +186,21 @@ export function SplitBar({ segments, label, valueFormat = "percent" }: { segment
 }
 
 /** Ranked rows with a bar each, largest first: top countries. */
-export function RankBars({ rows }: { rows: Array<{ key: string; label: string; share: number }> }) {
+export function RankBars({ rows }: { rows: Array<{ key: string; label: string; share: number; /** A count shown beside the share. */ note?: string }> }) {
   const top = Math.max(...rows.map((r) => r.share), 0.0001);
+  const noted = rows.some((r) => r.note);
   return (
     <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 10 }}>
       {rows.map((r) => (
-        <li key={r.key} style={{ display: "grid", gridTemplateColumns: "minmax(0, 7.5rem) 1fr auto", alignItems: "center", gap: 10, fontSize: 13, color: "var(--cc-text)" }}>
+        <li
+          key={r.key}
+          style={{ display: "grid", gridTemplateColumns: noted ? "minmax(0, 7.5rem) 1fr auto auto" : "minmax(0, 7.5rem) 1fr auto", alignItems: "center", gap: 10, fontSize: 13, color: "var(--cc-text)" }}
+        >
           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.label}</span>
           <span aria-hidden="true" style={{ height: 8, borderRadius: 4, background: "var(--cc-hover-bg)", overflow: "hidden" }}>
             <span style={{ display: "block", width: `${(r.share / top) * 100}%`, height: "100%", borderRadius: 4, background: "var(--cc-primary)" }} />
           </span>
+          {noted && <span style={{ ...NUM, color: "var(--cc-text-muted)", textAlign: "right", fontSize: 12 }}>{r.note}</span>}
           <span style={{ ...NUM, fontWeight: 700, minWidth: 36, textAlign: "right" }}>{formatPercent(r.share)}</span>
         </li>
       ))}

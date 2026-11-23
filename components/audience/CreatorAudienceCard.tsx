@@ -5,6 +5,11 @@ import { SectionHeading, Toggle, muted } from "@/components/insights/parts";
 import type { StoredAudience } from "@/lib/creators/audienceSnapshots";
 import { emptyMix } from "@/lib/platforms/instagramAccountInsights";
 import { AudienceBreakdowns, toShares } from "./AudienceBreakdowns";
+import { sharesOf } from "@/lib/creators/campaignAudience";
+import type { AudienceMix } from "@/lib/platforms/instagramAccountInsights";
+
+const citySharesOf = (mix: AudienceMix) =>
+  [...sharesOf(mix, "city").entries()].map(([key, share]) => ({ key, share })).sort((a, b) => b.share - a.share);
 
 /**
  * A creator's Instagram audience as saved by the weekly read: who follows
@@ -70,7 +75,7 @@ export function CreatorAudienceCard({ creatorId }: { creatorId: string }) {
   const shares = useMemo(
     () =>
       reading
-        ? { country: toShares(reading.mix.country), city: toShares(reading.mix.city), age: toShares(reading.mix.age), gender: toShares(reading.mix.gender) }
+        ? { country: toShares(reading.mix.country), city: citySharesOf(reading.mix), age: toShares(reading.mix.age), gender: toShares(reading.mix.gender) }
         : null,
     [reading],
   );

@@ -128,6 +128,20 @@ describe("campaign audience estimate", () => {
     expect(out.breakdowns.gender.map((g) => g.key)).toEqual(["F", "M"]);
     expect(out).toMatchObject({ coveredWeight: 400, totalWeight: 1000, coveredPosts: 2, totalPosts: 3, uncoveredCreatorIds: ["c"] });
     expect(out.basis).toEqual({ engaged_week: 1, engaged_month: 0, followers: 1 });
+    expect(out.creators.map((c) => [c.creatorId, c.weight, c.topCountry?.key ?? null, c.women])).toEqual([
+      ["c", 600, null, null],
+      ["a", 300, "IN", 1],
+      ["b", 100, "US", 0],
+    ]);
+  });
+
+  it("measures cities against the whole audience, since Instagram lists only the top 45", () => {
+    const m = mix({ country: [{ key: "IN", value: 100 }], city: [{ key: "Mumbai, Maharashtra", value: 20 }, { key: "Delhi, Delhi", value: 10 }] });
+    const out = campaignAudience([{ creatorId: "a", postedAt: "2026-11-10", weight: 1000 }], new Map([["a", [reading("followers", "this_month", "2026-11-12", m)]]]));
+    expect(out.breakdowns.city).toEqual([
+      { key: "Mumbai, Maharashtra", people: 200, share: 0.2 },
+      { key: "Delhi, Delhi", people: 100, share: 0.1 },
+    ]);
   });
 
   it("treats a missing or negative weight as zero without dropping the post's coverage", () => {

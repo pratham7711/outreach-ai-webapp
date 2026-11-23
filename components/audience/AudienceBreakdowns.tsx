@@ -1,6 +1,7 @@
 "use client";
 
 import { ColumnBars, RankBars, SplitBar, muted } from "@/components/insights/parts";
+import { formatCount } from "@/components/portal/app/ui";
 import { AudienceGlobe } from "./AudienceGlobe";
 import { ageLabel, byAgeBand, regionName } from "./regions";
 
@@ -13,7 +14,8 @@ import { ageLabel, byAgeBand, regionName } from "./regions";
  * on its own, because Instagram leaves different people out of each.
  */
 
-export type ShareRow = { key: string; share: number };
+/** `people`, where given, is an estimated count shown beside the share. */
+export type ShareRow = { key: string; share: number; people?: number };
 export type AudienceShares = { country: ShareRow[]; city: ShareRow[]; age: ShareRow[]; gender: ShareRow[] };
 
 const GENDER: Record<string, { label: string; color: string }> = {
@@ -29,6 +31,8 @@ export function toShares(rows: Array<{ key: string; value: number }>): ShareRow[
   return rows.map((r) => ({ key: r.key, share: r.value / total })).sort((a, b) => b.share - a.share);
 }
 
+const people = (r: ShareRow) => (r.people !== undefined ? `~${formatCount(r.people)}` : undefined);
+
 const subhead = (t: string) => <p style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)", margin: "0 0 10px" }}>{t}</p>;
 
 export function AudienceBreakdowns({ shares, who }: { shares: AudienceShares; /** "Followers", "Engaged audience", "Estimated audience". */ who: string }) {
@@ -40,7 +44,7 @@ export function AudienceBreakdowns({ shares, who }: { shares: AudienceShares; /*
           <AudienceGlobe shares={country} label={`${who} by country`} />
           <div style={{ minWidth: 0 }}>
             {subhead("Top countries")}
-            <RankBars rows={country.slice(0, 8).map((r) => ({ key: r.key, label: regionName(r.key), share: r.share }))} />
+            <RankBars rows={country.slice(0, 8).map((r) => ({ key: r.key, label: regionName(r.key), share: r.share, note: people(r) }))} />
             {country.length > 8 && (
               <p style={{ ...muted, fontSize: 12, marginTop: 10 }}>
                 And {country.length - 8} more {country.length - 8 === 1 ? "country" : "countries"}, each under {Math.max(1, Math.round(country[7].share * 100))}%.
@@ -73,7 +77,7 @@ export function AudienceBreakdowns({ shares, who }: { shares: AudienceShares; /*
         {city.length > 0 && (
           <div>
             {subhead("Top cities")}
-            <RankBars rows={city.slice(0, 6).map((r) => ({ key: r.key, label: r.key.split(",")[0], share: r.share }))} />
+            <RankBars rows={city.slice(0, 6).map((r) => ({ key: r.key, label: r.key.split(",")[0], share: r.share, note: people(r) }))} />
           </div>
         )}
       </div>

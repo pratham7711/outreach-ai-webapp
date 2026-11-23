@@ -68,16 +68,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     );
     const weightIsReach = posts.some((p) => p.reachCount > 0);
 
-    const uncovered = estimate.uncoveredCreatorIds.length
-      ? await db.creator.findMany({
-          where: { id: { in: estimate.uncoveredCreatorIds }, orgId },
-          select: { id: true, name: true },
-          orderBy: { name: "asc" },
-        })
-      : [];
+    const names = new Map(
+      (await db.creator.findMany({ where: { id: { in: creatorIds }, orgId }, select: { id: true, name: true } })).map((c) => [c.id, c.name]),
+    );
+    const uncovered = estimate.uncoveredCreatorIds.map((id) => ({ id, name: names.get(id) ?? "A creator" }));
+    const creators = estimate.creators.map((c) => ({ ...c, name: names.get(c.creatorId) ?? "A creator" }));
 
     return NextResponse.json(
-      { ready: true, posts: posts.length, weightIsReach, ...estimate, uncoveredCreators: uncovered },
+      { ready: true, posts: posts.length, weightIsReach, ...estimate, creators, uncoveredCreators: uncovered },
       { headers: noStore },
     );
   } catch (error) {
