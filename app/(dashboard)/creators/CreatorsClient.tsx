@@ -235,14 +235,14 @@ const CreatorCard = memo(function CreatorCard({
               {title}
             </Link>
             {handle && <p className="cc-roster-card-handle">{handle}</p>}
+            {creator.join && (
+              <span style={{ display: "inline-flex", position: "relative", zIndex: 1, marginTop: 4 }}>
+                <JoinBadge join={creator.join} />
+              </span>
+            )}
           </div>
         </div>
         <div className="cc-roster-card-meta">
-          {creator.join && (
-            <span style={{ alignSelf: "flex-start", position: "relative", zIndex: 1 }}>
-              <JoinBadge join={creator.join} />
-            </span>
-          )}
           <PlatformChips links={accountsOf(creator)} max={4} compact counts={accountsOf(creator).length > 1} />
           <TagList tags={creator.tags} />
         </div>
