@@ -140,15 +140,12 @@ export async function revokeGrantsForConnections(
   const ids = [...new Set(connectionIds.filter(Boolean))];
   if (ids.length === 0) return 0;
   if (!(await grantTablesReady({ fresh: true }))) return 0;
+  let count = 0;
   try {
-    const { count } = await db.creatorGrant.updateMany({
+    ({ count } = await db.creatorGrant.updateMany({
       where: { connectionId: { in: ids }, revokedAt: null },
       data: { revokedAt: new Date(), revokeReason: reason },
-    });
-    /* The audience saved through these connections goes with the consent it
-       was read under (lib/creators/audienceSnapshots.ts). */
-    await deleteAudienceForConnections(ids);
-    return count;
+    }));
   } catch (err) {
     log().warn("Could not revoke grants", {
       connections: ids.length,
@@ -157,6 +154,17 @@ export async function revokeGrantsForConnections(
     });
     return 0;
   }
+  /* The audience saved through these connections goes with the consent it
+     was read under (lib/creators/audienceSnapshots.ts). */
+  try {
+    await deleteAudienceForConnections(ids);
+  } catch (err) {
+    log().warn("Could not delete audience for revoked connections", {
+      connections: ids.length,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+  return count;
 }
 
 export type GrantRecord = {

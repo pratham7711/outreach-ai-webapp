@@ -149,9 +149,8 @@ function centroid(c: Country): [number, number] {
   return [lon, lat];
 }
 
-function cssVar(el: Element, name: string, fallback: string): string {
-  const v = getComputedStyle(el).getPropertyValue(name).trim();
-  return v || fallback;
+function cssVar(el: Element, name: string): string {
+  return getComputedStyle(el).getPropertyValue(name).trim();
 }
 
 const formatShare = (share: number) => `${share >= 0.1 ? Math.round(share * 100) : (share * 100).toFixed(1).replace(/\.0$/, "")}%`;
@@ -210,11 +209,11 @@ export function AudienceGlobe({
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     const colors = {
-      ocean: cssVar(canvas, "--cc-hover-bg", "#f1f2f6"),
-      land: cssVar(canvas, "--cc-border", "#e4e6f0"),
-      edge: cssVar(canvas, "--cc-card", "#ffffff"),
-      rim: cssVar(canvas, "--cc-border", "#e4e6f0"),
-      fill: cssVar(canvas, "--cc-primary", "#5b5bd6"),
+      ocean: cssVar(canvas, "--cc-hover-bg"),
+      land: cssVar(canvas, "--cc-border"),
+      edge: cssVar(canvas, "--cc-card"),
+      rim: cssVar(canvas, "--cc-border"),
+      fill: cssVar(canvas, "--cc-primary"),
     };
     const R = size / 2 - 2;
     const cx = size / 2;
@@ -387,7 +386,7 @@ export function AudienceGlobe({
             fontSize: 12,
             color: "var(--cc-text)",
             whiteSpace: "nowrap",
-            boxShadow: "var(--cc-shadow-sm, 0 2px 8px rgba(0,0,0,0.08))",
+            boxShadow: "var(--cc-popover-shadow)",
           }}
         >
           {hover.name}

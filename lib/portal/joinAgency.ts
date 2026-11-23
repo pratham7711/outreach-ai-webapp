@@ -17,10 +17,12 @@ const GONE = "This join link is no longer active. Ask the agency for a new one."
  * The row names this login (creatorUserId), which is the proof
  * lib/portal/creatorLink.ts reads, so the accounts the creator connects next
  * land on it. A row this login is already on is reused. A row the agency added
- * by hand under the same handle is NOT taken over: the link is public, and a
- * handle is not a proof, so linking it would hand whoever signed up with that
- * handle the row's offers, earnings and connections. The agency merges the two
- * if they are the same person.
+ * by hand under the same handle is NOT taken over here: the link is public, and
+ * a typed handle is not a proof, so linking it would hand whoever signed up
+ * with that handle the row's offers, earnings and connections. The roster
+ * marks the new row as a possible duplicate, and it is folded into the
+ * agency's row once the creator connects the account that handle names
+ * (lib/creators/joinDuplicates.ts).
  */
 export async function joinAgency(session: JoinSession, code: string): Promise<AgencyJoin> {
   const link = await resolveJoinCode(code);
@@ -54,6 +56,13 @@ export async function joinAgency(session: JoinSession, code: string): Promise<Ag
     select: { id: true },
   });
 
+  try {
+    await db.creatorJoinRecord.create({
+      data: { creatorId: created.id, orgId: link.orgId, linkId: link.linkId, creatorUserId: session.creatorUserId },
+    });
+  } catch {
+    /* The mark is for the roster's eye and the merge on connect; the creator is on the roster either way. */
+  }
   await recordJoin(link.linkId);
   await logAudit({
     orgId: link.orgId,

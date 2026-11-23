@@ -1,18 +1,17 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Input } from "@pratham7711/ui";
 import { Button } from "@/components/ds";
 import { AuthForm, AuthNotice, AuthShell, PasswordField } from "@/components/auth/AuthShell";
 import { Field } from "@/components/ds/Field";
-import { ConnectPrompt } from "@/components/portal/ConnectPrompt";
+import { CheckEmail } from "@/components/portal/CheckEmail";
 import { LegalLinks } from "@/components/LegalLinks";
-import { errandQuery, joinLinkAgency, landingAfterAuth, readAuthErrand } from "@/lib/portal/afterAuth";
+import { errandQuery, joinLinkAgency, readAuthErrand } from "@/lib/portal/afterAuth";
 
 function RegisterInner() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const errand = readAuthErrand(searchParams);
   const [agency, setAgency] = useState<string | null>(null);
@@ -28,7 +27,7 @@ function RegisterInner() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState({ email: "", password: "", name: "", handle: "" });
-  const [nextPath, setNextPath] = useState<string | null>(null);
+  const [pending, setPending] = useState<{ email: string; devVerifyUrl?: string | null } | null>(null);
   const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }));
 
   const loginHref = `/portal/login${errandQuery(errand)}`;
@@ -46,20 +45,14 @@ function RegisterInner() {
           password: form.password,
           name: form.name,
           handle: form.handle,
+          errand,
         }),
       });
       const data = await res.json();
-      if (res.ok) {
-        const next = await landingAfterAuth(errand, "/portal/campaigns?tab=open");
-        /* A refused invitation goes back to its public landing page; the
-           connect step is for creators who made it into the app, and is
-           skipped for one who arrived from a connect link, having just
-           connected. */
-        if (!next.startsWith("/portal/") || errand.connect) {
-          router.push(next);
-          return;
-        }
-        setNextPath(next);
+      if (res.ok || data.needsVerification) {
+        /* No session yet: the account opens from the mailed link, which
+           carries the errand on (/portal/verify-email). */
+        setPending({ email: data.email ?? form.email, devVerifyUrl: data.devVerifyUrl ?? null });
         setLoading(false);
       } else {
         setError(data.error ?? "Something went wrong");
@@ -73,10 +66,10 @@ function RegisterInner() {
 
   return (
     <AuthShell
-      title={nextPath ? "One last step" : "Create your creator account"}
+      title={pending ? "Check your email" : "Create your creator account"}
       subtitle={
-        nextPath
-          ? "Your account is ready"
+        pending
+          ? "Confirm it's you to open your account"
           : errand.agency
             ? agency
               ? `Sign up to join ${agency}`
@@ -90,7 +83,7 @@ function RegisterInner() {
                 : "Join campaigns and track how your posts do"
       }
       footer={
-        nextPath ? undefined : (
+        pending ? undefined : (
           <>
             Already have an account? <Link href={loginHref}>Sign in</Link>
           </>
@@ -98,22 +91,11 @@ function RegisterInner() {
       }
       below={<LegalLinks />}
     >
-      {/* Consent comes back to My accounts, not to nextPath: it is the screen
-          that reads the callback's ?connected / ?error&reason and says what
-          happened. The campaigns page ignores both, so a refused connect
-          (no roster row yet: reason=creator) used to land there silently. */}
-      {nextPath && (
-        <ConnectPrompt
-          variant="step"
-          returnTo="/portal/accounts"
-          onSkip={() => router.push(nextPath)}
-          skipLabel="Skip for now"
-        />
-      )}
+      {pending && <CheckEmail email={pending.email} errand={errand} devVerifyUrl={pending.devVerifyUrl} />}
 
       {error && <AuthNotice tone="danger">{error}</AuthNotice>}
 
-      {!nextPath && (
+      {!pending && (
         <AuthForm onSubmit={handleSubmit}>
           <Field label="Full name" required>
             <Input value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="Your name" autoComplete="name" />

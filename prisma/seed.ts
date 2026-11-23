@@ -621,7 +621,7 @@ async function main() {
 
   // ─── Creator Users (Portal) ───
   const creatorHash = await bcrypt.hash("creator123", 10);
-  await prisma.creatorUser.upsert({
+  const seededCreator = await prisma.creatorUser.upsert({
     where: { email: "creator@demo.com" },
     update: {},
     create: {
@@ -639,7 +639,7 @@ async function main() {
       niches: ["FASHION", "LIFESTYLE"],
     },
   });
-  await prisma.creatorUser.upsert({
+  const seededCreator2 = await prisma.creatorUser.upsert({
     where: { email: "alex@demo.com" },
     update: {},
     create: {
@@ -657,6 +657,10 @@ async function main() {
       niches: ["MUSIC", "COMEDY"],
     },
   });
+  /* Portal sign-in needs a confirmed email (lib/portal/creatorEmailVerification.ts). */
+  for (const { id } of [seededCreator, seededCreator2]) {
+    await prisma.creatorEmailVerification.upsert({ where: { creatorUserId: id }, create: { creatorUserId: id }, update: {} });
+  }
 
   // ─── Marketplace campaign (Phase 2M) — GLOBAL, always populated ───
   // Deterministic slug so /explore and /explore/[slug] are never empty in dev/CI.

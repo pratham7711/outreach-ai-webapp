@@ -9,6 +9,7 @@ jest.mock("@/lib/db", () => ({
     $queryRawUnsafe: jest.fn(),
     $transaction: jest.fn(),
     creatorGrant: { updateMany: jest.fn(), create: jest.fn(), findMany: jest.fn() },
+    creatorAudienceSnapshot: { deleteMany: jest.fn() },
   },
 }));
 
@@ -32,6 +33,7 @@ const mockDb = db as unknown as {
   $queryRawUnsafe: jest.Mock;
   $transaction: jest.Mock;
   creatorGrant: { updateMany: jest.Mock; create: jest.Mock; findMany: jest.Mock };
+  creatorAudienceSnapshot: { deleteMany: jest.Mock };
 };
 
 const input = {
@@ -52,6 +54,7 @@ beforeEach(() => {
   mockDb.$transaction.mockImplementation(async (ops: unknown[]) => ops);
   mockDb.creatorGrant.updateMany.mockResolvedValue({ count: 0 });
   mockDb.creatorGrant.create.mockResolvedValue({ id: "grant-1" });
+  mockDb.creatorAudienceSnapshot.deleteMany.mockResolvedValue({ count: 0 });
 });
 
 describe("grantedScopes", () => {
@@ -120,6 +123,13 @@ describe("revokeGrantsForConnections", () => {
       where: { connectionId: { in: ["conn-a", "conn-b"] }, revokedAt: null },
       data: { revokedAt: expect.any(Date), revokeReason: "invalid_grant" },
     });
+    expect(mockDb.creatorAudienceSnapshot.deleteMany).toHaveBeenCalledWith({ where: { connectionId: { in: ["conn-a", "conn-b"] } } });
+  });
+
+  it("still reports the grants ended when the audience delete fails", async () => {
+    mockDb.creatorGrant.updateMany.mockResolvedValue({ count: 1 });
+    mockDb.creatorAudienceSnapshot.deleteMany.mockRejectedValue(new Error("connection reset"));
+    expect(await revokeGrantsForConnections(["conn-a"], REVOKE_REASONS.DISCONNECT)).toBe(1);
   });
 
   it("asks nothing for an empty list", async () => {

@@ -9,6 +9,7 @@ import { AuthForm, AuthNotice, AuthShell, PasswordField } from "@/components/aut
 import { Field } from "@/components/ds/Field";
 import { Input } from "@pratham7711/ui";
 import { Button } from "@/components/ds";
+import { CheckEmail } from "@/components/portal/CheckEmail";
 import { errandQuery, joinLinkAgency, landingAfterAuth, readAuthErrand } from "@/lib/portal/afterAuth";
 import { CALLBACK_PARAM, safeCallbackPath } from "@/lib/callbackPath";
 
@@ -29,6 +30,7 @@ function LoginInner() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState({ email: "", password: "" });
+  const [pending, setPending] = useState<{ email: string; devVerifyUrl?: string | null } | null>(null);
   const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }));
 
   const registerHref = `/portal/register${errandQuery(errand)}`;
@@ -41,7 +43,7 @@ function LoginInner() {
       const res = await fetch("/api/portal/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, errand }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -49,6 +51,9 @@ function LoginInner() {
            back to the portal page that found the creator signed out. */
         const back = safeCallbackPath(searchParams.get(CALLBACK_PARAM), { within: "/portal" });
         router.push(await landingAfterAuth(errand, back ?? "/portal/dashboard"));
+      } else if (data.needsVerification) {
+        setPending({ email: data.email ?? form.email, devVerifyUrl: data.devVerifyUrl ?? null });
+        setLoading(false);
       } else {
         setError(data.error ?? "Something went wrong");
         setLoading(false);
@@ -61,9 +66,11 @@ function LoginInner() {
 
   return (
     <AuthShell
-      title="Creator Portal"
+      title={pending ? "Check your email" : "Creator Portal"}
       subtitle={
-        errand.agency
+        pending
+          ? "Confirm your email to open your account"
+          : errand.agency
           ? agency
             ? `Sign in to join ${agency}`
             : "Sign in to join your agency"
@@ -89,6 +96,9 @@ function LoginInner() {
     >
       {error && <AuthNotice tone="danger">{error}</AuthNotice>}
 
+      {pending ? (
+        <CheckEmail email={pending.email} errand={errand} devVerifyUrl={pending.devVerifyUrl} />
+      ) : (
       <AuthForm onSubmit={handleSubmit}>
         <Field label="Email" required>
           <Input type="email" value={form.email} onChange={(e) => set({ email: e.target.value })} placeholder="creator@example.com" autoComplete="email" />
@@ -104,6 +114,7 @@ function LoginInner() {
           Sign in
         </Button>
       </AuthForm>
+      )}
     </AuthShell>
   );
 }

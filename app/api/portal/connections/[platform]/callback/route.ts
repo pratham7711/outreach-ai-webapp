@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
 import { findCreatorForPortalUser } from "@/lib/portal/creatorLookup";
 import { findLinkedCreatorsForHandle } from "@/lib/portal/creatorLink";
+import { mergeJoinedIntoMatch } from "@/lib/creators/joinDuplicates";
 import { encrypt } from "@/lib/crypto/encrypt";
 import { exchangeForLongLivedToken } from "@/lib/platforms/instagram";
 import { exchangeThreadsToken } from "@/lib/platforms/threads";
@@ -406,6 +407,18 @@ export async function GET(
       await db.creator.updateMany({
         where: { id: creator.id, orgId: creator.orgId, creatorUserId: null },
         data: { creatorUserId: session.creatorUserId },
+      });
+    }
+    /* A creator who joined through the agency's link and has now proved the
+       handle on a row the agency already had (a sheet import) is one person:
+       fold the joined row into it (lib/creators/joinDuplicates.ts). */
+    if (saved?.id && session && !binding && identity.handle) {
+      await mergeJoinedIntoMatch({
+        orgId: creator.orgId,
+        joinedCreatorId: creator.id,
+        platform: platformEnum,
+        verifiedHandle: identity.handle,
+        actorEmail: session.email,
       });
     }
     if (binding) await markConnectTokenUsed(binding.tokenId);

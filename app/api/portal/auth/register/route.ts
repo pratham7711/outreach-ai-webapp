@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { z } from "zod";
-import { hashPassword, createCreatorSession } from "@/lib/creator-auth";
+import { hashPassword } from "@/lib/creator-auth";
+import { appOrigin, clearAbandonedSignup, creatorEmailState, issueCreatorVerification } from "@/lib/portal/creatorEmailVerification";
+import { ErrandBody, errandQueryOf } from "../errandBody";
 import { rateLimit, rateLimitKey } from "@/lib/rateLimit";
 import { requestLogger } from "@/lib/observability/requestLogger";
 
@@ -12,6 +14,7 @@ const registerSchema = z.object({
   handle: z.string().min(1).max(50).regex(/^[\w.]+$/, "Handle must be alphanumeric"),
   platform: z.enum(["TIKTOK", "INSTAGRAM", "YOUTUBE", "TWITTER"]).optional(),
   bio: z.string().max(500).optional(),
+  errand: ErrandBody,
 });
 
 // POST /api/portal/auth/register
@@ -34,12 +37,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
     }
 
-    const { email, password, name, handle, platform, bio } = parsed.data;
+    const { email, password, name, handle, platform, bio, errand } = parsed.data;
+
+    /* Sign-up writes the account and mails the confirmation link; both need the
+       confirmation table, which exists only once the deploy's DDL has run. */
+    if ((await creatorEmailState("")) === "unavailable") {
+      return NextResponse.json({ error: "Sign-up is being updated. Try again in a minute." }, { status: 503 });
+    }
+    await clearAbandonedSignup({ email });
+    await clearAbandonedSignup({ handle });
 
     // Check uniqueness
-    const existingEmail = await db.creatorUser.findUnique({ where: { email } });
+    const existingEmail = await db.creatorUser.findUnique({ where: { email }, select: { id: true } });
     if (existingEmail) {
-      return NextResponse.json({ error: "Email already registered" }, { status: 409 });
+      const unconfirmed = (await creatorEmailState(existingEmail.id)) === "unverified";
+      return NextResponse.json(
+        unconfirmed
+          ? { error: "This email is waiting to be confirmed. Open the link we sent, or send a new one.", needsVerification: true, email }
+          : { error: "Email already registered" },
+        { status: 409 },
+      );
     }
 
     /* Uniqueness is checked against CreatorUser only, and deliberately NOT
@@ -72,10 +89,23 @@ export async function POST(request: NextRequest) {
       select: { id: true, email: true, name: true, handle: true },
     });
 
-    await createCreatorSession(creatorUser.id);
+    /* No session: the account opens only from the link mailed to its address. */
+    const issued = await issueCreatorVerification({
+      email: creatorUser.email,
+      name: creatorUser.name,
+      origin: appOrigin(request.nextUrl.origin),
+      errandQuery: errandQueryOf(errand),
+    });
 
-    logger.info("portal.register.done", { status: 201 });
-    return NextResponse.json(creatorUser, { status: 201 });
+    logger.info("portal.register.done", { status: 201, verificationSent: issued.sent });
+    return NextResponse.json(
+      {
+        email: creatorUser.email,
+        verification: issued.sent ? "sent" : "not_sent",
+        ...(process.env.NODE_ENV !== "production" && issued.url ? { devVerifyUrl: issued.url } : {}),
+      },
+      { status: 201 },
+    );
   } catch (error) {
     console.error("Creator registration failed:", error);
     return NextResponse.json({ error: "Registration failed" }, { status: 500 });

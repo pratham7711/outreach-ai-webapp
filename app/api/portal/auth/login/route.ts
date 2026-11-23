@@ -2,12 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { z } from "zod";
 import { verifyPassword, createCreatorSession } from "@/lib/creator-auth";
+import { appOrigin, creatorEmailState, issueCreatorVerification } from "@/lib/portal/creatorEmailVerification";
+import { ErrandBody, errandQueryOf } from "../errandBody";
 import { rateLimit, rateLimitKey } from "@/lib/rateLimit";
 import { requestLogger } from "@/lib/observability/requestLogger";
 
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+  errand: ErrandBody,
 });
 
 // POST /api/portal/auth/login
@@ -42,6 +45,32 @@ export async function POST(request: NextRequest) {
     const valid = await verifyPassword(parsed.data.password, user.passwordHash);
     if (!valid) {
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
+    }
+
+    /* Right password, unconfirmed email: mail the link instead of a session.
+       Only the password holder can trigger it, and it goes only to the address
+       on the account. */
+    const state = await creatorEmailState(user.id);
+    if (state === "unavailable") {
+      return NextResponse.json({ error: "Sign-in is being updated. Try again in a minute." }, { status: 503 });
+    }
+    if (state === "unverified") {
+      const issued = await issueCreatorVerification({
+        email: user.email,
+        name: user.name,
+        origin: appOrigin(request.nextUrl.origin),
+        errandQuery: errandQueryOf(parsed.data.errand),
+      });
+      logger.info("portal.login.needs_verification", { sent: issued.sent, reused: issued.reused });
+      return NextResponse.json(
+        {
+          error: "Confirm your email first",
+          needsVerification: true,
+          email: user.email,
+          ...(process.env.NODE_ENV !== "production" && issued.url ? { devVerifyUrl: issued.url } : {}),
+        },
+        { status: 403 },
+      );
     }
 
     await createCreatorSession(user.id);

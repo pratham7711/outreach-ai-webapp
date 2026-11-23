@@ -978,6 +978,8 @@ model Creator {
   /// Relation only, no column: the platform account ids beside the handles (plan A4).
   platformAccountIds CreatorPlatformAccountId[]
   audienceSnapshots  CreatorAudienceSnapshot[]
+  /// Present when the creator joined through the agency's join link.
+  joinRecord         CreatorJoinRecord?
   detail           CreatorDetail?
   creatorUser      CreatorUser?             @relation("RosterIdentity", fields: [creatorUserId], references: [id], onDelete: SetNull)
 
@@ -2025,6 +2027,33 @@ model CreatorUser {
   socialAccounts CreatorSocialAccount[]
   /// The per-org roster rows that resolve to this identity.
   rosterRows     Creator[]              @relation("RosterIdentity")
+  /// Present once the creator has opened the link mailed to `email`. No
+  /// session is handed out without it (lib/portal/creatorEmailVerification.ts).
+  emailVerification CreatorEmailVerification?
+}
+
+/// A roster row that a creator made by signing up through the agency's join
+/// link (lib/portal/joinAgency.ts). Marks the row on the roster, and lets a
+/// row the agency already had for the same person (a sheet import) absorb it
+/// once the creator connects that account (lib/creators/joinDuplicates.ts).
+model CreatorJoinRecord {
+  creatorId     String   @id
+  orgId         String
+  linkId        String?
+  creatorUserId String
+  joinedAt      DateTime @default(now())
+  creator       Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+}
+
+/// Proof that a creator portal account's email reaches its owner. A row of its
+/// own rather than a CreatorUser column so the portal keeps working in the
+/// minutes between a deploy and the DDL that creates it.
+model CreatorEmailVerification {
+  creatorUserId String      @id
+  verifiedAt    DateTime    @default(now())
+  creatorUser   CreatorUser @relation(fields: [creatorUserId], references: [id], onDelete: Cascade)
 }
 
 model CreatorSession {

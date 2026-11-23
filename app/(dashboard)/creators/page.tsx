@@ -1,3 +1,4 @@
+import { joinMarks } from "@/lib/creators/joinDuplicates";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -134,12 +135,14 @@ export default async function CreatorsPage({
       latestTrackerReadings(orgId, ids),
       // Who follows each creator on Instagram, where they connected it.
       latestFollowerAudiences(orgId, ids),
+      // Rows that came in through the join link, and who they may duplicate.
+      joinMarks(orgId, ids),
     ] as const);
   });
 
   const [
     creators, total, [allCount, ...perTab], orgTags, anyRate,
-    [derivedAvgViews, campaignCounts, links, details, avatarVersions, readings, followerAudiences],
+    [derivedAvgViews, campaignCounts, links, details, avatarVersions, readings, followerAudiences, joins],
     [audienceGroups, countryGroups, handleGone, handleUnreadable],
   ] = await Promise.all([
     pageRows,
@@ -234,6 +237,7 @@ export default async function CreatorsPage({
             const a = followerAudiences.get(c.id);
             return a ? summarizeAudience(a.mix, a.day) : null;
           })(),
+          join: joins.get(c.id) ?? null,
         };
       })}
       query={query.toString()}

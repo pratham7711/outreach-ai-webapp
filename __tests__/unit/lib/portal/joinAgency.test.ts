@@ -10,6 +10,7 @@ jest.mock("@/lib/db", () => ({
     orgJoinLink: { findUnique: jest.fn(), update: jest.fn() },
     creator: { findFirst: jest.fn(), create: jest.fn() },
     creatorUser: { findUnique: jest.fn() },
+    creatorJoinRecord: { create: jest.fn() },
   },
 }));
 jest.mock("@/lib/audit", () => ({ logAudit: jest.fn() }));
@@ -23,6 +24,7 @@ const mockDb = db as unknown as {
   orgJoinLink: { findUnique: jest.Mock; update: jest.Mock };
   creator: { findFirst: jest.Mock; create: jest.Mock };
   creatorUser: { findUnique: jest.Mock };
+  creatorJoinRecord: { create: jest.Mock };
 };
 
 const session = { creatorUserId: "cu1", email: "maya@example.com" };
@@ -83,6 +85,9 @@ describe("joinAgency", () => {
         data: expect.objectContaining({ orgId: "org1", creatorUserId: "cu1", handle: "maya", platform: "INSTAGRAM", contactEmail: "maya@example.com" }),
       }),
     );
+    expect(mockDb.creatorJoinRecord.create).toHaveBeenCalledWith({
+      data: { creatorId: "cr-new", orgId: "org1", linkId: "jl1", creatorUserId: "cu1" },
+    });
     expect(mockDb.orgJoinLink.update).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: "jl1" }, data: expect.objectContaining({ joinedCount: { increment: 1 } }) }),
     );
@@ -128,12 +133,12 @@ describe("join link DDL", () => {
     for (const stmt of JOIN_LINK_DDL) expect(normalise(sql)).toContain(normalise(stmt));
   });
 
-  it("creates every column the schema names", () => {
+  it.each(["OrgJoinLink", "CreatorEmailVerification", "CreatorJoinRecord"])("creates every column %s names in the schema", (table) => {
     const schema = readFileSync(path.join(process.cwd(), "prisma/schema.prisma"), "utf8");
-    const model = /model OrgJoinLink \{([\s\S]*?)\n\}/.exec(schema)?.[1] ?? "";
+    const model = new RegExp(`model ${table} \\{([\\s\\S]*?)\\n\\}`).exec(schema)?.[1] ?? "";
     const columns = [...model.matchAll(/^\s+(\w+)\s+(String|Int|DateTime)\??/gm)].map((m) => m[1]);
-    expect(columns.length).toBeGreaterThan(6);
-    const create = JOIN_LINK_DDL.find((s) => s.startsWith('CREATE TABLE IF NOT EXISTS "OrgJoinLink"')) ?? "";
+    expect(columns.length).toBeGreaterThan(1);
+    const create = JOIN_LINK_DDL.find((s) => s.startsWith(`CREATE TABLE IF NOT EXISTS "${table}"`)) ?? "";
     for (const c of columns) expect(create).toContain(`"${c}"`);
   });
 

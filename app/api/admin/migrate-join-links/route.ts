@@ -7,7 +7,7 @@ export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
 /**
- * Creates OrgJoinLink on production, where
+ * Creates OrgJoinLink, CreatorEmailVerification and CreatorJoinRecord on production, where
  * `migrate deploy` must never run. Same ADMIN_MIGRATE_TOKEN gate as
  * /api/admin/migrate-song-links: GET reports and changes nothing, POST applies
  * and reports before and after. Additive only; safe to run at any time after
@@ -35,6 +35,7 @@ async function inspect() {
     ready,
     missingTables,
     links: ready ? await db.orgJoinLink.count() : 0,
+    verifiedCreators: ready ? await db.creatorEmailVerification.count() : 0,
   };
 }
 

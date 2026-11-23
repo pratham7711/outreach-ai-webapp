@@ -230,7 +230,7 @@ function PortalNav() {
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isAuthPage = pathname === "/portal/login" || pathname === "/portal/register";
+  const isAuthPage = pathname === "/portal/login" || pathname === "/portal/register" || pathname === "/portal/verify-email";
 
   return (
     <ConfirmProvider>

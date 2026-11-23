@@ -22,7 +22,8 @@ import type { FilterDef, FilterValues } from "@/components/ds";
 import AddCreatorModal from "@/components/modals/AddCreatorModal";
 import ImportCreatorsModal from "@/components/creators/ImportCreatorsModal";
 import Link from "next/link";
-import { stripAt, platformLabel, formatFull, formatCompact, formatFullCurrency } from "@/lib/format";
+import { stripAt, platformLabel, formatFull, formatCompact, formatFullCurrency, formatDateAbs } from "@/lib/format";
+import { StatusBadge } from "@/components/ds/StatusBadge";
 import { pendingListProps, useListQuery } from "@/lib/useListQuery";
 import { CREATOR_PLATFORM_TABS, type CreatorPlatformTab } from "@/lib/creators/platformTabs";
 import { CREATORS_PAGE_SIZE } from "@/lib/listPageSize";
@@ -42,6 +43,7 @@ import { TIME_NOT_RECORDED, formatAsOf, isStale } from "@/lib/dataAge";
 import MetricFigure from "@/components/creators/MetricFigure";
 import type { AudienceSummary } from "@/lib/creators/audienceSummary";
 import { RosterAudience } from "@/components/audience/RosterAudience";
+import type { JoinMark } from "@/lib/creators/joinDuplicates";
 import { JoinLinkButton } from "@/components/creators/JoinLinkButton";
 
 type Creator = {
@@ -69,7 +71,35 @@ type Creator = {
   audienceCountry: string | null;
   /** Who follows them on Instagram, measured; null when not connected or under 100 followers. */
   measuredAudience: AudienceSummary | null;
+  /** Joined through the agency's join link, and rows that look like the same person. */
+  join: JoinMark | null;
 };
+
+/**
+ * A row a creator made through the join link. "Possible duplicate" when the
+ * roster already had someone with that handle or email: it folds into that row
+ * on its own once the creator connects the account (lib/creators/joinDuplicates.ts).
+ */
+function JoinBadge({ join }: { join: JoinMark | null }) {
+  if (!join) return null;
+  const when = formatDateAbs(join.joinedAt);
+  if (join.duplicates.length > 0) {
+    const names = join.duplicates.map((d) => d.name || d.handle).join(", ");
+    return (
+      <StatusBadge
+        tone="warning"
+        title={`Joined ${when} through your join link. Looks like ${names}, already on your roster. They merge on their own when this creator connects that account, or merge them from the profile.`}
+      >
+        Possible duplicate
+      </StatusBadge>
+    );
+  }
+  return (
+    <StatusBadge tone="info" title={`Joined ${when} through your join link`}>
+      Joined via link
+    </StatusBadge>
+  );
+}
 
 type CountryOption = { name: string; n: number };
 
@@ -208,6 +238,11 @@ const CreatorCard = memo(function CreatorCard({
           </div>
         </div>
         <div className="cc-roster-card-meta">
+          {creator.join && (
+            <span style={{ alignSelf: "flex-start", position: "relative", zIndex: 1 }}>
+              <JoinBadge join={creator.join} />
+            </span>
+          )}
           <PlatformChips links={accountsOf(creator)} max={4} compact counts={accountsOf(creator).length > 1} />
           <TagList tags={creator.tags} />
         </div>
@@ -311,6 +346,11 @@ const CreatorRow = memo(function CreatorRow({
               {name}
             </Link>
             {handle && <span className="cc-dt-sub cc-dt-truncate">{handle}</span>}
+            {c.join && (
+              <span style={{ display: "block", marginTop: 4 }}>
+                <JoinBadge join={c.join} />
+              </span>
+            )}
           </span>
         </div>
       </td>

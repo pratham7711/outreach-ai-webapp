@@ -416,6 +416,7 @@ const IMPORTED_BY = {
   "app/api/join-link/": ["creators"],
   "app/(public)/join/": ["creators", "portal"],
   "lib/creators/joinLink": ["creators", "portal"],
+  "lib/creators/joinDuplicates.ts": ["creators", "portal"],
   "app/api/admin/migrate-join-links/": ["creators", "portal"],
   "components/LegalLinks.tsx": ["portal"],
   "components/LegalShell.tsx": ["portal"],

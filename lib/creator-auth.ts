@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
 import crypto from "crypto";
+import { creatorEmailState } from "@/lib/portal/creatorEmailVerification";
 
 const COOKIE_NAME = "creator_portal_token";
 const TOKEN_EXPIRY_DAYS = 30;
@@ -78,6 +79,11 @@ export async function getCreatorSession(): Promise<CreatorSession | null> {
     if (session) await db.creatorSession.delete({ where: { id: session.id } }).catch(() => {});
     return null;
   }
+
+  /* No account access before the email is confirmed, an old cookie included.
+     Fails open only while the confirmation table does not exist yet, the
+     minutes between a deploy and its DDL. */
+  if ((await creatorEmailState(session.creatorUser.id)) === "unverified") return null;
 
   return {
     id: session.id,

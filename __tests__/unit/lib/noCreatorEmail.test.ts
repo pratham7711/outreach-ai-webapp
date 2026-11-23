@@ -25,6 +25,7 @@ const SENDERS = new Map<string, string>([
   ["lib/auth.ts", "the account holder signing in"],
   ["lib/emailVerification.ts", "the account holder"],
   ["lib/inviteEmail.ts", "a teammate an admin typed in"],
+  ["lib/portal/creatorEmailVerification.ts", "a creator confirming the address they signed up with (approved 2026-11-23); nothing else"],
   ["lib/ops/canary.ts", "alertOps only: the hourly ops canary (ops)"],
   ["lib/ops/signupNotice.ts", "ALERT_EMAIL_TO (ops): a new workspace signed up"],
   ["lib/ops/meters.ts", "alertOps only: weekly spend over 120% of the model (ops)"],

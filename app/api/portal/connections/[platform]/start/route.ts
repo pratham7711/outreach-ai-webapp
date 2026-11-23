@@ -14,6 +14,7 @@ import { safeReturnTo, returnToWithQuery } from "@/lib/oauth/returnTo";
 import { resolvePlatformCapability } from "@/lib/capabilities";
 import { ACCOUNT_ORIGINS } from "@/lib/platforms/accountOrigin";
 import { GRANT_SOURCES, recordGrant } from "@/lib/creators/grants";
+import { mergeJoinedIntoMatch } from "@/lib/creators/joinDuplicates";
 import {
   connectLinkPath,
   connectState,
@@ -169,6 +170,15 @@ export async function GET(
       scopes: [],
       scopesSource: null,
       source: GRANT_SOURCES.DEV,
+    });
+    /* Same fold as the real callback; here the portal handle stands in for
+       the handle a provider would have confirmed. */
+    await mergeJoinedIntoMatch({
+      orgId: creator.orgId,
+      joinedCreatorId: creator.id,
+      platform: platformEnum,
+      verifiedHandle: session.handle,
+      actorEmail: session.email,
     });
 
     return NextResponse.redirect(

@@ -101,6 +101,14 @@ const ALLOWLIST: Record<string, Entry> = {
   "oauth/revoke/route.ts": { reason: "RFC 7009 revocation: the token being revoked is the credential" },
   "portal/auth/login/route.ts": { reason: "creator sign-in; nobody is signed in yet" },
   "portal/auth/register/route.ts": { reason: "creator registration; nobody is signed in yet" },
+  "portal/auth/verify-email/route.ts": {
+    reason: "spends a mailed confirmation link; the link is the credential; rate limited",
+    mustCall: /\brateLimit\s*\(/,
+  },
+  "portal/auth/resend-verification/route.ts": {
+    reason: "re-mails an unconfirmed sign-up its own link; answers the same either way; rate limited",
+    mustCall: /\brateLimit\s*\(/,
+  },
   "portal/auth/logout/route.ts": { reason: "clears the caller's own portal cookie" },
 };
 
