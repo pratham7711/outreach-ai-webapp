@@ -59,6 +59,10 @@
     {
       "path": "/api/cron/snapshot-song-streams",
       "schedule": "20 4,5 * * *"
+    },
+    {
+      "path": "/api/cron/snapshot-creator-audience",
+      "schedule": "14 * * * *"
     }
   ]
 }

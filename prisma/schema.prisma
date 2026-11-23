@@ -496,6 +496,35 @@ model SongStreamSnapshot {
 /// whose versions (original, slowed, sped up, reverb) sit on one album, EP or
 /// single. A song has this row or Song.spotifyTrackId, never both
 /// (lib/songs/songAlbums.ts). DDL: lib/songs/songAlbumDdl.ts.
+/// Who a connected creator's audience is, as the platform reported it on one
+/// day: the share per country, city, age band and gender, for their followers
+/// ("followers") or the people who engaged with them ("engaged"), over the
+/// platform's own window ("this_week", "this_month"). Totals only, never a
+/// person. Created by lib/creators/audienceDdl.ts; deleted with the
+/// connection, and when its grants are revoked (lib/creators/grants.ts).
+model CreatorAudienceSnapshot {
+  id           String   @id @default(cuid())
+  orgId        String
+  creatorId    String
+  connectionId String
+  platform     Platform
+  audience     String
+  timeframe    String
+  day          DateTime @db.Date
+  /// [{ key, value }], largest first, as the platform returned them.
+  country      Json
+  city         Json
+  age          Json
+  gender       Json
+  readAt       DateTime @default(now())
+
+  creator    Creator              @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  connection CreatorSocialAccount @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, orgId, audience, timeframe, day])
+  @@index([orgId, creatorId, platform, day])
+}
+
 model SongSpotifyAlbum {
   songId       String   @id
   orgId        String
@@ -928,6 +957,7 @@ model Creator {
   profileLinks     CreatorProfileLink[]
   /// Relation only, no column: the platform account ids beside the handles (plan A4).
   platformAccountIds CreatorPlatformAccountId[]
+  audienceSnapshots  CreatorAudienceSnapshot[]
   detail           CreatorDetail?
   creatorUser      CreatorUser?             @relation("RosterIdentity", fields: [creatorUserId], references: [id], onDelete: SetNull)
 
@@ -999,6 +1029,7 @@ model CreatorSocialAccount {
   /// revoke it — and the disconnect route already swallows a failed decrypt and
   /// deletes the row anyway, so that failure is silent.
   creatorUser CreatorUser? @relation(fields: [creatorUserId], references: [id], onDelete: SetNull)
+  audienceSnapshots CreatorAudienceSnapshot[]
 
   /// Keyed on the platform account, not just the platform, so one creator can
   /// link SEVERAL accounts on the same platform — two TikTok handles, a

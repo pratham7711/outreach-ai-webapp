@@ -11,8 +11,9 @@ import { instagramUnifiedLogin } from "@/lib/oauth/instagramUnified";
  * fails if a platform requests a scope that has no line here, or a line names
  * a scope nobody requests.
  *
- * Deliberately absent: audience demographics. No connect flow reads them
- * today, so the page must not say it does.
+ * Audience demographics are read only through Facebook Login's
+ * instagram_manage_insights (lib/platforms/instagramAccountInsights.ts), and
+ * saved weekly as Instagram's totals (lib/creators/audienceSweep.ts).
  */
 
 export type PermissionRead = {
@@ -37,7 +38,7 @@ export const WHAT_WE_READ: Record<OAuthPlatform, PermissionRead[]> = {
     {
       scope: "instagram_manage_insights",
       reads:
-        "Views, reach and shares on your recent posts, and reach, views, shares and saves on the posts you submit to a campaign. Your account's insights for the last 28 days (accounts reached, views, engagement, follows and unfollows), your new followers by day, where your followers are and their age and gender, and the insights on stories while they are live.",
+        "Views, reach and shares on your recent posts, and reach, views, shares and saves on the posts you submit to a campaign. Your account's insights for the last 28 days (accounts reached, views, engagement, follows and unfollows), your new followers by day, where your followers are and their age and gender, and the insights on stories while they are live. Once a week we also save the country, city, age and gender of your followers and of the people who engaged with you, as Instagram's totals, so the organisations running your campaigns can see who a campaign reached.",
     },
     {
       scope: "pages_show_list",

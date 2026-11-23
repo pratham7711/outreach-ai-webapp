@@ -10,7 +10,7 @@
  * Minutes already taken, for whoever adds the next one (plan §14 rule 1 keeps
  * releases away from them): :00 every 6 h and daily at 04:00 / 05:00, 04:20 and
  * 05:20 daily (the second only finishes what the first ran out of time for), :10,
- * :11, :12, :13 and :16 hourly, :15 every 6 h, :30 every 2 h and at 00:30.
+ * :11, :12, :13, :14 and :16 hourly, :15 every 6 h, :30 every 2 h and at 00:30.
  * Every hourly job sits in the one window :10 opens: each separate window costs
  * a Neon wake plus its 5-minute suspend tail, every hour (measured 2026-11: the
  * old :40/:44 pair was half of production's ~73 wakes a day). The canary runs
@@ -23,6 +23,7 @@ export const CRON_JOBS = [
   { job: "auto-approve-submissions", path: "/api/cron/auto-approve-submissions", schedule: "0 */6 * * *", label: "Auto-approve submissions" },
   { job: "snapshot-sounds", path: "/api/cron/snapshot-sounds", schedule: "0 4 * * *", label: "Sound snapshots" },
   { job: "snapshot-song-streams", path: "/api/cron/snapshot-song-streams", schedule: "20 4,5 * * *", label: "Spotify streams (daily)" },
+  { job: "snapshot-creator-audience", path: "/api/cron/snapshot-creator-audience", schedule: "14 * * * *", label: "Creator audience (weekly per creator)" },
   { job: "sync-trackers", path: "/api/cron/sync-trackers", schedule: "15 */6 * * *", label: "Sound trackers" },
   { job: "sync-creator-trackers", path: "/api/cron/sync-creator-trackers", schedule: "30 */2 * * *", label: "Creator trackers (legacy sweep)" },
   { job: "read-creator-trackers", path: "/api/cron/read-creator-trackers", schedule: "11 * * * *", label: "Creator trackers (reader v2)" },

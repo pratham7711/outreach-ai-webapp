@@ -13,6 +13,8 @@ import { HANDLE_GONE_WHERE, HANDLE_UNREADABLE_WHERE, handleProblem } from "@/lib
 import { rosterAvgViews, rosterFollowers } from "@/lib/creators/rosterMetrics";
 import { creatorAvgViewsTime, creatorFollowersTime, figureTimeDto, linkFollowersTime } from "@/lib/creators/figureTime";
 import { latestTrackerReadings } from "@/lib/creators/latestReadings";
+import { latestFollowerAudiences } from "@/lib/creators/audienceSnapshots";
+import { summarizeAudience } from "@/lib/creators/audienceSummary";
 import { CREATOR_PLATFORM_TABS } from "@/lib/creators/platformTabs";
 import { pinsUnknownLast, splitByKnownFollowers, unknownLastWindow, UNKNOWN_FOLLOWERS_ORDER } from "@/lib/creators/rosterSort";
 
@@ -130,12 +132,14 @@ export default async function CreatorsPage({
       storedAvatarVersions(ids, orgId),
       // Dates each row's figures (plan A6); an empty map, never an error, when it cannot.
       latestTrackerReadings(orgId, ids),
+      // Who follows each creator on Instagram, where they connected it.
+      latestFollowerAudiences(orgId, ids),
     ] as const);
   });
 
   const [
     creators, total, [allCount, ...perTab], orgTags, anyRate,
-    [derivedAvgViews, campaignCounts, links, details, avatarVersions, readings],
+    [derivedAvgViews, campaignCounts, links, details, avatarVersions, readings, followerAudiences],
     [audienceGroups, countryGroups, handleGone, handleUnreadable],
   ] = await Promise.all([
     pageRows,
@@ -226,6 +230,10 @@ export default async function CreatorsPage({
             age: figureTimeDto(linkFollowersTime({ ...l, refreshError })),
           })),
           audienceCountry: detailBy.get(c.id)?.audienceCountry ?? null,
+          measuredAudience: (() => {
+            const a = followerAudiences.get(c.id);
+            return a ? summarizeAudience(a.mix, a.day) : null;
+          })(),
         };
       })}
       query={query.toString()}

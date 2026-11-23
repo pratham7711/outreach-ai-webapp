@@ -13932,3 +13932,28 @@ a.cc-platform-chip[data-problem]:hover {
   .cc-auth-show__stack li:nth-child(n + 2) { display: none; }
 }
 
+
+/* Audience (components/audience): a globe beside its ranked countries, then
+   gender, age and cities in as many columns as fit. Stacks on a phone. */
+.cc-audience-geo {
+  display: grid;
+  grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
+  gap: 20px 32px;
+  align-items: center;
+}
+.cc-audience-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 24px 32px;
+}
+@media (max-width: 640px) {
+  .cc-audience-geo {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cc-audience-geo > .cc-audience-globe {
+    justify-self: center;
+  }
+}
+.cc-roster-card-foot .cc-roster-audience {
+  max-width: 100%;
+}

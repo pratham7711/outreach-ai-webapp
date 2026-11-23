@@ -122,7 +122,7 @@ export function breakdownRows(rows: Row[], name: string): DemographicRow[] {
  * refused. An auth failure is thrown: the token or the grant is gone, and
  * every other call would fail the same way.
  */
-async function askMetrics(
+export async function askMetrics(
   path: string,
   names: readonly string[],
   params: Record<string, string>,
@@ -266,5 +266,63 @@ export async function readInstagramInsightsBundle(
     readStories(token, igUserId, signal),
   ]);
   return { account, stories };
+}
+
+/* ── Audience: who follows the account and who engaged with it ───────────── */
+
+export const AUDIENCE_BREAKDOWNS = ["country", "city", "age", "gender"] as const;
+export type AudienceBreakdown = (typeof AUDIENCE_BREAKDOWNS)[number];
+export type AudienceMix = Record<AudienceBreakdown, DemographicRow[]>;
+
+/**
+ * The audiences Instagram describes, and the window each is read over.
+ * Meta's account-insights reference (v27) lists two demographic metrics,
+ * follower_demographics and engaged_audience_demographics, each with an age,
+ * city, country or gender breakdown and a timeframe of this_week or
+ * this_month (the other timeframes went away in v20). There is no
+ * per-post demographic metric: media insights break down only by profile
+ * action and story navigation.
+ */
+export const AUDIENCE_READS = [
+  { audience: "followers", timeframe: "this_month", metric: "follower_demographics" },
+  { audience: "engaged", timeframe: "this_week", metric: "engaged_audience_demographics" },
+  { audience: "engaged", timeframe: "this_month", metric: "engaged_audience_demographics" },
+] as const;
+export type AudienceKind = (typeof AUDIENCE_READS)[number]["audience"];
+export type AudienceTimeframe = (typeof AUDIENCE_READS)[number]["timeframe"];
+
+export type AudienceReading = { audience: AudienceKind; timeframe: AudienceTimeframe; mix: AudienceMix };
+
+export function emptyMix(mix: AudienceMix): boolean {
+  return AUDIENCE_BREAKDOWNS.every((b) => mix[b].length === 0);
+}
+
+/**
+ * Every audience Instagram describes for this account, one request per
+ * breakdown (Meta takes one demographic breakdown per request). An audience
+ * Instagram withheld (under 100 followers, or under 100 engagements in the
+ * window) comes back with every breakdown empty; it is still returned, so the
+ * caller can record that it asked.
+ */
+export async function readInstagramAudience(
+  token: string,
+  igUserId: string,
+  { signal }: { signal?: AbortSignal } = {},
+): Promise<AudienceReading[]> {
+  const path = `${igUserId}/insights`;
+  const readings = await Promise.all(
+    AUDIENCE_READS.map(async ({ audience, timeframe, metric }) => {
+      const rows = await Promise.all(
+        AUDIENCE_BREAKDOWNS.map((breakdown) =>
+          askMetrics(path, [metric], { period: "lifetime", metric_type: "total_value", timeframe, breakdown }, token, signal),
+        ),
+      );
+      const mix = Object.fromEntries(
+        AUDIENCE_BREAKDOWNS.map((breakdown, i) => [breakdown, breakdownRows(rows[i] ?? [], metric)]),
+      ) as AudienceMix;
+      return { audience, timeframe, mix };
+    }),
+  );
+  return readings;
 }
 

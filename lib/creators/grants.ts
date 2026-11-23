@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { deleteAudienceForConnections } from "./audienceSnapshots";
 import type { Platform } from "@/lib/generated/prisma/client";
 import { grantTablesReady } from "@/lib/creators/grantTables";
 import { requestedScopes, type OAuthPlatform } from "@/lib/oauth/providers";
@@ -144,6 +145,9 @@ export async function revokeGrantsForConnections(
       where: { connectionId: { in: ids }, revokedAt: null },
       data: { revokedAt: new Date(), revokeReason: reason },
     });
+    /* The audience saved through these connections goes with the consent it
+       was read under (lib/creators/audienceSnapshots.ts). */
+    await deleteAudienceForConnections(ids);
     return count;
   } catch (err) {
     log().warn("Could not revoke grants", {

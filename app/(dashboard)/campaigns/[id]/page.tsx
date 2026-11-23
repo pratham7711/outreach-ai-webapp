@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { Badge, EmptyState, Avatar, Input, Textarea } from "@pratham7711/ui";
 import { Modal } from "@/components/ds/Modal";
+import { CampaignAudienceSection } from "@/components/audience/CampaignAudienceSection";
 import { Dropdown, MetricTile, EntityPicker, Button, PageHeader, SectionCard, Field, FieldRow, Skeleton } from "@/components/ds";
 import { TileGridSkeleton } from "@/components/ui/PageSkeleton";
 import { PlatformSplit } from "@/components/charts/PlatformSplit";
@@ -967,6 +968,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                   )}
                 </SectionCard>
               </div>
+              <CampaignAudienceSection campaignId={id} />
             </>
           ))}
           </div>

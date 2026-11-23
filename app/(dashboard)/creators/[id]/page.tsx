@@ -53,6 +53,7 @@ import CreatorAccess from "@/components/creators/CreatorAccess";
 import { PlatformTile } from "@/components/ui/PlatformTile";
 import InstagramDiscoveryPanel from "@/components/creators/InstagramDiscoveryPanel";
 import InstagramInsightsPanel from "@/components/insights/InstagramInsightsPanel";
+import { CreatorAudienceCard } from "@/components/audience/CreatorAudienceCard";
 import { AgeLabel } from "@/components/ds/AgeLabel";
 import PostStatusChip from "@/components/posts/PostStatusChip";
 import { postAgeContext, postMeasuredAt, postStatus } from "@/lib/posts/postStatus";
@@ -1038,6 +1039,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
         {activeTab === "profile" && (
           <>
             <InstagramDiscoveryPanel creatorId={id} />
+            <CreatorAudienceCard creatorId={id} />
             <InstagramInsightsPanel
               url={`/api/creators/${encodeURIComponent(id)}/instagram-insights`}
               hideWhen={["not_connected"]}

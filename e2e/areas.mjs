@@ -128,6 +128,8 @@ export const AREAS = {
       "app/api/l/",
       "app/api/admin/migrate-list-approval/",
       "app/api/cron/refresh-roster-profiles/",
+      "app/api/cron/snapshot-creator-audience/",
+      "app/api/admin/migrate-creator-audience/",
       "app/api/admin/migrate-creator-roster/",
       // K4: the consent record behind every agency read of a connection.
       "app/api/admin/migrate-creator-grants/",
@@ -406,6 +408,10 @@ const IMPORTED_BY = {
   "components/integrations/": ["settings"],
   "components/creators/MetricFigure.tsx": ["creators", "settings"],
   "components/insights/": ["creators", "portal"],
+  "components/audience/": ["campaigns", "creators"],
+  "public/geo/": ["campaigns", "creators"],
+  "lib/creators/audience": ["campaigns", "creators"],
+  "lib/creators/campaignAudience.ts": ["campaigns"],
   "components/LegalLinks.tsx": ["portal"],
   "components/LegalShell.tsx": ["portal"],
 

@@ -40,6 +40,8 @@ import type { FigureTimeDto } from "@/lib/creators/figureTime";
 import { AgeLabel } from "@/components/ds/AgeLabel";
 import { TIME_NOT_RECORDED, formatAsOf, isStale } from "@/lib/dataAge";
 import MetricFigure from "@/components/creators/MetricFigure";
+import type { AudienceSummary } from "@/lib/creators/audienceSummary";
+import { RosterAudience } from "@/components/audience/RosterAudience";
 
 type Creator = {
   id: string;
@@ -64,6 +66,8 @@ type Creator = {
   tags: string[];
   links: (PlatformChipLink & { refreshedAt: string | null })[];
   audienceCountry: string | null;
+  /** Who follows them on Instagram, measured; null when not connected or under 100 followers. */
+  measuredAudience: AudienceSummary | null;
 };
 
 type CountryOption = { name: string; n: number };
@@ -225,7 +229,9 @@ const CreatorCard = memo(function CreatorCard({
           </dl>
         )}
         <div className="cc-roster-card-foot">
-          {creator.audienceCountry ? (
+          {creator.measuredAudience ? (
+            <RosterAudience summary={creator.measuredAudience} compact />
+          ) : creator.audienceCountry ? (
             <span className="cc-roster-card-audience" title={`Audience: ${creator.audienceCountry}`}>
               <Globe2 size={14} aria-hidden />
               <span>{creator.audienceCountry}</span>
@@ -253,6 +259,7 @@ const COL = {
   followers: 120,
   avgViews: 112,
   audience: 96,
+  audienceMeasured: 168,
   price: 92,
   campaigns: 112,
   posts: 84,
@@ -328,9 +335,13 @@ const CreatorRow = memo(function CreatorRow({
       })}
       {hasAudience && (
         <td>
-          <span className="cc-dt-truncate" title={c.audienceCountry ?? undefined}>
-            {c.audienceCountry ?? "—"}
-          </span>
+          {c.measuredAudience ? (
+            <RosterAudience summary={c.measuredAudience} />
+          ) : (
+            <span className="cc-dt-truncate" title={c.audienceCountry ?? undefined}>
+              {c.audienceCountry ?? "—"}
+            </span>
+          )}
         </td>
       )}
       {hasPrice && (
@@ -636,7 +647,8 @@ export default function CreatorsClient({
       ? { mode: "ids", ids: [...picked] }
       : { mode: "filter" };
   const hasPrice = filtered.some((c) => c.rate);
-  const hasAudience = filtered.some((c) => c.audienceCountry);
+  const hasAudience = filtered.some((c) => c.audienceCountry || c.measuredAudience);
+  const hasMeasuredAudience = filtered.some((c) => c.measuredAudience);
 
   /* A stat nobody on this page has is not shown at all. Follower counts came
      across empty for 1,823 of 1,834 creators, and a column of em dashes is a
@@ -682,7 +694,7 @@ export default function CreatorsClient({
   const tableMin =
     COL.check + 200 + COL.accounts + COL.tags +
     optionalStats.reduce((sum, stat) => sum + (stat.key === "followers" ? COL.followers : COL.avgViews), 0) +
-    (hasAudience ? COL.audience : 0) + (hasPrice ? COL.price : 0) + COL.campaigns + COL.posts;
+    (hasAudience ? (hasMeasuredAudience ? COL.audienceMeasured : COL.audience) : 0) + (hasPrice ? COL.price : 0) + COL.campaigns + COL.posts;
   const columnCount = 6 + optionalStats.length + (hasAudience ? 1 : 0) + (hasPrice ? 1 : 0);
   const pager =
     total > 0 ? (
@@ -867,7 +879,7 @@ export default function CreatorsClient({
                 {optionalStats.map((stat) => (
                   <col key={stat.key} style={{ width: stat.key === "followers" ? COL.followers : COL.avgViews }} />
                 ))}
-                {hasAudience && <col style={{ width: COL.audience }} />}
+                {hasAudience && <col style={{ width: hasMeasuredAudience ? COL.audienceMeasured : COL.audience }} />}
                 {hasPrice && <col style={{ width: COL.price }} />}
                 <col style={{ width: COL.campaigns }} />
                 <col style={{ width: COL.posts }} />

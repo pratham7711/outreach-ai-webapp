@@ -100,7 +100,12 @@ export default function PrivacyPage() {
                 on stories while they are live (reach, views, replies, shares, taps and exits).
                 The creator sees these on My stats, and the organisation running their campaigns
                 sees them on the creator&rsquo;s page. They are read from Instagram each time the
-                screen is opened and are not saved.
+                screen is opened and are not saved, with one exception: once a week we save the
+                country, city, age and gender of the account&rsquo;s followers and of the people who
+                engaged with it that week and that month, as Instagram&rsquo;s totals, so the
+                organisation running the creator&rsquo;s campaigns can see who a campaign reached.
+                These are deleted when the account is disconnected or its access to that
+                organisation is revoked.
               </li>
               <li>
                 <em>Instagram Login</em>, which needs no Facebook Page, is not offered at the
@@ -136,9 +141,9 @@ export default function PrivacyPage() {
           </LegalPlatform>
         </ul>
         <p>
-          Apart from the Instagram follower demographics above, which Instagram reports as
-          totals per country, age band and gender and never per person, we do not read audience
-          demographics from any platform. The creator portal&rsquo;s My accounts screen also lists
+          Apart from the Instagram audience demographics above, which Instagram reports as
+          totals per country, city, age band and gender and never per person, we do not read
+          audience demographics from any platform. The creator portal&rsquo;s My accounts screen also lists
           what each permission reads, under &ldquo;What we read&rdquo; on the card of each platform a
           creator can connect there.
         </p>
