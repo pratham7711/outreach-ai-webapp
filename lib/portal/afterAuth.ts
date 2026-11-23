@@ -18,6 +18,8 @@ import { campaignInvitePath } from "@/lib/portal/invitePath";
  *  - `connect=<token>`: "Create a login to see your campaigns" on an agency's
  *    connect link (/connect/<token>). Names this login on the link's roster
  *    row and lands on My accounts, which then lists what was just connected.
+ *  - `agency=<code>`: an agency's join link (/join/<code>). Puts this login
+ *    on that agency's roster and lands on My accounts to connect.
  *  - none: Home.
  *
  * Client-side only (it calls fetch on the creator's own cookie).
@@ -27,6 +29,7 @@ export type AuthErrand = {
   join: string | null;
   invite: string | null;
   connect: string | null;
+  agency: string | null;
 };
 
 export function readAuthErrand(params: { get(name: string): string | null }): AuthErrand {
@@ -35,6 +38,7 @@ export function readAuthErrand(params: { get(name: string): string | null }): Au
     join: params.get("join"),
     invite: params.get("invite"),
     connect: params.get("connect"),
+    agency: params.get("agency"),
   };
 }
 
@@ -47,6 +51,7 @@ export function errandQuery(errand: AuthErrand): string {
     if (errand.invite) q.set("invite", errand.invite);
   }
   if (errand.connect) q.set("connect", errand.connect);
+  if (errand.agency) q.set("agency", errand.agency);
   const s = q.toString();
   return s ? `?${s}` : "";
 }
@@ -95,5 +100,30 @@ export async function landingAfterAuth(errand: AuthErrand, fallback: string): Pr
     }
   }
 
+  if (errand.agency) {
+    try {
+      const res = await fetch("/api/portal/join-agency", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: errand.agency }),
+      });
+      if (res.ok) return "/portal/accounts";
+    } catch {
+      /* Fall through: the login works, the link can be opened again. */
+    }
+  }
+
   return fallback;
+}
+
+/** The agency a join link names, for "Sign up to join <agency>"; null if the link is gone. */
+export async function joinLinkAgency(code: string): Promise<string | null> {
+  try {
+    const res = await fetch(`/api/portal/join-agency?code=${encodeURIComponent(code)}`);
+    if (!res.ok) return null;
+    const data = (await res.json()) as { agency?: unknown };
+    return typeof data.agency === "string" ? data.agency : null;
+  } catch {
+    return null;
+  }
 }

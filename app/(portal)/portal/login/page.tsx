@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { LegalLinks } from "@/components/LegalLinks";
@@ -9,13 +9,22 @@ import { AuthForm, AuthNotice, AuthShell, PasswordField } from "@/components/aut
 import { Field } from "@/components/ds/Field";
 import { Input } from "@pratham7711/ui";
 import { Button } from "@/components/ds";
-import { errandQuery, landingAfterAuth, readAuthErrand } from "@/lib/portal/afterAuth";
+import { errandQuery, joinLinkAgency, landingAfterAuth, readAuthErrand } from "@/lib/portal/afterAuth";
 import { CALLBACK_PARAM, safeCallbackPath } from "@/lib/callbackPath";
 
 function LoginInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const errand = readAuthErrand(searchParams);
+  const [agency, setAgency] = useState<string | null>(null);
+  useEffect(() => {
+    if (!errand.agency) return;
+    let alive = true;
+    void joinLinkAgency(errand.agency).then((a) => alive && setAgency(a));
+    return () => {
+      alive = false;
+    };
+  }, [errand.agency]);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -54,7 +63,11 @@ function LoginInner() {
     <AuthShell
       title="Creator Portal"
       subtitle={
-        errand.invitation
+        errand.agency
+          ? agency
+            ? `Sign in to join ${agency}`
+            : "Sign in to join your agency"
+          : errand.invitation
           ? "Sign in to accept your invitation"
           : errand.join
             ? "Sign in to join this campaign"

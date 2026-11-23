@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Input } from "@pratham7711/ui";
@@ -9,12 +9,21 @@ import { AuthForm, AuthNotice, AuthShell, PasswordField } from "@/components/aut
 import { Field } from "@/components/ds/Field";
 import { ConnectPrompt } from "@/components/portal/ConnectPrompt";
 import { LegalLinks } from "@/components/LegalLinks";
-import { errandQuery, landingAfterAuth, readAuthErrand } from "@/lib/portal/afterAuth";
+import { errandQuery, joinLinkAgency, landingAfterAuth, readAuthErrand } from "@/lib/portal/afterAuth";
 
 function RegisterInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const errand = readAuthErrand(searchParams);
+  const [agency, setAgency] = useState<string | null>(null);
+  useEffect(() => {
+    if (!errand.agency) return;
+    let alive = true;
+    void joinLinkAgency(errand.agency).then((a) => alive && setAgency(a));
+    return () => {
+      alive = false;
+    };
+  }, [errand.agency]);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -68,7 +77,11 @@ function RegisterInner() {
       subtitle={
         nextPath
           ? "Your account is ready"
-          : errand.invitation
+          : errand.agency
+            ? agency
+              ? `Sign up to join ${agency}`
+              : "Sign up to join your agency"
+            : errand.invitation
             ? "Sign up to accept your invitation"
             : errand.join
               ? "Sign up to join this campaign"

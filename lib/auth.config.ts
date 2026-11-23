@@ -59,7 +59,9 @@ export const authConfig = {
          startsWith("/connect") would also open /connections, an agency page. */
       const isCreatorEntryPage =
         underSegment(nextUrl.pathname, "/connect") ||
-        underSegment(nextUrl.pathname, "/invite");
+        underSegment(nextUrl.pathname, "/invite") ||
+        /* The agency's one join link (/join/<code>), opened the same way. */
+        underSegment(nextUrl.pathname, "/join");
       // Files under public/ are served to anyone by definition, but the proxy
       // matcher only exempts _next and favicon, so without this every image
       // redirects to /login — including the og:image a social crawler fetches.

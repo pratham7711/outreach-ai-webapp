@@ -73,6 +73,7 @@ describe("the creator app's entry links", () => {
      the token in the path is the authorisation. */
   it.each([
     "/connect/tok_abc123",
+    "/join/abcdefgh2345",
     "/invite/cinv_abc123",
     "/invite/cinv_abc123?accept=1",
     "/data-deletion",
@@ -93,7 +94,7 @@ describe("the creator app's entry links", () => {
 
   /* Segment matches, not prefixes: "/connect" is one suffix away from
      "/connections", an agency page, and "/invite" from "/invites". */
-  it.each(["/connections", "/connectionsx", "/invites", "/inviteabc", "/data-deletionx", "/aboutx"])(
+  it.each(["/connections", "/connectionsx", "/joinx", "/invites", "/inviteabc", "/data-deletionx", "/aboutx"])(
     "does not open %s",
     (path) => {
       expect(redirectsTo(visit(path, false))).toBe("/login");

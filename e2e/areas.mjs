@@ -412,6 +412,11 @@ const IMPORTED_BY = {
   "public/geo/": ["campaigns", "creators"],
   "lib/creators/audience": ["campaigns", "creators"],
   "lib/creators/campaignAudience.ts": ["campaigns"],
+  "components/creators/JoinLinkButton.tsx": ["creators"],
+  "app/api/join-link/": ["creators"],
+  "app/(public)/join/": ["creators", "portal"],
+  "lib/creators/joinLink": ["creators", "portal"],
+  "app/api/admin/migrate-join-links/": ["creators", "portal"],
   "components/LegalLinks.tsx": ["portal"],
   "components/LegalShell.tsx": ["portal"],
 

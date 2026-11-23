@@ -42,6 +42,7 @@ import { TIME_NOT_RECORDED, formatAsOf, isStale } from "@/lib/dataAge";
 import MetricFigure from "@/components/creators/MetricFigure";
 import type { AudienceSummary } from "@/lib/creators/audienceSummary";
 import { RosterAudience } from "@/components/audience/RosterAudience";
+import { JoinLinkButton } from "@/components/creators/JoinLinkButton";
 
 type Creator = {
   id: string;
@@ -730,6 +731,7 @@ export default function CreatorsClient({
             {/* The whole roster whatever the filters say -- "all" is the
                 agency's creators, and the bulk bar below acts on a filter. */}
             <TrackAllButton />
+            <JoinLinkButton />
             <Button variant="secondary" iconLeft={<Upload size={15} />} size="sm" onClick={() => setShowImport(true)} {...action("import-creators")}>
               Import
             </Button>

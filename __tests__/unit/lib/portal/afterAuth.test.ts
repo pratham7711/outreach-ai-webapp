@@ -42,10 +42,14 @@ describe("readAuthErrand / errandQuery", () => {
   it("carries a connect link to the other auth page", () => {
     expect(errandQuery(readAuthErrand(params("connect=tokABC")))).toBe("?connect=tokABC");
   });
+
+  it("carries an agency join link to the other auth page", () => {
+    expect(errandQuery(readAuthErrand(params("agency=abcdefgh2345")))).toBe("?agency=abcdefgh2345");
+  });
 });
 
 describe("landingAfterAuth", () => {
-  const none = { invitation: null, join: null, invite: null, connect: null };
+  const none = { invitation: null, join: null, invite: null, connect: null, agency: null };
 
   it("goes to the fallback with no errand, and calls nothing", async () => {
     const fetchMock = mockFetch(200, {});
@@ -89,7 +93,7 @@ describe("landingAfterAuth", () => {
 
   it("prefers the invitation when both are present", async () => {
     const fetchMock = mockFetch(200, { campaignPath: "/portal/campaigns/c2" });
-    await landingAfterAuth({ invitation: "tok123", join: "summer-drop", invite: null, connect: null }, "/x");
+    await landingAfterAuth({ invitation: "tok123", join: "summer-drop", invite: null, connect: null, agency: null }, "/x");
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0][0]).toBe("/api/portal/invites/tok123/accept");
   });
@@ -100,6 +104,19 @@ describe("landingAfterAuth", () => {
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("/api/portal/connect-link/claim");
     expect(JSON.parse(init.body)).toEqual({ token: "tokABC" });
+  });
+
+  it("joins the agency's roster from a join link and lands on My accounts", async () => {
+    const fetchMock = mockFetch(201, { agency: "Acme", alreadyOnRoster: false });
+    await expect(landingAfterAuth({ ...none, agency: "abcdefgh2345" }, "/x")).resolves.toBe("/portal/accounts");
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/portal/join-agency");
+    expect(JSON.parse(init.body)).toEqual({ code: "abcdefgh2345" });
+  });
+
+  it("goes to the fallback when the join link is gone", async () => {
+    mockFetch(404, { error: "gone" });
+    await expect(landingAfterAuth({ ...none, agency: "abcdefgh2345" }, "/x")).resolves.toBe("/x");
   });
 
   it("goes to the fallback when the connect link is refused", async () => {

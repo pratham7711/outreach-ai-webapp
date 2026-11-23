@@ -339,6 +339,7 @@ model Organization {
   activationStatusDefs ActivationStatusDef[]
   campaignTemplates    CampaignTemplate[]
   mcpOAuthTokens     McpOAuthToken[]
+  joinLinks          OrgJoinLink[]
 }
 
 /// A campaign's setup, saved to start new campaigns from: client, budget,
@@ -489,6 +490,25 @@ model SongStreamSnapshot {
   song Song @relation(fields: [songId], references: [id], onDelete: Cascade)
 
   @@unique([songId, day])
+}
+
+/// The agency's one join link, /join/<code>: a creator who opens it and
+/// connects an account is put on this org's roster (lib/creators/joinLink.ts).
+/// One live row per org; rotating revokes it and makes another. The code is
+/// kept in the clear because the agency shares it openly and must be able to
+/// copy it again; it only lets someone add themselves, by proving an account.
+model OrgJoinLink {
+  id           String       @id @default(cuid())
+  orgId        String
+  code         String       @unique
+  createdById  String?
+  createdAt    DateTime     @default(now())
+  revokedAt    DateTime?
+  joinedCount  Int          @default(0)
+  lastJoinedAt DateTime?
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, revokedAt])
 }
 
 /// The Spotify album a song is tracked by, instead of one track: every track on
