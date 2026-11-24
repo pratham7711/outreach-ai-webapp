@@ -8,6 +8,10 @@ import { PlatformGlyph } from "@/components/ui/PlatformGlyph";
 import { formatCount, formatDay, platformLabel, secondaryButtonStyle } from "@/components/portal/app/ui";
 import { NUM, Thumb, Toggle, formatPercent, formatTimes, muted } from "@/components/insights/parts";
 import PageCommentsPanel from "@/components/portal/stats/PageCommentsPanel";
+import dynamic from "next/dynamic";
+import { useInstagramManage } from "@/components/portal/stats/useInstagramManage";
+
+const InstagramManage = dynamic(() => import("@/components/portal/stats/InstagramManage"), { ssr: false });
 
 type Sort = "newest" | "views" | "engagement";
 
@@ -36,7 +40,7 @@ function Count({ icon: Icon, value, label }: { icon: typeof Heart; value: number
 /** One post as its cover, with its views on the image and how they compare
     with the account's typical post; the caption and the rest of its counts
     beneath. */
-function PostTile({ post, platform, best, times }: { post: InsightsPost; platform: PlatformInsights["platform"]; best: boolean; times: number | null }) {
+function PostTile({ post, platform, best, times, manageAccount = null }: { post: InsightsPost; platform: PlatformInsights["platform"]; best: boolean; times: number | null; manageAccount?: string | null }) {
   const caption = post.caption?.trim() || "Untitled post";
   /* Only a post that clearly beat the typical one carries a multiple; a chip
      on every tile ("1×", "0.7×") would be noise that reads as a grade. */
@@ -162,6 +166,7 @@ function PostTile({ post, platform, best, times }: { post: InsightsPost; platfor
         <Count icon={Users} value={post.reach} label="accounts reached" />
       </div>
       {platform === "FACEBOOK" && <PageCommentsPanel postId={post.id} />}
+      {platform === "INSTAGRAM" && manageAccount && <InstagramManage account={manageAccount} media={post.id} caption={caption} />}
     </li>
   );
 }
@@ -182,6 +187,8 @@ export default function PostGrid({ block, engagement = null }: { block: Platform
   const shown = all ? sorted : sorted.slice(0, FIRST_SHOWN);
   const n = block.sampleSize;
   const bestId = block.bestPost?.id ?? null;
+  const manage = useInstagramManage(block.platform === "INSTAGRAM");
+  const manageAccount = block.platform === "INSTAGRAM" && manage ? block.accountId : null;
 
   return (
     <section aria-labelledby={id}>
@@ -216,7 +223,7 @@ export default function PostGrid({ block, engagement = null }: { block: Platform
             }}
           >
             {shown.map((p) => (
-              <PostTile key={p.id} post={p} platform={block.platform} best={p.id === bestId && n > 1} times={timesMedian(p.views, block.medianViews, n)} />
+              <PostTile key={p.id} post={p} platform={block.platform} best={p.id === bestId && n > 1} times={timesMedian(p.views, block.medianViews, n)} manageAccount={manageAccount} />
             ))}
           </ul>
           {sorted.length > FIRST_SHOWN && (

@@ -1,5 +1,6 @@
 import { BRAND } from "@/lib/brand";
 import { instagramLoginConfigId } from "@/lib/oauth/instagramUnified";
+import { META_CREATOR_REVIEW_SCOPES, metaReviewScopesOn } from "@/lib/oauth/metaReviewScopes";
 
 export { instagramLoginConfigId };
 
@@ -243,9 +244,14 @@ export function facebookLoginScopes(platform: OAuthPlatform): string[] {
   return [...PROVIDERS[platform].scopes];
 }
 
+/** The creator Instagram scopes under review, when they are being asked for. */
+function creatorReviewScopes(platform: OAuthPlatform): string[] {
+  return platform === "instagram" && metaReviewScopesOn() ? [...META_CREATOR_REVIEW_SCOPES] : [];
+}
+
 export function requestedScopes(platform: OAuthPlatform): string[] {
-  if (platform === "instagram" && instagramLoginConfigId()) return [...INSTAGRAM_LOGIN_CONFIG_SCOPES];
-  return [...PROVIDERS[platform].scopes];
+  if (platform === "instagram" && instagramLoginConfigId()) return [...INSTAGRAM_LOGIN_CONFIG_SCOPES, ...creatorReviewScopes(platform)];
+  return [...PROVIDERS[platform].scopes, ...creatorReviewScopes(platform)];
 }
 
 export function appBaseUrl(): string {
@@ -345,7 +351,7 @@ function resolveScopes(
 ): string {
   const raw =
     platform === "tiktok" ? process.env.TIKTOK_SCOPES?.trim() : undefined;
-  if (!raw) return provider.scopes.join(provider.scopeSeparator);
+  if (!raw) return [...provider.scopes, ...creatorReviewScopes(platform)].join(provider.scopeSeparator);
 
   const declared = new Set(provider.scopes);
   const kept = raw

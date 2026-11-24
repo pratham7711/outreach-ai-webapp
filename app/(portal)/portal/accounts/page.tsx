@@ -8,7 +8,8 @@ import type { LucideIcon } from "lucide-react";
 import type { PlatformCapability } from "@/lib/capabilities";
 import { isInstagramLoginRow } from "@/lib/platforms/accountOrigin";
 import { OAUTH_PLATFORMS, toPlatformEnum, type OAuthPlatform } from "@/lib/oauth/providers";
-import { WHAT_WE_NEVER_DO, WHAT_WE_READ } from "@/lib/portal/whatWeRead";
+import { TIKTOK_BUSINESS_READ, WHAT_WE_NEVER_DO, WHAT_WE_READ } from "@/lib/portal/whatWeRead";
+import type { TikTokBusinessSummary } from "@/lib/portal/tiktokBusinessConnection";
 import { Button, useConfirm } from "@/components/ds";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { PlatformTile } from "@/components/ui/PlatformTile";
@@ -73,7 +74,7 @@ const BUTTON_NAME: Record<OAuthPlatform, string> = {
 };
 /** One icon per line of WHAT_WE_NEVER_DO, in its order. */
 const NEVER_ICONS: LucideIcon[] = [ShieldCheck, MessageSquareOff, Unplug];
-const NEVER_SHORT = ["Read-only", "No DMs or passwords", "Disconnect any time"];
+const NEVER_SHORT = ["Nothing without your click", "No DMs or passwords", "Disconnect any time"];
 
 const RETURN_TO = "/portal/accounts";
 
@@ -89,6 +90,7 @@ function readConnectResult(): { tone: "success" | "danger"; text: string } | nul
   const connected = params.get("connected");
   const failed = params.get("error");
   if (!connected && !failed) return null;
+  if (failed === "tiktok-business") return { tone: "danger", text: TIKTOK_BUSINESS_FAILURE[params.get("reason") ?? ""] ?? TIKTOK_BUSINESS_FAILURE.exchange };
   const slug = (connected ?? failed ?? "") as OAuthPlatform;
   const name = CARD_LABEL[slug] ?? slug;
   if (connected) return { tone: "success", text: `${name} connected. Your numbers will appear in My stats.` };
@@ -103,6 +105,14 @@ function readConnectResult(): { tone: "success" | "danger"; text: string } | nul
   return { tone: "danger", text: connectFailureText(name, reason, "the agency") };
 }
 
+const TIKTOK_BUSINESS_FAILURE: Record<string, string> = {
+  unconfigured: "TikTok for Business sign-in isn't switched on yet.",
+  state: "Couldn't connect TikTok for Business: the sign-in expired. Try again.",
+  denied: "TikTok for Business wasn't connected: access was not granted on TikTok.",
+  exchange: "Couldn't connect TikTok for Business: TikTok did not finish the sign-in. Try again.",
+  unavailable: "TikTok for Business can't be connected right now. Try again later.",
+};
+
 /* A button rather than <details>/<summary>: the phone touch rule in
    globals.css (rsp-touch, 44px) reaches buttons and links, not a summary. */
 /* Open by default until the platform is connected: before Connect is when a
@@ -110,7 +120,7 @@ function readConnectResult(): { tone: "success" | "danger"; text: string } | nul
 /* On a phone it starts closed: open on every platform it made the page five
    screens tall, with the Connect buttons far apart. Collapsed before paint,
    so the server's open render is never seen there. */
-function WhatWeRead({ platform, notes }: { platform: OAuthPlatform; notes: string[] }) {
+function WhatWeRead({ platform, notes, lines = WHAT_WE_READ[platform as OAuthPlatform] }: { platform: string; notes: string[]; lines?: Array<{ scope: string; reads: string }> }) {
   const [open, setOpen] = useState(false);
   const id = `what-we-read-${platform}`;
   return (
@@ -145,7 +155,7 @@ function WhatWeRead({ platform, notes }: { platform: OAuthPlatform; notes: strin
               {n}
             </li>
           ))}
-          {WHAT_WE_READ[platform].map((r) => (
+          {lines.map((r) => (
             <li key={r.scope} style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4, fontSize: 13, color: "var(--cc-text)", lineHeight: 1.5 }}>
               <code className="cc-scope-chip">{r.scope.replace("https://www.googleapis.com/auth/", "")}</code>
               <span>{r.reads}</span>
@@ -297,6 +307,62 @@ function PlatformCard({
         {platform === "tiktok" && !gated && canConnect && (
           <TikTokConnectAgreement style={{ flex: "1 1 100%" }} />
         )}
+      </div>
+    </Card>
+  );
+}
+
+/** TikTok for Business: a second, optional TikTok connection (Accounts API)
+    for the creator's own analytics, comments and ad codes. Its own table, so
+    it never touches the TikTok Login Kit row above it. */
+function TikTokBusinessCard({ canConnect }: { canConnect: boolean }) {
+  const [status, setStatus] = useState<{ available: boolean; connection: TikTokBusinessSummary | null } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/portal/tiktok-business/status", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled && d) setStatus(d);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  if (!status || (!status.available && !status.connection)) return null;
+  const c = status.connection;
+  return (
+    <Card flush>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "16px var(--cc-card-inset)" }}>
+        <PlatformTile platform="TIKTOK" />
+        <div style={{ minWidth: 0, flex: 1, minHeight: 40, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+            <h2 style={{ flex: "1 1 auto", minWidth: 0, fontSize: 16, fontWeight: 700, color: "var(--cc-text)", margin: 0, lineHeight: 1.35, paddingTop: 1 }}>
+              TikTok for Business
+            </h2>
+            <span style={{ flex: "none" }}>
+              <StatusPill tone={c ? "success" : "neutral"}>{c ? "Connected" : "Not connected"}</StatusPill>
+            </span>
+          </div>
+          {c && (
+            <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: "2px 0 0", lineHeight: 1.45 }}>
+              @{c.username} · connected {relativeDay(c.connectedAt)}
+            </p>
+          )}
+        </div>
+      </div>
+      <div className="portal-acc-actions">
+        {c ? (
+          <ButtonLink href="/portal/tiktok-business">Open analytics</ButtonLink>
+        ) : canConnect ? (
+          <ConnectLink href="/api/portal/tiktok-business/start" variant="primary" label="Connect TikTok for Business" pendingLabel="Opening TikTok sign-in…" />
+        ) : null}
+        <WhatWeRead
+          platform="tiktok-business"
+          lines={TIKTOK_BUSINESS_READ}
+          notes={c ? [] : ["Daily analytics, follower demographics, per-video insights, comments and ad codes for your own account. Read live, only for you."]}
+        />
+        {!c && canConnect && <TikTokConnectAgreement style={{ flex: "1 1 100%" }} />}
       </div>
     </Card>
   );
@@ -576,6 +642,7 @@ export default function MyAccountsPage() {
                 canConnect={canConnect}
               />
             ))}
+            <TikTokBusinessCard canConnect={canConnect} />
             {otherPublic.length > 0 && (
               <Card>
                 <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>Other public profiles</h2>

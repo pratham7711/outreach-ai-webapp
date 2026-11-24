@@ -12,6 +12,7 @@ import {
   type AgencyIgAccount,
 } from "@/lib/platforms/instagramAgencyCredential";
 import { createLogger } from "@/lib/observability/logger";
+import { META_AGENCY_REVIEW_SCOPES, metaReviewScopesOn } from "@/lib/oauth/metaReviewScopes";
 
 /**
  * Settings → Integrations → "Instagram Business account (for creator lookups)".
@@ -33,7 +34,7 @@ export function agencyRedirectUri(): string {
 }
 
 export function agencyScopes(): string[] {
-  return facebookLoginScopes("instagram");
+  return [...facebookLoginScopes("instagram"), ...(metaReviewScopesOn() ? META_AGENCY_REVIEW_SCOPES : [])];
 }
 
 /** The cookie that binds a consent to this browser AND this org. */

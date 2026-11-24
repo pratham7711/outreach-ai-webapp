@@ -2030,6 +2030,7 @@ model CreatorUser {
   /// Present once the creator has opened the link mailed to `email`. No
   /// session is handed out without it (lib/portal/creatorEmailVerification.ts).
   emailVerification CreatorEmailVerification?
+  tiktokBusiness    TikTokBusinessConnection?
 }
 
 /// A roster row that a creator made by signing up through the agency's join
@@ -2054,6 +2055,28 @@ model CreatorEmailVerification {
   creatorUserId String      @id
   verifiedAt    DateTime    @default(now())
   creatorUser   CreatorUser @relation(fields: [creatorUserId], references: [id], onDelete: Cascade)
+}
+
+/// A creator's own TikTok account authorised through the TikTok API for
+/// Business (Accounts API) -- a different developer app from Login Kit, which
+/// CreatorSocialAccount holds. One per portal identity. The data it unlocks is
+/// read live for that creator only and never stored or shared across creators
+/// (lib/portal/tiktokBusinessConnection.ts).
+model TikTokBusinessConnection {
+  creatorUserId    String      @id
+  openId           String
+  username         String
+  displayName      String?
+  /// AES-256-GCM ciphertext, AAD = creatorUserId (lib/crypto/encrypt.ts).
+  accessToken      String
+  refreshToken     String
+  accessExpiresAt  DateTime
+  refreshExpiresAt DateTime
+  /// Comma-separated scopes the creator approved, as TikTok returned them.
+  scopes           String
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  creatorUser      CreatorUser @relation(fields: [creatorUserId], references: [id], onDelete: Cascade)
 }
 
 model CreatorSession {

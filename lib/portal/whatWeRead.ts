@@ -1,5 +1,7 @@
 import type { OAuthPlatform } from "@/lib/oauth/providers";
 import { instagramUnifiedLogin } from "@/lib/oauth/instagramUnified";
+import { metaReviewScopesOn } from "@/lib/oauth/metaReviewScopes";
+import type { TIKTOK_BUSINESS_SCOPES } from "@/lib/platforms/tiktokBusiness";
 
 /**
  * "What we read", per permission, in the words the creator sees on My accounts.
@@ -123,9 +125,51 @@ if (instagramUnifiedLogin()) {
   WHAT_WE_READ.instagram = WHAT_WE_READ.instagram.filter((line) => !line.scope.startsWith("pages_"));
 }
 
+/* Comment moderation and Partnership Ads on the creator's own posts, requested
+   only while META_REVIEW_SCOPES=1 (lib/oauth/metaReviewScopes.ts).
+   lib/platforms/instagramComments.ts and lib/platforms/instagramPartnership.ts. */
+if (metaReviewScopesOn()) {
+  WHAT_WE_READ.instagram.push(
+    {
+      scope: "instagram_manage_comments",
+      reads:
+        "The comments and replies on your own posts, shown to you on My stats, where you can reply to, hide, unhide or delete one. Nothing changes unless you click, and comments are never saved.",
+    },
+    {
+      scope: "instagram_branded_content_creator",
+      reads: "Which brands you have allowed to boost a branded post, so you can turn that on or off for a brand you work with.",
+    },
+  );
+}
+
+/* TikTok for Business (Accounts API), a separate connection from TikTok Login
+   Kit above. lib/platforms/tiktokBusiness.ts: PROFILE_FIELDS, POST_FIELDS, the
+   comment edges and the post authorization edges. Read live, never saved. */
+export const TIKTOK_BUSINESS_READ: Array<PermissionRead & { scope: (typeof TIKTOK_BUSINESS_SCOPES)[number] }> = [
+  { scope: "user.info.basic", reads: "Your display name and profile picture." },
+  { scope: "user.info.username", reads: "Your TikTok username." },
+  { scope: "user.info.profile", reads: "Your bio, profile link and whether you are verified." },
+  { scope: "user.info.stats", reads: "Your follower, following, likes and video counts." },
+  { scope: "user.account.type", reads: "Whether your account is personal, creator or business, which decides what analytics TikTok offers." },
+  {
+    scope: "user.insights",
+    reads: "Your daily video views, profile views, likes, comments, shares, and new and lost followers, and your followers' age, gender and country as TikTok's totals.",
+  },
+  { scope: "video.list", reads: "Your recent videos: caption, cover, link, date, and view, like, comment and share counts." },
+  {
+    scope: "video.insights",
+    reads: "Each video's reach, watch time, how long viewers kept watching, where its views came from, and its viewers' gender and country.",
+  },
+  { scope: "comment.list", reads: "The comments and replies on your videos." },
+  {
+    scope: "biz.spark.auth",
+    reads: "Lets you turn on ad authorization for one of your videos to get a code for a brand, extend it or delete it. Only when you click.",
+  },
+];
+
 /** The same, for every platform: what connecting never lets us do. */
 export const WHAT_WE_NEVER_DO: string[] = [
-  "We never post, edit or delete anything on your accounts.",
+  "We never post, edit or delete anything on your accounts unless you click to do it yourself.",
   "We never read your direct messages or your password.",
   "Disconnect deletes the stored access straight away.",
 ];

@@ -15,7 +15,7 @@ export default function PrivacyPage() {
       title="Privacy Policy"
       highlights={[
         { icon: ShieldCheck, text: "Connecting an account is always optional, and happens on the platform’s own consent screen." },
-        { icon: MessageSquareOff, text: "We never post on your behalf, and we never read direct messages." },
+        { icon: MessageSquareOff, text: "Nothing changes on your accounts unless you click to change it, and we never read direct messages." },
         { icon: Unplug, text: "Disconnecting the account stops all further collection immediately." },
       ]}
       intro={`This policy explains what ${LEGAL.name} collects, why we collect it, who we share it with, and how you can get it deleted. It covers both the campaign management application and any social accounts you choose to connect.`}
@@ -63,8 +63,8 @@ export default function PrivacyPage() {
         <p>
           Connecting a social account is always optional and always initiated by the account holder
           through that platform&rsquo;s own consent screen. We request the narrowest permissions
-          that make the feature work, we never post on your behalf, and we never read direct
-          messages.
+          that make the feature work, nothing is posted, changed or deleted on an account unless its
+          owner clicks to do it on that screen, and we never read direct messages.
         </p>
         <ul>
           <LegalPlatform mark={<PlatformTile platform="TIKTOK" size={36} />}>
@@ -80,6 +80,26 @@ export default function PrivacyPage() {
             and to the creator in their own creator portal.
             We do not access private or unpublished videos, we do not read direct messages, and we
             do not post, edit, or delete content.
+          </LegalPlatform>
+          <LegalPlatform mark={<PlatformTile platform="TIKTOK" size={36} />}>
+            <strong>TikTok for Business</strong>{" "}&mdash; a separate, optional connection a creator
+            makes from My accounts for their own analytics and ad codes. With{" "}
+            <code>user.info.basic</code>, <code>user.info.username</code>, <code>user.info.profile</code>{" "}
+            and <code>user.account.type</code>{" "}we read the display name, username, profile
+            picture, bio, profile link, verified status and whether it is a personal, creator or
+            business account. With <code>user.info.stats</code>{" "}we read the follower, following,
+            likes and video counts. With <code>user.insights</code>{" "}we read the account&rsquo;s
+            daily video views, profile views, likes, comments, shares and new and lost followers, and
+            its followers&rsquo; age, gender and country as TikTok groups them. With{" "}
+            <code>video.list</code>{" "}and <code>video.insights</code>{" "}we read the recent videos
+            and, for each, its views, reach, watch time, how long viewers kept watching, where views
+            came from, and its viewers&rsquo; gender and country. With <code>comment.list</code>{" "}we
+            read the comments and replies on those videos. With <code>biz.spark.auth</code>{" "}the
+            creator can, by clicking, turn on ad authorization for one of their videos to get a code
+            they can give a brand, extend it, or delete it. All of this is shown only to the creator
+            on their TikTok for Business screen, read from TikTok each time the screen is opened, and
+            never saved; we keep only the encrypted access token. We do not use it to find or rank
+            creators.
           </LegalPlatform>
           <LegalPlatform mark={<PlatformTile platform="INSTAGRAM" size={36} />}>
             <strong>Instagram</strong>{" "}&mdash; a professional (Business or Creator) account is
@@ -106,6 +126,20 @@ export default function PrivacyPage() {
                 organisation running the creator&rsquo;s campaigns can see who a campaign reached.
                 These are deleted when the account is disconnected or its access to that
                 organisation is revoked.
+              </li>
+              <li>
+                <em>Comments and Partnership Ads</em>, on the creator&rsquo;s own posts. With{" "}
+                <code>instagram_manage_comments</code>{" "}the creator reads the comments and replies on
+                their posts on My stats and can, by clicking, reply, hide, unhide or delete one; the
+                comments are read each time and never saved. With{" "}
+                <code>instagram_branded_content_creator</code>{" "}the creator sees which brands they
+                have allowed to boost a branded post, and turns that on or off for a brand they work
+                with. An organisation that connects its own Instagram account can, with{" "}
+                <code>business_management</code>, <code>instagram_branded_content_brand</code>{" "}
+                and <code>instagram_branded_content_ads_brand</code>, ask a creator for permission to
+                run partnership ads with their content, see whether the creator approved it, withdraw
+                the request, and keep its list of creators approved to tag it as a paid partner. The
+                creator approves or declines that request inside Instagram.
               </li>
               <li>
                 <em>Instagram Login</em>, which needs no Facebook Page, is not offered at the
@@ -141,9 +175,9 @@ export default function PrivacyPage() {
           </LegalPlatform>
         </ul>
         <p>
-          Apart from the Instagram audience demographics above, which Instagram reports as
-          totals per country, city, age band and gender and never per person, we do not read
-          audience demographics from any platform. The creator portal&rsquo;s My accounts screen also lists
+          Apart from the Instagram and TikTok for Business audience demographics above, which
+          each platform reports as totals per country, city, age band and gender and never per
+          person, we do not read audience demographics from any platform. The creator portal&rsquo;s My accounts screen also lists
           what each permission reads, under &ldquo;What we read&rdquo; on the card of each platform a
           creator can connect there.
         </p>

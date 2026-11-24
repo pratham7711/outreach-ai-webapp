@@ -147,6 +147,7 @@ export const AREAS = {
       // itself is app/api/trackers/, under settings.
       "components/creators/TrackCreators.tsx",
       "components/creators/InstagramDiscoveryPanel.tsx",
+      "components/creators/PartnershipAdsPanel.tsx",
       "components/lists/",
       "lib/lists/",
       "lib/creators/creatorName.ts",
@@ -183,6 +184,7 @@ export const AREAS = {
     sources: [
       "app/(portal)/",
       "app/api/portal/",
+      "app/api/admin/migrate-tiktok-business/",
       "components/portal/",
       // A roster creator's connect link and the connection lifecycle behind it
       // (K1-K3, K5): the public page, its tables, the deauthorize webhooks.

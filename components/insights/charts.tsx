@@ -128,7 +128,7 @@ export function TotalAreaChart({
             tick={tick}
             tickLine={false}
             axisLine={false}
-            width={44}
+            width="auto"
             domain={[Math.max(0, min - pad), max + pad]}
             allowDecimals={false}
             tickFormatter={(v) => formatCount(Number(v))}
@@ -175,7 +175,7 @@ export function DailyBarChart({
         <BarChart data={points} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
           <CartesianGrid vertical={false} stroke="var(--cc-border)" />
           <XAxis dataKey="day" tick={tick} tickLine={false} axisLine={false} tickFormatter={shortDay} minTickGap={36} />
-          <YAxis tick={tick} tickLine={false} axisLine={false} width={44} allowDecimals={false} tickFormatter={(v) => formatCount(Number(v))} />
+          <YAxis tick={tick} tickLine={false} axisLine={false} width="auto" allowDecimals={false} tickFormatter={(v) => formatCount(Number(v))} />
           <Tooltip content={Tip} cursor={{ fill: "var(--cc-hover-bg)" }} />
           <Bar
             dataKey="value"

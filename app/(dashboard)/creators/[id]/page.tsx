@@ -52,6 +52,7 @@ import MetricFigure from "@/components/creators/MetricFigure";
 import CreatorAccess from "@/components/creators/CreatorAccess";
 import { PlatformTile } from "@/components/ui/PlatformTile";
 import InstagramDiscoveryPanel from "@/components/creators/InstagramDiscoveryPanel";
+import PartnershipAdsPanel from "@/components/creators/PartnershipAdsPanel";
 import InstagramInsightsPanel from "@/components/insights/InstagramInsightsPanel";
 import { CreatorAudienceCard } from "@/components/audience/CreatorAudienceCard";
 import { AgeLabel } from "@/components/ds/AgeLabel";
@@ -1039,6 +1040,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
         {activeTab === "profile" && (
           <>
             <InstagramDiscoveryPanel creatorId={id} />
+            <PartnershipAdsPanel creatorId={id} />
             <CreatorAudienceCard creatorId={id} />
             <InstagramInsightsPanel
               url={`/api/creators/${encodeURIComponent(id)}/instagram-insights`}
