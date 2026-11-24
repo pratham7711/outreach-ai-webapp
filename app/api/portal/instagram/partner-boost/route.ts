@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getCreatorSession } from "@/lib/creator-auth";
 import { brandPartnersFor, ownInstagram } from "@/lib/portal/instagramOwnAccount";
 import { InstagramAuthError } from "@/lib/platforms/instagram";
-import { mediaBelongsTo } from "@/lib/platforms/instagramComments";
+import { mediaBelongsTo } from "@/lib/platforms/instagramGraphWrite";
 import { approvedBoostPartners, setBoostPermission } from "@/lib/platforms/instagramPartnership";
 import { rateLimit, rateLimitKey } from "@/lib/rateLimit";
 import { createLogger } from "@/lib/observability/logger";

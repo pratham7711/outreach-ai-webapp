@@ -3,13 +3,14 @@
 import { Suspense, useCallback, useEffect, useId, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { BadgeCheck, Film, Unplug } from "lucide-react";
+import { BadgeCheck, Film, Play, Unplug } from "lucide-react";
 import type { DailyMetrics, TikTokBusinessPost, TikTokBusinessProfile } from "@/lib/platforms/tiktokBusiness";
 import type { TikTokBusinessSummary } from "@/lib/portal/tiktokBusinessConnection";
 import { Button, useConfirm } from "@/components/ds";
-import { Banner, EmptyState, Screen, SkeletonBlock, SourceLabel, StatusPill, formatCount, formatDay, type Tone } from "@/components/portal/app/ui";
-import { ColumnBars, FigureStrip, Panel, RankBars, SectionHeading, SplitBar, Thumb, Toggle, muted, type Figure } from "@/components/insights/parts";
-import { DailyBarChart, TotalAreaChart, type DayValue } from "@/components/insights/charts";
+import { Banner, EmptyState, Screen, SkeletonBlock, SourceLabel, formatCount, formatDay, type Tone } from "@/components/portal/app/ui";
+import { ColumnBars, Donut, Panel, RankBars, SectionHeading, Thumb, Toggle, muted } from "@/components/insights/parts";
+import type { DayValue } from "@/components/insights/charts";
+import { MetricExplorer, type ExplorerMetric } from "@/components/insights/MetricExplorer";
 import PostDetail from "@/components/portal/tiktokBusiness/PostDetail";
 import { countryName, genderSegments } from "@/components/portal/tiktokBusiness/format";
 
@@ -38,42 +39,59 @@ function series(daily: DailyMetrics[], pick: (d: DailyMetrics) => number | null)
 
 const sum = (pts: DayValue[]) => (pts.length ? pts.reduce((a, p) => a + p.value, 0) : null);
 
-function Header({ profile, onDisconnect, busy }: { profile: TikTokBusinessProfile; onDisconnect: () => void; busy: boolean }) {
+function Header({ profile }: { profile: TikTokBusinessProfile }) {
   const type = ACCOUNT_TYPE[profile.accountType];
+  const counts: Array<[string, number | null]> = [
+    ["Following", profile.following],
+    ["Followers", profile.followers],
+    ["Likes", profile.totalLikes],
+    ["Videos", profile.videos],
+  ];
   return (
-    <Panel style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-      <Thumb src={profile.avatarUrl} width={64} height={64} radius={32} />
-      <div style={{ flex: "1 1 220px", minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>{profile.displayName || `@${profile.username}`}</h2>
-          {profile.isVerified && <BadgeCheck size={18} aria-label="Verified" style={{ color: "var(--cc-primary)" }} />}
-        </div>
-        <p style={{ ...muted, fontSize: 13, margin: "2px 0 8px" }}>
+    <section
+      aria-label="Your TikTok account"
+      style={{
+        background: "var(--cc-plat-band)",
+        color: "var(--cc-plat-on-band)",
+        borderRadius: "var(--cc-r-card)",
+        padding: "28px 24px 24px",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        textAlign: "center",
+        gap: 10,
+      }}
+    >
+      <span style={{ padding: 3, borderRadius: "50%", background: "var(--cc-plat-ring)", display: "inline-flex" }}>
+        <span style={{ padding: 3, borderRadius: "50%", background: "var(--cc-plat-band)", display: "inline-flex" }}>
+          <Thumb src={profile.avatarUrl} width={84} height={84} radius={42} />
+        </span>
+      </span>
+      <div>
+        <h2 style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 20, fontWeight: 700, margin: 0, color: "inherit" }}>
+          {profile.displayName || `@${profile.username}`}
+          {profile.isVerified && <BadgeCheck size={18} aria-label="Verified" style={{ color: "var(--cc-tiktok-cyan)" }} />}
+        </h2>
+        <p style={{ fontSize: 14, margin: "2px 0 0", color: "var(--cc-plat-on-band-muted)" }}>
           {profile.profileUrl ? (
             <a href={profile.profileUrl} target="_blank" rel="noreferrer" style={{ color: "inherit" }}>@{profile.username}</a>
           ) : (
             `@${profile.username}`
           )}
+          {" · "}
+          {type.text}
         </p>
-        <StatusPill tone={type.tone}>{type.text}</StatusPill>
       </div>
-      <dl style={{ display: "flex", gap: 20, margin: 0, flexWrap: "wrap" }}>
-        {[
-          ["Followers", profile.followers],
-          ["Following", profile.following],
-          ["Likes", profile.totalLikes],
-          ["Videos", profile.videos],
-        ].map(([k, v]) => (
-          <div key={k as string}>
-            <dt style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{k}</dt>
-            <dd style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "var(--cc-text)", fontVariantNumeric: "tabular-nums" }}>{v === null ? "—" : formatCount(v as number)}</dd>
+      <dl style={{ display: "flex", justifyContent: "center", margin: "6px 0 0", flexWrap: "wrap", rowGap: 10 }}>
+        {counts.map(([k, v], i) => (
+          <div key={k} style={{ padding: "0 clamp(8px, 2.6vw, 22px)", borderLeft: i ? "1px solid color-mix(in srgb, var(--cc-plat-on-band) 18%, transparent)" : "none", display: "flex", flexDirection: "column-reverse" }}>
+            <dt style={{ fontSize: 13, color: "var(--cc-plat-on-band-muted)" }}>{k}</dt>
+            <dd style={{ margin: 0, fontSize: "clamp(15px, 4vw, 19px)", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{v === null ? "—" : formatCount(v)}</dd>
           </div>
         ))}
       </dl>
-      <Button variant="ghost" size="sm" loading={busy} onClick={onDisconnect}>
-        <Unplug size={14} aria-hidden="true" /> Disconnect
-      </Button>
-    </Panel>
+      {profile.bio?.trim() && <p style={{ fontSize: 14, margin: "4px 0 0", maxWidth: "52ch", lineHeight: 1.5, color: "var(--cc-plat-on-band)", whiteSpace: "pre-wrap" }}>{profile.bio.trim()}</p>}
+    </section>
   );
 }
 
@@ -83,49 +101,36 @@ function Analytics({ profile, days, onDays }: { profile: TikTokBusinessProfile; 
   const followers = series(profile.daily, (d) => d.followers);
   const gained = series(profile.daily, (d) => d.newFollowers);
   const lost = series(profile.daily, (d) => d.lostFollowers);
+  const likes = series(profile.daily, (d) => d.likes);
+  const shares = series(profile.daily, (d) => d.shares);
+  const comments = series(profile.daily, (d) => d.comments);
   const net = sum(gained) !== null && sum(lost) !== null ? sum(gained)! - sum(lost)! : null;
-  const figures: Figure[] = [
-    { label: "Video views", value: sum(views) },
-    { label: "Profile views", value: sum(profileViews) },
-    { label: "New followers", value: sum(gained) },
-    { label: "Net followers", value: null, display: net === null ? undefined : `${net >= 0 ? "+" : "−"}${formatCount(Math.abs(net))}` },
-    { label: "Likes", value: sum(series(profile.daily, (d) => d.likes)) },
-    { label: "Shares", value: sum(series(profile.daily, (d) => d.shares)) },
+  const latest = followers.length ? followers[followers.length - 1].value : null;
+  const metrics: ExplorerMetric[] = [
+    { key: "views", label: "Video views", value: sum(views), points: views, kind: "daily", describe: (v) => `${formatCount(v)} views` },
+    { key: "profile", label: "Profile views", value: sum(profileViews), points: profileViews, kind: "daily", describe: (v) => `${formatCount(v)} profile views` },
+    {
+      key: "followers",
+      label: "Followers",
+      value: latest,
+      note: net === null ? undefined : `${net >= 0 ? "+" : "−"}${formatCount(Math.abs(net))} this period`,
+      points: followers,
+      kind: "total",
+      describe: (v) => `${formatCount(v)} followers`,
+    },
+    { key: "gained", label: "New followers", value: sum(gained), points: gained, kind: "daily", describe: (v) => `+${formatCount(v)} new followers` },
+    { key: "likes", label: "Likes", value: sum(likes), points: likes, kind: "daily", describe: (v) => `${formatCount(v)} likes` },
+    { key: "comments", label: "Comments", value: sum(comments), points: comments, kind: "daily", describe: (v) => `${formatCount(v)} comments` },
+    { key: "shares", label: "Shares", value: sum(shares), points: shares, kind: "daily", describe: (v) => `${formatCount(v)} shares` },
   ];
   const id = useId();
   return (
     <Panel labelledBy={id}>
       <SectionHeading id={id} level={2} title="Account analytics" aside={<Toggle label="Period" options={WINDOWS} value={days} onChange={onDays} />} />
-      <FigureStrip figures={figures} missing={(l) => `TikTok did not return ${l.join(", ").toLowerCase()} for this period.`} />
       {profile.daily.length === 0 ? (
-        <p style={{ ...muted, marginTop: 16 }}>TikTok has no daily figures for this period yet. They arrive one to two days late.</p>
+        <p style={muted}>TikTok has no daily figures for this period yet. They arrive one to two days late.</p>
       ) : (
-        <div style={{ display: "grid", gap: 24, marginTop: 20, gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))" }}>
-          {views.length > 0 && (
-            <div>
-              <h3 style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)", margin: "0 0 8px" }}>Video views by day</h3>
-              <DailyBarChart points={views} label="Video views by day" describe={(v) => `${formatCount(v)} views`} />
-            </div>
-          )}
-          {followers.length > 0 && (
-            <div>
-              <h3 style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)", margin: "0 0 8px" }}>Followers</h3>
-              <TotalAreaChart points={followers} label="Followers by day" unit="followers" />
-            </div>
-          )}
-          {gained.length > 0 && (
-            <div>
-              <h3 style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)", margin: "0 0 8px" }}>New followers by day</h3>
-              <DailyBarChart points={gained} label="New followers by day" describe={(v) => `+${formatCount(v)} new followers`} />
-            </div>
-          )}
-          {profileViews.length > 0 && (
-            <div>
-              <h3 style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)", margin: "0 0 8px" }}>Profile views by day</h3>
-              <DailyBarChart points={profileViews} label="Profile views by day" describe={(v) => `${formatCount(v)} profile views`} />
-            </div>
-          )}
-        </div>
+        <MetricExplorer metrics={metrics} label="Account metrics" echo />
       )}
     </Panel>
   );
@@ -154,7 +159,7 @@ function Audience({ profile }: { profile: TikTokBusinessProfile }) {
         {genders.length > 0 && (
           <div>
             <h3 style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)", margin: "0 0 10px" }}>Gender</h3>
-            <SplitBar label="Followers by gender" segments={genderSegments(genders)} />
+            <Donut label="Followers by gender" segments={genderSegments(genders)} size={120} />
           </div>
         )}
         {countries.length > 0 && (
@@ -206,7 +211,7 @@ function Posts() {
       {Array.isArray(posts) && posts.length === 0 && <p style={muted}>No posts on this account yet.</p>}
       {Array.isArray(posts) && posts.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <ul role="listbox" aria-label="Posts" style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fill, minmax(104px, 1fr))" }}>
+          <ul role="listbox" aria-label="Posts" style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fill, minmax(92px, 1fr))" }}>
             {posts.map((p) => {
               const on = p.id === selected;
               return (
@@ -224,14 +229,14 @@ function Posts() {
                       overflow: "hidden",
                       cursor: "pointer",
                       background: "var(--cc-hover-bg)",
-                      border: on ? "2px solid var(--cc-primary)" : "1px solid var(--cc-border)",
+                      border: on ? "2px solid var(--cc-plat-accent)" : "1px solid var(--cc-border)",
                       outlineOffset: 2,
                     }}
                   >
                     <Thumb src={p.thumbnailUrl} fill radius={0} fallback={<Film size={20} />} />
                     {p.views !== null && (
-                      <span style={{ position: "absolute", left: 6, bottom: 6, padding: "2px 6px", borderRadius: 6, fontSize: 12, fontWeight: 700, background: "var(--cc-card)", color: "var(--cc-text)", fontVariantNumeric: "tabular-nums" }}>
-                        {formatCount(p.views)}
+                      <span style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: "18px 7px 6px", display: "flex", alignItems: "center", gap: 3, fontSize: 12, fontWeight: 700, color: "var(--cc-plat-on-band)", background: "linear-gradient(to top, color-mix(in srgb, var(--cc-overlay-ink) 70%, transparent), transparent)", fontVariantNumeric: "tabular-nums" }}>
+                        <Play size={11} aria-hidden="true" fill="currentColor" /> {formatCount(p.views)}
                       </span>
                     )}
                   </button>
@@ -312,7 +317,17 @@ function TikTokBusinessScreen() {
   };
 
   return (
-    <Screen title="TikTok for Business" maxWidth={1080}>
+    <Screen
+      title="TikTok for Business"
+      maxWidth={1080}
+      action={
+        state.kind === "ready" ? (
+          <Button variant="ghost" size="sm" loading={busy} onClick={disconnect}>
+            <Unplug size={14} aria-hidden="true" /> Disconnect
+          </Button>
+        ) : undefined
+      }
+    >
       {justConnected && (
         <Banner tone="success" onDismiss={() => setJustConnected(false)}>
           TikTok for Business is connected.
@@ -340,8 +355,8 @@ function TikTokBusinessScreen() {
         />
       )}
       {state.kind === "ready" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <Header profile={state.data.profile} onDisconnect={disconnect} busy={busy} />
+        <div className="cc-plat-tiktok" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <Header profile={state.data.profile} />
           <Analytics profile={state.data.profile} days={days} onDays={setDays} />
           <Audience profile={state.data.profile} />
           <Posts />

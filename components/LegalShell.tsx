@@ -2,7 +2,10 @@ import React from "react";
 import Link from "next/link";
 import { CalendarDays } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { Source_Serif_4 } from "next/font/google";
 import { BRAND } from "@/lib/brand";
+
+const reading = Source_Serif_4({ subsets: ["latin"], variable: "--font-legal-reading", display: "swap" });
 
 export const LEGAL = {
   name: BRAND.name,
@@ -76,7 +79,7 @@ export function LegalShell({
   );
 
   return (
-    <main className="legal-page">
+    <main className={`legal-page ${reading.variable}`}>
       <header className="legal-top">
         <div className="legal-top-row">
           <Link href="/" className="legal-brand">

@@ -59,7 +59,10 @@ const DEFAULT_CONNECT: Record<OAuthPlatform, StatusRule> = {
      Instagram is, because until the Meta review clears, the credentials simply
      will not be set in an environment a real creator can reach. */
   facebook: "auto",
-  threads: "auto",
+  /* coming_soon: Threads is not offered to creators yet, so its card stays off
+     the list unless someone already holds a Threads connection and needs the
+     card to disconnect it. PLATFORM_CONNECT_STATUS=threads:auto turns it on. */
+  threads: "coming_soon",
 };
 
 /**

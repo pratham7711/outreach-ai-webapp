@@ -1,5 +1,5 @@
 import { graphGet } from "./instagram";
-import { graphWrite } from "./instagramComments";
+import { graphWrite } from "./instagramGraphWrite";
 import { metaDemoMocked } from "@/lib/oauth/metaReviewScopes";
 import { igDemo } from "./metaDemoMock";
 
@@ -15,8 +15,6 @@ import { igDemo } from "./metaDemoMock";
  *  - instagram_branded_content_ads_brand + business_management: ask a creator
  *    for account-level partnership ad permission, see where each request
  *    stands, and revoke it (/{ig-user-id}/branded_content_ad_permissions).
- *  - instagram_branded_content_brand: the brand's list of creators approved to
- *    tag it as a paid partner (/{ig-user-id}/branded_content_tag_approval).
  *
  * Every change is one click by the person whose permission it is.
  */
@@ -85,21 +83,6 @@ export async function revokeAdPermission(token: string, brandIgUserId: string, c
   return graphWrite("POST", `${brandIgUserId}/branded_content_ad_permissions`, {
     creator_instagram_account: creatorIgId,
     revoke: "true",
-    access_token: token,
-  });
-}
-
-export async function isApprovedToTag(token: string, brandIgUserId: string, creatorIgId: string): Promise<boolean | null> {
-  if (metaDemoMocked()) return igDemo.approvedToTag(creatorIgId);
-  const data = await graphGet(`${brandIgUserId}/branded_content_tag_approval`, { user_ids: creatorIgId, access_token: token });
-  if (!data) return null;
-  return ((data.data as Array<{ id?: string }>) ?? []).some((r) => String(r.id) === creatorIgId);
-}
-
-export async function setApprovedToTag(token: string, brandIgUserId: string, creatorIgId: string, approved: boolean): Promise<boolean> {
-  if (metaDemoMocked()) return igDemo.setApprovedToTag(creatorIgId, approved);
-  return graphWrite(approved ? "POST" : "DELETE", `${brandIgUserId}/branded_content_tag_approval`, {
-    user_ids: creatorIgId,
     access_token: token,
   });
 }

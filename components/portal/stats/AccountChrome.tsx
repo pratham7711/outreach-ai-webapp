@@ -85,8 +85,10 @@ function AccountAvatar({ block, size }: { block: PlatformInsights; size: number 
   const badge = Math.round(size * 0.4);
   const handle = atHandle(block.handle);
   return (
-    <span style={{ position: "relative", display: "inline-block", width: size, height: size, flexShrink: 0 }}>
-      <Avatar src={block.avatarUrl} name={block.displayName?.trim() || handle} size={size} />
+    <span style={{ position: "relative", display: "inline-block", width: size, height: size, flexShrink: 0, borderRadius: "50%", padding: 3, background: "var(--cc-plat-ring, transparent)" }}>
+      <span style={{ display: "block", borderRadius: "50%", padding: 2, background: "var(--cc-card)" }}>
+        <Avatar src={block.avatarUrl} name={block.displayName?.trim() || handle} size={size - 10} />
+      </span>
       <span
         aria-hidden="true"
         style={{

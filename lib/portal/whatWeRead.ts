@@ -125,16 +125,11 @@ if (instagramUnifiedLogin()) {
   WHAT_WE_READ.instagram = WHAT_WE_READ.instagram.filter((line) => !line.scope.startsWith("pages_"));
 }
 
-/* Comment moderation and Partnership Ads on the creator's own posts, requested
-   only while META_REVIEW_SCOPES=1 (lib/oauth/metaReviewScopes.ts).
-   lib/platforms/instagramComments.ts and lib/platforms/instagramPartnership.ts. */
+/* Partnership Ads on the creator's own posts, requested only while
+   META_REVIEW_SCOPES=1 (lib/oauth/metaReviewScopes.ts and
+   lib/platforms/instagramPartnership.ts). */
 if (metaReviewScopesOn()) {
   WHAT_WE_READ.instagram.push(
-    {
-      scope: "instagram_manage_comments",
-      reads:
-        "The comments and replies on your own posts, shown to you on My stats, where you can reply to, hide, unhide or delete one. Nothing changes unless you click, and comments are never saved.",
-    },
     {
       scope: "instagram_branded_content_creator",
       reads: "Which brands you have allowed to boost a branded post, so you can turn that on or off for a brand you work with.",

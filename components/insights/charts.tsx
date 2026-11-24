@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis, type TooltipContentProps } from "recharts";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ReferenceLine, Tooltip, XAxis, YAxis, type TooltipContentProps } from "recharts";
 import type { NameType, ValueType } from "recharts/types/component/DefaultTooltipContent";
 import { ChartFrame } from "@/components/ds/ChartFrame";
 import { formatCount, formatDay } from "@/components/portal/app/ui";
@@ -97,12 +97,22 @@ export function TotalAreaChart({
   label,
   unit,
   height = 220,
+  color = "var(--cc-plat-accent, var(--cc-primary))",
+  echo,
+  fromZero = false,
+  describe,
 }: {
   points: DayValue[];
   label: string;
   /** "followers", "subscribers": what the tooltip calls one reading. */
   unit: string;
   height?: number;
+  color?: string;
+  /** An offset copy of the line in this colour, behind it. Decoration only. */
+  echo?: string;
+  /** A count per day starts its axis at zero; a running total does not. */
+  fromZero?: boolean;
+  describe?: (value: number) => string;
 }) {
   const reduced = usePrefersReducedMotion();
   const fillId = `total-area-${useId().replace(/:/g, "")}`;
@@ -110,16 +120,17 @@ export function TotalAreaChart({
   const min = Math.min(...values);
   const max = Math.max(...values);
   const pad = Math.max(1, Math.round((max - min) * 0.15));
-  const Tip = tipContent((v) => `${full(v)} ${unit}`);
+  const Tip = tipContent(describe ?? ((v) => `${full(v)} ${unit}`));
+  const domain: [number, number] = fromZero ? [0, max + pad] : [Math.max(0, min - pad), max + pad];
   return (
-    <figure style={{ margin: 0 }} aria-label={label}>
+    <figure className={echo ? "cc-chart-echo" : undefined} style={{ margin: 0, ...(echo ? { ["--cc-chart-echo" as string]: echo } : {}) }} aria-label={label}>
       <Measured height={height}>
       <ChartFrame height={height}>
         <AreaChart data={points} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" style={{ stopColor: "var(--cc-primary)", stopOpacity: 0.16 }} />
-              <stop offset="100%" style={{ stopColor: "var(--cc-primary)", stopOpacity: 0 }} />
+              <stop offset="0%" style={{ stopColor: color, stopOpacity: 0.2 }} />
+              <stop offset="100%" style={{ stopColor: color, stopOpacity: 0 }} />
             </linearGradient>
           </defs>
           <CartesianGrid vertical={false} stroke="var(--cc-border)" strokeDasharray="0" />
@@ -129,7 +140,7 @@ export function TotalAreaChart({
             tickLine={false}
             axisLine={false}
             width="auto"
-            domain={[Math.max(0, min - pad), max + pad]}
+            domain={domain}
             allowDecimals={false}
             tickFormatter={(v) => formatCount(Number(v))}
           />
@@ -137,10 +148,11 @@ export function TotalAreaChart({
           <Area
             type="monotone"
             dataKey="value"
-            stroke="var(--cc-primary)"
-            strokeWidth={2}
+            stroke={color}
+            strokeWidth={2.25}
+            strokeDasharray="0"
             fill={`url(#${fillId})`}
-            activeDot={{ r: 4, strokeWidth: 2, stroke: "var(--cc-card)", fill: "var(--cc-primary)" }}
+            activeDot={{ r: 4, strokeWidth: 2, stroke: "var(--cc-card)", fill: color }}
             isAnimationActive={!reduced}
             animationDuration={700}
             animationEasing="ease-out"
@@ -179,7 +191,7 @@ export function DailyBarChart({
           <Tooltip content={Tip} cursor={{ fill: "var(--cc-hover-bg)" }} />
           <Bar
             dataKey="value"
-            fill="var(--cc-primary)"
+            fill="var(--cc-plat-accent, var(--cc-primary))"
             radius={[3, 3, 0, 0]}
             maxBarSize={18}
             isAnimationActive={!reduced}
@@ -188,6 +200,78 @@ export function DailyBarChart({
           />
         </BarChart>
       </ChartFrame>
+      </Measured>
+    </figure>
+  );
+}
+
+/** A trend in a tile: no axes, no tooltip, just its shape. The tile beside it
+    carries the number. */
+export function Sparkline({ values, color = "var(--cc-primary)", width = 96, height = 28, fluid = false }: { values: number[]; color?: string; width?: number; height?: number; fluid?: boolean }) {
+  if (values.length < 2) return null;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = max - min || 1;
+  const xy = values.map((v, i) => [(i / (values.length - 1)) * width, height - 2 - ((v - min) / span) * (height - 4)] as const);
+  const line = xy.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} width={fluid ? "100%" : width} height={height} preserveAspectRatio={fluid ? "none" : undefined} aria-hidden="true" style={{ display: "block", overflow: "visible" }}>
+      <path d={`${line} L${width} ${height} L0 ${height} Z`} style={{ fill: color, fillOpacity: 0.1 }} />
+      <path d={line} vectorEffect="non-scaling-stroke" style={{ fill: "none", stroke: color, strokeWidth: 1.75, strokeLinejoin: "round", strokeLinecap: "round" }} />
+    </svg>
+  );
+}
+
+export type PostValue = { id: string; label: string; day: string; value: number };
+
+/** One bar per post, oldest on the left, against the account's median: which
+    posts beat a typical one. Each bar is a post's own count as the platform
+    returned it. */
+export function PostBarsChart({
+  posts,
+  median,
+  label,
+  describe,
+  color = "var(--cc-plat-accent, var(--cc-primary))",
+  height = 200,
+}: {
+  posts: PostValue[];
+  median: number | null;
+  label: string;
+  describe: (value: number) => string;
+  color?: string;
+  height?: number;
+}) {
+  const reduced = usePrefersReducedMotion();
+  function Tip({ active, payload }: TooltipContentProps<ValueType, NameType>) {
+    const row = payload?.[0]?.payload as PostValue | undefined;
+    if (!active || !row) return null;
+    return <TipBox day={`${shortDay(row.day)} · ${row.label}`} value={describe(row.value)} />;
+  }
+  return (
+    <figure style={{ margin: 0 }} aria-label={label}>
+      <Measured height={height}>
+        <ChartFrame height={height}>
+          <BarChart data={posts} margin={{ top: 12, right: 4, left: 0, bottom: 0 }}>
+            <CartesianGrid vertical={false} stroke="var(--cc-border)" />
+            <XAxis dataKey="day" tick={tick} tickLine={false} axisLine={false} tickFormatter={shortDay} interval="preserveStartEnd" minTickGap={20} />
+            <YAxis tick={tick} tickLine={false} axisLine={false} width="auto" allowDecimals={false} tickFormatter={(v) => formatCount(Number(v))} />
+            <Tooltip content={Tip} cursor={{ fill: "var(--cc-hover-bg)" }} />
+            <Bar dataKey="value" radius={[4, 4, 0, 0]} maxBarSize={36} isAnimationActive={!reduced} animationDuration={500} animationEasing="ease-out">
+              {posts.map((p) => (
+                <Cell key={p.id} fill={color} fillOpacity={median !== null && p.value < median ? 0.4 : 1} />
+              ))}
+            </Bar>
+            {median !== null && (
+              <ReferenceLine
+                y={median}
+                stroke="var(--cc-text)"
+                strokeDasharray="4 3"
+                label={{ value: "Typical post", position: "insideTopLeft", fontSize: 11, fill: "var(--cc-text-muted)" }}
+              />
+            )}
+          </BarChart>
+        </ChartFrame>
       </Measured>
     </figure>
   );

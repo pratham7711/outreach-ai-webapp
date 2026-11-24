@@ -185,6 +185,69 @@ export function SplitBar({ segments, label, valueFormat = "percent" }: { segment
   );
 }
 
+/**
+ * A split of one whole as a ring, the largest share named in the middle, with
+ * the same worded legend as SplitBar beside it. For two to six parts.
+ */
+export function Donut({ segments, label, size = 132, valueFormat = "percent" }: { segments: Segment[]; label: string; size?: number; valueFormat?: "percent" | "count" }) {
+  const parts = segments.filter((s) => s.value > 0);
+  const total = parts.reduce((sum, s) => sum + s.value, 0);
+  if (total <= 0) return null;
+  const stroke = Math.round(size * 0.14);
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const gap = parts.length > 1 ? Math.min(4, c * 0.01) : 0;
+  const lead = parts.reduce((a, b) => (b.value > a.value ? b : a));
+  const starts = parts.map((_, i) => parts.slice(0, i).reduce((sum, s) => sum + (s.value / total) * c, 0));
+  return (
+    <figure style={{ margin: 0, display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
+      <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
+        <svg
+          viewBox={`0 0 ${size} ${size}`}
+          width={size}
+          height={size}
+          role="img"
+          aria-label={`${label}: ${parts.map((s) => `${s.label} ${formatPercent(s.value / total)}`).join(", ")}`}
+          style={{ display: "block", transform: "rotate(-90deg)" }}
+        >
+          <circle cx={size / 2} cy={size / 2} r={r} style={{ fill: "none", stroke: "var(--cc-hover-bg)", strokeWidth: stroke }} />
+          {parts.map((s, i) => {
+            const len = (s.value / total) * c;
+            const dash = Math.max(0.5, len - gap);
+            return (
+              <circle
+                key={s.key}
+                cx={size / 2}
+                cy={size / 2}
+                r={r}
+                strokeDasharray={`${dash} ${c - dash}`}
+                strokeDashoffset={-starts[i]}
+                style={{ fill: "none", stroke: s.color, strokeWidth: stroke }}
+              />
+            );
+          })}
+        </svg>
+        <div aria-hidden="true" style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
+          <span style={{ ...NUM, fontSize: Math.round(size * 0.17), fontWeight: 700, color: "var(--cc-text)", lineHeight: 1 }}>{formatPercent(lead.value / total)}</span>
+          <span style={{ fontSize: 11, color: "var(--cc-text-muted)", marginTop: 3, maxWidth: size - stroke * 2 - 8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lead.label}</span>
+        </div>
+      </div>
+      <figcaption style={{ flex: "1 1 120px", minWidth: 0 }}>
+        <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+          {parts.map((s) => (
+            <li key={s.key} style={{ display: "grid", gridTemplateColumns: valueFormat === "count" ? "10px minmax(0, 1fr) auto auto" : "10px minmax(0, 1fr) auto", alignItems: "center", gap: 8, fontSize: 13, color: "var(--cc-text)" }}>
+              <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 3, background: s.color }} />
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.label}</span>
+              {valueFormat === "count" && <span style={{ ...NUM, color: "var(--cc-text-muted)" }}>{formatCount(s.value)}</span>}
+              <strong style={{ ...NUM, fontWeight: 700 }}>{formatPercent(s.value / total)}</strong>
+            </li>
+          ))}
+        </ul>
+      </figcaption>
+    </figure>
+  );
+}
+
 /** Ranked rows with a bar each, largest first: top countries. */
 export function RankBars({ rows }: { rows: Array<{ key: string; label: string; share: number; /** A count shown beside the share. */ note?: string }> }) {
   const top = Math.max(...rows.map((r) => r.share), 0.0001);
@@ -198,7 +261,7 @@ export function RankBars({ rows }: { rows: Array<{ key: string; label: string; s
         >
           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.label}</span>
           <span aria-hidden="true" style={{ height: 8, borderRadius: 4, background: "var(--cc-hover-bg)", overflow: "hidden" }}>
-            <span style={{ display: "block", width: `${(r.share / top) * 100}%`, height: "100%", borderRadius: 4, background: "var(--cc-primary)" }} />
+            <span style={{ display: "block", width: `${(r.share / top) * 100}%`, height: "100%", borderRadius: 4, background: "var(--cc-plat-accent, var(--cc-primary))" }} />
           </span>
           {noted && <span style={{ ...NUM, color: "var(--cc-text-muted)", textAlign: "right", fontSize: 12 }}>{r.note}</span>}
           <span style={{ ...NUM, fontWeight: 700, minWidth: 36, textAlign: "right" }}>{formatPercent(r.share)}</span>
@@ -217,7 +280,7 @@ export function ColumnBars({ rows, label }: { rows: Array<{ key: string; label: 
         {rows.map((r) => (
           <div key={r.key} style={{ display: "flex", flexDirection: "column", justifyContent: "flex-end", alignItems: "center", height: "100%", minWidth: 0 }}>
             <span style={{ ...NUM, fontSize: 12, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>{formatPercent(r.share)}</span>
-            <span style={{ width: "100%", maxWidth: 34, height: `${Math.max(2, (r.share / top) * 78)}px`, borderRadius: "5px 5px 2px 2px", background: "var(--cc-primary)" }} />
+            <span style={{ width: "100%", maxWidth: 34, height: `${Math.max(2, (r.share / top) * 78)}px`, borderRadius: "5px 5px 2px 2px", background: "var(--cc-plat-accent, var(--cc-primary))" }} />
           </div>
         ))}
       </div>

@@ -67,7 +67,7 @@ export default function PrivacyPage() {
           owner clicks to do it on that screen, and we never read direct messages.
         </p>
         <ul>
-          <LegalPlatform mark={<PlatformTile platform="TIKTOK" size={36} />}>
+          <LegalPlatform mark={<PlatformTile platform="TIKTOK" size={28} />}>
             <strong>TikTok</strong>{" "}&mdash; with the <code>user.info.basic</code>{" "}permission we read
             the account ID, display name and profile picture. With{" "}
             <code>user.info.profile</code>{" "}we read the username, profile link, bio and whether the
@@ -81,7 +81,7 @@ export default function PrivacyPage() {
             We do not access private or unpublished videos, we do not read direct messages, and we
             do not post, edit, or delete content.
           </LegalPlatform>
-          <LegalPlatform mark={<PlatformTile platform="TIKTOK" size={36} />}>
+          <LegalPlatform mark={<PlatformTile platform="TIKTOK" size={28} />}>
             <strong>TikTok for Business</strong>{" "}&mdash; a separate, optional connection a creator
             makes from My accounts for their own analytics and ad codes. With{" "}
             <code>user.info.basic</code>, <code>user.info.username</code>, <code>user.info.profile</code>{" "}
@@ -101,7 +101,7 @@ export default function PrivacyPage() {
             never saved; we keep only the encrypted access token. We do not use it to find or rank
             creators.
           </LegalPlatform>
-          <LegalPlatform mark={<PlatformTile platform="INSTAGRAM" size={36} />}>
+          <LegalPlatform mark={<PlatformTile platform="INSTAGRAM" size={28} />}>
             <strong>Instagram</strong>{" "}&mdash; a professional (Business or Creator) account is
             connected through Facebook Login.
             <ul>
@@ -128,18 +128,14 @@ export default function PrivacyPage() {
                 organisation is revoked.
               </li>
               <li>
-                <em>Comments and Partnership Ads</em>, on the creator&rsquo;s own posts. With{" "}
-                <code>instagram_manage_comments</code>{" "}the creator reads the comments and replies on
-                their posts on My stats and can, by clicking, reply, hide, unhide or delete one; the
-                comments are read each time and never saved. With{" "}
+                <em>Partnership Ads</em>, on the creator&rsquo;s own posts. With{" "}
                 <code>instagram_branded_content_creator</code>{" "}the creator sees which brands they
                 have allowed to boost a branded post, and turns that on or off for a brand they work
                 with. An organisation that connects its own Instagram account can, with{" "}
-                <code>business_management</code>, <code>instagram_branded_content_brand</code>{" "}
-                and <code>instagram_branded_content_ads_brand</code>, ask a creator for permission to
-                run partnership ads with their content, see whether the creator approved it, withdraw
-                the request, and keep its list of creators approved to tag it as a paid partner. The
-                creator approves or declines that request inside Instagram.
+                <code>business_management</code> and{" "}
+                <code>instagram_branded_content_ads_brand</code>, ask a creator for permission to
+                run partnership ads with their content, see whether the creator approved it, and
+                withdraw the request. The creator approves or declines that request inside Instagram.
               </li>
               <li>
                 <em>Instagram Login</em>, which needs no Facebook Page, is not offered at the
@@ -149,7 +145,7 @@ export default function PrivacyPage() {
               </li>
             </ul>
           </LegalPlatform>
-          <LegalPlatform mark={<PlatformTile platform="FACEBOOK" size={36} />}>
+          <LegalPlatform mark={<PlatformTile platform="FACEBOOK" size={28} />}>
             <strong>Facebook Pages</strong>{" "}&mdash; with <code>pages_show_list</code>{" "}we list the
             Pages you manage so you can choose one. With <code>pages_read_engagement</code>{" "}we read
             that Page&rsquo;s name, username, link, about text, picture, follower count and verified
@@ -161,13 +157,13 @@ export default function PrivacyPage() {
             asks to see them and are never saved. With{" "}
             <code>read_insights</code>{" "}we read how many views each post got.
           </LegalPlatform>
-          <LegalPlatform mark={<PlatformTile platform="THREADS" size={36} />}>
+          <LegalPlatform mark={<PlatformTile platform="THREADS" size={28} />}>
             <strong>Threads</strong>{" "}&mdash; with <code>threads_basic</code>{" "}we read the username,
             name, profile picture and bio, and recent posts (text, link, media and date). With{" "}
             <code>threads_manage_insights</code>{" "}we read views, likes, replies, reposts and quotes on
             those posts, and the follower count.
           </LegalPlatform>
-          <LegalPlatform mark={<PlatformTile platform="YOUTUBE" size={36} />}>
+          <LegalPlatform mark={<PlatformTile platform="YOUTUBE" size={28} />}>
             <strong>YouTube</strong>{" "}&mdash; with <code>youtube.readonly</code>{" "}we read the
             connected channel&rsquo;s name, handle, picture and description, its subscriber, view
             and video counts, and its recent videos with their title, date, views, likes and
@@ -195,7 +191,7 @@ export default function PrivacyPage() {
           anyone, and only on the platforms below:
         </p>
         <ul>
-          <LegalPlatform mark={<PlatformTile platform="INSTAGRAM" size={36} />}>
+          <LegalPlatform mark={<PlatformTile platform="INSTAGRAM" size={28} />}>
             <strong>Instagram</strong>{" "}&mdash; through Meta&rsquo;s Business Discovery API, which
             answers for Business and Creator accounts only: the username, name, biography, website,
             follower, following and post counts, profile picture, and recent public posts with their
@@ -203,11 +199,11 @@ export default function PrivacyPage() {
             connected Instagram professional account. Personal and private accounts return
             nothing.
           </LegalPlatform>
-          <LegalPlatform mark={<PlatformTile platform="YOUTUBE" size={36} />}>
+          <LegalPlatform mark={<PlatformTile platform="YOUTUBE" size={28} />}>
             <strong>YouTube</strong>{" "}&mdash; through the YouTube Data API: the channel&rsquo;s public
             name, picture and subscriber count, and the public statistics of its recent videos.
           </LegalPlatform>
-          <LegalPlatform mark={<PlatformTile platform="TIKTOK" size={36} />}>
+          <LegalPlatform mark={<PlatformTile platform="TIKTOK" size={28} />}>
             <strong>TikTok</strong>{" "}&mdash; from the public profile page: the follower count and
             the public counts on recent videos.
           </LegalPlatform>

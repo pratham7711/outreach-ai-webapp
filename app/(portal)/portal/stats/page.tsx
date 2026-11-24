@@ -26,6 +26,7 @@ import {
 import { AccountHero, AccountSwitcher, atHandle, followerWord } from "@/components/portal/stats/AccountChrome";
 import GrowthPanel from "@/components/portal/stats/GrowthPanel";
 import PostGrid from "@/components/portal/stats/PostGrid";
+import { PostBarsChart } from "@/components/insights/charts";
 import CampaignPosts, { type CampaignPost } from "@/components/portal/stats/CampaignPosts";
 
 /** Every block says where its numbers came from, in the creator's words. */
@@ -119,7 +120,7 @@ function Dashboard({ block, trend, ig }: { block: PlatformInsights; trend: Trend
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div className={PLAT_THEME[block.platform]} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <Panel>
         <AccountHero block={block} />
         {block.needsReconnect ? (
@@ -135,6 +136,8 @@ function Dashboard({ block, trend, ig }: { block: PlatformInsights; trend: Trend
       </Panel>
 
       <GrowthPanel trend={trend} instagram={block.needsReconnect ? null : data} unit={followerWord(block.platform)} />
+
+      {!block.needsReconnect && <PostViews block={block} />}
 
       {!block.needsReconnect &&
         (data || instagramLoading ? (
@@ -198,6 +201,25 @@ function Dashboard({ block, trend, ig }: { block: PlatformInsights; trend: Trend
         )}
       </SourceLabel>
     </div>
+  );
+}
+
+const PLAT_THEME: Partial<Record<PlatformInsights["platform"], string>> = { INSTAGRAM: "cc-plat-instagram", TIKTOK: "cc-plat-tiktok" };
+
+/** Views on each recent post, oldest first, against the account's median: the
+    platform's own per-post counts, nothing projected. */
+function PostViews({ block }: { block: PlatformInsights }) {
+  const posts = block.posts
+    .filter((p): p is typeof p & { views: number } => typeof p.views === "number")
+    .sort((a, b) => a.postedAt.localeCompare(b.postedAt))
+    .map((p) => ({ id: p.id, label: (p.caption ?? "Post").slice(0, 40), day: p.postedAt.slice(0, 10), value: p.views }));
+  if (posts.length < 3) return null;
+  const above = block.medianViews === null ? null : posts.filter((p) => p.value >= block.medianViews!).length;
+  return (
+    <Panel>
+      <SectionHeading title="Views by post" aside={above === null ? undefined : `${above} of ${posts.length} at or above your typical post`} />
+      <PostBarsChart posts={posts} median={block.medianViews} label="Views on each recent post" describe={(v) => `${new Intl.NumberFormat("en-US").format(v)} views`} />
+    </Panel>
   );
 }
 

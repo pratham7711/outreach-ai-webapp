@@ -15,7 +15,7 @@ import type {
 } from "@/lib/platforms/instagramAccountInsights";
 import { DailyBarChart, TotalAreaChart, spanLabel } from "@/components/insights/charts";
 import { toRunningTotals, type SeriesMode } from "@/lib/charts/seriesMode";
-import { ColumnBars, NUM, RankBars, SectionHeading, SplitBar, Thumb, formatPercent, formatTimes, listWords, muted, type Figure, type Segment } from "@/components/insights/parts";
+import { ColumnBars, Donut, NUM, RankBars, SectionHeading, SplitBar, Thumb, formatPercent, formatTimes, listWords, muted, type Figure, type Segment } from "@/components/insights/parts";
 
 /**
  * The Instagram insights instagram_manage_insights grants, as sections a
@@ -149,11 +149,11 @@ export function NewFollowersChart({
 }
 
 const INTERACTION_SEGMENTS: Array<{ metric: AccountTotalMetric; label: string; color: string }> = [
-  { metric: "likes", label: "Likes", color: "var(--cc-cat-1)" },
-  { metric: "comments", label: "Comments", color: "var(--cc-cat-2)" },
+  { metric: "likes", label: "Likes", color: "var(--cc-plat-accent, var(--cc-cat-1))" },
+  { metric: "comments", label: "Comments", color: "var(--cc-cat-3)" },
   { metric: "shares", label: "Shares", color: "var(--cc-cat-4)" },
   { metric: "saves", label: "Saves", color: "var(--cc-cat-5)" },
-  { metric: "replies", label: "Replies", color: "var(--cc-cat-3)" },
+  { metric: "replies", label: "Replies", color: "var(--cc-cat-2)" },
 ];
 
 function interactionParts(data: InstagramInsightsBody) {
@@ -194,7 +194,7 @@ export function InteractionsSection({ data }: { data: InstagramInsightsBody }) {
   return (
     <section aria-labelledby={id}>
       <SectionHeading id={id} title="What people did" aside={`Last ${data.account.days} days`} />
-      {segments.length > 0 && <SplitBar segments={segments} label="Interactions" valueFormat="count" />}
+      {segments.length > 0 && <Donut segments={segments} label="Interactions" valueFormat="count" size={124} />}
       {rates.length > 0 && (
         <div style={{ marginTop: 18 }}>
           <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "0 0 8px" }}>For every 100 accounts reached</p>
@@ -274,7 +274,8 @@ export function AudienceSection({ data }: { data: InstagramInsightsBody }) {
           {d.gender.length > 0 && (
             <div>
               {label("Gender")}
-              <SplitBar
+              <Donut
+                size={112}
                 label="Gender"
                 segments={d.gender.map((r) => ({ key: r.key, label: GENDER[r.key]?.label ?? r.key, value: r.value, color: GENDER[r.key]?.color ?? "var(--cc-text-muted)" }))}
               />

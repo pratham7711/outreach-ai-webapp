@@ -47,6 +47,12 @@ type Connection = {
 
 type PublicProfile = { platform: string; handle: string; lastReadAt: string | null };
 
+/** TikTok for Business (Accounts API) lives on the TikTok card, not a card of
+    its own: one platform, one card, one sign-in. Where the Business app is
+    available it is the sign-in the Connect button opens. */
+type TikTokBusinessState = { available: boolean; connection: TikTokBusinessSummary | null };
+const TIKTOK_BUSINESS_START = "/api/portal/tiktok-business/start";
+
 /** How each connect flow is named to a creator. Both Instagram flows store
     platform INSTAGRAM, so they are told apart by what the creator has, and
     never share a title: two cards both called "Instagram" read as a duplicate.
@@ -176,6 +182,8 @@ function PlatformCard({
   onDisconnect,
   disconnectingId,
   canConnect,
+  tiktokBusiness,
+  onTikTokBusinessDisconnect,
 }: {
   platform: OAuthPlatform;
   accounts: Connection[];
@@ -185,13 +193,19 @@ function PlatformCard({
   onDisconnect: (account: Connection) => void;
   disconnectingId: string | null;
   canConnect: boolean;
+  tiktokBusiness?: TikTokBusinessState | null;
+  onTikTokBusinessDisconnect?: () => void;
 }) {
-  const startHref = `/api/portal/connections/${platform}/start?returnTo=${encodeURIComponent(RETURN_TO)}`;
-  const comingSoon = capability?.connect === "coming_soon";
+  const business = platform === "tiktok" ? tiktokBusiness ?? null : null;
+  const businessConnection = business?.connection ?? null;
+  const loginKitHref = `/api/portal/connections/${platform}/start?returnTo=${encodeURIComponent(RETURN_TO)}`;
+  const startHref = business?.available && accounts.length === 0 ? TIKTOK_BUSINESS_START : loginKitHref;
+  const comingSoon = capability?.connect === "coming_soon" && !business?.available;
   const anyReconnect = accounts.some((a) => reconnect.has(a.id));
+  const connected = accounts.length > 0 || businessConnection !== null;
 
   const state: { tone: Tone; label: string } =
-    accounts.length > 0
+    connected
       ? anyReconnect
         ? { tone: "warning", label: "Reconnect needed" }
         : { tone: "success", label: "Connected" }
@@ -215,7 +229,7 @@ function PlatformCard({
               <StatusPill tone={state.tone}>{state.label}</StatusPill>
             </span>
           </div>
-          {accounts.length === 0 && publicProfile && (
+          {!connected && publicProfile && (
             <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: "2px 0 0", lineHeight: 1.45 }}>
               {publicProfile.handle}
               {publicProfile.lastReadAt ? ` · read ${relativeDay(publicProfile.lastReadAt)}` : ""}
@@ -254,7 +268,7 @@ function PlatformCard({
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
                     {lapsed && (
-                      <ButtonLink href={startHref} external>
+                      <ButtonLink href={loginKitHref} external>
                         Reconnect
                       </ButtonLink>
                     )}
@@ -274,6 +288,28 @@ function PlatformCard({
         </ul>
       )}
 
+      {businessConnection && (
+        <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+          <li className="portal-acc-row">
+            <div className="portal-acc-row-main">
+              <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 10 }}>
+                <AccountAvatar url={null} handle={businessConnection.username} />
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflowWrap: "anywhere" }}>@{businessConnection.username}</div>
+                  <div style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>Full analytics · connected {relativeDay(businessConnection.connectedAt)}</div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <ButtonLink href="/portal/tiktok-business">Open analytics</ButtonLink>
+                <Button variant="ghost" size="sm" onClick={onTikTokBusinessDisconnect}>
+                  Disconnect
+                </Button>
+              </div>
+            </div>
+          </li>
+        </ul>
+      )}
+
       <div className="portal-acc-actions">
         {/* A gated platform in production has no credentials behind it: the
             start route can only bounce the creator back with reason=provider,
@@ -281,18 +317,23 @@ function PlatformCard({
             Development keeps it, because there the route runs a mock flow. */}
         {gated ? (
           <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}>Not available yet. Submit post links instead.</p>
-        ) : !canConnect ? null : (
-          <>
-            <ConnectLink
-              href={startHref}
-              variant={accounts.length > 0 ? "secondary" : "primary"}
-              label={accounts.length > 0 ? "Add another account" : `Connect ${BUTTON_NAME[platform]}`}
-              pendingLabel={`Opening ${BUTTON_NAME[platform]} sign-in…`}
-            />
-          </>
+        ) : !canConnect ? null : platform === "tiktok" ? (
+          !connected ? (
+            <ConnectLink href={startHref} variant="primary" label="Connect TikTok" pendingLabel="Opening TikTok sign-in…" />
+          ) : business?.available && !businessConnection ? (
+            <ConnectLink href={TIKTOK_BUSINESS_START} variant="secondary" label="Turn on full analytics" pendingLabel="Opening TikTok sign-in…" />
+          ) : null
+        ) : (
+          <ConnectLink
+            href={startHref}
+            variant={accounts.length > 0 ? "secondary" : "primary"}
+            label={accounts.length > 0 ? "Add another account" : `Connect ${BUTTON_NAME[platform]}`}
+            pendingLabel={`Opening ${BUTTON_NAME[platform]} sign-in…`}
+          />
         )}
         <WhatWeRead
             platform={platform}
+            lines={business?.available ? [...WHAT_WE_READ.tiktok, ...TIKTOK_BUSINESS_READ] : undefined}
             notes={[
               ...(CARD_NOTE[platform] ? [CARD_NOTE[platform]] : []),
               ...(platform === "instagram" && instagramUnifiedLogin() && accounts.length === 0
@@ -304,65 +345,9 @@ function PlatformCard({
         {platform === "youtube" && !gated && canConnect && (
           <YouTubeConnectAgreement style={{ flex: "1 1 100%" }} />
         )}
-        {platform === "tiktok" && !gated && canConnect && (
+        {platform === "tiktok" && !gated && canConnect && !connected && (
           <TikTokConnectAgreement style={{ flex: "1 1 100%" }} />
         )}
-      </div>
-    </Card>
-  );
-}
-
-/** TikTok for Business: a second, optional TikTok connection (Accounts API)
-    for the creator's own analytics, comments and ad codes. Its own table, so
-    it never touches the TikTok Login Kit row above it. */
-function TikTokBusinessCard({ canConnect }: { canConnect: boolean }) {
-  const [status, setStatus] = useState<{ available: boolean; connection: TikTokBusinessSummary | null } | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/portal/tiktok-business/status", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (!cancelled && d) setStatus(d);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-  if (!status || (!status.available && !status.connection)) return null;
-  const c = status.connection;
-  return (
-    <Card flush>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "16px var(--cc-card-inset)" }}>
-        <PlatformTile platform="TIKTOK" />
-        <div style={{ minWidth: 0, flex: 1, minHeight: 40, display: "flex", flexDirection: "column", justifyContent: "center" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
-            <h2 style={{ flex: "1 1 auto", minWidth: 0, fontSize: 16, fontWeight: 700, color: "var(--cc-text)", margin: 0, lineHeight: 1.35, paddingTop: 1 }}>
-              TikTok for Business
-            </h2>
-            <span style={{ flex: "none" }}>
-              <StatusPill tone={c ? "success" : "neutral"}>{c ? "Connected" : "Not connected"}</StatusPill>
-            </span>
-          </div>
-          {c && (
-            <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: "2px 0 0", lineHeight: 1.45 }}>
-              @{c.username} · connected {relativeDay(c.connectedAt)}
-            </p>
-          )}
-        </div>
-      </div>
-      <div className="portal-acc-actions">
-        {c ? (
-          <ButtonLink href="/portal/tiktok-business">Open analytics</ButtonLink>
-        ) : canConnect ? (
-          <ConnectLink href="/api/portal/tiktok-business/start" variant="primary" label="Connect TikTok for Business" pendingLabel="Opening TikTok sign-in…" />
-        ) : null}
-        <WhatWeRead
-          platform="tiktok-business"
-          lines={TIKTOK_BUSINESS_READ}
-          notes={c ? [] : ["Daily analytics, follower demographics, per-video insights, comments and ad codes for your own account. Read live, only for you."]}
-        />
-        {!c && canConnect && <TikTokConnectAgreement style={{ flex: "1 1 100%" }} />}
       </div>
     </Card>
   );
@@ -454,6 +439,7 @@ export default function MyAccountsPage() {
   const [capabilities, setCapabilities] = useState<PlatformCapability[]>([]);
   const [canConnect, setCanConnect] = useState(true);
   const [profiles, setProfiles] = useState<PublicProfile[]>([]);
+  const [tiktokBusiness, setTikTokBusiness] = useState<TikTokBusinessState | null>(null);
   const [reconnect, setReconnect] = useState<Set<string>>(new Set());
   const [failed, setFailed] = useState(false);
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
@@ -470,9 +456,10 @@ export default function MyAccountsPage() {
   const load = useCallback(async () => {
     setFailed(false);
     try {
-      const [connRes, pubRes] = await Promise.all([
+      const [connRes, pubRes, bizRes] = await Promise.all([
         fetch("/api/portal/connections"),
         fetch("/api/portal/accounts/public"),
+        fetch("/api/portal/tiktok-business/status", { cache: "no-store" }).catch(() => null),
       ]);
       if (connRes.status === 401) {
         router.push(portalSignInHere());
@@ -486,6 +473,7 @@ export default function MyAccountsPage() {
       setCapabilities(data.capabilities ?? []);
       setCanConnect(data.canConnect !== false);
       if (pubRes.ok) setProfiles((await pubRes.json()).profiles ?? []);
+      if (bizRes?.ok) setTikTokBusiness(await bizRes.json().catch(() => null));
     } catch {
       setFailed(true);
     }
@@ -512,6 +500,22 @@ export default function MyAccountsPage() {
       cancelled = true;
     };
   }, [connections]);
+
+  const disconnectTikTokBusiness = async () => {
+    const handle = tiktokBusiness?.connection?.username;
+    const ok = await confirm({
+      title: `Disconnect full analytics${handle ? ` for @${handle}` : ""}?`,
+      description: "We delete our access straight away. Your TikTok connection for campaign posts is not affected.",
+      confirmLabel: "Disconnect",
+      tone: "danger",
+    });
+    if (!ok) return;
+    const res = await fetch("/api/portal/tiktok-business", { method: "DELETE" }).catch(() => null);
+    if (res?.ok) {
+      toast.success("Disconnected");
+      await load();
+    } else toast.error("Couldn't disconnect");
+  };
 
   const disconnect = async (account: Connection) => {
     const ok = await confirm({
@@ -558,7 +562,9 @@ export default function MyAccountsPage() {
       capabilities.find((c) => c.platform === platform)?.connect !== "coming_soon" || accountsFor(platform).length > 0,
   );
   const otherPublic = profiles.filter((p) => !cardPlatforms.has(p.platform));
-  const connectedCount = shown.filter((platform) => accountsFor(platform).length > 0).length;
+  const connectedCount = shown.filter(
+    (platform) => accountsFor(platform).length > 0 || (platform === "tiktok" && Boolean(tiktokBusiness?.connection)),
+  ).length;
 
   return (
     <Screen title="My accounts">
@@ -640,9 +646,10 @@ export default function MyAccountsPage() {
                 onDisconnect={disconnect}
                 disconnectingId={disconnectingId}
                 canConnect={canConnect}
+                tiktokBusiness={platform === "tiktok" ? tiktokBusiness : undefined}
+                onTikTokBusinessDisconnect={disconnectTikTokBusiness}
               />
             ))}
-            <TikTokBusinessCard canConnect={canConnect} />
             {otherPublic.length > 0 && (
               <Card>
                 <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>Other public profiles</h2>

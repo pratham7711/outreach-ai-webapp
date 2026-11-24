@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Megaphone } from "lucide-react";
-import { Button, SectionCard, Switch, useConfirm } from "@/components/ds";
+import { Button, SectionCard, useConfirm } from "@/components/ds";
 import { StatusPill, type Tone } from "@/components/portal/app/ui";
 import { MetricHint } from "@/components/ds/MetricHint";
 
@@ -14,9 +14,9 @@ type View = {
   creator: { username: string; hasInstagramId: boolean };
   permission: Permission | null;
   readable: boolean;
-  tagApproved: boolean | null;
 };
 type State = { status: "loading" } | { status: "read"; view: View } | { status: "failed"; error: string | null; reason: string };
+type Action = "request" | "revoke";
 
 const STATUS: Record<Permission["status"], { tone: Tone; text: string }> = {
   APPROVED: { tone: "success", text: "Approved" },
@@ -27,18 +27,15 @@ const STATUS: Record<Permission["status"], { tone: Tone; text: string }> = {
   UNKNOWN: { tone: "neutral", text: "Unknown" },
 };
 
-const row = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" } as const;
-const small = { fontSize: 13, color: "var(--cc-text-muted)", margin: "2px 0 0", lineHeight: 1.45 } as const;
+const muted = { fontSize: 13, color: "var(--cc-text-muted)", margin: 0, lineHeight: 1.45 } as const;
 
 /** Partnership Ads with this creator, using the workspace's own Instagram
-    account as the brand: ask for account-level permission to run their
-    content as ads (they approve in Instagram), see where it stands, withdraw
-    it, and keep them on the brand's approved-to-tag list. Hidden where the
-    feature is off. */
+    account as the brand: one permission, one action. Hidden where the feature
+    is off or the creator has no Instagram. */
 export default function PartnershipAdsPanel({ creatorId }: { creatorId: string }) {
   const confirm = useConfirm();
   const [state, setState] = useState<State>({ status: "loading" });
-  const [busy, setBusy] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const url = `/api/creators/${encodeURIComponent(creatorId)}/partnership-ads`;
 
   const load = useCallback(async () => {
@@ -51,7 +48,7 @@ export default function PartnershipAdsPanel({ creatorId }: { creatorId: string }
     load();
   }, [load]);
 
-  const act = async (action: "request" | "revoke" | "approve_tag" | "remove_tag") => {
+  const act = async (action: Action) => {
     if (action === "revoke") {
       const ok = await confirm({
         title: "Withdraw partnership ad permission?",
@@ -61,87 +58,61 @@ export default function PartnershipAdsPanel({ creatorId }: { creatorId: string }
       });
       if (!ok) return;
     }
-    setBusy(action);
+    setBusy(true);
     try {
       const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) });
       const body = await res.json().catch(() => null);
       if (!res.ok) return toast.error(body?.reason ?? "Instagram did not accept that. Try again.");
       setState({ status: "read", view: body });
-      toast.success(
-        action === "request" ? "Request sent. The creator approves it in Instagram." : action === "revoke" ? "Permission withdrawn" : action === "approve_tag" ? "Added to approved creators" : "Removed from approved creators",
-      );
+      toast.success(action === "request" ? "Request sent. The creator approves it in Instagram." : "Permission withdrawn");
     } catch {
       toast.error("Network error. Try again.");
     } finally {
-      setBusy(null);
+      setBusy(false);
     }
   };
 
   if (state.status === "loading") return null;
   if (state.status === "failed" && (state.error === "not_enabled" || state.error === "no_instagram")) return null;
 
+  const view = state.status === "read" ? state.view : null;
+  const p = view?.permission ?? null;
+  const canAsk = !p || p.status === "REVOKED" || p.status === "REJECTED" || p.status === "EXPIRED";
+  const action = view ? (
+    canAsk ? (
+      <Button size="sm" loading={busy} onClick={() => act("request")}>
+        {p ? "Ask again" : "Request"}
+      </Button>
+    ) : (
+      <Button size="sm" variant="ghost" loading={busy} onClick={() => act("revoke")}>
+        Withdraw
+      </Button>
+    )
+  ) : null;
+
   return (
     <div style={{ marginTop: 16 }}>
-      <SectionCard icon={Megaphone} title="Partnership ads">
-        {state.status === "failed" ? (
-          <div>
-            <p role="alert" style={{ fontSize: 14, color: "var(--cc-text)", margin: 0 }}>{state.reason}</p>
+      <SectionCard icon={Megaphone} title="Partnership ads" action={action}>
+        {view ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            {p ? <StatusPill tone={STATUS[p.status].tone}>{STATUS[p.status].text}</StatusPill> : <span style={muted}>Not requested</span>}
+            <MetricHint
+              label="Partnership ads"
+              what={`Lets @${view.brand.username} run @${view.creator.username}’s posts as ads. The creator approves it in Instagram.`}
+            />
+            {!view.readable && <span style={muted}>Instagram did not say where this stands.</span>}
+          </div>
+        ) : state.status === "failed" ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <p role="alert" style={{ ...muted, color: "var(--cc-text)" }}>{state.reason}</p>
             {state.error === "no_brand_account" ? (
-              <p style={{ ...small, marginTop: 8 }}>
-                <Link href="/settings/integrations" style={{ color: "var(--cc-primary)", fontWeight: 600 }}>Open Settings → Integrations</Link>
-              </p>
+              <Link href="/settings/integrations" style={{ color: "var(--cc-primary)", fontWeight: 600, fontSize: 13 }}>Connect in Settings</Link>
             ) : (
-              <Button size="sm" variant="secondary" onClick={load} style={{ marginTop: 10 }}>Try again</Button>
+              <Button size="sm" variant="secondary" onClick={load}>Try again</Button>
             )}
           </div>
-        ) : (
-          <PanelBody view={state.view} busy={busy} act={act} />
-        )}
+        ) : null}
       </SectionCard>
-    </div>
-  );
-}
-
-function PanelBody({ view, busy, act }: { view: View; busy: string | null; act: (a: "request" | "revoke" | "approve_tag" | "remove_tag") => void }) {
-  const p = view.permission;
-  const status = p ? STATUS[p.status] : null;
-  const canAsk = !p || p.status === "REVOKED" || p.status === "REJECTED" || p.status === "EXPIRED";
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-      <div style={row}>
-        <div style={{ minWidth: 0, flex: "1 1 260px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>Ad permission</span>
-            <MetricHint label="Ad permission" what={`Lets @${view.brand.username} run @${view.creator.username}\u2019s posts as partnership ads.`} />
-            {status && <StatusPill tone={status.tone}>{status.text}</StatusPill>}
-          </div>
-          {!view.readable && <p style={small}>Instagram did not say where this stands.</p>}
-        </div>
-        {canAsk ? (
-          <Button size="sm" loading={busy === "request"} onClick={() => act("request")}>
-            {p ? "Ask again" : "Request permission"}
-          </Button>
-        ) : (
-          <Button size="sm" variant="ghost" loading={busy === "revoke"} onClick={() => act("revoke")}>
-            Withdraw
-          </Button>
-        )}
-      </div>
-      <div style={{ ...row, borderTop: "1px solid var(--cc-border)", paddingTop: 16 }}>
-        <div id={`tag-approved-${view.creator.username}`} style={{ minWidth: 0, flex: "1 1 260px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>Approved to tag @{view.brand.username}</span>
-            <MetricHint label="Approved to tag" what="Approved creators can tag your brand as a paid partner without asking each time." />
-          </div>
-          {!view.creator.hasInstagramId && <p style={small}>Available once the creator connects Instagram.</p>}
-        </div>
-        <Switch
-          checked={view.tagApproved === true}
-          disabled={!view.creator.hasInstagramId || busy === "approve_tag" || busy === "remove_tag"}
-          onChange={(next) => act(next ? "approve_tag" : "remove_tag")}
-          aria-labelledby={`tag-approved-${view.creator.username}`}
-        />
-      </div>
     </div>
   );
 }

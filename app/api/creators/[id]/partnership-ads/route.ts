@@ -7,7 +7,7 @@ import { getAuditActor } from "@/lib/authenticate";
 import { stripAt } from "@/lib/format";
 import { getAgencyDiscoveryCredential } from "@/lib/platforms/instagramAgencyCredential";
 import { InstagramAuthError } from "@/lib/platforms/instagram";
-import { isApprovedToTag, listAdPermissions, requestAdPermission, revokeAdPermission, setApprovedToTag } from "@/lib/platforms/instagramPartnership";
+import { listAdPermissions, requestAdPermission, revokeAdPermission } from "@/lib/platforms/instagramPartnership";
 import { metaDemoMocked, metaReviewScopesOn } from "@/lib/oauth/metaReviewScopes";
 import { createLogger } from "@/lib/observability/logger";
 
@@ -16,16 +16,14 @@ import { createLogger } from "@/lib/observability/logger";
  * account as the brand (Settings → Integrations → Instagram):
  *  - the account-level partnership ad permission: request it (the creator
  *    approves or declines in the Instagram app), see where it stands, revoke
- *    it -- instagram_branded_content_ads_brand + business_management;
- *  - whether the creator is on the brand's approved list to tag it as a paid
- *    partner, and add or remove them -- instagram_branded_content_brand.
+ *    it -- instagram_branded_content_ads_brand + business_management.
  * Nothing is stored here; Meta holds the permission and is read each time.
  */
 export const dynamic = "force-dynamic";
 
 const log = createLogger({ context: { platform: "INSTAGRAM", call: "agency.partnershipAds" } });
 const noStore = { "Cache-Control": "no-store" };
-const body = z.object({ action: z.enum(["request", "revoke", "approve_tag", "remove_tag"]) });
+const body = z.object({ action: z.enum(["request", "revoke"]) });
 
 type Subject = { brand: { token: string; igUserId: string; username: string }; username: string; creatorIgId: string | null; name: string };
 
@@ -69,16 +67,12 @@ function refused(e: unknown) {
 }
 
 async function view(s: Subject) {
-  const [permissions, tagApproved] = await Promise.all([
-    listAdPermissions(s.brand.token, s.brand.igUserId, s.username),
-    s.creatorIgId ? isApprovedToTag(s.brand.token, s.brand.igUserId, s.creatorIgId) : Promise.resolve(null),
-  ]);
+  const permissions = await listAdPermissions(s.brand.token, s.brand.igUserId, s.username);
   return {
     brand: { username: s.brand.username },
     creator: { username: s.username, hasInstagramId: Boolean(s.creatorIgId) },
     permission: permissions?.[0] ?? null,
     readable: permissions !== null,
-    tagApproved,
   };
 }
 
@@ -111,7 +105,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (s instanceof NextResponse) return s;
 
   const { action } = parsed.data;
-  if (action !== "request" && !s.creatorIgId)
+  if (action === "revoke" && !s.creatorIgId)
     return NextResponse.json(
       { error: "no_instagram_id", reason: "The creator needs to connect Instagram before this can be changed." },
       { status: 409, headers: noStore },
@@ -120,9 +114,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const done =
       action === "request"
         ? await requestAdPermission(s.brand.token, s.brand.igUserId, s.username)
-        : action === "revoke"
-          ? await revokeAdPermission(s.brand.token, s.brand.igUserId, s.creatorIgId!)
-          : await setApprovedToTag(s.brand.token, s.brand.igUserId, s.creatorIgId!, action === "approve_tag");
+        : await revokeAdPermission(s.brand.token, s.brand.igUserId, s.creatorIgId!);
     if (!done) return NextResponse.json({ error: "not_done", reason: "Instagram did not accept that. Try again." }, { status: 502, headers: noStore });
     await logAudit({
       orgId: gate.auth.orgId,
