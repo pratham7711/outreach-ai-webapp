@@ -1,3 +1,4 @@
+/** @jest-environment node */
 /**
  * The post page is asked when Meta's readers and the embed leave a hole, and
  * its answer files a post -- and pays a creator. So the failure that matters is

@@ -35,8 +35,23 @@ function isTab(v: string | null): v is TabKey {
 
 function Tabs({ active, counts }: { active: TabKey; counts: Partial<Record<TabKey, number>> }) {
   const router = useRouter();
+  const go = (key: TabKey) => router.replace(`/portal/campaigns?tab=${key}`, { scroll: false });
+  const onKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, i: number) => {
+    const last = TABS.length - 1;
+    const next =
+      e.key === "ArrowRight" ? (i === last ? 0 : i + 1)
+      : e.key === "ArrowLeft" ? (i === 0 ? last : i - 1)
+      : e.key === "Home" ? 0
+      : e.key === "End" ? last
+      : -1;
+    if (next < 0) return;
+    e.preventDefault();
+    document.getElementById(`portal-tab-${TABS[next].key}`)?.focus();
+    go(TABS[next].key);
+  };
   return (
-    <nav
+    <div
+      role="tablist"
       aria-label="Campaigns"
       style={{
         display: "grid",
@@ -49,15 +64,19 @@ function Tabs({ active, counts }: { active: TabKey; counts: Partial<Record<TabKe
         marginBottom: 16,
       }}
     >
-      {TABS.map((t) => {
+      {TABS.map((t, i) => {
         const selected = t.key === active;
         const count = counts[t.key];
         return (
           <button
             key={t.key}
             type="button"
-            aria-current={selected ? "page" : undefined}
-            onClick={() => router.replace(`/portal/campaigns?tab=${t.key}`, { scroll: false })}
+            id={`portal-tab-${t.key}`}
+            role="tab"
+            aria-selected={selected}
+            tabIndex={selected ? 0 : -1}
+            onClick={() => go(t.key)}
+            onKeyDown={(e) => onKeyDown(e, i)}
             style={{
               padding: "8px 6px",
               borderRadius: 9,
@@ -74,7 +93,7 @@ function Tabs({ active, counts }: { active: TabKey; counts: Partial<Record<TabKe
           </button>
         );
       })}
-    </nav>
+    </div>
   );
 }
 
@@ -204,7 +223,7 @@ function CampaignsScreen() {
     <Screen title="Campaigns">
       <Tabs active={active} counts={{ joined: mine?.joined.length, invited: mine?.invited.length }} />
 
-      <div role="tabpanel" aria-label={TABS.find((t) => t.key === active)?.label}>
+      <div role="tabpanel" aria-labelledby={`portal-tab-${active}`} tabIndex={0}>
         {active !== "open" && mineFailed && <LoadFailed what="your campaigns" onRetry={loadMine} />}
         {active !== "open" && !mine && !mineFailed && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
