@@ -4,6 +4,7 @@ import React, { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown } from "lucide-react";
 import { useAnchoredMenu } from "./useAnchoredMenu";
+import { isImeConfirm } from "@/lib/ui/ime";
 
 /**
  * A text field that also offers what already exists: type a new value, or pick
@@ -91,7 +92,7 @@ export function Combobox({
       e.preventDefault();
       if (showList) setActive((i) => (i <= 0 ? matches.length - 1 : i - 1));
     } else if (e.key === "Enter") {
-      if (showList && active >= 0 && matches[active] && !e.nativeEvent.isComposing) {
+      if (showList && active >= 0 && matches[active] && !isImeConfirm(e)) {
         e.preventDefault();
         pick(matches[active]);
       }

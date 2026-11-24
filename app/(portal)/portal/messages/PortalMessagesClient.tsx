@@ -4,6 +4,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Avatar, Badge, Tag, EmptyState } from "@pratham7711/ui";
 import { Skeleton } from "@/components/ds";
 import { Send, MessageSquare, Mail, AlertTriangle } from "lucide-react";
+import { isImeConfirm } from "@/lib/ui/ime";
 
 type SenderType = "ORG" | "CREATOR" | "AI_AGENT";
 
@@ -140,7 +141,7 @@ export default function PortalMessagesClient() {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey && !isImeConfirm(e)) {
       e.preventDefault();
       handleSend();
     }

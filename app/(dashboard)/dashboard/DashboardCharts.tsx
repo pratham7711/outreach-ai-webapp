@@ -67,7 +67,12 @@ export function ViewsOverTimeArea({
       <div className="flex h-full flex-col">
         <div className="flex min-h-0 flex-1 flex-col">
           <PanelHeading title="Views gained" metric="views" />
-          <ChartFrame className="min-h-0 flex-1" minHeight={120}>
+          <ChartFrame
+            className="min-h-0 flex-1"
+            minHeight={120}
+            label={`Views gained per ${period}`}
+            summary={gained.length ? `${gained.length} periods, ${data[0].date} to ${data[data.length - 1].date}.` : undefined}
+          >
             <BarChart data={gained} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
               <XAxis dataKey="date" tick={axisTick} axisLine={false} tickLine={false} />
@@ -100,7 +105,12 @@ export function ViewsOverTimeArea({
     <div className="flex h-full flex-col">
       <div className="flex min-h-0 flex-1 flex-col">
         <PanelHeading title="Views" metric="views" />
-        <ChartFrame className="min-h-0 flex-1" minHeight={120}>
+        <ChartFrame
+          className="min-h-0 flex-1"
+          minHeight={120}
+          label="Total views over time"
+          summary={data.length ? `Latest ${formatNumber(data[data.length - 1].views)} views on ${data[data.length - 1].date}, from ${formatNumber(data[0].views)} on ${data[0].date}.` : undefined}
+        >
           <AreaChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
             <defs>
               <linearGradient id="viewsGradient" x1="0" y1="0" x2="0" y2="1">
@@ -178,7 +188,11 @@ export function CpmTrendLine({
   const best = Math.min(...points.map((p) => p.cpm));
 
   return (
-    <ChartFrame height={200}>
+    <ChartFrame
+      height={200}
+      label="CPM trend"
+      summary={`Latest ${formatCurrency(points[points.length - 1].cpm)} on ${points[points.length - 1].date}; best ${formatCurrency(best)}.`}
+    >
       <AreaChart data={points} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
         <defs>
           <linearGradient id="cpmFill" x1="0" y1="0" x2="0" y2="1">
@@ -219,7 +233,11 @@ export function ViewsByCampaignBar({
   formatNumber: Fmt;
 }) {
   return (
-    <ChartFrame height={200}>
+    <ChartFrame
+      height={200}
+      label="Views by campaign"
+      summary={data.map((d) => `${d.title} ${formatNumber(d.views)}`).join("; ") || undefined}
+    >
       <BarChart data={data} layout="vertical" margin={{ top: 0, right: 48, bottom: 0, left: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" horizontal={false} />
         <XAxis type="number" tick={axisTick} axisLine={false} tickLine={false} tickFormatter={(v) => formatCompact(Number(v))} />

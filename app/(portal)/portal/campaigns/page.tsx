@@ -36,8 +36,7 @@ function isTab(v: string | null): v is TabKey {
 function Tabs({ active, counts }: { active: TabKey; counts: Partial<Record<TabKey, number>> }) {
   const router = useRouter();
   return (
-    <div
-      role="tablist"
+    <nav
       aria-label="Campaigns"
       style={{
         display: "grid",
@@ -57,8 +56,7 @@ function Tabs({ active, counts }: { active: TabKey; counts: Partial<Record<TabKe
           <button
             key={t.key}
             type="button"
-            role="tab"
-            aria-selected={selected}
+            aria-current={selected ? "page" : undefined}
             onClick={() => router.replace(`/portal/campaigns?tab=${t.key}`, { scroll: false })}
             style={{
               padding: "8px 6px",
@@ -76,7 +74,7 @@ function Tabs({ active, counts }: { active: TabKey; counts: Partial<Record<TabKe
           </button>
         );
       })}
-    </div>
+    </nav>
   );
 }
 

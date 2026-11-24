@@ -46,13 +46,16 @@ export function ListToolbar({
               <Search size={16} />
             </span>
             <input
-              type="text"
+              type="search"
+              enterKeyHint="search"
               className="ui-input ui-input-md ui-input-with-left"
               value={search.value}
               onChange={(e) => search.onChange(e.target.value)}
               placeholder={search.placeholder}
               aria-label={search.ariaLabel ?? search.placeholder}
               autoComplete="off"
+              autoCapitalize="none"
+              autoCorrect="off"
               spellCheck={false}
             />
           </div>

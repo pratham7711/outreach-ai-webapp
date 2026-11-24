@@ -18,6 +18,7 @@ import { PAYOUTS_ENABLED } from "@/lib/payouts/switch";
 import { mediaUrl } from "@/lib/postMedia";
 import { useSidebar } from "@/components/providers/SidebarProvider";
 import { FeedbackButton } from "@/components/feedback/FeedbackButton";
+import { useDialogFocus } from "@/components/ds/useDialogFocus";
 import { ThemeRadioGroup } from "@/components/ThemeChoices";
 
 /*
@@ -230,26 +231,19 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
     setMobileOpen(false);
   }, [pathname, setMobileOpen]);
 
-  // Close on escape key
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === "Escape" && mobileOpen) {
-      setMobileOpen(false);
-    }
-  }, [mobileOpen, setMobileOpen]);
+  const asideRef = useRef<HTMLElement>(null);
+  const hamburgerRef = useRef<HTMLButtonElement>(null);
+  const wasOpen = useRef(false);
+  const onDrawerKeyDown = useDialogFocus({
+    open: mobileOpen,
+    panelRef: asideRef,
+    onClose: () => setMobileOpen(false),
+    initialFocus: (panel) => panel.querySelector<HTMLElement>('[aria-label="Close navigation menu"]'),
+  });
 
   useEffect(() => {
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [handleKeyDown]);
-
-  // Prevent body scroll when mobile menu is open
-  useEffect(() => {
-    if (mobileOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => { document.body.style.overflow = ""; };
+    if (wasOpen.current && !mobileOpen) hamburgerRef.current?.focus({ preventScroll: true });
+    wasOpen.current = mobileOpen;
   }, [mobileOpen]);
 
   /* Inside a campaign the rail belongs to that campaign, not to the workspace.
@@ -269,6 +263,7 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
     <>
       {/* Mobile hamburger button */}
       <button
+        ref={hamburgerRef}
         className={`cc-rail-hamburger fixed top-1.5 left-2 z-50 size-11 cursor-pointer items-center justify-center rounded-[10px] border border-border bg-card shadow-sm lg:hidden ${
           mobileOpen ? "hidden" : "flex"
         }`}
@@ -310,6 +305,8 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
       {/* Sidebar */}
       <aside
         id="cc-rail"
+        ref={asideRef}
+        onKeyDown={mobileOpen ? onDrawerKeyDown : undefined}
         {...tipHandlers}
         className={`cc-sidebar-rail fixed top-0 bottom-0 left-0 z-40 flex flex-col overflow-hidden ${
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"

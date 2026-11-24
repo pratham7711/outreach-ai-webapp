@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { motion } from "framer-motion";
 import { Eye, EyeOff } from "lucide-react";
 import { Input } from "@pratham7711/ui";
 import { Banner, type BannerTone } from "@/components/ds/Banner";
@@ -49,12 +48,7 @@ export function AuthShell({
 }) {
   return (
     <AuthBackdrop showcase={showcase}>
-      <motion.div
-        className="cc-auth__panel"
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: "easeOut" }}
-      >
+      <div className="cc-auth__panel">
         <div className="cc-auth__brand">
           <AuthBrand />
         </div>
@@ -72,7 +66,7 @@ export function AuthShell({
           {footer ? <p className="cc-auth__foot">{footer}</p> : null}
         </div>
         {below ? <div className="cc-auth__below">{below}</div> : null}
-      </motion.div>
+      </div>
     </AuthBackdrop>
   );
 }
@@ -93,18 +87,13 @@ export function AuthFrame({
 }) {
   return (
     <AuthBackdrop showcase={showcase}>
-      <motion.div
-        className="cc-auth__panel"
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: "easeOut" }}
-      >
+      <div className="cc-auth__panel">
         <div className="cc-auth__brand">
           <AuthBrand />
         </div>
         <div className="cc-auth__card">{children}</div>
         {below ? <div className="cc-auth__below">{below}</div> : null}
-      </motion.div>
+      </div>
     </AuthBackdrop>
   );
 }

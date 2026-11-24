@@ -112,6 +112,10 @@ export default function MarketplaceAnalytics({
     })),
     ["cumulative"],
   );
+  const joinsTotal = joinDays.reduce((a, r) => a + r.joins, 0);
+  const joinsSummary = joinDays.length
+    ? `${joinsTotal} creators joined over ${joinDays.length} days, ${formatDate(joinDays[0].date)} to ${formatDate(joinDays[joinDays.length - 1].date)}.`
+    : undefined;
   const eta = data.projectedExhaustionDate
     // UTC named, so the server render and the browser's cannot disagree. See lib/format.
     ? new Date(data.projectedExhaustionDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })
@@ -150,7 +154,7 @@ export default function MarketplaceAnalytics({
           action={joinsToggle}
         >
           {data.joinsOverTime.length > 0 && joinsMode === "daily" ? (
-            <ChartFrame height={240}>
+            <ChartFrame height={240} label="Creators joined per day" summary={joinsSummary}>
               <BarChart data={joinDays}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
                 <XAxis dataKey="date" tickFormatter={formatDate} tick={chartAxisTick} axisLine={false} tickLine={false} />
@@ -164,7 +168,7 @@ export default function MarketplaceAnalytics({
               </BarChart>
             </ChartFrame>
           ) : data.joinsOverTime.length > 0 ? (
-            <ChartFrame height={240}>
+            <ChartFrame height={240} label="Creators joined over time, running total" summary={joinsSummary}>
               <AreaChart data={joinDays}>
                 <defs>
                   <linearGradient id="mktJoins" x1="0" y1="0" x2="0" y2="1">

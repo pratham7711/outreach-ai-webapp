@@ -104,7 +104,7 @@ function RegisterInner() {
             <Input value={form.handle} onChange={(e) => set({ handle: e.target.value })} placeholder="yourhandle" autoComplete="off" />
           </Field>
           <Field label="Email" required>
-            <Input type="email" value={form.email} onChange={(e) => set({ email: e.target.value })} placeholder="creator@example.com" autoComplete="email" />
+            <Input type="email" value={form.email} onChange={(e) => set({ email: e.target.value })} placeholder="creator@example.com" autoComplete="username" />
           </Field>
           <PasswordField
             label="Password"

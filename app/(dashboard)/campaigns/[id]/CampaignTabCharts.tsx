@@ -20,8 +20,9 @@ export function PlatformViewsPie({
   data: PieDatum[];
   formatNumber: (n: number) => string;
 }) {
+  const summary = data.map((d) => `${platformLabel(String(d.name))} ${formatNumber(d.value)} views`).join(", ");
   return (
-    <ChartFrame minHeight={200}>
+    <ChartFrame minHeight={200} label="Views by platform" summary={summary || undefined}>
       <PieChart>
         <Pie isAnimationActive={false} data={data} cx="50%" cy="50%" innerRadius={55} outerRadius={85} dataKey="value" nameKey="name" paddingAngle={2} label={false} stroke="var(--cc-card)" strokeWidth={data.length > 1 ? 2 : 0}>
           {data.map((entry, i) => (
@@ -51,8 +52,11 @@ export function CreatorPerformanceBar({
   data: BarDatum[];
   formatNumber: (n: number) => string;
 }) {
+  const summary = data
+    .map((d) => `${d.name}: ${d.views === null ? "no views" : `${formatNumber(d.views)} views`}, ${d.likes === null ? "no likes" : `${formatNumber(d.likes)} likes`}`)
+    .join("; ");
   return (
-    <ChartFrame minHeight={200}>
+    <ChartFrame minHeight={200} label="Views and likes by creator" summary={summary || undefined}>
       <BarChart data={data} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
         <XAxis dataKey="name" tick={chartAxisTick} axisLine={false} tickLine={false} />
@@ -99,8 +103,9 @@ export function BudgetBreakdownPie({
   formatCurrency: (n: number, currency?: string) => string;
   currency: string;
 }) {
+  const summary = data.map((d) => `${d.name ?? "Budget"} ${formatCurrency(d.value, currency)}`).join(", ");
   return (
-    <ChartFrame minHeight={200}>
+    <ChartFrame minHeight={200} label="Budget breakdown" summary={summary || undefined}>
       <PieChart>
         <Pie isAnimationActive={false} data={data} cx="50%" cy="50%" innerRadius={60} outerRadius={80} dataKey="value" paddingAngle={2}>
           <Cell fill="var(--cc-primary)" />

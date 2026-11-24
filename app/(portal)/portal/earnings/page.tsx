@@ -182,7 +182,14 @@ export default function PortalEarningsPage() {
                 {/* Min-payout threshold indicator */}
                 {threshold && threshold > 0 && (
                   <div style={{ marginTop: 12 }}>
-                    <div style={{ height: 6, borderRadius: 3, background: "var(--cc-bg)", overflow: "hidden" }}>
+                    <div
+                      role="progressbar"
+                      aria-label={`Progress towards the ${fmtMoney(threshold, c.currency)} minimum payout for ${c.title}`}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={Math.round(pct)}
+                      style={{ height: 6, borderRadius: 3, background: "var(--cc-bg)", overflow: "hidden" }}
+                    >
                       <div style={{ width: `${pct}%`, height: "100%", background: pct >= 100 ? "var(--cc-success-fg)" : "var(--cc-primary)", transition: "width 0.2s" }} />
                     </div>
                     <p style={{ fontSize: 12, color: "var(--cc-text-muted)", marginTop: 4 }}>

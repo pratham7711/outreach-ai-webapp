@@ -30,15 +30,14 @@ export default function ExportMenu({ items, align = "up" }: { items: { label: st
         size="sm"
         iconLeft={<Download size={15} />}
         aria-expanded={open}
-        aria-haspopup="menu"
         onClick={() => setOpen((o) => !o)}
       >
         Export
       </Button>
       {open && (
-        <div className="cc-roster-export-menu" role="menu" data-align={align}>
+        <div className="cc-roster-export-menu" data-align={align}>
           {items.map((item) => (
-            <a key={item.href} role="menuitem" href={item.href} download onClick={() => setOpen(false)}>
+            <a key={item.href} href={item.href} download onClick={() => setOpen(false)}>
               {item.label}
             </a>
           ))}

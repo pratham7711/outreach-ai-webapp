@@ -193,6 +193,8 @@ function VerifyEmail() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@company.com"
+              autoComplete="username"
+              spellCheck={false}
             />
           </Field>
           <Button type="submit" variant="primary" fullWidth disabled={resending}>

@@ -7,6 +7,7 @@ import {
   Bold, Italic, Underline, Strikethrough, Heading1, Heading2, Heading3,
   ListOrdered, List, Indent, Outdent, Link2, Undo2, Redo2, Link2Off,
 } from "lucide-react";
+import { isImeConfirm } from "@/lib/ui/ime";
 
 /**
  * The rich-text block behind the reference's campaign brief toolbar: bold,
@@ -197,7 +198,7 @@ function Toolbar({ editor }: { editor: Editor }) {
             placeholder="https://"
             onChange={(e) => setHref(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") { e.preventDefault(); applyLink(); }
+              if (e.key === "Enter" && !isImeConfirm(e)) { e.preventDefault(); applyLink(); }
               if (e.key === "Escape") { e.preventDefault(); setLinkOpen(false); }
             }}
             style={{

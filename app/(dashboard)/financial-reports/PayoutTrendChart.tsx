@@ -19,8 +19,13 @@ const money = (currency: string, compact: boolean) =>
 export default function PayoutTrendChart({ data, currency = "USD" }: { data: MonthlyTrend[]; currency?: string }) {
   const axis = money(currency, true);
   const full = money(currency, false);
+  const paid = data.reduce((a, d) => a + d.paid, 0);
+  const pending = data.reduce((a, d) => a + d.pending, 0);
+  const summary = data.length
+    ? `${data.length} months, ${data[0].month} to ${data[data.length - 1].month}. Total paid ${full.format(paid)}, total pending ${full.format(pending)}.`
+    : undefined;
   return (
-    <ChartFrame minHeight={200}>
+    <ChartFrame minHeight={200} label="Monthly payouts, paid and pending" summary={summary}>
       <BarChart data={data} margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
         <XAxis dataKey="month" tick={chartAxisTick} axisLine={false} tickLine={false} />

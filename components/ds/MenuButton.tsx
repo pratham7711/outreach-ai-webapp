@@ -101,7 +101,9 @@ export function MenuButton({
       if (!root.current?.contains(target) && !menu.current?.contains(target)) close(false);
     };
     const escape = (e: globalThis.KeyboardEvent) => {
-      if (e.key === "Escape") close(true);
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      close(true);
     };
     document.addEventListener("mousedown", outside);
     document.addEventListener("keydown", escape);

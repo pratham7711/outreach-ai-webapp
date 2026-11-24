@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { useConfirm } from "@/components/ds";
 import { TEMPLATE_NAME_MAX, summaryLine } from "@/lib/campaigns/templates/payload";
 import type { PastCampaignRow, SourceKind, StartFromSources, TemplateRow } from "./useStartFromSources";
+import { isImeConfirm } from "@/lib/ui/ime";
 
 /**
  * "Start from" at the top of New Campaign: Blank, one of the org's templates,
@@ -144,7 +145,7 @@ function TemplateItem({
           autoFocus
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") {
+            if (e.key === "Enter" && !isImeConfirm(e)) {
               e.preventDefault();
               void save();
             } else if (e.key === "Escape") {

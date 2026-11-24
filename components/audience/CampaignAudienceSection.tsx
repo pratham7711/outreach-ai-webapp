@@ -105,21 +105,24 @@ function CreatorParts({ creators, unit }: { creators: Array<CampaignAudienceCrea
   return (
     <div>
       <p style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)", margin: "0 0 10px" }}>By creator</p>
-      <div style={{ overflowX: "auto" }}>
+      <div tabIndex={0} role="region" aria-label="Audience by creator" style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <caption className="sr-only">Audience by creator</caption>
           <thead>
             <tr>
-              <th style={head}>Creator</th>
-              <th style={{ ...head, textAlign: "right", paddingRight: 12 }}>{unit === "reach" ? "Reach" : "Views"}</th>
-              <th style={{ ...head, textAlign: "right", paddingRight: 12 }}>Share</th>
-              <th style={head}>Top country</th>
-              <th style={{ ...head, textAlign: "right" }}>Women</th>
+              <th scope="col" style={head}>Creator</th>
+              <th scope="col" style={{ ...head, textAlign: "right", paddingRight: 12 }}>{unit === "reach" ? "Reach" : "Views"}</th>
+              <th scope="col" style={{ ...head, textAlign: "right", paddingRight: 12 }}>Share</th>
+              <th scope="col" style={head}>Top country</th>
+              <th scope="col" style={{ ...head, textAlign: "right" }}>Women</th>
             </tr>
           </thead>
           <tbody>
             {creators.map((c) => (
               <tr key={c.creatorId}>
-                <td style={{ ...cell, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</td>
+                <td style={{ ...cell, maxWidth: 220 }}>
+                  <div title={c.name} style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</div>
+                </td>
                 <td style={{ ...cell, ...NUM, textAlign: "right" }}>{formatCount(c.weight)}</td>
                 <td style={{ ...cell, ...NUM, textAlign: "right" }}>{formatPercent(c.weight / total)}</td>
                 <td style={{ ...cell, color: c.topCountry ? "var(--cc-text)" : "var(--cc-text-muted)" }}>

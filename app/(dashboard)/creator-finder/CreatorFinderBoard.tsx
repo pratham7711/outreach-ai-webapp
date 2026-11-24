@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Modal, ModalNotice, ModalSection } from "@/components/ds/Modal";
 import { AlertCircle, ExternalLink, Copy, Mail, MessageCircle, Search, Instagram, Youtube, Sparkles, Trash2 } from "lucide-react";
 import { PageHeader, Button, LoadError } from "@/components/ds";
@@ -383,6 +383,22 @@ type YouTubeHit = {
 
 function AddPanel({ onAdded }: { onAdded: () => Promise<void> }) {
   const [tab, setTab] = useState<"paste" | "youtube">("paste");
+  const tabsId = useId();
+  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const TAB_KEYS = ["paste", "youtube"] as const;
+  const onTabKeyDown = (e: React.KeyboardEvent) => {
+    const i = TAB_KEYS.indexOf(tab);
+    const next =
+      e.key === "ArrowRight" ? (i + 1) % TAB_KEYS.length
+      : e.key === "ArrowLeft" ? (i - 1 + TAB_KEYS.length) % TAB_KEYS.length
+      : e.key === "Home" ? 0
+      : e.key === "End" ? TAB_KEYS.length - 1
+      : -1;
+    if (next < 0) return;
+    e.preventDefault();
+    setTab(TAB_KEYS[next]);
+    tabRefs.current[TAB_KEYS[next]]?.focus();
+  };
   const [text, setText] = useState("");
   const [platform, setPlatform] = useState<"INSTAGRAM" | "YOUTUBE">("INSTAGRAM");
   const [busy, setBusy] = useState(false);
@@ -453,15 +469,36 @@ function AddPanel({ onAdded }: { onAdded: () => Promise<void> }) {
 
   return (
     <div style={{ ...card, padding: 16, marginBottom: 16 }} data-testid="cf-add">
-      <div role="tablist" style={{ borderBottom: "1px solid var(--cc-border)", marginBottom: 12 }}>
-        <button role="tab" aria-selected={tab === "paste"} style={tabStyle(tab === "paste")} onClick={() => setTab("paste")}>
+      <div role="tablist" aria-label="Add creators" onKeyDown={onTabKeyDown} style={{ borderBottom: "1px solid var(--cc-border)", marginBottom: 12 }}>
+        <button
+          ref={(el) => { tabRefs.current.paste = el; }}
+          id={`${tabsId}-tab-paste`}
+          type="button"
+          role="tab"
+          aria-selected={tab === "paste"}
+          aria-controls={`${tabsId}-panel`}
+          tabIndex={tab === "paste" ? 0 : -1}
+          style={tabStyle(tab === "paste")}
+          onClick={() => setTab("paste")}
+        >
           Paste handles
         </button>
-        <button role="tab" aria-selected={tab === "youtube"} style={tabStyle(tab === "youtube")} onClick={() => setTab("youtube")}>
+        <button
+          ref={(el) => { tabRefs.current.youtube = el; }}
+          id={`${tabsId}-tab-youtube`}
+          type="button"
+          role="tab"
+          aria-selected={tab === "youtube"}
+          aria-controls={`${tabsId}-panel`}
+          tabIndex={tab === "youtube" ? 0 : -1}
+          style={tabStyle(tab === "youtube")}
+          onClick={() => setTab("youtube")}
+        >
           Search YouTube
         </button>
       </div>
 
+      <div id={`${tabsId}-panel`} role="tabpanel" aria-labelledby={`${tabsId}-tab-${tab}`}>
       {tab === "paste" ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <label htmlFor="cf-paste" style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
@@ -580,6 +617,7 @@ function AddPanel({ onAdded }: { onAdded: () => Promise<void> }) {
           ) : null}
         </div>
       )}
+      </div>
 
       {summary ? (
         <p role="status" style={{ fontSize: 13, color: "var(--cc-text)", margin: "10px 0 0" }} data-testid="cf-add-summary">

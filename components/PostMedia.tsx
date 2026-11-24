@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { Play, ExternalLink, ImageOff } from "lucide-react";
+import { useRef, useState } from "react";
+import { Play, ExternalLink, ImageOff, X } from "lucide-react";
+import { useDialogFocus } from "@/components/ds/useDialogFocus";
 import { imgSrc, embedSrcFor } from "@/lib/postMedia";
 
 /**
@@ -35,6 +36,13 @@ export default function PostMedia({
   radius = 8,
 }: Props) {
   const [playing, setPlaying] = useState(false);
+  const playerRef = useRef<HTMLDivElement>(null);
+  const onPlayerKeyDown = useDialogFocus({
+    open: playing,
+    panelRef: playerRef,
+    onClose: () => setPlaying(false),
+    initialFocus: (panel) => panel.querySelector<HTMLElement>("button"),
+  });
   /* The placeholder below already exists for a post with no thumbnail stored. A
      thumbnail that fails to load is the same thing on screen, but without this
      it was the browser's own broken-image glyph instead -- and the proxy now
@@ -122,9 +130,12 @@ export default function PostMedia({
 
       {playing && (
         <div
+          ref={playerRef}
           role="dialog"
           aria-modal="true"
           aria-label="Post player"
+          tabIndex={-1}
+          onKeyDown={onPlayerKeyDown}
           onClick={(e) => {
             e.stopPropagation();
             setPlaying(false);
@@ -140,6 +151,32 @@ export default function PostMedia({
             padding: 24,
           }}
         >
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setPlaying(false);
+            }}
+            style={{
+              position: "absolute",
+              top: 16,
+              right: 16,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "8px 12px",
+              borderRadius: 8,
+              border: "1px solid var(--cc-overlay-ink-text)",
+              background: "color-mix(in srgb, var(--cc-media-ink) 60%, transparent)",
+              color: "var(--cc-overlay-ink-text)",
+              fontSize: "var(--cc-t-13)",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            <X size={14} aria-hidden="true" />
+            Close
+          </button>
           <div
             onClick={(e) => e.stopPropagation()}
             style={{

@@ -101,7 +101,7 @@ function LoginInner() {
       ) : (
       <AuthForm onSubmit={handleSubmit}>
         <Field label="Email" required>
-          <Input type="email" value={form.email} onChange={(e) => set({ email: e.target.value })} placeholder="creator@example.com" autoComplete="email" />
+          <Input type="email" value={form.email} onChange={(e) => set({ email: e.target.value })} placeholder="creator@example.com" autoComplete="username" />
         </Field>
         <PasswordField
           label="Password"

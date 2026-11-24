@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { SortableTh, type SortState } from "./SortableTh";
+import { SortableTh, SortStatus, type SortState } from "./SortableTh";
 import { Skeleton } from "./Skeleton";
 import { NoResults } from "./NoResults";
 import { useCompactCount } from "@/components/ds/ExactFigures";
@@ -122,6 +122,8 @@ export function DataTable<T>({
   const tableMin =
     minWidth ?? columns.reduce((sum, c) => sum + (typeof c.width === "number" ? c.width : (c.minWidth ?? 160)), 0);
 
+  const captionId = React.useId();
+
   const follow = (e: React.MouseEvent<HTMLTableRowElement>, href: string) => {
     if (e.defaultPrevented || (e.target as Element).closest(INTERACTIVE)) return;
     if (window.getSelection()?.toString()) return;
@@ -207,7 +209,12 @@ export function DataTable<T>({
 
   return (
     <div className={`${bare ? "cc-dt-wrap" : "cc-dt-card"}${className ? ` ${className}` : ""}`}>
-      <div className="cc-dt-scroll">
+      <div
+        className="cc-dt-scroll"
+        tabIndex={0}
+        role={caption ? "region" : undefined}
+        aria-labelledby={caption ? captionId : undefined}
+      >
         <table
           className="cc-dt"
           style={{ "--cc-dt-min": `${tableMin}px` } as React.CSSProperties}
@@ -216,7 +223,7 @@ export function DataTable<T>({
           data-phone-list={(phoneList ?? (Boolean(rowHref) || phoneExpand)) || undefined}
           data-phone-actions={phoneActions || undefined}
         >
-          {caption ? <caption className="sr-only">{caption}</caption> : null}
+          {caption ? <caption id={captionId} className="sr-only">{caption}</caption> : null}
           <colgroup>
             {columns.map((c) => (
               <col key={c.key} style={c.width === undefined ? undefined : { width: cssLength(c.width) }} />
@@ -240,6 +247,7 @@ export function DataTable<T>({
           <tbody>{body}</tbody>
         </table>
       </div>
+      <SortStatus sort={sort} labelFor={(k) => columns.find((c) => c.sortKey === k)?.header} />
       {footer ? <div className="cc-dt-foot">{footer}</div> : null}
     </div>
   );

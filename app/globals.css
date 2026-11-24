@@ -4098,6 +4098,14 @@ h1, h2, h3, h4, h5, h6 {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Touch has no hover, so the cell's title never shows there: let a truncated
+   value wrap in full instead of hiding its end. */
+@media (hover: none) {
+  .cc-dt-truncate {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
 
 /* A second, muted line in a cell (an id under a name). */
 .cc-dt-sub {
@@ -10573,7 +10581,7 @@ a.cc-platform-chip[data-problem]:hover {
   cursor: pointer;
   text-align: left;
 }
-.cc-import-tile[aria-selected="true"] {
+.cc-import-tile[aria-pressed="true"] {
   border-color: var(--cc-primary);
   box-shadow: inset 0 0 0 1px var(--cc-primary);
 }
@@ -14004,3 +14012,56 @@ a.cc-platform-chip[data-problem]:hover {
 /* TotalAreaChart's echo: the line again, offset up-left in a second colour,
    the way the platform draws its own marks. */
 .cc-chart-echo .recharts-area-curve { filter: drop-shadow(-2px -2px 0 var(--cc-chart-echo)); }
+
+/* Forced colours (Windows High Contrast) drop box-shadow and repaint borders,
+   so a field whose only focus signal is the halo shows no focus at all there.
+   Give those fields a system-colour outline in that mode only. */
+@media (forced-colors: active) {
+  .ui-input:focus-visible,
+  .ui-textarea:focus-visible,
+  .cc-field:focus-visible,
+  .cc-dropdown__trigger:focus-visible,
+  .cc-dropdown__trigger[data-variant="outlined"]:focus-visible,
+  .cc-feedback-input:focus-visible,
+  .cc-search:focus-visible,
+  .portal-token:focus-visible,
+  .cc-entity-picker__field:focus-within,
+  .cc-copy-field:focus-within,
+  .cc-linkfield:focus-within {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+  .cc-ctxmenu-item:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}
+
+/* Entrances that move or scale fall back to a plain fade, and the skeleton
+   shimmer stops, for readers who asked for reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  .page-enter,
+  .cc-slide-up,
+  .cc-slide-down,
+  .cc-scale-in,
+  .cc-empty-state {
+    animation-name: cc-fade-in;
+  }
+  .cc-skeleton,
+  .skeleton {
+    animation: none;
+  }
+  .card-hover:hover {
+    transform: none;
+  }
+}
+
+/* The sign-in card rises in from first paint. A CSS animation, not a
+   framer-motion one: framer server-renders the start frame (opacity 0), which
+   kept the card invisible until the page had hydrated. */
+@keyframes cc-auth-rise {
+  from { opacity: 0; transform: translateY(16px); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .cc-auth__panel { animation: cc-auth-rise 0.4s ease-out; }
+}

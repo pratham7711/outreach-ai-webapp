@@ -6,6 +6,7 @@ import { Input } from "@pratham7711/ui";
 import { PageHeader, SectionCard, Dropdown, useConfirm, Button, Field, Skeleton } from "@/components/ds";
 import { PlatformGlyph } from "@/components/ui/PlatformGlyph";
 import { platformLabel } from "@/lib/format";
+import { isImeConfirm } from "@/lib/ui/ime";
 
 /**
  * Settings → General, mirroring the reference's Tags & Statuses page.
@@ -219,7 +220,7 @@ function TaxonomyList({
             value={renameValue}
             onChange={(e) => setRenameValue(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") void rename(item);
+              if (e.key === "Enter" && !isImeConfirm(e)) void rename(item);
               if (e.key === "Escape") setRenaming(null);
             }}
             aria-label={`Rename ${item.name}`}

@@ -496,7 +496,7 @@ export default function ImportCreatorsModal({ onClose }: { onClose: () => void }
               </div>
             ) : (
               <>
-                <div className="cc-import-tiles" role="tablist" aria-label="Import review">
+                <div className="cc-import-tiles" role="group" aria-label="Import review">
                   {(
                     [
                       ["create", "New", dry.counts.create],
@@ -510,8 +510,7 @@ export default function ImportCreatorsModal({ onClose }: { onClose: () => void }
                     <button
                       key={key}
                       type="button"
-                      role="tab"
-                      aria-selected={reviewTab === key}
+                      aria-pressed={reviewTab === key}
                       className="cc-import-tile"
                       data-kind={key}
                       onClick={() => {
@@ -595,7 +594,7 @@ export default function ImportCreatorsModal({ onClose }: { onClose: () => void }
 
         {step === "saving" && dry && (
           <div className="cc-import-progress-wrap">
-            <p role="status" aria-live="polite" className="cc-import-lead">
+            <p id="cc-import-save-status" role="status" aria-live="polite" className="cc-import-lead">
               {resumeAt === null
                 ? `Saving ${formatFull(progress)} of ${formatFull(dry.counts.people)}…`
                 : `Saved ${formatFull(progress)} of ${formatFull(dry.counts.people)}. What was saved stays saved.`}
@@ -603,6 +602,7 @@ export default function ImportCreatorsModal({ onClose }: { onClose: () => void }
             <div
               className="cc-import-progress"
               role="progressbar"
+              aria-labelledby="cc-import-save-status"
               aria-valuemin={0}
               aria-valuemax={dry.counts.people}
               aria-valuenow={progress}

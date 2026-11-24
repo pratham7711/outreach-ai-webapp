@@ -115,12 +115,19 @@ export default function PostActionMenu({
   /* Arrow keys walk the items. Without this the menu is reachable by keyboard
      but not navigable by it, which is the more annoying half-measure. */
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    if (e.key === "Tab") {
+      onClose();
+      anchor?.focus();
+      return;
+    }
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp" && e.key !== "Home" && e.key !== "End") return;
     e.preventDefault();
     const nodes = Array.from(
       ref.current?.querySelectorAll<HTMLElement>("[data-menuitem]:not([disabled])") ?? []
     );
     if (nodes.length === 0) return;
+    if (e.key === "Home") return nodes[0].focus();
+    if (e.key === "End") return nodes[nodes.length - 1].focus();
     const at = nodes.indexOf(document.activeElement as HTMLElement);
     const next = e.key === "ArrowDown" ? at + 1 : at - 1;
     nodes[(next + nodes.length) % nodes.length].focus();
@@ -153,6 +160,7 @@ export default function PostActionMenu({
               href={item.href}
               data-menuitem=""
               role="menuitem"
+              tabIndex={-1}
               className="cc-ctxmenu-item"
               target={item.external ? "_blank" : undefined}
               rel={item.external ? "noopener noreferrer" : undefined}
@@ -168,6 +176,7 @@ export default function PostActionMenu({
             type="button"
             data-menuitem=""
             role="menuitem"
+            tabIndex={-1}
             className="cc-ctxmenu-item"
             disabled={item.disabled}
             style={item.danger ? { color: "var(--cc-danger-ink)" } : undefined}

@@ -84,6 +84,7 @@ import { PostAnnotationChips } from "@/components/posts/PostAnnotationChips";
 import type { PostAnnotationView } from "@/lib/posts/annotations";
 import { SHOW_MONEY } from "@/lib/moneyUi";
 import { noun } from "@/lib/ui/noun";
+import { isImeConfirm } from "@/lib/ui/ime";
 
 type SnapshotLite = { id: string; viewsCount: number; recordedAt: string };
 
@@ -2119,7 +2120,14 @@ export default function PostsTab({
             </div>
           </div>
           {SHOW_MONEY && capMinor != null && capMinor > 0 && capFraction != null && (
-            <div style={{ height: 8, borderRadius: 999, background: "var(--cc-bg)", overflow: "hidden" }}>
+            <div
+              role="progressbar"
+              aria-label="Budget cap used"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.min(100, Math.round(capFraction * 100))}
+              style={{ height: 8, borderRadius: 999, background: "var(--cc-bg)", overflow: "hidden" }}
+            >
               <div
                 style={{
                   width: `${Math.round(capFraction * 100)}%`,
@@ -2623,7 +2631,7 @@ export default function PostsTab({
                     setAddDraft(text);
                   }}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") {
+                    if (e.key === "Enter" && !isImeConfirm(e)) {
                       e.preventDefault();
                       if (addLinks(addDraft)) setAddDraft("");
                       return;

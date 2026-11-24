@@ -19,10 +19,13 @@ const satoshi = localFont({
   display: "swap",
 });
 
+/* Only the shared report (.spr-*) sets this face, so it is not preloaded on
+   every route; it downloads when that page first uses it. */
 const lexend = Lexend_Deca({
   subsets: ["latin"],
   variable: "--font-lexend",
   display: "swap",
+  preload: false,
 });
 
 export const metadata: Metadata = {

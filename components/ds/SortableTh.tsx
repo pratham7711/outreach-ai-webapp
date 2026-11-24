@@ -103,7 +103,7 @@ export function SortableTh({
       className="cc-th"
       data-align={align}
       style={style}
-      aria-sort={active ? (sort!.dir === "asc" ? "ascending" : "descending") : "none"}
+      aria-sort={active ? (sort!.dir === "asc" ? "ascending" : "descending") : undefined}
     >
       {/* A 24px target around the 11px label, without making the header row
           taller: .cc-th-sort hands its padding back with a negative margin. */}
@@ -112,6 +112,17 @@ export function SortableTh({
         <Icon size={13} aria-hidden="true" />
       </button>
     </th>
+  );
+}
+
+/** One polite live region per table. It is always mounted so the message that
+ *  changes inside it is announced; `labelFor` maps the sort key to its header. */
+export function SortStatus({ sort, labelFor }: { sort: SortState | null | undefined; labelFor: (key: string) => string | undefined }) {
+  const label = sort ? labelFor(sort.key) : undefined;
+  return (
+    <div role="status" aria-live="polite" className="sr-only">
+      {sort && label ? `Sorted by ${label}, ${sort.dir === "asc" ? "ascending" : "descending"}` : ""}
+    </div>
   );
 }
 

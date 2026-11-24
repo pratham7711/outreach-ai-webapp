@@ -185,33 +185,34 @@ export function Dropdown({
         {options.map((o, i) => {
           const isSelected = o.value === selected?.value;
           return (
-            <li key={o.value} role="option" aria-selected={isSelected}>
-              <button
-                type="button"
-                onClick={() => choose(o.value)}
-                onMouseEnter={() => setActive(i)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  width: "100%",
-                  textAlign: "left",
-                  padding: "7px 10px",
-                  borderRadius: 6,
-                  border: "none",
-                  fontSize: "var(--cc-t-13)",
-                  fontWeight: isSelected ? 600 : 400,
-                  color: "var(--cc-text)",
-                  background: i === active ? "var(--cc-bg)" : "transparent",
-                  cursor: "pointer",
-                }}
-              >
-                <Check
-                  size={14}
-                  style={{ color: "var(--cc-primary)", opacity: isSelected ? 1 : 0, flexShrink: 0 }}
-                />
-                {o.label}
-              </button>
+            <li
+              key={o.value}
+              id={`${listId}-opt-${i}`}
+              role="option"
+              aria-selected={isSelected}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => choose(o.value)}
+              onMouseEnter={() => setActive(i)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                width: "100%",
+                textAlign: "left",
+                padding: "7px 10px",
+                borderRadius: 6,
+                fontSize: "var(--cc-t-13)",
+                fontWeight: isSelected ? 600 : 400,
+                color: "var(--cc-text)",
+                background: i === active ? "var(--cc-bg)" : "transparent",
+                cursor: "pointer",
+              }}
+            >
+              <Check
+                size={14}
+                style={{ color: "var(--cc-primary)", opacity: isSelected ? 1 : 0, flexShrink: 0 }}
+              />
+              {o.label}
             </li>
           );
         })}
@@ -229,6 +230,7 @@ export function Dropdown({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
+        aria-activedescendant={open && menu ? `${listId}-opt-${active}` : undefined}
         aria-describedby={describedBy}
         aria-invalid={invalid || undefined}
         aria-required={ariaRequired || undefined}

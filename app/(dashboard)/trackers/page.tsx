@@ -26,7 +26,6 @@ import { TileGridSkeleton } from "@/components/ui/PageSkeleton";
 import { AlertTriangle, Disc3, Eye, Link2, Music, Plus, RefreshCw, Trash2, TrendingUp } from "lucide-react";
 import { InstagramSourceBanner } from "@/components/integrations/InstagramSourceBanner";
 import { CreatorTrackers } from "./CreatorTrackers";
-import { SoundDetailModal } from "./SoundDetailModal";
 import { TrackersIntro } from "./TrackersIntro";
 import { PeriodControl } from "./PeriodControl";
 import { formatDateAbs, timeAgo, formatFull } from "@/lib/format";
@@ -39,6 +38,12 @@ import type { ChartGranularity } from "@/lib/trackers/granularity";
 import { action } from "@/lib/ui/actions";
 import { asOfCaption, dataAsOf } from "@/lib/dataAge";
 import { noun } from "@/lib/ui/noun";
+import { isImeConfirm } from "@/lib/ui/ime";
+import dynamic from "next/dynamic";
+
+/* The detail modal carries the sound charts (recharts): it loads the first time
+   a tracker is opened, not with the list. */
+const SoundDetailModal = dynamic(() => import("./SoundDetailModal").then((m) => m.SoundDetailModal), { ssr: false });
 
 interface SoundSnapshot {
   usesCount: number;
@@ -150,6 +155,8 @@ export default function TrackersPage() {
   // Which audio's detail is open, mirrored into ?tracker= so the panel is
   // linkable and survives a reload — the reference addresses it the same way.
   const openTracker = searchParams.get("tracker");
+  const [detailLoaded, setDetailLoaded] = useState(false);
+  if (openTracker && !detailLoaded) setDetailLoaded(true);
   const setOpenTracker = (id: string | null) => {
     const params = new URLSearchParams(searchParams.toString());
     if (id) params.set("tracker", id);
@@ -804,7 +811,7 @@ export default function TrackersPage() {
           placeholder="tiktok.com/music/..."
           value={urlInput}
           onChange={(e) => setUrlInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && !clientError && urlInput.trim()) handleCreate(); }}
+          onKeyDown={(e) => { if (e.key === "Enter" && !isImeConfirm(e) && !clientError && urlInput.trim()) handleCreate(); }}
           error={clientError ?? undefined}
           iconLeft={<Link2 size={16} />}
           autoComplete="off"
@@ -898,7 +905,7 @@ export default function TrackersPage() {
 
       {/* Detail for one audio. Driven off the already-fetched row, so opening it
           costs no request and the charts paint immediately. */}
-      <SoundDetailModal
+      {detailLoaded && <SoundDetailModal
         open={Boolean(openTracker)}
         onClose={() => setOpenTracker(null)}
         sound={allSounds.find((s) => s.id === openTracker) ?? null}
@@ -910,7 +917,7 @@ export default function TrackersPage() {
           setOpenTracker(null);
           void handleDelete(sound);
         }}
-      />
+      />}
     </div>
   );
 }

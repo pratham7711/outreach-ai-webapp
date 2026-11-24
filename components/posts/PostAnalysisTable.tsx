@@ -7,6 +7,7 @@ import { Dropdown, SortableTh, numericCell, type SortAccessors, useTableSort } f
 import { UNKNOWN, formatDateTimeAbs, platformLabel, stripAt, timeAgo, formatFull } from "@/lib/format";
 import { metricValue } from "@/lib/metricDisplay";
 import { PLATFORM_FILTER_OPTIONS } from "@/lib/platforms/constants";
+import { SortStatus } from "@/components/ds/SortableTh";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import { noun } from "@/lib/ui/noun";
 
@@ -49,6 +50,17 @@ const SORT: SortAccessors<AnalysisPost> = {
   comments: (p) => metricValue(p.commentsCount, p.lastSyncedAt),
   shares: (p) => p.sharesCount,
   engagement: (p) => p.engagementRate,
+};
+
+const SORT_LABELS: Record<string, string> = {
+  creator: "Creator",
+  campaign: "Campaign",
+  platform: "Platform",
+  postedAt: "Posted",
+  views: "Views",
+  likes: "Likes",
+  comments: "Comments",
+  engagement: "Engagement",
 };
 
 const selectStyle: React.CSSProperties = {
@@ -161,8 +173,9 @@ export function PostAnalysisTable({
           {emptyMessage}
         </p>
       ) : (
-        <div style={{ overflowX: "auto" }}>
+        <div tabIndex={0} role="region" aria-label="Post analysis" style={{ overflowX: "auto" }}>
           <table className="cc-pat" style={{ width: "100%", borderCollapse: "collapse" }}>
+            <caption className="sr-only">Post analysis</caption>
             <thead>
               <tr style={{ background: "var(--cc-hover-bg)" }}>
                 <SortableTh label="Creator" sortKey="creator" sort={sort} onToggle={toggle} />
@@ -218,6 +231,7 @@ export function PostAnalysisTable({
               ))}
             </tbody>
           </table>
+          <SortStatus sort={sort} labelFor={(k) => SORT_LABELS[k]} />
         </div>
       )}
     </div>

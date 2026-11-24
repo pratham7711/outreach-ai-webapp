@@ -16,6 +16,10 @@ export type ChartFrameProps = {
   minHeight?: number;
   className?: string;
   style?: React.CSSProperties;
+  /** Accessible name. Renders the frame as a <figure> so the chart is announced instead of skipped. */
+  label?: string;
+  /** Text alternative for what the chart shows (latest value, total, range), read by screen readers only. */
+  summary?: string;
   /** Exactly one Recharts chart element. */
   children: React.ReactElement;
 };
@@ -27,14 +31,19 @@ export function ChartFrame({
   minHeight = CHART_FRAME_MIN_HEIGHT,
   className,
   style,
+  label,
+  summary,
   children,
 }: ChartFrameProps) {
+  const Root = label ? "figure" : "div";
   const floor = Math.max(height ?? 0, minHeight);
   return (
-    <div
+    <Root
       data-chart-frame=""
+      aria-label={label}
       className={className}
       style={{
+        ...(label ? { margin: 0 } : null),
         width: "100%",
         // A flex/grid child defaults to min-width:auto, which stops it shrinking and
         // leaves the chart wider than its track on narrow viewports.
@@ -59,6 +68,7 @@ export function ChartFrame({
       >
         {children}
       </ResponsiveContainer>
-    </div>
+      {label && summary ? <figcaption className="sr-only">{summary}</figcaption> : null}
+    </Root>
   );
 }

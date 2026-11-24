@@ -5,6 +5,7 @@ import { Avatar, Badge, Tag, EmptyState } from "@pratham7711/ui";
 import { Send, ArrowLeft, MessageSquare, Mail } from "lucide-react";
 import { LoadError, PageHeader, Skeleton } from "@/components/ds";
 import { toast } from "sonner";
+import { isImeConfirm } from "@/lib/ui/ime";
 
 const inboxStyles = `
   .inbox-panes {
@@ -200,7 +201,7 @@ export default function InboxClient() {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey && !isImeConfirm(e)) {
       e.preventDefault();
       handleSend();
     }

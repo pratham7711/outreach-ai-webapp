@@ -44,6 +44,11 @@ export default function AddCreatorsDropdown({
   const already = useMemo(() => new Set(onList), [onList]);
   const pickedIds = Object.keys(picked);
 
+  const closePanel = () => {
+    setOpen(false);
+    boxRef.current?.querySelector<HTMLElement>("button")?.focus();
+  };
+
   useEffect(() => {
     if (!open) return;
     const controller = new AbortController();
@@ -83,7 +88,9 @@ export default function AddCreatorsDropdown({
       if (!boxRef.current?.contains(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      closePanel();
     };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
@@ -130,7 +137,7 @@ export default function AddCreatorsDropdown({
       const { added = pickedIds.length } = await res.json().catch(() => ({}));
       toast.success(`Added ${added} creator${added === 1 ? "" : "s"}`);
       setPicked({});
-      setOpen(false);
+      closePanel();
       onAdded(added);
     } catch {
       toast.error("Network error");
@@ -146,7 +153,7 @@ export default function AddCreatorsDropdown({
         size="sm"
         iconRight={<Plus size={14} />}
         onClick={() => setOpen((v) => !v)}
-        aria-haspopup="listbox"
+        aria-haspopup="dialog"
         aria-expanded={open}
       >
         Add Creators
@@ -267,6 +274,9 @@ export default function AddCreatorsDropdown({
                 Clear
               </Button>
             )}
+            <Button variant="ghost" size="sm" onClick={closePanel}>
+              Close
+            </Button>
             <Button variant="primary" size="sm" onClick={save} disabled={!pickedIds.length || saving}>
               {saving ? "Adding…" : pickedIds.length ? `Add ${pickedIds.length} to list` : "Add to list"}
             </Button>

@@ -8,6 +8,7 @@ import { Button } from "@/components/ds";
 import { toast } from "sonner";
 import { viewCheckCards, viewCheckSeverity, type ViewCheckFlag } from "@/lib/fraud/flagCopy";
 import { noun } from "@/lib/ui/noun";
+import { isImeConfirm } from "@/lib/ui/ime";
 
 /** Mirrors EXCLUSION_REASON_MAX in lib/posts/annotations (a server module). */
 const REASON_MAX = 200;
@@ -231,7 +232,7 @@ export function ViewCheckDialog({
             /* Enter is the confirm button, as in any one-field form; not
                mid-composition (an IME's Enter picks a candidate). */
             onKeyDown={(e) => {
-              if (e.key !== "Enter" || e.nativeEvent.isComposing || saving || !reason.trim() || !flags) return;
+              if (e.key !== "Enter" || isImeConfirm(e) || saving || !reason.trim() || !flags) return;
               e.preventDefault();
               void exclude();
             }}

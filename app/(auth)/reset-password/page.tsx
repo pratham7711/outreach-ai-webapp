@@ -164,6 +164,7 @@ function ResetPasswordForm() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
+            autoComplete="new-password"
           />
         </Field>
         <Field label="Confirm new password" required>
@@ -172,6 +173,7 @@ function ResetPasswordForm() {
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             placeholder="••••••••"
+            autoComplete="new-password"
           />
         </Field>
         {error && (

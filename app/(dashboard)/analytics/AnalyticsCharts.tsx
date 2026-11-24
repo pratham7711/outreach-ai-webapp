@@ -19,9 +19,13 @@ export function MonthlyTrendArea({ data, mode = "daily" }: { data: MonthlyTrend[
      The tooltip takes each series' own name ("Total", "Active"): the old
      formatter compared that name with the dataKey, never matched, and
      labelled both rows "Active". */
+  const last = data[data.length - 1];
+  const trendSummary = last
+    ? `${data.length} months, ${last.month} is the latest: ${last.campaigns} total, ${last.active} active.`
+    : undefined;
   if (mode !== "cumulative") {
     return (
-      <ChartFrame minHeight={200}>
+      <ChartFrame minHeight={200} label="Campaigns started per month, total and active" summary={trendSummary}>
         <BarChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }} barGap={2}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
           <XAxis dataKey="month" tick={axisTick} axisLine={false} tickLine={false} />
@@ -38,7 +42,7 @@ export function MonthlyTrendArea({ data, mode = "daily" }: { data: MonthlyTrend[
      from the first month is the count started since then. */
   const rows = toRunningTotals(data, ["campaigns", "active"]);
   return (
-    <ChartFrame minHeight={200}>
+    <ChartFrame minHeight={200} label="Running total of campaigns, total and active" summary={trendSummary}>
       <AreaChart data={rows} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
         <defs>
           <linearGradient id="analyticsGradient" x1="0" y1="0" x2="0" y2="1">
@@ -94,8 +98,18 @@ export function CampaignComparisonLine({
      daily figure is the change from the day before. */
   const rows: Record<string, number | string | null>[] =
     mode === "daily" ? toChanges(series, selected, nextPeriodBy((r) => String(r.date))) : series;
+  const lastRow = rows[rows.length - 1];
+  const comparisonSummary = lastRow
+    ? `${rows.length} days up to ${String(lastRow.date)}. ${selected
+        .map((id) => `${titleById[id] ?? id}: ${lastRow[id] ?? "no data"}`)
+        .join("; ")}.`
+    : undefined;
   return (
-    <ChartFrame minHeight={200}>
+    <ChartFrame
+      minHeight={200}
+      label={mode === "daily" ? "Daily views per campaign" : "Cumulative views per campaign"}
+      summary={comparisonSummary}
+    >
       <LineChart data={rows} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
         <XAxis dataKey="date" tick={axisTick} axisLine={false} tickLine={false} />

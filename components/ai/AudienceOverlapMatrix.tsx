@@ -87,6 +87,7 @@ export function AudienceOverlapMatrix({
       </div>
 
       {hasPairs ? (
+        <div tabIndex={0} role="region" aria-label="Audience overlap table" style={{ overflowX: "auto" }}>
         <table
           data-testid="overlap-matrix"
           style={{
@@ -96,18 +97,19 @@ export function AudienceOverlapMatrix({
             color: "var(--cc-text)",
           }}
         >
+          <caption className="sr-only">Pairwise audience overlap across creators</caption>
           <thead>
             <tr>
-              <th style={{ textAlign: "left", padding: 8, color: "var(--cc-text-muted)", fontWeight: "var(--cc-fw-strong)"}}>
+              <th scope="col" style={{ textAlign: "left", padding: 8, color: "var(--cc-text-muted)", fontWeight: "var(--cc-fw-strong)"}}>
                 Creator A
               </th>
-              <th style={{ textAlign: "left", padding: 8, color: "var(--cc-text-muted)", fontWeight: "var(--cc-fw-strong)"}}>
+              <th scope="col" style={{ textAlign: "left", padding: 8, color: "var(--cc-text-muted)", fontWeight: "var(--cc-fw-strong)"}}>
                 Creator B
               </th>
-              <th style={{ textAlign: "right", padding: 8, color: "var(--cc-text-muted)", fontWeight: "var(--cc-fw-strong)"}}>
+              <th scope="col" style={{ textAlign: "right", padding: 8, color: "var(--cc-text-muted)", fontWeight: "var(--cc-fw-strong)"}}>
                 Overlap
               </th>
-              <th style={{ textAlign: "left", padding: 8, color: "var(--cc-text-muted)", fontWeight: "var(--cc-fw-strong)"}}>
+              <th scope="col" style={{ textAlign: "left", padding: 8, color: "var(--cc-text-muted)", fontWeight: "var(--cc-fw-strong)"}}>
                 Intensity
               </th>
             </tr>
@@ -148,6 +150,7 @@ export function AudienceOverlapMatrix({
             })}
           </tbody>
         </table>
+        </div>
       ) : (
         <div
           data-testid="overlap-empty"

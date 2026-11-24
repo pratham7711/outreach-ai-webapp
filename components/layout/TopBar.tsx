@@ -202,6 +202,7 @@ export function TopBar({ user, navHrefs }: { user?: TopBarUser; navHrefs?: strin
             role="combobox"
             aria-expanded={showResults}
             aria-controls="cc-search-results"
+            aria-activedescendant={showResults && activeIdx >= 0 ? `cc-search-opt-${activeIdx}` : undefined}
             aria-autocomplete="list"
             className="cc-search"
             value={query}
@@ -218,7 +219,7 @@ export function TopBar({ user, navHrefs }: { user?: TopBarUser; navHrefs?: strin
               className="cc-search-results"
             >
               {matches.map(([href, t], i) => (
-                <li key={href} role="option" aria-selected={i === activeIdx}>
+                <li key={href} id={`cc-search-opt-${i}`} role="option" aria-selected={i === activeIdx}>
                   <button
                     type="button"
                     onMouseDown={(e) => { e.preventDefault(); go(href); }}

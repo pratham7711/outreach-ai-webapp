@@ -6,10 +6,19 @@ import { motion } from "framer-motion";
 import { Input } from "@pratham7711/ui";
 import { Button } from "@/components/ds";
 import { Field } from "@/components/ds/Field";
-import { AuthFrame } from "@/components/auth/AuthShell";
-import { Eye, EyeOff, Building2, Sparkles } from "lucide-react";
+import { AuthFrame, PasswordField } from "@/components/auth/AuthShell";
+import { Building2, Sparkles } from "lucide-react";
 
 type OrgTypeChoice = "AGENCY" | "BRAND";
+type FieldKey = "orgName" | "name" | "email" | "password" | "confirm";
+
+const FIELD_IDS: Record<FieldKey, string> = {
+  orgName: "signup-org",
+  name: "signup-name",
+  email: "signup-email",
+  password: "signup-password",
+  confirm: "signup-confirm",
+};
 
 const ORG_TYPE_OPTIONS: { value: OrgTypeChoice; title: string; description: string; icon: typeof Building2 }[] = [
   { value: "AGENCY", title: "Marketing Agency", description: "Manage campaigns for your brand clients", icon: Building2 },
@@ -25,8 +34,20 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<FieldKey, string>>>({});
   const orgRef = useRef<HTMLInputElement>(null);
+  const typeRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  const clearError = (key: FieldKey) => setFieldErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
+
+  const onTypeKey = (e: React.KeyboardEvent<HTMLButtonElement>, i: number) => {
+    const step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+    if (!step) return;
+    e.preventDefault();
+    const next = (i + step + ORG_TYPE_OPTIONS.length) % ORG_TYPE_OPTIONS.length;
+    setOrgType(ORG_TYPE_OPTIONS[next].value);
+    typeRefs.current[next]?.focus();
+  };
 
   useEffect(() => {
     orgRef.current?.focus();
@@ -35,25 +56,17 @@ export default function SignupPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!orgName.trim()) {
-      setError("Please enter your organization name");
-      orgRef.current?.focus();
-      return;
-    }
-    if (!name.trim()) {
-      setError("Please enter your name");
-      return;
-    }
-    if (!email.trim()) {
-      setError("Please enter your email address");
-      return;
-    }
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters");
-      return;
-    }
-    if (password !== confirmPassword) {
-      setError("Passwords do not match");
+    const found: Partial<Record<FieldKey, string>> = {};
+    if (!orgName.trim()) found.orgName = "Enter your organization name";
+    if (!name.trim()) found.name = "Enter your name";
+    if (!email.trim()) found.email = "Enter your email address";
+    if (password.length < 8) found.password = "Use at least 8 characters";
+    else if (password !== confirmPassword) found.confirm = "Passwords do not match";
+    setFieldErrors(found);
+    const first = (Object.keys(FIELD_IDS) as FieldKey[]).find((k) => found[k]);
+    if (first) {
+      setError("");
+      document.getElementById(FIELD_IDS[first])?.focus();
       return;
     }
 
@@ -111,12 +124,13 @@ export default function SignupPage() {
 
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }} noValidate>
             <div>
-              <Field label="Organization name" required>
+              <Field label="Organization name" required error={fieldErrors.orgName}>
                 <Input
                   ref={orgRef}
+                  id={FIELD_IDS.orgName}
                   type="text"
                   value={orgName}
-                  onChange={(e) => setOrgName(e.target.value)}
+                  onChange={(e) => { setOrgName(e.target.value); clearError("orgName"); }}
                   placeholder="Acme Agency"
                   autoComplete="organization"
                 />
@@ -128,15 +142,20 @@ export default function SignupPage() {
                 What kind of organization is this?
               </span>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }} role="radiogroup" aria-label="Organization type">
-                {ORG_TYPE_OPTIONS.map(({ value, title, description, icon: Icon }) => {
+                {ORG_TYPE_OPTIONS.map(({ value, title, description, icon: Icon }, i) => {
                   const selected = orgType === value;
                   return (
                     <button
                       key={value}
+                      ref={(el) => {
+                        typeRefs.current[i] = el;
+                      }}
                       type="button"
                       role="radio"
                       aria-checked={selected}
+                      tabIndex={selected ? 0 : -1}
                       onClick={() => setOrgType(value)}
+                      onKeyDown={(e) => onTypeKey(e, i)}
                       style={{
                         display: "flex",
                         alignItems: "flex-start",
@@ -176,11 +195,12 @@ export default function SignupPage() {
             </div>
 
             <div>
-              <Field label="Your name" required>
+              <Field label="Your name" required error={fieldErrors.name}>
                 <Input
+                  id={FIELD_IDS.name}
                   type="text"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => { setName(e.target.value); clearError("name"); }}
                   placeholder="Jane Doe"
                   autoComplete="name"
                 />
@@ -188,71 +208,38 @@ export default function SignupPage() {
             </div>
 
             <div>
-              <Field label="Email" required>
+              <Field label="Email" required error={fieldErrors.email}>
                 <Input
+                  id={FIELD_IDS.email}
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => { setEmail(e.target.value); clearError("email"); }}
                   placeholder="you@company.com"
-                  autoComplete="email"
+                  autoComplete="username"
+                  spellCheck={false}
                 />
               </Field>
             </div>
 
-            <div style={{ position: "relative" }}>
-              <Field label="Password" required>
-                <Input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Min. 8 characters"
-                  minLength={8}
-                  autoComplete="new-password"
-                />
-              </Field>
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                aria-label={showPassword ? "Hide password" : "Show password"}
-                style={{
-                  position: "absolute",
-                  right: 12,
-                  /* Centred on the 38px input rather than pinned 10px off its
-                     bottom: the phone touch rule makes this button 44px tall,
-                     and growing upward from a fixed bottom put the eye 13px
-                     above the field's centre. */
-                  bottom: 19,
-                  transform: "translateY(50%)",
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  padding: 4,
-                  color: "var(--cc-text-muted)",
-                  display: "flex",
-                  alignItems: "center",
-                  zIndex: 2,
-                  borderRadius: 4,
-                  transition: "color 0.15s",
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.color = "var(--cc-primary)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = "var(--cc-text-muted)"; }}
-              >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
+            <PasswordField
+              id={FIELD_IDS.password}
+              label="Password"
+              value={password}
+              onChange={(v) => { setPassword(v); clearError("password"); }}
+              placeholder="Min. 8 characters"
+              autoComplete="new-password"
+              error={fieldErrors.password}
+            />
 
-            <div>
-              <Field label="Confirm password" required>
-                <Input
-                  type={showPassword ? "text" : "password"}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Re-enter your password"
-                  minLength={8}
-                  autoComplete="new-password"
-                />
-              </Field>
-            </div>
+            <PasswordField
+              id={FIELD_IDS.confirm}
+              label="Confirm password"
+              value={confirmPassword}
+              onChange={(v) => { setConfirmPassword(v); clearError("confirm"); }}
+              placeholder="Re-enter your password"
+              autoComplete="new-password"
+              error={fieldErrors.confirm}
+            />
 
             <div style={{ marginTop: 8 }}>
               <Button type="submit" variant="primary" fullWidth loading={loading}>

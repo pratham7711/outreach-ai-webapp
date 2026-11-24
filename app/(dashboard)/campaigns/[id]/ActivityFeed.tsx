@@ -6,6 +6,7 @@ import { Textarea } from "@pratham7711/ui";
 import { StatusTabs, Button, SectionCard, NoResults, Skeleton } from "@/components/ds";
 import { History } from "lucide-react";
 import { takeFetch } from "@/lib/http/earlyFetch";
+import { isImeConfirm } from "@/lib/ui/ime";
 
 type ActivityEvent = {
   id: string;
@@ -118,7 +119,7 @@ export default function ActivityFeed({ campaignId }: { campaignId: string }) {
           onKeyDown={(e) => {
             /* Enter sends, Shift+Enter breaks the line — the convention
                everywhere else people leave short notes. */
-            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void postComment(); }
+            if (e.key === "Enter" && !e.shiftKey && !isImeConfirm(e)) { e.preventDefault(); void postComment(); }
           }}
           placeholder="Leave a note for the team"
           aria-label="Write a comment"

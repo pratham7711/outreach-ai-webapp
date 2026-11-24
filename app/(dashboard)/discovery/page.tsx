@@ -173,6 +173,9 @@ export default function DiscoveryPage() {
       {/* Search */}
       <div style={{ marginBottom: 20 }}>
         <Input
+          type="search"
+          enterKeyHint="search"
+          aria-label="Search creators"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search creators"
