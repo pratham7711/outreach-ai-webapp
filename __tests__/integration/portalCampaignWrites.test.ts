@@ -41,6 +41,9 @@ jest.mock("@/lib/sync/syncPost", () => ({
 }));
 jest.mock("@/lib/platforms/instagramToken", () => ({ getInstagramAccountForCreator: jest.fn() }));
 jest.mock("@/lib/platforms/tiktokToken", () => ({ getTikTokTokenForCreator: jest.fn() }));
+jest.mock("@/lib/platforms/tiktokEgress", () => ({
+  openTikTokPostFetcherForOne: jest.fn(() => ({ readPost: jest.fn(), close: jest.fn(async () => {}) })),
+}));
 
 import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";

@@ -231,8 +231,9 @@ export async function POST(
 
     // Best-effort metrics fetch (thumbnail / caption / views). Never blocks submission.
     let metrics = null;
-    const tiktokSandbox = detected.platform === "TIKTOK" ? openTikTokPostFetcherForOne() : undefined;
+    let tiktokSandbox: ReturnType<typeof openTikTokPostFetcherForOne> | undefined;
     try {
+      if (detected.platform === "TIKTOK") tiktokSandbox = openTikTokPostFetcherForOne();
       const instagram =
         detected.platform === "INSTAGRAM"
           ? await getInstagramAccountForCreator(creator.id, campaign.orgId, postUrl)

@@ -129,8 +129,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     });
 
     if (enabled) {
-      const tiktokSandbox = post.platform === "TIKTOK" ? openTikTokPostFetcherForOne() : undefined;
+      let tiktokSandbox: ReturnType<typeof openTikTokPostFetcherForOne> | undefined;
       try {
+        if (post.platform === "TIKTOK") tiktokSandbox = openTikTokPostFetcherForOne();
         const instagram =
           post.platform === "INSTAGRAM"
             ? await getInstagramAccountForCreator(post.creatorId, orgId, post.postUrl)
