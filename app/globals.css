@@ -211,6 +211,8 @@
   --cc-instagram-pink: #D62976;
   --cc-instagram-purple: #962FBF;
   --cc-instagram-blue: #4F5BD5;
+  /* TotalAreaChart's echo colour; the chart sets it inline when it draws one. */
+  --cc-chart-echo: transparent;
 
   /* An overlay's own ground, deliberately the same in every theme -- the one
      token below that no theme block is allowed to redefine.
