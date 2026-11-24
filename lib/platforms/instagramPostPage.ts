@@ -147,8 +147,6 @@ export function parseInstagramPostPage(html: string, shortcode: string): Instagr
 }
 
 async function get(url: string, timeoutMs: number, redirect: RequestRedirect): Promise<Response | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await fetch(url, {
       headers: {
@@ -157,13 +155,11 @@ async function get(url: string, timeoutMs: number, redirect: RequestRedirect): P
         "accept-language": "en-US,en;q=0.9",
         accept: "text/html,application/xhtml+xml",
       },
-      signal: controller.signal,
+      signal: AbortSignal.timeout(timeoutMs),
       redirect,
     });
   } catch {
     return null;
-  } finally {
-    clearTimeout(timer);
   }
 }
 

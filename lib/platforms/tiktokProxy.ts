@@ -315,13 +315,11 @@ export function openTikTokProxyPool(size: number): SandboxPostFetcher | null {
   const attemptOn = async (lane: ProxyLane, url: string): Promise<TikTokPostLookup | null> => {
     if (!(await lane.gate.acquire())) return null;
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const res = await fetch(tiktokPageUrl(url), {
         headers: browserHeaders(),
         redirect: "follow",
-        signal: controller.signal,
+        signal: AbortSignal.timeout(timeoutMs),
         // @ts-expect-error -- undici's dispatcher option is not in the DOM fetch types.
         dispatcher: agentFor(lane),
       });
@@ -359,8 +357,6 @@ export function openTikTokProxyPool(size: number): SandboxPostFetcher | null {
       log.warn("proxy read failed", { lane: lane.label, url, error: message });
       rotate(lane);
       return null;
-    } finally {
-      clearTimeout(timer);
     }
   };
 

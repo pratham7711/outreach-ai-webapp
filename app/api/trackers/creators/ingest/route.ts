@@ -3,6 +3,7 @@ import { z } from "zod";
 import { recordTopPosts, tikTokCreatorsNeedingTopPosts } from "@/lib/creators/topPosts";
 import { createLogger } from "@/lib/observability/logger";
 import { bearerMatches } from "@/lib/http/bearer";
+import { httpUrlMax } from "@/lib/validation/url";
 
 /**
  * The creator tracker's way in for TikTok Top Posts, read by a box that is not
@@ -39,9 +40,9 @@ import { bearerMatches } from "@/lib/http/bearer";
 
 const PostSchema = z.object({
   postId: z.string().min(1).max(64),
-  url: z.string().url().max(500),
+  url: httpUrlMax(500),
   caption: z.string().max(2_000).nullish(),
-  coverUrl: z.string().url().max(1_000).nullish(),
+  coverUrl: httpUrlMax(1_000).nullish(),
   views: z.number().int().nonnegative().nullish(),
   likes: z.number().int().nonnegative().nullish(),
   comments: z.number().int().nonnegative().nullish(),

@@ -232,19 +232,12 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
   }, [pathname, setMobileOpen]);
 
   const asideRef = useRef<HTMLElement>(null);
-  const hamburgerRef = useRef<HTMLButtonElement>(null);
-  const wasOpen = useRef(false);
   const onDrawerKeyDown = useDialogFocus({
     open: mobileOpen,
     panelRef: asideRef,
     onClose: () => setMobileOpen(false),
     initialFocus: (panel) => panel.querySelector<HTMLElement>('[aria-label="Close navigation menu"]'),
   });
-
-  useEffect(() => {
-    if (wasOpen.current && !mobileOpen) hamburgerRef.current?.focus({ preventScroll: true });
-    wasOpen.current = mobileOpen;
-  }, [mobileOpen]);
 
   /* Inside a campaign the rail belongs to that campaign, not to the workspace.
      Its sections replace the global nav entirely, as they do in the reference
@@ -263,7 +256,6 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
     <>
       {/* Mobile hamburger button */}
       <button
-        ref={hamburgerRef}
         className={`cc-rail-hamburger fixed top-1.5 left-2 z-50 size-11 cursor-pointer items-center justify-center rounded-[10px] border border-border bg-card shadow-sm lg:hidden ${
           mobileOpen ? "hidden" : "flex"
         }`}

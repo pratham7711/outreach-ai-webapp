@@ -137,8 +137,6 @@ export async function fetchTikTokMusicEmbedHtmlDirect(
   tiktokSoundId: string,
   timeoutMs = 15_000
 ): Promise<string | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(tikTokMusicEmbedUrl(tiktokSoundId), {
       headers: {
@@ -147,7 +145,7 @@ export async function fetchTikTokMusicEmbedHtmlDirect(
         "accept-language": "en-US,en;q=0.9",
         accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       },
-      signal: controller.signal,
+      signal: AbortSignal.timeout(timeoutMs),
       cache: "no-store",
     });
     if (!res.ok) return null;
@@ -155,8 +153,6 @@ export async function fetchTikTokMusicEmbedHtmlDirect(
     return html.includes('"embedInfo":') ? html : null;
   } catch {
     return null;
-  } finally {
-    clearTimeout(timer);
   }
 }
 

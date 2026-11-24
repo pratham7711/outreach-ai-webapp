@@ -1,10 +1,11 @@
+import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { Card, Badge, Avatar } from "@pratham7711/ui";
 import { Star } from "lucide-react";
 import { stripAt, formatFull } from "@/lib/format";
 import { unwrittenMetricValue } from "@/lib/metricDisplay";
-import { POWERED_BY } from "@/lib/brand";
+import { BRAND, POWERED_BY } from "@/lib/brand";
 import { PAYOUTS_ENABLED } from "@/lib/payouts/switch";
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
@@ -49,6 +50,12 @@ const PLATFORM_COLORS: Record<string, { bg: string; color: string }> = {
 };
 
 /* ── Page ────────────────────────────────────────────────────────────────── */
+
+export async function generateMetadata({ params }: { params: Promise<{ handle: string }> }): Promise<Metadata> {
+  const { handle } = await params;
+  const user = await db.creatorUser.findFirst({ where: { handle }, select: { name: true } });
+  return { title: user ? `${user.name} · ${BRAND.name}` : BRAND.name };
+}
 
 export default async function CreatorProfilePage({
   params,

@@ -46,8 +46,6 @@ async function pool<T>(items: T[], limit: number, fn: (item: T) => Promise<void>
 }
 
 async function fetchSourcePage(videoId: string, timeoutMs: number): Promise<string | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(youtubeSourcePageUrl(videoId), {
       headers: {
@@ -56,15 +54,13 @@ async function fetchSourcePage(videoId: string, timeoutMs: number): Promise<stri
         "accept-language": "en-US,en;q=0.9",
         accept: "text/html,application/xhtml+xml",
       },
-      signal: controller.signal,
+      signal: AbortSignal.timeout(timeoutMs),
       redirect: "follow",
     });
     if (!res.ok) return null;
     return await res.text();
   } catch {
     return null;
-  } finally {
-    clearTimeout(timer);
   }
 }
 

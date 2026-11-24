@@ -209,13 +209,11 @@ export async function fetchMetadataDocumentClient(
   if (!isMetadataDocumentClientId(clientId)) return null;
   const url = new URL(clientId);
   if (IP_LITERAL.test(url.hostname)) return null;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 5000);
   try {
     const res = await fetchFn(url, {
       headers: { accept: "application/json" },
       redirect: "error",
-      signal: controller.signal,
+      signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) return null;
     const text = await res.text();
@@ -237,8 +235,6 @@ export async function fetchMetadataDocumentClient(
     };
   } catch {
     return null;
-  } finally {
-    clearTimeout(timer);
   }
 }
 

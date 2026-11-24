@@ -9,6 +9,7 @@ import { oneCopyPerVideo } from "@/lib/posts/duplicates";
 import { viewTotals } from "@/lib/posts/viewTotals";
 import { getRequestIp } from "@/lib/request";
 import { requirePermission } from "@/lib/authz";
+import { httpUrlMax } from "@/lib/validation/url";
 
 /**
  * Everything the song dashboard renders, in one round trip.
@@ -195,7 +196,7 @@ const updateSchema = z.object({
   artist: z.string().trim().min(1).max(200).optional(),
   isrc: z.string().trim().max(32).optional().nullable(),
   releaseDate: z.string().datetime().optional().nullable(),
-  coverUrl: z.string().url().max(2048).optional().nullable(),
+  coverUrl: httpUrlMax(2048).optional().nullable(),
   notes: z.string().max(5000).optional().nullable(),
   /** A tracked TikTok sound to attach, or null to detach. */
   soundId: z.string().min(1).optional().nullable(),

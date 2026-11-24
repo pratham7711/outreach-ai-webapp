@@ -5,6 +5,11 @@ import { PAYOUTS_ENABLED } from "./lib/payouts/switch";
 const securityHeaders = [
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
   { key: "X-Frame-Options", value: "DENY" },
+  /* The parts of a CSP that cannot break a page: no framing (the modern form of
+     X-Frame-Options), no plugins, no <base> rewriting. Script and style sources
+     are not restricted yet; that needs nonces or hashes for Next's inline
+     scripts. */
+  { key: "Content-Security-Policy", value: "frame-ancestors 'none'; object-src 'none'; base-uri 'none'" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },

@@ -5,13 +5,14 @@ import { NOT_REMOVED } from "@/lib/posts/removed";
 import { oneCopyPerVideo } from "@/lib/posts/duplicates";
 import { authenticateRequest } from "@/lib/authenticate";
 import { requirePermission } from "@/lib/authz";
+import { httpUrlMax } from "@/lib/validation/url";
 
 const createSchema = z.object({
   title: z.string().trim().min(1).max(200),
   artist: z.string().trim().min(1).max(200),
   isrc: z.string().trim().max(32).optional().nullable(),
   releaseDate: z.string().datetime().optional().nullable(),
-  coverUrl: z.string().url().max(2048).optional().nullable(),
+  coverUrl: httpUrlMax(2048).optional().nullable(),
   notes: z.string().max(5000).optional().nullable(),
 });
 
