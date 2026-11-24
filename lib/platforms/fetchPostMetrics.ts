@@ -53,9 +53,11 @@ export type FetchMetricsContext = {
    */
   countsOnly?: boolean;
   /**
-   * An open Vercel Sandbox to read TikTok pages through. Supplied by a bulk
-   * refresh, which opens one for the whole run; absent for one-off fetches,
-   * where a sandbox boot costs more than the read is worth.
+   * The TikTok egress to read pages through. A bulk refresh opens one for the
+   * whole run; a single-post flow (add, portal submit, Track, Sync Now) opens
+   * openTikTokPostFetcherForOne and closes it after. Absent, the read goes out
+   * through function egress, which TikTok answers with a WAF login shell, so a
+   * new post would sit unmeasured until the next sync-posts cron.
    */
   tiktokSandbox?: SandboxPostFetcher;
   /**

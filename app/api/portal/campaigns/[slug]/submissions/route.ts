@@ -5,6 +5,7 @@ import { detectPlatform, fetchPostMetrics } from "@/lib/platforms/fetchPostMetri
 import { countsFrom, measuredForNewPost } from "@/lib/sync/syncPost";
 import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
 import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
+import { openTikTokPostFetcherForOne } from "@/lib/platforms/tiktokEgress";
 import { parseRatePerThousand, type PlatformKey } from "@/lib/marketplace/earnings";
 import { computeCampaignAccrual } from "@/lib/marketplace/cap";
 import { isPortalCampaignActionable } from "@/lib/marketplace/portalVisibility";
@@ -230,6 +231,7 @@ export async function POST(
 
     // Best-effort metrics fetch (thumbnail / caption / views). Never blocks submission.
     let metrics = null;
+    const tiktokSandbox = detected.platform === "TIKTOK" ? openTikTokPostFetcherForOne() : undefined;
     try {
       const instagram =
         detected.platform === "INSTAGRAM"
@@ -244,6 +246,7 @@ export async function POST(
         instagramHandle: instagram?.handle,
         instagramOrgId: campaign.orgId,
         tiktokToken,
+        tiktokSandbox,
         /* The creator's own Pages only: a creator submits their own post. */
         ...(detected.platform === "FACEBOOK"
           ? { facebook: { orgId: campaign.orgId, creatorId: creator.id } }
@@ -251,6 +254,8 @@ export async function POST(
       });
     } catch {
       metrics = null;
+    } finally {
+      await tiktokSandbox?.close().catch(() => {});
     }
 
     /* The caption rules, now that the post has been read. A caption that was

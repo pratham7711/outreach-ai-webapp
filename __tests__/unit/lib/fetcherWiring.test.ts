@@ -29,6 +29,17 @@ describe("fetch capabilities are wired to a caller", () => {
         "TikTok serves function egress a WAF login shell roughly three times in four. " +
         "Without a better egress, Sync Now on a TikTok post fails while the bulk refresh succeeds.",
     },
+    ...[
+      "app/api/campaigns/[id]/posts/route.ts",
+      "app/api/portal/campaigns/[slug]/submissions/route.ts",
+      "app/api/campaigns/[id]/posts/[postId]/track/route.ts",
+    ].map((caller) => ({
+      capability: "openTikTokPostFetcherForOne",
+      caller,
+      why:
+        "The first read of a new or newly tracked TikTok post. Without it the read hits the " +
+        "WAF on function egress and the post shows \"Not synced yet\" until the 6-hourly cron.",
+    })),
     {
       capability: "openTikTokPostFetcher",
       caller: "lib/sync/refreshCampaign.ts",

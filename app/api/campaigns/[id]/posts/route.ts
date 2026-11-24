@@ -13,6 +13,7 @@ import {
 import { countsFrom, measuredForNewPost, syncPost, SYNC_POST_INCLUDE } from "@/lib/sync/syncPost";
 import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
 import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
+import { openTikTokPostFetcherForOne } from "@/lib/platforms/tiktokEgress";
 import { checkPostCompliance } from "@/lib/compliance/postCompliance";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
@@ -478,13 +479,20 @@ export async function POST(
       detectedPlatform === "TIKTOK"
         ? await getTikTokTokenForCreator(creatorId, orgId)
         : undefined;
-    const metrics = await fetchPostMetrics(postUrl, {
-      instagramToken: instagram?.token,
-      instagramHandle: instagram?.handle,
-      instagramOrgId: orgId,
-      tiktokToken,
-      ...(detectedPlatform === "FACEBOOK" ? { facebook: { orgId, creatorId, match: facebookMatch } } : {}),
-    });
+    const tiktokSandbox = detectedPlatform === "TIKTOK" ? openTikTokPostFetcherForOne() : undefined;
+    let metrics: Awaited<ReturnType<typeof fetchPostMetrics>>;
+    try {
+      metrics = await fetchPostMetrics(postUrl, {
+        instagramToken: instagram?.token,
+        instagramHandle: instagram?.handle,
+        instagramOrgId: orgId,
+        tiktokToken,
+        tiktokSandbox,
+        ...(detectedPlatform === "FACEBOOK" ? { facebook: { orgId, creatorId, match: facebookMatch } } : {}),
+      });
+    } finally {
+      await tiktokSandbox?.close().catch(() => {});
+    }
 
     const initialStatus: PostStatus = campaign.postApprovalMode === "AUTO_APPROVED" ? "APPROVED" : "PENDING_REVIEW";
     /* hasMetricCounts (inside measuredForNewPost, with the shared validation

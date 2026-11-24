@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { isRemovedFromCampaign, REMOVED_POST_REFUSAL } from "@/lib/posts/removed";
 import { requirePermission } from "@/lib/authz";
 import { fetchPostMetrics } from "@/lib/platforms/fetchPostMetrics";
+import { openTikTokPostFetcherForOne } from "@/lib/platforms/tiktokEgress";
 import { applyPostMetrics } from "@/lib/sync/syncPost";
 import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
 import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
@@ -128,6 +129,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     });
 
     if (enabled) {
+      const tiktokSandbox = post.platform === "TIKTOK" ? openTikTokPostFetcherForOne() : undefined;
       try {
         const instagram =
           post.platform === "INSTAGRAM"
@@ -142,6 +144,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           instagramHandle: instagram?.handle,
           instagramOrgId: orgId,
           tiktokToken,
+          tiktokSandbox,
           ...(post.platform === "FACEBOOK"
             ? { facebook: { orgId, creatorId: post.creatorId, knownPostId: post.platformPostId } }
             : {}),
@@ -157,6 +160,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         }
       } catch (err) {
         console.error(`Failed initial tracking fetch for post ${postId}:`, err);
+      } finally {
+        await tiktokSandbox?.close().catch(() => {});
       }
     }
 
