@@ -9,6 +9,18 @@
 // three new tables. Until they exist the roster shows no join link, /join is a
 // 404, and creator sign-up and sign-in answer "try again in a minute".
 
+/** Accounts that already exist when the table is created signed up before
+    confirmation existed, so they are confirmed in the same statement that makes
+    the table. Without that, every creator signed in on production is logged out
+    the moment the DDL runs and is mailed a link on their next sign-in. A re-run
+    finds the table and backfills nothing, so a later unconfirmed sign-up is never
+    confirmed by it. */
+const CREATOR_EMAIL_VERIFICATION_COLUMNS = `
+    "creatorUserId" TEXT NOT NULL,
+    "verifiedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "CreatorEmailVerification_pkey" PRIMARY KEY ("creatorUserId")
+  `;
+
 export const JOIN_LINK_TABLES = ["OrgJoinLink", "CreatorEmailVerification", "CreatorJoinRecord"] as const;
 
 export const JOIN_LINK_DDL: string[] = [
@@ -31,11 +43,13 @@ export const JOIN_LINK_DDL: string[] = [
         FOREIGN KEY ("orgId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
     END IF;
   END $$`,
-  `CREATE TABLE IF NOT EXISTS "CreatorEmailVerification" (
-    "creatorUserId" TEXT NOT NULL,
-    "verifiedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "CreatorEmailVerification_pkey" PRIMARY KEY ("creatorUserId")
-  )`,
+  `DO $$ BEGIN
+    IF to_regclass('public."CreatorEmailVerification"') IS NULL THEN
+      CREATE TABLE "CreatorEmailVerification" (${CREATOR_EMAIL_VERIFICATION_COLUMNS});
+      INSERT INTO "CreatorEmailVerification" ("creatorUserId") SELECT "id" FROM "CreatorUser";
+    END IF;
+  END $$`,
+  `CREATE TABLE IF NOT EXISTS "CreatorEmailVerification" (${CREATOR_EMAIL_VERIFICATION_COLUMNS})`,
   `DO $$ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'CreatorEmailVerification_creatorUserId_fkey') THEN
       ALTER TABLE "CreatorEmailVerification" ADD CONSTRAINT "CreatorEmailVerification_creatorUserId_fkey"

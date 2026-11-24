@@ -142,6 +142,14 @@ describe("join link DDL", () => {
     for (const c of columns) expect(create).toContain(`"${c}"`);
   });
 
+  it("confirms the creators who already exist only in the statement that creates the table", () => {
+    const backfills = JOIN_LINK_DDL.filter((s) => /INSERT INTO "CreatorEmailVerification"/.test(s));
+    expect(backfills).toHaveLength(1);
+    expect(backfills[0]).toMatch(/IF to_regclass\('public\."CreatorEmailVerification"'\) IS NULL THEN\s+CREATE TABLE "CreatorEmailVerification"/);
+    const create = JOIN_LINK_DDL.indexOf(JOIN_LINK_DDL.find((s) => s.startsWith('CREATE TABLE IF NOT EXISTS "CreatorEmailVerification"'))!);
+    expect(JOIN_LINK_DDL.indexOf(backfills[0])).toBeLessThan(create);
+  });
+
   it("knows a missing join link table, and nothing else", () => {
     expect(isMissingJoinLinkTable(Object.assign(new Error("x"), { code: "P2021" }))).toBe(true);
     expect(isMissingJoinLinkTable(new Error('relation "OrgJoinLink" does not exist'))).toBe(true);

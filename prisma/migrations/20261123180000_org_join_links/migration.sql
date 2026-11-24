@@ -21,6 +21,17 @@ DO $$ BEGIN
     END IF;
   END $$;
 
+DO $$ BEGIN
+    IF to_regclass('public."CreatorEmailVerification"') IS NULL THEN
+      CREATE TABLE "CreatorEmailVerification" (
+    "creatorUserId" TEXT NOT NULL,
+    "verifiedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "CreatorEmailVerification_pkey" PRIMARY KEY ("creatorUserId")
+  );
+      INSERT INTO "CreatorEmailVerification" ("creatorUserId") SELECT "id" FROM "CreatorUser";
+    END IF;
+  END $$;
+
 CREATE TABLE IF NOT EXISTS "CreatorEmailVerification" (
     "creatorUserId" TEXT NOT NULL,
     "verifiedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
