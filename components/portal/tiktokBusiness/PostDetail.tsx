@@ -146,7 +146,7 @@ function CommentRow({ c, videoId }: { c: TikTokBusinessComment; videoId: string 
       <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text-muted)" }}>{c.username ?? "tiktok user"}</span>
-          {c.byOwner && <span style={{ fontSize: 11, fontWeight: 700, color: "var(--cc-plat-accent, var(--cc-primary))" }}>Creator</span>}
+          {c.byOwner && <span style={{ fontSize: 11, fontWeight: 700, color: "var(--cc-text)", background: "var(--cc-plat-tint, var(--cc-primary-light))", borderRadius: 4, padding: "1px 6px" }}>Creator</span>}
           {c.pinned && (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, color: "var(--cc-text-muted)" }}>
               <Pin size={11} aria-hidden="true" /> Pinned
@@ -172,7 +172,7 @@ function CommentRow({ c, videoId }: { c: TikTokBusinessComment; videoId: string 
                 </span>
                 <div style={{ minWidth: 0 }}>
                   <span style={{ fontSize: 12, fontWeight: 600, color: "var(--cc-text-muted)" }}>{r.username ?? "tiktok user"}</span>
-                  {r.byOwner && <span style={{ fontSize: 11, fontWeight: 700, color: "var(--cc-plat-accent, var(--cc-primary))", marginLeft: 6 }}>Creator</span>}
+                  {r.byOwner && <span style={{ fontSize: 11, fontWeight: 700, color: "var(--cc-text)", background: "var(--cc-plat-tint, var(--cc-primary-light))", borderRadius: 4, padding: "1px 6px", marginLeft: 6 }}>Creator</span>}
                   <p style={{ fontSize: 13, color: "var(--cc-text)", margin: "2px 0 0", lineHeight: 1.45, overflowWrap: "anywhere" }}>{r.text}</p>
                 </div>
               </li>
@@ -353,8 +353,7 @@ function Validity({ startsAt, endsAt, now }: { startsAt: string; endsAt: string;
   return (
     <figure style={{ margin: 0, maxWidth: 520 }}>
       <div
-        role="img"
-        aria-label={left > 0 ? `${left} days left of ${Math.round((end - start) / DAY_MS)}` : "Expired"}
+        aria-hidden="true"
         style={{ position: "relative", height: 10, borderRadius: 5, background: "var(--cc-hover-bg)", overflow: "hidden" }}
       >
         <span style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: `${remaining * 100}%`, borderRadius: 5, background: "var(--cc-plat-accent, var(--cc-primary))" }} />

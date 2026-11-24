@@ -86,7 +86,7 @@ function Header({ profile }: { profile: TikTokBusinessProfile }) {
         {counts.map(([k, v], i) => (
           <div key={k} style={{ padding: "0 clamp(8px, 2.6vw, 22px)", borderLeft: i ? "1px solid color-mix(in srgb, var(--cc-plat-on-band) 18%, transparent)" : "none", display: "flex", flexDirection: "column-reverse" }}>
             <dt style={{ fontSize: 13, color: "var(--cc-plat-on-band-muted)" }}>{k}</dt>
-            <dd style={{ margin: 0, fontSize: "clamp(15px, 4vw, 19px)", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{v === null ? "—" : formatCount(v)}</dd>
+            <dd style={{ margin: 0, fontSize: "clamp(0.9375rem, 0.75rem + 1vw, 1.1875rem)", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{v === null ? "—" : formatCount(v)}</dd>
           </div>
         ))}
       </dl>

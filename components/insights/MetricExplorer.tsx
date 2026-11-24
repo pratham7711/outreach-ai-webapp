@@ -63,7 +63,7 @@ export function MetricExplorer({ metrics: all, label, echo }: { metrics: Explore
               }}
             >
               <span style={{ fontSize: 12, color: "var(--cc-text-muted)", lineHeight: 1.3 }}>{m.label}</span>
-              <span style={{ ...NUM, fontSize: "clamp(16px, 1.45vw, 20px)", fontWeight: 700, lineHeight: 1.1, whiteSpace: "nowrap" }}>{m.display ?? formatCount(m.value)}</span>
+              <span style={{ ...NUM, fontSize: "clamp(1rem, 0.8rem + 0.4vw, 1.25rem)", fontWeight: 700, lineHeight: 1.1, whiteSpace: "nowrap" }}>{m.display ?? formatCount(m.value)}</span>
               {m.note && <span style={{ fontSize: 12, color: "var(--cc-text-muted)", lineHeight: 1.3 }}>{m.note}</span>}
               {canChart && (
                 <span style={{ marginTop: 2 }}>

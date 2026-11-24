@@ -12002,6 +12002,8 @@ a.cc-platform-chip[data-problem]:hover {
   max-width: 34em;
   margin: 22px 0 0;
   font-family: var(--font-legal-reading), Georgia, "Times New Roman", serif;
+  font-size-adjust: from-font;
+  text-wrap: pretty;
   font-size: 1.1875rem;
   line-height: 1.6;
   color: var(--cc-text);
@@ -12099,6 +12101,7 @@ a.cc-platform-chip[data-problem]:hover {
 }
 .legal-h2 {
   margin: 0 0 18px;
+  text-wrap: balance;
   font-size: clamp(1.375rem, 1.2rem + 0.6vw, 1.625rem);
   font-weight: 700;
   letter-spacing: -0.015em;
@@ -12120,11 +12123,14 @@ a.cc-platform-chip[data-problem]:hover {
   flex-direction: column;
   gap: 16px;
   font-family: var(--font-legal-reading), Georgia, "Times New Roman", serif;
+  font-size-adjust: from-font;
   font-size: 1.125rem;
   line-height: 1.7;
   color: var(--cc-text);
   font-feature-settings: "kern", "liga", "onum";
 }
+.legal-prose p,
+.legal-prose li { text-wrap: pretty; }
 .legal-prose p { margin: 0; max-width: 36em; }
 .legal-prose strong { font-weight: 650; color: var(--cc-text); }
 .legal-prose em { font-style: italic; font-weight: 600; color: var(--cc-text); }
