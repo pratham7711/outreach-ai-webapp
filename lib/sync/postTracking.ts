@@ -104,7 +104,21 @@ export const DAILY_RECHECK_REASONS: ReadonlySet<string> = new Set([
   "not-in-newest-media",
   "not-public",
   "credentials-rejected",
+  /* The read measured, and Business Discovery said there is no Creator account
+     to take views from. Nothing changes until the creator switches. */
+  "personal-account",
 ]);
+
+/**
+ * How soon a post whose last read measured everything BUT views (views-pending:
+ * Business Discovery was limited or timed out) is asked again, whatever its
+ * cadence. The cadence reads lastSyncedAt, which that read stamped, so without
+ * this a reel with likes and no views would wait out a full 6-24 hour cadence
+ * on the strength of a read that never got its views. One hour is the sweep's
+ * own period: the post is due on the very next run and, ordered first there,
+ * spends the budget before posts that already have views.
+ */
+export const VIEWS_RETRY_HOURS = 1;
 
 /**
  * The expiry to enforce, including for rows written before the column existed.
@@ -229,6 +243,9 @@ export type PostCoverage =
 /** Read since the tracker started. A tracker with no start reads as begun before any reading. */
 function measuredSinceStart(input: PostTrackingInput): boolean {
   if (!input.lastSyncedAt) return false;
+  /* A read that left the views out is not the reading an old post's tracker is
+     waiting for; sealing on it would freeze the post with none. */
+  if (input.lastReason === "views-pending") return false;
   return !input.trackingStartedAt || input.lastSyncedAt.getTime() >= input.trackingStartedAt.getTime();
 }
 
@@ -341,6 +358,11 @@ export function decidePostTracking(input: PostTrackingInput): PostTrackingDecisi
   if (lastTouchMs === -Infinity) return { action: "sync", reason: "never-read" };
 
   const cadenceHours = READ_CADENCE_HOURS[coverage.cadence];
+  if (input.lastReason === "views-pending" && cadenceHours > VIEWS_RETRY_HOURS) {
+    return input.now.getTime() - lastTouchMs >= VIEWS_RETRY_HOURS * HOUR_MS - DUE_GRACE_MS
+      ? { action: "sync", reason: "views-pending-retry" }
+      : { action: "skip", reason: "views-pending-throttle" };
+  }
   if (input.lastReason && DAILY_RECHECK_REASONS.has(input.lastReason) && cadenceHours < HIDDEN_RECHECK_HOURS) {
     /* "hidden-*" kept for the hidden post, so the run summaries stay comparable. */
     const kind = input.lastReason === "post-hidden" ? "hidden" : "answered";

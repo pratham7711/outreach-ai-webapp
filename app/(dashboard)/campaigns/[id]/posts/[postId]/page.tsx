@@ -42,6 +42,7 @@ import { postAgeContext, postMeasuredAt, postStatus } from "@/lib/posts/postStat
 import { TIME_NOT_RECORDED } from "@/lib/dataAge";
 import { viewsAsOf, viewsReadAt } from "@/lib/posts/fieldFreshness";
 import PostStatusChip from "@/components/posts/PostStatusChip";
+import PersonalAccountNote from "@/components/posts/PersonalAccountNote";
 import { AgeLabel } from "@/components/ds/AgeLabel";
 import { isUnknownMetric, metricReason, metricText, postCounterValue, unknownMetric, type MetricValue } from "@/lib/creators/metricValue";
 import { imgSrc, embedSrcFor, postThumbnailUrl } from "@/lib/postMedia";
@@ -712,6 +713,7 @@ export default function PostDetailPage() {
             {/* Beside the status: every metric card below stays put -- they
                 are the post's last real numbers. */}
             <PostStatusChip status={status} showLive />
+            <PersonalAccountNote post={post} />
           </>
         }
         meta={

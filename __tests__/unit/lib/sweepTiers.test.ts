@@ -72,6 +72,13 @@ const cmp = (a: Value, b: Value) => {
 const same = (a: Value, b: Value) => (a instanceof Date && b instanceof Date ? a.getTime() === b.getTime() : a === b);
 
 function matchField(row: Record<string, unknown>, key: string, cond: unknown): boolean {
+  /* The one JSON filter the tiers use: the __lastFetch reason, which the row
+     carries flattened as `lastReason`. */
+  if (key === "platformMetrics") {
+    const { path, equals } = cond as { path: string[]; equals: string };
+    if (path.join(".") !== "__lastFetch.reason") throw new Error(`unsupported JSON path ${path.join(".")}`);
+    return row.lastReason === equals;
+  }
   const v = row[key] as Value;
   if (cond === null) return v === null;
   if (cond instanceof Date || typeof cond !== "object") return v !== null && same(v, cond as Value);

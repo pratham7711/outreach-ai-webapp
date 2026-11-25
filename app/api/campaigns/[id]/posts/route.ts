@@ -10,7 +10,7 @@ import {
   fetchPostMetrics,
   MEDIA_TYPES as DETECTABLE_MEDIA_TYPES,
 } from "@/lib/platforms/fetchPostMetrics";
-import { countsFrom, measuredForNewPost, syncPost, SYNC_POST_INCLUDE } from "@/lib/sync/syncPost";
+import { countsFrom, measuredForNewPost, noteForNewPost, syncPost, SYNC_POST_INCLUDE } from "@/lib/sync/syncPost";
 import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
 import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
 import { openTikTokPostFetcherForOne } from "@/lib/platforms/tiktokEgress";
@@ -486,6 +486,7 @@ export async function POST(
         instagramToken: instagram?.token,
         instagramHandle: instagram?.handle,
         instagramOrgId: orgId,
+        instagramMediaType: mediaType ?? detected?.mediaType ?? null,
         tiktokToken,
         tiktokSandbox,
         ...(detectedPlatform === "FACEBOOK" ? { facebook: { orgId, creatorId, match: facebookMatch } } : {}),
@@ -501,6 +502,14 @@ export async function POST(
        start life with the contradiction applyPostMetrics refuses on every
        later read. See lib/metrics/coherence. */
     const measuredMetrics = measuredForNewPost(metrics, detectedPlatform, { writer: "add-post", orgId });
+
+    /* Business Discovery's verdict on the handle, kept from the first read. A
+       personal account is the one Instagram gap the agency can close, so it is
+       known on the post from the moment it is added instead of after the first
+       sweep. The read that carried counts but no views while Meta was limiting
+       us is kept the same way, which is what puts the post first in line for
+       the next sweep. See lib/sync/syncPost (the same note, on every later read). */
+    const addNote = noteForNewPost(detectedPlatform, metrics?.fetchReason);
 
     const post = await db.post.create({
       data: {
@@ -522,7 +531,14 @@ export async function POST(
         ...(measuredMetrics ? countsFrom(measuredMetrics).counts : {}),
         engagementRate: measuredMetrics?.engagementRate ?? 0,
         postedAt: metrics?.postedAt ?? new Date(),
-        ...(measuredMetrics ? { platformMetrics: countsFrom(measuredMetrics).measuredPatch } : {}),
+        ...(measuredMetrics || addNote
+          ? {
+              platformMetrics: {
+                ...(measuredMetrics ? countsFrom(measuredMetrics).measuredPatch : {}),
+                ...(addNote ?? {}),
+              },
+            }
+          : {}),
         // Without this a post created with real counts reads as never synced,
         // which makes lib/metricDisplay treat its measured zeroes as unknown and
         // makes the card say "Never" under numbers we just fetched. Only set

@@ -39,6 +39,7 @@ import { asOfCaption, dataAsOf } from "@/lib/dataAge";
 import { postAgeContext, postMeasuredAt, postStatus } from "@/lib/posts/postStatus";
 import { viewsAsOf } from "@/lib/posts/fieldFreshness";
 import PostStatusChip from "@/components/posts/PostStatusChip";
+import PersonalAccountNote from "@/components/posts/PersonalAccountNote";
 import { AgeLabel } from "@/components/ds/AgeLabel";
 import { enumLabel } from "@/lib/ui/enumLabel";
 import PostGridCard from "@/components/posts/PostGridCard";
@@ -1997,6 +1998,7 @@ export default function PostsTab({
             <StatusBadge status={post.status} />
             <span className="cc-poststab-status-line">
               <PostStatusChip status={status} compact showLive />
+              <PersonalAccountNote post={post} compact />
               {/* The counters' age, with a Stale chip once a tracked post has
                   missed two of its reads (lib/dataAge). */}
               <AgeLabel

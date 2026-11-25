@@ -9,6 +9,7 @@ import {
   dueCutoff,
 } from "@/lib/sync/postTracking";
 import { NOT_REMOVED } from "@/lib/posts/removed";
+import { LAST_FETCH_KEY } from "@/lib/metricDisplay";
 
 /**
  * Who the post sweep asks, and how many of each it asks for.
@@ -162,8 +163,16 @@ export function sweepTierWhere(tier: SweepTier, ctx: TierContext): Prisma.PostWh
      tracked is both unset. See trackingStopped. */
   const notStopped: Prisma.PostWhereInput = { OR: [{ trackingEnabled: true }, { trackingExpiresAt: null }] };
   const fast = dueCutoff(now, "6hourly");
-  const dueFast: Prisma.PostWhereInput = { OR: [{ lastSyncedAt: null }, { lastSyncedAt: { lt: fast } }] };
-
+  /* A read that measured everything but views stamped lastSyncedAt, which on
+     its own would hold the post out of the queue for a whole cadence. The note
+     it left is what says its views are still owed (decidePostTracking makes it
+     due within the hour). */
+  const viewsOwed: Prisma.PostWhereInput = {
+    platformMetrics: { path: [LAST_FETCH_KEY, "reason"], equals: "views-pending" },
+  };
+  const dueFast: Prisma.PostWhereInput = {
+    OR: [{ lastSyncedAt: null }, { lastSyncedAt: { lt: fast } }, viewsOwed],
+  };
   switch (tier) {
     case "seal": {
       const old = ago(OLD_POST_DAYS * DAY_MS);
@@ -224,6 +233,7 @@ export function sweepTierWhere(tier: SweepTier, ctx: TierContext): Prisma.PostWh
             OR: [
               { lastSyncedAt: null },
               { lastSyncedAt: { lt: dueCutoff(now, "daily") } },
+              viewsOwed,
               {
                 lastSyncedAt: { lt: fast },
                 OR: [{ postedAt: { gte: ago(AUTO_TRACK_FAST_DAYS * DAY_MS) } }, { trackingEnabled: true }],
@@ -244,6 +254,22 @@ export function sweepTierWhere(tier: SweepTier, ctx: TierContext): Prisma.PostWh
 }
 
 const OLDEST_READ_FIRST = { lastSyncedAt: { sort: "asc", nulls: "first" } } as const;
+
+/**
+ * `rows` with the urgent ones first, each keeping its relative order. With a
+ * `groupKey`, the urgent rows of one key sit side by side (in order of the first
+ * of them), so a creator's posts are read together and share one Business
+ * Discovery page.
+ */
+export function urgentFirst<T>(rows: T[], isUrgent: (row: T) => boolean, groupKey?: (row: T) => string): T[] {
+  const head = rows.filter(isUrgent);
+  if (head.length === 0) return rows;
+  const grouped = groupKey
+    ? [...new Set(head.map(groupKey))].flatMap((k) => head.filter((r) => groupKey(r) === k))
+    : head;
+  const urgent = new Set(head);
+  return [...grouped, ...rows.filter((r) => !urgent.has(r))];
+}
 
 /** The read tiers by rank; tiers that share a rank are interleaved. */
 const READ_RANKS: SweepTier[][] = [["first-72h", "live-campaign"], ["first-30d"], ["backlog"]];
@@ -267,6 +293,11 @@ export async function selectSweepCandidates<T extends { id: string }>(
      *  count, but are asked after every other read candidate: oldest-read-first
      *  otherwise puts them at the head of every run, since they never read. */
     readLast?: (row: T) => boolean;
+    /** Posts still owed something the budget alone can buy (an Instagram video with no
+     *  views). Asked before every other read candidate, and grouped by `groupKey` so one
+     *  creator's posts are adjacent and share a single Business Discovery page. */
+    readFirst?: (row: T) => boolean;
+    groupKey?: (row: T) => string;
   },
 ): Promise<{ posts: T[]; byTier: Record<SweepTier, number> }> {
   const byTier = Object.fromEntries(SWEEP_TIERS.map((t) => [t, 0])) as Record<SweepTier, number>;
@@ -307,12 +338,14 @@ export async function selectSweepCandidates<T extends { id: string }>(
       left -= posts.length - before;
     }
   }
-  if (opts.readLast) {
+  if (opts.readLast || opts.readFirst) {
     const reads = posts.slice(sealIds.length);
-    const later = new Set(reads.filter(opts.readLast));
-    if (later.size > 0) {
-      const first = reads.filter((r) => !later.has(r));
-      return { posts: [...posts.slice(0, sealIds.length), ...first, ...later], byTier };
+    const later = new Set(opts.readLast ? reads.filter(opts.readLast) : []);
+    const urgent = new Set(opts.readFirst ? reads.filter((r) => !later.has(r) && opts.readFirst!(r)) : []);
+    if (later.size > 0 || urgent.size > 0) {
+      const head = urgentFirst(reads.filter((r) => urgent.has(r)), () => true, opts.groupKey);
+      const middle = reads.filter((r) => !later.has(r) && !urgent.has(r));
+      return { posts: [...posts.slice(0, sealIds.length), ...head, ...middle, ...later], byTier };
     }
   }
   return { posts, byTier };

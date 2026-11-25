@@ -7,7 +7,10 @@ import { snapshotSounds } from "@/lib/sounds/snapshot";
 import { readSongSoundIds } from "@/lib/songs/songSounds";
 import { createLogger } from "@/lib/observability/logger";
 import { measuredFields } from "@/lib/metricDisplay";
-import { VIEWS_UNAVAILABLE } from "@/lib/refreshSummary";
+import { VIEWS_FRESH_KEPT, VIEWS_UNAVAILABLE } from "@/lib/refreshSummary";
+import { FRESH_VIEWS_SKIP_PERCENT, lacksViews, viewsFresh } from "@/lib/sync/instagramViews";
+import { urgentFirst } from "@/lib/sync/sweepCandidates";
+import { backgroundReadsDeferred } from "@/lib/platforms/instagramDiscoveryTokens";
 import {
   REFRESH_COOLDOWN_MS,
   cooldownStateFrom,
@@ -177,6 +180,10 @@ const REASON_IS_RETRYABLE: Record<RefreshFailReason, boolean> = {
   "not-public": false,
   /* Another lane renders another page; the neighbour's stats were one page's. */
   "counts-inconsistent": true,
+  /* Arrive on measured reads, which are never retried inside a run: asking
+     again would spend the Meta budget the next sweep is ordered to spend. */
+  "views-pending": false,
+  "personal-account": false,
   // Our bug, not their verdict -- and a thrown call is often transient.
   error: true,
 };
@@ -342,7 +349,7 @@ export async function refreshCampaign(input: {
     }
   }
 
-  const posts = await db.post.findMany({
+  const fetchedPosts = await db.post.findMany({
     where: {
       campaignId,
       /* Refresh Data reads the posts the campaign shows; a removed one is not
@@ -384,6 +391,11 @@ export async function refreshCampaign(input: {
     // progress on the stalest posts each time.
     orderBy: { lastSyncedAt: { sort: "asc", nulls: "first" } },
   });
+  /* Instagram videos with no views come first, a creator's together. Meta's
+     allowance is shared and a refresh near it runs out partway down the list:
+     what is left unread should be posts that already have views, not the
+     ones whose views have never arrived. */
+  const posts = urgentFirst(fetchedPosts, lacksViews, (p) => p.creatorId);
 
   const run =
     resuming ??
@@ -441,7 +453,7 @@ export async function refreshCampaign(input: {
      "measured" count the totals do not add up to. The map is what makes the
      summary a statement about posts instead of about attempts. */
   type PostResult =
-    | { status: "measured"; viewsMissing: boolean }
+    | { status: "measured"; viewsMissing: boolean; keptFresh?: boolean }
     | { status: "no-metrics"; reason: RefreshFailReason }
     | { status: "unfetchable"; reason: RefreshFailReason }
     | { status: "failed"; reason: RefreshFailReason };
@@ -457,6 +469,7 @@ export async function refreshCampaign(input: {
       if (r.status === "measured") {
         measured++;
         if (r.viewsMissing) reasons[VIEWS_UNAVAILABLE] = (reasons[VIEWS_UNAVAILABLE] ?? 0) + 1;
+        if (r.keptFresh) reasons[VIEWS_FRESH_KEPT] = (reasons[VIEWS_FRESH_KEPT] ?? 0) + 1;
         continue;
       }
       if (r.status === "no-metrics") noMetrics++;
@@ -480,9 +493,18 @@ export async function refreshCampaign(input: {
           try {
             /* countsOnly: this run exists to move numbers. Spending a paced slot
                on a metadata-only fallback costs the post behind it its turn. */
-            const outcome = await syncPost(post, orgId, { countsOnly: true, tiktokSandbox });
+            /* Near Meta's limit, a post whose views are inside their window is
+               not read again: the numbers would repeat, and the allowance is
+               needed for the posts that have none (ordered first above). */
+            const keepFresh =
+              post.platform === "INSTAGRAM" &&
+              viewsFresh(post) &&
+              backgroundReadsDeferred(FRESH_VIEWS_SKIP_PERCENT, undefined, undefined, orgId);
+            const outcome = keepFresh ? null : await syncPost(post, orgId, { countsOnly: true, tiktokSandbox });
             result =
-              outcome.status === "measured"
+              outcome === null
+                ? { status: "measured", viewsMissing: false, keptFresh: true }
+                : outcome.status === "measured"
                 ? { status: "measured", viewsMissing: readLackedViews(post, outcome.post.platformMetrics) }
                 : { status: outcome.status, reason: outcome.reason };
           } catch (error) {

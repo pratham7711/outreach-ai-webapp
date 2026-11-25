@@ -31,7 +31,7 @@
  * the last numbers it was read with, and those are shown with their age.
  */
 import { formatDateAbs } from "@/lib/format";
-import { lastFetchNote, type LastFetchNote } from "@/lib/metricDisplay";
+import { PARTIAL_READ_REASONS, lastFetchNote, type LastFetchNote } from "@/lib/metricDisplay";
 import type { AgeContext } from "@/lib/dataAge";
 
 export type PostStatusKind = "live" | "hidden" | "deleted" | "private" | "unverified";
@@ -109,7 +109,10 @@ function unverified(seenLive: Date | null, checkedAt: Date | null, why: string, 
 }
 
 export function postStatus(post: PostStatusInput | null | undefined): PostStatus {
-  const note = lastFetchNote(post?.platformMetrics);
+  /* A read that measured but left views out (views-pending, personal-account)
+     says nothing about whether the post is up: it counts as the live read it is. */
+  const stored = lastFetchNote(post?.platformMetrics);
+  const note = stored && PARTIAL_READ_REASONS.has(stored.reason) ? null : stored;
   const seenLive = toDate(post?.lastSyncedAt);
   const checkedAt = toDate(note?.at) ?? seenLive;
   const firstSeen = toDate(note?.since) ?? toDate(note?.at);

@@ -37,6 +37,8 @@ export type FetchMetricsContext = {
   instagramStopAtPercent?: number;
   /** The org the post belongs to: its own Instagram account reads it, when it has one. */
   instagramOrgId?: string;
+  /** The stored media type. A reel or video is expected to carry views, a photo or carousel never does. */
+  instagramMediaType?: string | null;
   tiktokToken?: string;
   /**
    * Skip the metadata-only fallbacks when the counters could not be had.
@@ -272,6 +274,22 @@ export type FetchReason =
    *  Instagram itself would not name. Never charged: it reads the moment a
    *  creator is assigned. */
   | "author-unknown"
+  /** Instagram: the read carried counts (likes, comments) but not views, because Business
+   *  Discovery -- the one public source of an Instagram video's views -- was rate-limited,
+   *  deferred, timed out or never asked. OUR budget, not the platform going quiet, and not
+   *  a verdict about the post.
+   *
+   *  Arrives on a MEASURED read, so the counts are kept and lastSyncedAt is stamped, and the
+   *  note is stored on the post (__lastFetch) rather than cleared. It is what keeps the post
+   *  at the head of the next sweep: decidePostTracking makes it due again within the hour and
+   *  the sweep reads it before posts that already have views. Cleared by the first read that
+   *  brings views. Never settled, never charged. */
+  | "views-pending"
+  /** Instagram: as views-pending, except Business Discovery answered that no Business or
+   *  Creator account exists under the handle. Counts from the embed or the post page were
+   *  kept; views will not arrive until the creator switches to a free Creator account.
+   *  Shown on the post in the app, asked about once a day. */
+  | "personal-account"
   /** A fetcher came back empty without saying why.
    *
    *  Exists so that "we do not know" stops being spelled
@@ -333,6 +351,10 @@ const SOURCE_WENT_QUIET: Record<FetchReason, boolean> = {
   "not-public": false,
   /* The round trip carried numbers; we refused them. */
   "counts-inconsistent": false,
+  /* Our Meta budget, not the source. */
+  "views-pending": false,
+  /* A verdict about the account, said out loud as error 110. */
+  "personal-account": false,
 };
 
 /** True when a reason is evidence the platform stopped answering, not that we did. */
@@ -710,6 +732,10 @@ export const UNCHARGEABLE_REASONS: ReadonlySet<FetchReason> = new Set<FetchReaso
   /* A reading we refused is about the reading. On 2026-10-02 four live posts
      were switched off for good this way, filed as "unknown". */
   "counts-inconsistent",
+  /* Ours: Meta's budget. Never reaches a charge (the read measured), listed so a
+     future path that returns it countless cannot switch a post off. */
+  "views-pending",
+  "personal-account",
 ]);
 
 /**
@@ -1410,6 +1436,7 @@ export async function fetchInstagramMetrics(
   handle?: string,
   stopAtPercent?: number,
   orgId?: string,
+  mediaType?: string | null,
 ): Promise<Partial<PostMetrics>> {
   const log = createLogger({ context: { platform: "INSTAGRAM" } });
   const merged: Partial<PostMetrics> = {};
@@ -1454,6 +1481,9 @@ export async function fetchInstagramMetrics(
      it still had older media; see "not-in-newest-media". */
   let pastLookupDepth = false;
   let bizRateLimited = false;
+  /* Business Discovery's own deadline, kept apart from `timedOut`, which the
+     Graph walk sets too: only this one says the views source never answered. */
+  let bizTimedOut = false;
 
   if (token) {
     let graph: Awaited<ReturnType<typeof fetchInstagramMetricsGraph>> = null;
@@ -1546,6 +1576,7 @@ export async function fetchInstagramMetrics(
         post = null;
       } else if (err instanceof InstagramTimeoutError) {
         timedOut = true;
+        bizTimedOut = true;
         createLogger({ context: { platform: "INSTAGRAM", call: "businessDiscovery" } }).warn(
           "Business Discovery walk timed out; falling through to the embed",
           { path: err.path },
@@ -1646,12 +1677,34 @@ export async function fetchInstagramMetrics(
   }
 
   if (counted()) {
+    /* A video that came back without views is not a clean success. Business
+       Discovery is the only public source of them, and when it was limited,
+       deferred, timed out or never asked, the embed still fills likes and
+       comments -- which used to end here as "resolved", stored with no reason,
+       so nothing knew to ask again. The counts are kept either way; the
+       reason is what the writer stores and the sweep reads. */
+    const kind = mediaType ?? detectPlatform(url)?.mediaType;
+    const expectsViews =
+      kind === "REEL" || kind === "VIDEO" || detectPlatform(url)?.mediaType === "REEL";
+    const viewsGap =
+      expectsViews && merged.viewsCount === undefined
+        ? noSuchAccount
+          ? "personal-account"
+          : bizRateLimited || bizTimedOut || (handle && !bizAttempted)
+            ? "views-pending"
+            : null
+        : null;
     log.info("instagram metrics resolved", {
       sources,
       fields: Object.keys(merged).filter((k) => k.endsWith("Count")),
       likesHidden,
+      ...(viewsGap ? { viewsGap } : {}),
     });
-    return viaGraph.length > 0 ? { ...merged, connectedCounters: viaGraph } : merged;
+    return {
+      ...merged,
+      ...(viaGraph.length > 0 ? { connectedCounters: viaGraph } : {}),
+      ...(viewsGap ? { fetchReason: viewsGap as FetchReason } : {}),
+    };
   }
 
   /* Decided BEFORE the metadata-only endpoint below, which can never return a
@@ -1794,6 +1847,7 @@ export async function fetchPostMetrics(
         context?.instagramHandle,
         context?.instagramStopAtPercent,
         context?.instagramOrgId,
+        context?.instagramMediaType,
       );
       break;
     case "TWITCH":

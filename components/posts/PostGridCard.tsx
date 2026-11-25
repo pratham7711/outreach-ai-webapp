@@ -8,6 +8,7 @@ import { fieldMetricValue, unwrittenMetricValue, sharesUnknownReason } from "@/l
 import { postAgeContext, postMeasuredAt, postStatus } from "@/lib/posts/postStatus";
 import { viewsAsOf } from "@/lib/posts/fieldFreshness";
 import PostStatusChip from "@/components/posts/PostStatusChip";
+import PersonalAccountNote from "@/components/posts/PersonalAccountNote";
 import { AgeLabel } from "@/components/ds/AgeLabel";
 import PostCover from "@/components/posts/PostCover";
 import { PlatformGlyph } from "@/components/ui/PlatformGlyph";
@@ -193,6 +194,7 @@ function PostGridCardImpl({
           because they are the last true reading of a post that has
           since come down, not a claim that it is still up. */}
       <PostStatusChip status={status} variant="overlay" />
+      <PersonalAccountNote post={post} variant="overlay" />
 
       {/* Metrics read out over the frame itself — display only, never editable. */}
       <div

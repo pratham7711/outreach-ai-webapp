@@ -784,3 +784,39 @@ describe("measuredForNewPost", () => {
     expect(measuredForNewPost(metrics({ viewsCount: 0, likesCount: 0 }), "INSTAGRAM", { writer: "add-post" })).not.toBeNull();
   });
 });
+
+describe("applyPostMetrics — a read that measured but left views out", () => {
+  const reel = { ...post, postUrl: "https://instagram.com/reel/Cabc", platformMetrics: {} };
+
+  it("stores views-pending on the post and still stamps the counts it read", async () => {
+    const outcome = await applyPostMetrics(reel, metrics({ likesCount: 120, commentsCount: 4, fetchReason: "views-pending" }));
+    expect(outcome.status).toBe("measured");
+    const data = postWriteData();
+    expect(data.likesCount).toBe(120);
+    expect(data.viewsCount).toBeUndefined();
+    expect(data.lastSyncedAt).toBeInstanceOf(Date);
+    expect(data.platformMetrics.__lastFetch).toMatchObject({ reason: "views-pending", via: "api", strikes: 1 });
+    expect(data.platformMetrics.__measured).toEqual(["likes", "comments"]);
+  });
+
+  it("counts a second views-pending in a row as one more strike, not a fresh note", async () => {
+    const earlier = { __lastFetch: { reason: "views-pending", at: "2026-11-25T08:00:00.000Z", via: "cron", since: "2026-11-25T08:00:00.000Z", strikes: 1 } };
+    await applyPostMetrics({ ...reel, platformMetrics: earlier }, metrics({ likesCount: 5, fetchReason: "views-pending" }));
+    expect(postWriteData().platformMetrics.__lastFetch).toMatchObject({ strikes: 2, since: "2026-11-25T08:00:00.000Z" });
+  });
+
+  it("clears the note on the read that brings the views", async () => {
+    const earlier = { __lastFetch: { reason: "views-pending", at: "2026-11-25T08:00:00.000Z", via: "cron" } };
+    await applyPostMetrics({ ...reel, platformMetrics: earlier }, metrics({ viewsCount: 900, likesCount: 5 }));
+    expect(postWriteData().platformMetrics.__lastFetch).toBeNull();
+  });
+
+  it("keeps views listed as measured when an embed-only read carries none", async () => {
+    const earlier = { __measured: ["views", "likes", "comments"] };
+    await applyPostMetrics(
+      { ...reel, viewsCount: 900, platformMetrics: earlier },
+      metrics({ likesCount: 7, commentsCount: 2, fetchReason: "views-pending" }),
+    );
+    expect(postWriteData().platformMetrics.__measured).toEqual(["likes", "comments", "views"]);
+  });
+});

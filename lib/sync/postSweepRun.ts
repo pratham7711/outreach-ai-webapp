@@ -37,6 +37,7 @@ import {
   type PostTrackingAction,
 } from "@/lib/sync/postTracking";
 import { parsePostTracking, type PostTrackingGranularity } from "@/lib/trackers/granularity";
+import { FRESH_VIEWS_SKIP_PERCENT, lacksViews, viewsFresh } from "@/lib/sync/instagramViews";
 import { LAST_FETCH_KEY, MEASURED_FIELDS_KEY, lastFetchNote, measuredFields } from "@/lib/metricDisplay";
 import { alertOps, shouldAlertOnBatch } from "@/lib/alerts";
 import { alertIfInstagramSourceDown } from "@/lib/integrations/health";
@@ -137,6 +138,9 @@ const ANSWERED: Record<FetchReason, boolean> = {
   "credentials-rejected": false,
   "platform-challenged": false,
   "platform-refused": false,
+  /* Measured reads carrying a reason: never an empty one. */
+  "views-pending": false,
+  "personal-account": false,
 };
 
 type Decision = { postId: string; platform: string; action: PostTrackingAction; reason: string };
@@ -354,6 +358,7 @@ export async function runPostSweep(request: NextRequest, options: PostSweepOptio
       id: true,
       platform: true,
       postUrl: true,
+      mediaType: true,
       postedAt: true,
       campaignId: true,
       /* Whether the campaign is still running is one of the reasons a post is
@@ -415,6 +420,10 @@ export async function runPostSweep(request: NextRequest, options: PostSweepOptio
         now,
         startedAtField: db.post.fields?.trackingStartedAt,
         readLast: (post) => DAILY_RECHECK_REASONS.has(lastFetchNote(post.platformMetrics)?.reason ?? ""),
+        /* Business Discovery's hourly allowance is spent on the reels that have
+           no views before it is spent on ones that already do. */
+        readFirst: lacksViews,
+        groupKey: (post) => post.creatorId,
       });
 
     /* One query per platform, not one query for all of them.
@@ -606,6 +615,20 @@ export async function runPostSweep(request: NextRequest, options: PostSweepOptio
         reason = "meta-usage";
       }
 
+      /* Near Meta's limit, a post whose views were read inside their window
+         gives way: another Business Discovery read would repeat them, and the
+         allowance is wanted by the posts that have none. Left untouched, so it
+         is still due. */
+      if (
+        action === "sync" &&
+        post.platform === "INSTAGRAM" &&
+        viewsFresh(post, now) &&
+        backgroundReadsDeferred(FRESH_VIEWS_SKIP_PERCENT, undefined, undefined, post.creator.orgId)
+      ) {
+        action = "skip";
+        reason = "views-fresh";
+      }
+
       if (action === "sync") {
         const platform = post.platform as string;
         const budget = budgets[platform] ?? DEFAULT_PLATFORM_BUDGET;
@@ -715,6 +738,7 @@ export async function runPostSweep(request: NextRequest, options: PostSweepOptio
             tiktokSandbox,
             instagramStopAtPercent: options.instagramStopAtPercent,
             instagramOrgId: post.creator.orgId,
+            instagramMediaType: post.mediaType,
             /* Counts only for TikTok: every post here already has its
                thumbnail, and oEmbed cannot return a counter, so a paced lane
                slot spent on it would buy nothing. Left off for the others so
@@ -760,6 +784,7 @@ export async function runPostSweep(request: NextRequest, options: PostSweepOptio
                 instagramHandle: found.handle,
                 instagramStopAtPercent: options.instagramStopAtPercent,
                 instagramOrgId: post.creator.orgId,
+                instagramMediaType: post.mediaType,
               })) ?? metrics;
           }
         }

@@ -547,3 +547,34 @@ describe("trackingView -- what the badges say", () => {
     ).toBe(false);
   });
 });
+
+describe("decidePostTracking — views still owed", () => {
+  it("makes a post whose last read left views out due within the hour, whatever its cadence", () => {
+    const stalled = input({ lastSyncedAt: hoursAgo(1), lastAttemptAt: hoursAgo(1), lastReason: "views-pending" });
+    expect(decidePostTracking(stalled)).toEqual({ action: "sync", reason: "views-pending-retry" });
+    expect(decidePostTracking(input({ lastSyncedAt: hoursAgo(1) })).action).toBe("skip");
+  });
+
+  it("does not ask again inside the hour, so a limited budget is not hammered", () => {
+    const fresh = input({ lastSyncedAt: hoursAgo(0.1), lastAttemptAt: hoursAgo(0.1), lastReason: "views-pending" });
+    expect(decidePostTracking(fresh)).toEqual({ action: "skip", reason: "views-pending-throttle" });
+  });
+
+  it("does not let an old post's tracker seal on a read that never brought views", () => {
+    const old = input({
+      campaignLive: false,
+      postedAt: daysAgo(200),
+      trackingStartedAt: daysAgo(3),
+      lastSyncedAt: hoursAgo(1),
+      lastReason: "views-pending",
+    });
+    expect(decidePostTracking(old).action).not.toBe("seal");
+    expect(decidePostTracking({ ...old, lastReason: null }).action).toBe("seal");
+  });
+
+  it("asks a personal account's post once a day, like every answer that stands until a person acts", () => {
+    const personal = input({ lastSyncedAt: hoursAgo(2), lastAttemptAt: hoursAgo(2), lastReason: "personal-account" });
+    expect(decidePostTracking(personal).action).toBe("skip");
+    expect(decidePostTracking({ ...personal, lastSyncedAt: hoursAgo(25), lastAttemptAt: hoursAgo(25) }).action).toBe("sync");
+  });
+});

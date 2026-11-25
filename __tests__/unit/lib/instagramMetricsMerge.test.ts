@@ -463,13 +463,15 @@ describe("fetchInstagramMetrics — a name Business Discovery does not know", ()
     expect(m.fetchReason).toBe("credentials-rejected");
   });
 
-  it("is no reason at all once a later source answers", async () => {
+  it("keeps what a later source answered and still says the views are missing", async () => {
     embed.mockResolvedValue({ likesCount: 12, commentsCount: 1, likesHidden: false, thumbnailUrl: "t.jpg", caption: "c" });
 
     const m = await fetchInstagramMetrics(URL, undefined, "personal.name");
 
     expect(m.likesCount).toBe(12);
-    expect(m.fetchReason).toBeUndefined();
+    /* A reel with likes and no views is a measured read that owes its views,
+       not a clean success: the reason rides along with the counts. */
+    expect(m.fetchReason).toBe("personal-account");
   });
 });
 
@@ -565,7 +567,7 @@ describe("fetchInstagramMetrics — the post's public page", () => {
       authorHandle: "jane.doe",
     });
     expect(out.viewsCount).toBeUndefined();
-    expect(out.fetchReason).toBeUndefined();
+    expect(out.fetchReason).toBe("views-pending");
   });
 
   it("keeps the cover and the owner when the page prints no counts, and says why there are none", async () => {

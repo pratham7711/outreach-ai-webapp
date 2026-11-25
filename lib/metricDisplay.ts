@@ -125,6 +125,13 @@ export type LastFetchNote = {
   strikes?: number;
 };
 
+/**
+ * Reasons that ride on a read that DID measure something: the counts landed and
+ * lastSyncedAt moved, and the note records what the read still left out. Neither
+ * says anything about whether the post is up, so postStatus ignores them.
+ */
+export const PARTIAL_READ_REASONS: ReadonlySet<string> = new Set(["views-pending", "personal-account"]);
+
 /** The stored cause, or null when the last read succeeded. */
 export function lastFetchNote(platformMetrics: unknown): LastFetchNote | null {
   if (typeof platformMetrics !== "object" || platformMetrics === null) return null;

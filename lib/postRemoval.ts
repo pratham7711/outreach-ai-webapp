@@ -157,3 +157,24 @@ export function postNotice(post: RemovablePost | null | undefined): PostNotice |
   if (note?.reason === NOT_PUBLIC_REASON) return { label: notPublicLabel(), note };
   return note?.reason === NO_PUBLIC_NUMBERS_REASON ? { label: noPublicNumbersLabel(), note } : null;
 }
+
+/**
+ * An Instagram post that was read for its likes and comments while Business
+ * Discovery reported no Business or Creator account under the handle: views
+ * cannot come until the creator switches to a free Creator account. Shown in
+ * the app only; the client's shared report never carries it.
+ */
+export const PERSONAL_ACCOUNT_REASON = "personal-account";
+
+export function personalAccountLabel(): string {
+  return "Personal Instagram account — views need a free Creator account";
+}
+
+export function personalAccountDetail(): string {
+  return "Instagram shares views only for Business and Creator accounts, and none exists under this handle. Switching the account to a free Creator account lets the next read bring views; likes and comments are read without it.";
+}
+
+export function isPersonalAccountPost(post: RemovablePost | null | undefined): boolean {
+  if (!post) return false;
+  return lastFetchNote(post.platformMetrics)?.reason === PERSONAL_ACCOUNT_REASON;
+}

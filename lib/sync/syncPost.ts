@@ -1,6 +1,7 @@
 import type { SandboxPostFetcher } from "@/lib/platforms/tiktokPostSandbox";
 import { db } from "@/lib/db";
-import { LAST_FETCH_KEY, MEASURED_FIELDS_KEY, lastFetchNote, measuredFields, nextLastFetchNote, type MetricField } from "@/lib/metricDisplay";
+import type { Prisma } from "@/lib/generated/prisma/client";
+import { LAST_FETCH_KEY, MEASURED_FIELDS_KEY, PARTIAL_READ_REASONS, lastFetchNote, measuredFields, nextLastFetchNote, type MetricField } from "@/lib/metricDisplay";
 import {
   fetchPostMetrics,
   hasMetricCounts,
@@ -81,6 +82,8 @@ type SyncablePost = {
   postUrl: string;
   /** Read for Facebook only, where it is the Graph id once the post was found. */
   platformPostId?: string;
+  /** Read for Instagram: a reel or video is expected to carry views. */
+  mediaType?: string | null;
   thumbnailUrl: string | null;
   caption: string | null;
   /** Read to merge into rather than clobber -- the importer's raw record lives here. */
@@ -233,6 +236,24 @@ export function measuredForNewPost(
   logVerdict({ writer: ctx.writer, kind: "post", platform: rowPlatform ?? metrics.platform, orgId: ctx.orgId }, verdict);
   if (verdict.rejected || !hasMetricCounts(metrics)) return null;
   return metrics;
+}
+
+/**
+ * The __lastFetch note a post is created with, when its first read already
+ * carried Business Discovery's verdict: a personal account (views cannot come
+ * until the creator switches), a read that kept likes and comments while Meta
+ * was limiting us (views-pending), or no numbers at all from an account that
+ * shares none. Instagram only; null for every other read, which stores none.
+ */
+export function noteForNewPost(
+  platform: string | null | undefined,
+  reason: FetchReason | undefined,
+  at: Date = new Date(),
+): Prisma.InputJsonObject | null {
+  if (platform !== "INSTAGRAM" || !reason) return null;
+  if (!PARTIAL_READ_REASONS.has(reason) && reason !== "not-a-professional-account") return null;
+  const note = nextLastFetchNote(null, reason, at.toISOString(), "add-post");
+  return { [LAST_FETCH_KEY]: { ...note } };
 }
 
 /* The platforms whose post URL or reading names the author by the same handle
@@ -561,11 +582,33 @@ async function writePostMetrics(
           ...(currentBag(post) ?? {}),
           /* A held counter the caller did not load is left out of the write,
              but it was measured -- by the source that is still protecting it. */
-          [MEASURED_FIELDS_KEY]: kept.length > 0 ? [...present, ...kept] : present,
+          [MEASURED_FIELDS_KEY]: [
+            ...present,
+            ...kept,
+            /* A counter this read did not carry keeps the value already on the
+               row, and it was measured when that value was written. Dropping it
+               from the list made an embed-only read (likes and comments, Business
+               Discovery limited) un-measure the post's views, so it read as one
+               that never had any. */
+            ...(measuredBefore ?? []).filter((f) => !present.includes(f) && !kept.includes(f)),
+          ],
           /* Cleared, not left behind. A post that reads fine today must not keep
              advertising why it failed last week -- a stale cause is worse than
-             none, because it invites someone to go and fix a live post. */
-          [LAST_FETCH_KEY]: null,
+             none, because it invites someone to go and fix a live post.
+
+             The one exception is a read that measured but left a counter out
+             and said why (views-pending, personal-account): that is stored, so
+             the sweep can order the post first and the app can say what is
+             missing. The next read that brings the counter clears it. */
+          [LAST_FETCH_KEY]:
+            metrics.fetchReason && PARTIAL_READ_REASONS.has(metrics.fetchReason)
+              ? nextLastFetchNote(
+                  lastFetchNote(currentBag(post)),
+                  metrics.fetchReason,
+                  now.toISOString(),
+                  syncSource,
+                )
+              : null,
           /* Which source wrote each counter, and when, for the next write to
              ask. See lib/metrics/postWriters. */
           [METRIC_WRITERS_KEY]: ranked.notes,
@@ -642,6 +685,7 @@ export async function syncPost(
     instagramToken: instagram?.token,
     instagramHandle: instagram?.handle,
     instagramOrgId: orgId,
+    instagramMediaType: post.mediaType,
     tiktokToken,
     countsOnly: options.countsOnly,
     tiktokSandbox: options.tiktokSandbox,

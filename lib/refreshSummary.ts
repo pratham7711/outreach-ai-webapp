@@ -119,6 +119,8 @@ const REASON_LABEL: Record<RefreshFailReason, (n: number) => string> = {
   "not-in-newest-media": (n) => `${n} were not among their creator's newest 500 Instagram posts`,
   "not-public": (n) => `${n} are not public on Instagram: age-limited by the creator, private or deleted`,
   "counts-inconsistent": (n) => `${n} came back with numbers that could not be right, kept their last good numbers`,
+  "views-pending": (n) => `${n} updated without views, Instagram is limiting our reads`,
+  "personal-account": (n) => `${n} are on personal Instagram accounts, views need a Creator account`,
   error: (n) => `${n} errored`,
 };
 
@@ -129,9 +131,13 @@ const REASON_LABEL: Record<RefreshFailReason, (n: number) => string> = {
  */
 export const VIEWS_UNAVAILABLE = "views-unavailable";
 
+/** A post left unread near Meta's limit because its views are recent; see refreshCampaign. */
+export const VIEWS_FRESH_KEPT = "views-fresh-kept";
+
 /* Keys in the reasons tally that are not fetch reasons: a post counted here
    was measured, and the key says what that reading still left out. */
 const PARTIAL_LABEL: Record<string, (n: number) => string> = {
+  [VIEWS_FRESH_KEPT]: (n) => `${n} kept, views read within the last 6 hours`,
   [VIEWS_UNAVAILABLE]: (n) => `${n} updated without new views`,
 };
 
