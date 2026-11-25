@@ -31,6 +31,8 @@ type Props = {
   suggestedName: string;
   tagOptions: string[];
   onClear: () => void;
+  /** Set on the Manual entries tab, where "all matching" can be deleted. */
+  manualOnly?: { withPosts: number } | null;
 };
 
 function payloadFor(selection: RosterSelection, query: string) {
@@ -83,7 +85,7 @@ function BulkDialogs({
 }
 
 /** The bar for ticked creators. Nothing ticked, nothing drawn. */
-export default function RosterActions({ total, selection, query, suggestedName, tagOptions, onClear }: Props) {
+export default function RosterActions({ total, selection, query, suggestedName, tagOptions, onClear, manualOnly = null }: Props) {
   const [dialog, setDialog] = useState<"list" | "tag" | null>(null);
   const count = selection.mode === "ids" ? selection.ids.length : total;
 
@@ -117,6 +119,9 @@ export default function RosterActions({ total, selection, query, suggestedName, 
           />
           <TrackSelectedButton selection={payloadFor(selection, query)} count={count} />
           {selection.mode === "ids" && <DeleteSelectedButton ids={selection.ids} onDone={onClear} />}
+          {selection.mode === "all" && manualOnly && (
+            <DeleteAllManualButton total={total} withPosts={manualOnly.withPosts} query={query} onDone={onClear} />
+          )}
         </div>
       </div>
       <BulkDialogs
@@ -176,7 +181,7 @@ export function RosterMenu({
   );
 }
 
-/* Ticked rows only, never "all matching": see app/api/creators/delete. */
+/* Ticked rows; "all matching" only for manual entries (DeleteAllManualButton). */
 const MAX_BULK_DELETE = 500;
 
 function DeleteSelectedButton({ ids, onDone }: { ids: string[]; onDone: () => void }) {
@@ -217,6 +222,61 @@ function DeleteSelectedButton({ ids, onDone }: { ids: string[]; onDone: () => vo
   return (
     <Button variant="danger" size="sm" iconLeft={<Trash2 size={16} />} loading={busy} onClick={run}>
       Delete
+    </Button>
+  );
+}
+
+/**
+ * Every manual entry the tab matches, in calls of 500 until none are left. The
+ * server re-applies the manual rule, so a creator who signed up is never taken.
+ */
+function DeleteAllManualButton({ total, withPosts, query, onDone }: { total: number; withPosts: number; query: string; onDone: () => void }) {
+  const router = useRouter();
+  const confirm = useConfirm();
+  const [done, setDone] = useState<number | null>(null);
+  const noun = (n: number) => `${formatFull(n)} manual ${n === 1 ? "entry" : "entries"}`;
+
+  async function run() {
+    const posts = withPosts
+      ? `${formatFull(withPosts)} of them have posts in campaigns. Those posts stay in their campaign reports, but new posts from these accounts will no longer be matched to them. `
+      : "";
+    const ok = await confirm({
+      title: `Delete ${noun(total)}?`,
+      verb: "delete",
+      description:
+        "They come off the roster and out of every list, and their profiles stop refreshing. " +
+        posts +
+        "Creators who signed up are not included. This can't be undone.",
+      confirmLabel: `Delete ${noun(total)}`,
+    });
+    if (!ok) return;
+    let deleted = 0;
+    setDone(0);
+    for (;;) {
+      const out = await send("/api/creators/delete", { query });
+      if (!out.ok) {
+        setDone(null);
+        toast.error(
+          (deleted ? `Deleted ${noun(deleted)}, then stopped: ` : "") +
+            (out.error === "Forbidden" ? "Your role can't delete creators. Ask an admin or manager." : out.error),
+        );
+        router.refresh();
+        return;
+      }
+      const step = out.data as { deleted: number; remaining: number };
+      deleted += step.deleted;
+      setDone(deleted);
+      if (!step.remaining || !step.deleted) break;
+    }
+    setDone(null);
+    toast.success(`Deleted ${noun(deleted)}.`);
+    onDone();
+    router.refresh();
+  }
+
+  return (
+    <Button variant="danger" size="sm" iconLeft={<Trash2 size={16} />} loading={done !== null} onClick={run}>
+      {done !== null ? `Deleting… ${formatFull(done)} of ${formatFull(total)}` : `Delete all ${formatFull(total)}`}
     </Button>
   );
 }

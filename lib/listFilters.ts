@@ -219,7 +219,16 @@ export type CreatorFilters = {
   accounts: Platform[];
   /** Has an account the platform could not find (lib/creators/handleCheck). Roster tables only. */
   handleIssues?: boolean;
+  /**
+   * Who put the creator on the roster. "manual": the agency typed or imported
+   * them and no creator account stands behind the row. "signed_up": a creator
+   * signed up on the portal, through the join link or a campaign invite.
+   */
+  source?: CreatorSource;
 };
+
+export const CREATOR_SOURCES = ["manual", "signed_up"] as const;
+export type CreatorSource = (typeof CREATOR_SOURCES)[number];
 
 const optionalAmountParam = z.coerce.number().nonnegative().optional();
 const csvTextParam = z
@@ -254,6 +263,7 @@ export const creatorFilterSchema = z.object({
   country: csvTextParam,
   accounts: csvEnumParam(PLATFORMS),
   handleIssues: z.enum(["1"]).optional().transform((v) => (v ? true : undefined)),
+  source: z.enum(CREATOR_SOURCES).optional(),
 });
 
 /** Every URL key the creator filters read, for callers that forward them. */
@@ -275,6 +285,7 @@ export const CREATOR_FILTER_KEYS = [
   "country",
   "accounts",
   "handleIssues",
+  "source",
 ] as const;
 
 export function readCreatorFilters(sp: Record<string, string | string[] | undefined>): CreatorFilters {
@@ -297,6 +308,7 @@ export function readCreatorFilters(sp: Record<string, string | string[] | undefi
     country: firstParam(sp.country),
     accounts: firstParam(sp.accounts),
     handleIssues: firstParam(sp.handleIssues),
+    source: firstParam(sp.source),
   });
   if (parsed.success) return parsed.data;
   return { platform: [], tags: [], excludeTags: [], audienceCountry: [], country: [], accounts: [] };
@@ -328,6 +340,7 @@ export function creatorWhere(orgId: string, f: CreatorFilters, { roster = false 
     and.push({ OR: f.country.map((c) => ({ detail: { country: { contains: c, mode: Prisma.QueryMode.insensitive } } })) });
   }
   if (roster && f.handleIssues) and.push({ profileLinks: { some: HANDLE_PROBLEM_WHERE } });
+  if (f.source) and.push(creatorSourceWhere(f.source));
   return {
     ...(and.length && { AND: and }),
     orgId,
@@ -373,6 +386,11 @@ function hasAccountOn(platforms: Platform[], roster: boolean): Prisma.CreatorWhe
     : { platform: { in: platforms } };
 }
 
+/** A creator account is what separates the two: lib/portal/joinAgency.ts sets it on a signup. */
+export function creatorSourceWhere(source: CreatorSource): Prisma.CreatorWhereInput {
+  return source === "manual" ? { creatorUserId: null } : { creatorUserId: { not: null } };
+}
+
 export function countCreatorFilters(f: CreatorFilters): number {
   return (
     (f.platform.length ? 1 : 0) +
@@ -386,7 +404,8 @@ export function countCreatorFilters(f: CreatorFilters): number {
     (f.audienceCountry?.length ? 1 : 0) +
     (f.country?.length ? 1 : 0) +
     (f.accounts?.length ? 1 : 0) +
-    (f.handleIssues ? 1 : 0)
+    (f.handleIssues ? 1 : 0) +
+    (f.source ? 1 : 0)
   );
 }
 

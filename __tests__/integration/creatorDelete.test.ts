@@ -13,7 +13,7 @@ import { POST as BULK_DELETE } from "@/app/api/creators/delete/route";
 /* eslint-disable @typescript-eslint/no-explicit-any -- jest mocks of the Prisma client, as in the sibling suites */
 jest.mock("@/lib/db", () => {
   const db: any = {
-    creator: { findFirst: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
+    creator: { findFirst: jest.fn(), findMany: jest.fn(), updateMany: jest.fn(), count: jest.fn() },
     creatorProfileLink: { deleteMany: jest.fn() },
     creatorListItem: { deleteMany: jest.fn() },
     $queryRawUnsafe: jest.fn(),
@@ -94,8 +94,10 @@ describe("DELETE /api/creators/[id]", () => {
 });
 
 describe("POST /api/creators/delete", () => {
-  it("takes ticked ids only, never a filter query", async () => {
+  it("takes ticked ids, and a filter query only on the Manual entries tab", async () => {
     expect((await bulk({ query: "platform=TIKTOK" })).status).toBe(400);
+    expect((await bulk({ query: "source=signed_up" })).status).toBe(400);
+    expect((await bulk({ query: "" })).status).toBe(400);
     expect((await bulk({ creatorIds: [] })).status).toBe(400);
     expect((await bulk({ creatorIds: Array.from({ length: 501 }, (_, i) => `c${i}`) })).status).toBe(400);
     expect(mockDb.creator.updateMany).not.toHaveBeenCalled();
@@ -118,5 +120,46 @@ describe("POST /api/creators/delete", () => {
     const res = await bulk({ creatorIds: ["gone"] });
     expect(await res.json()).toEqual({ requested: 1, deleted: 0 });
     expect(mockDb.$transaction).not.toHaveBeenCalled();
+  });
+
+  describe("every manual entry the tab matches", () => {
+    const ids = (n: number, from = 0) => Array.from({ length: n }, (_, i) => ({ id: `m${from + i}` }));
+    beforeEach(() => {
+      mockDb.creator.findMany.mockImplementation(async ({ where, select }: any) =>
+        select?.creatorUserId ? where.id.in.map(row) : ids(500),
+      );
+      mockDb.creator.count.mockResolvedValue(120);
+    });
+
+    it("takes 500 at a time and says how many are left", async () => {
+      const res = await bulk({ query: "source=manual&tags=Music" });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ requested: 500, deleted: 500, remaining: 120 });
+      const pick = mockDb.creator.findMany.mock.calls[0][0];
+      expect(pick.take).toBe(500);
+      expect(mockDb.creator.updateMany.mock.calls[0][0].where.id.in).toHaveLength(500);
+    });
+
+    it("re-applies the manual rule and the org on the server, whatever else the query holds", async () => {
+      await bulk({ query: "source=manual&q=ma" });
+      const { where } = mockDb.creator.findMany.mock.calls[0][0];
+      expect(where.AND).toContainEqual({ creatorUserId: null });
+      expect(where.AND[0].orgId).toBe("org-1");
+      expect(where.AND[0].deletedAt).toBeNull();
+      expect(mockDb.creator.count.mock.calls[0][0].where).toEqual(where);
+    });
+
+    it("writes nothing when no manual entry is left", async () => {
+      mockDb.creator.findMany.mockResolvedValueOnce([]);
+      const res = await bulk({ query: "source=manual" });
+      expect(await res.json()).toEqual({ requested: 0, deleted: 0, remaining: 0 });
+      expect(mockDb.$transaction).not.toHaveBeenCalled();
+    });
+
+    it("is refused for MEMBER", async () => {
+      mockAuth.mockResolvedValueOnce(session("MEMBER"));
+      expect((await bulk({ query: "source=manual" })).status).toBe(403);
+      expect(mockDb.creator.findMany).not.toHaveBeenCalled();
+    });
   });
 });

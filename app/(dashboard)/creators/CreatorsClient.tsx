@@ -25,7 +25,7 @@ import Link from "next/link";
 import { stripAt, platformLabel, formatFull, formatCompact, formatFullCurrency, formatDateAbs } from "@/lib/format";
 import { StatusBadge } from "@/components/ds/StatusBadge";
 import { pendingListProps, useListQuery } from "@/lib/useListQuery";
-import { CREATOR_PLATFORM_TABS, type CreatorPlatformTab } from "@/lib/creators/platformTabs";
+import { CREATOR_PLATFORM_TABS, MANUAL_TAB, type CreatorPlatformTab } from "@/lib/creators/platformTabs";
 import { CREATORS_PAGE_SIZE } from "@/lib/listPageSize";
 import type { CreatorSort } from "@/lib/listParams";
 import { action } from "@/lib/ui/actions";
@@ -73,6 +73,8 @@ type Creator = {
   measuredAudience: AudienceSummary | null;
   /** Joined through the agency's join link, and rows that look like the same person. */
   join: JoinMark | null;
+  /** A creator account stands behind the row; false for the agency's own manual entries. */
+  signedUp: boolean;
 };
 
 /**
@@ -80,8 +82,14 @@ type Creator = {
  * roster already had someone with that handle or email: it folds into that row
  * on its own once the creator connects the account (lib/creators/joinDuplicates.ts).
  */
-function JoinBadge({ join }: { join: JoinMark | null }) {
-  if (!join) return null;
+function JoinBadge({ join, signedUp }: { join: JoinMark | null; signedUp: boolean }) {
+  if (!join) {
+    return signedUp ? (
+      <StatusBadge tone="info" title="Signed up on the creator portal, not added by hand">
+        Signed up
+      </StatusBadge>
+    ) : null;
+  }
   const when = formatDateAbs(join.joinedAt);
   if (join.duplicates.length > 0) {
     const names = join.duplicates.map((d) => d.name || d.handle).join(", ");
@@ -131,10 +139,17 @@ const TAB_LABELS: Record<CreatorPlatformTab, string> = {
   INSTAGRAM: "Instagram",
   YOUTUBE: "YouTube",
   TIKTOK: "TikTok",
-  TWITTER: "Twitter",
 };
 
-const PLATFORM_TABS = [{ key: "All", label: "All" }, ...CREATOR_PLATFORM_TABS.map((key) => ({ key, label: TAB_LABELS[key] }))];
+const MANUAL_LABEL = "Manual entries";
+
+const PLATFORM_TABS = [
+  { key: "All", label: "All" },
+  ...CREATOR_PLATFORM_TABS.map((key) => ({ key, label: TAB_LABELS[key] })),
+  { key: MANUAL_TAB, label: MANUAL_LABEL },
+];
+
+const tabLabel = (key: string) => (key === MANUAL_TAB ? MANUAL_LABEL : platformLabel(key));
 
 const LINKABLE = new Set<string>(["TIKTOK", "INSTAGRAM", "YOUTUBE", "TWITTER"]);
 
@@ -235,9 +250,9 @@ const CreatorCard = memo(function CreatorCard({
               {title}
             </Link>
             {handle && <p className="cc-roster-card-handle">{handle}</p>}
-            {creator.join && (
+            {(creator.join || creator.signedUp) && (
               <span style={{ display: "inline-flex", position: "relative", zIndex: 1, marginTop: 4 }}>
-                <JoinBadge join={creator.join} />
+                <JoinBadge join={creator.join} signedUp={creator.signedUp} />
               </span>
             )}
           </div>
@@ -346,9 +361,9 @@ const CreatorRow = memo(function CreatorRow({
               {name}
             </Link>
             {handle && <span className="cc-dt-sub cc-dt-truncate">{handle}</span>}
-            {c.join && (
+            {(c.join || c.signedUp) && (
               <span style={{ display: "block", marginTop: 4 }}>
-                <JoinBadge join={c.join} />
+                <JoinBadge join={c.join} signedUp={c.signedUp} />
               </span>
             )}
           </span>
@@ -413,6 +428,7 @@ export default function CreatorsClient({
   handleIssues = { gone: 0, unreadable: 0 },
   audienceCountryOptions,
   countryOptions,
+  manualWithPosts = 0,
 }: {
   creators: Creator[];
   platformCounts: Record<string, number>;
@@ -432,6 +448,8 @@ export default function CreatorsClient({
   handleIssues?: { gone: number; unreadable: number };
   audienceCountryOptions: CountryOption[];
   countryOptions: CountryOption[];
+  /** On the Manual entries tab: how many of the matching entries have campaign posts. */
+  manualWithPosts?: number;
 }) {
   const router = useRouter();
   const [search, setSearch] = useState(q);
@@ -460,7 +478,8 @@ export default function CreatorsClient({
   // ride along so changing a tab or page keeps the filters applied.
   const { push, pending, shown } = useListQuery({
     q,
-    platform: platform === "All" ? undefined : platform,
+    platform: platform === "All" || platform === MANUAL_TAB ? undefined : platform,
+    source: platform === MANUAL_TAB ? "manual" : undefined,
     page: page === 1 ? undefined : page,
     // The default order stays out of the URL entirely, so /creators keeps
     // looking like /creators until someone actually sorts.
@@ -482,7 +501,15 @@ export default function CreatorsClient({
      click already applied (see useListQuery) -- so a choice shows the moment it
      is made, not when the server answers. A cleared platform is All. */
   const shownPlatform =
-    shown.platform === null ? "All" : typeof shown.platform === "string" ? shown.platform : platform;
+    shown.source === "manual"
+      ? MANUAL_TAB
+      : shown.platform === null
+        ? "All"
+        : typeof shown.platform === "string"
+          ? shown.platform
+          : platform === MANUAL_TAB
+            ? "All"
+            : platform;
   const shownPage = shown.page === null ? 1 : Number(shown.page ?? page);
   /* The grid has no column headers to click, so it had no way to sort at all.
      The same orders the table offers, as one menu that serves both views.
@@ -574,7 +601,7 @@ export default function CreatorsClient({
   const anyFilter = Boolean(q) || platform !== "All" || filterCount > 0;
   const clearEverything = () => {
     setSearch("");
-    const cleared: Record<string, null> = { q: null, platform: null, page: null, sort: null, dir: null };
+    const cleared: Record<string, null> = { q: null, platform: null, source: null, page: null, sort: null, dir: null };
     for (const key of Object.keys(filterValues)) cleared[key] = null;
     push(cleared);
   };
@@ -597,7 +624,7 @@ export default function CreatorsClient({
     const out: ActiveFilter[] = [];
     const fv = filterValues;
     if (q) out.push({ id: "q", label: `“${q}”`, clear: { q: null } });
-    if (platform !== "All") out.push({ id: "platform", label: platformLabel(platform), clear: { platform: null } });
+    if (platform !== "All") out.push({ id: "platform", label: tabLabel(platform), clear: { platform: null, source: null } });
     const each = (key: string, prefix: string, label = (v: string) => v) => {
       const values = csv(fv[key]);
       for (const v of values) {
@@ -631,7 +658,7 @@ export default function CreatorsClient({
     const fv = filterValues;
     const parts = [
       ...csv(fv.tags),
-      platform !== "All" ? platformLabel(platform) : null,
+      platform !== "All" ? tabLabel(platform) : null,
       ...csv(fv.accounts).map(platformLabel),
       fv.minFollowers ? `${formatCompact(Number(fv.minFollowers))}+` : null,
       ...csv(fv.audienceCountry),
@@ -763,7 +790,13 @@ export default function CreatorsClient({
               count: platformCounts[t.key] ?? 0,
             }))}
             active={shownPlatform}
-            onChange={(key) => push({ platform: key === "All" ? null : key, page: null })}
+            onChange={(key) =>
+              push(
+                key === MANUAL_TAB
+                  ? { platform: null, source: "manual", page: null }
+                  : { platform: key === "All" ? null : key, source: null, page: null },
+              )
+            }
           />
         }
         actions={
@@ -1002,6 +1035,7 @@ export default function CreatorsClient({
         suggestedName={suggestedName}
         tagOptions={tagOptions}
         onClear={clearSelection}
+        manualOnly={platform === MANUAL_TAB ? { withPosts: manualWithPosts } : null}
       />
 
       <FilterDrawer

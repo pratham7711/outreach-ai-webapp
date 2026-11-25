@@ -16,7 +16,7 @@ import { creatorAvgViewsTime, creatorFollowersTime, figureTimeDto, linkFollowers
 import { latestTrackerReadings } from "@/lib/creators/latestReadings";
 import { latestFollowerAudiences } from "@/lib/creators/audienceSnapshots";
 import { summarizeAudience } from "@/lib/creators/audienceSummary";
-import { CREATOR_PLATFORM_TABS } from "@/lib/creators/platformTabs";
+import { CREATOR_PLATFORM_TABS, MANUAL_TAB } from "@/lib/creators/platformTabs";
 import { pinsUnknownLast, splitByKnownFollowers, unknownLastWindow, UNKNOWN_FOLLOWERS_ORDER } from "@/lib/creators/rosterSort";
 
 /** "United States, Brazil" rows counted per country, most common first. */
@@ -55,11 +55,18 @@ export default async function CreatorsPage({
   // creators rather than the tabs summed -- and it is the caption's number
   // whenever All is the tab in view. The tabs used to leave the search out, so
   // a search listing 341 creators sat under chips still reading 2,569.
-  const tabCounts = Promise.all(
-    [[], ...CREATOR_PLATFORM_TABS.map((p) => [p])].map((platform) =>
-      db.creator.count({ where: creatorWhere(orgId, { ...filters, platform }, { roster }) }),
+  // The Manual entries tab is the last one: picking a platform tab leaves it,
+  // and picking it leaves the platform tab, so each counts without the other.
+  const tabCounts = Promise.all([
+    ...[[], ...CREATOR_PLATFORM_TABS.map((p) => [p])].map((platform) =>
+      db.creator.count({ where: creatorWhere(orgId, { ...filters, platform, source: undefined }, { roster }) }),
     ),
-  );
+    db.creator.count({ where: creatorWhere(orgId, { ...filters, platform: [], source: "manual" }, { roster }) }),
+  ]);
+  // How many of the manual entries a delete-all would take have campaign posts,
+  // for its confirmation. Only asked for when that tab is the one in view.
+  const manualWithPosts =
+    filters.source === "manual" ? db.creator.count({ where: { ...where, posts: { some: NOT_REMOVED } } }) : Promise.resolve(0);
 
   const findPage = (w: typeof where, orderBy: ReturnType<typeof creatorOrderBy>, skip: number, take: number) =>
     db.creator.findMany({
@@ -144,6 +151,7 @@ export default async function CreatorsPage({
     creators, total, [allCount, ...perTab], orgTags, anyRate,
     [derivedAvgViews, campaignCounts, links, details, avatarVersions, readings, followerAudiences, joins],
     [audienceGroups, countryGroups, handleGone, handleUnreadable],
+    withPosts,
   ] = await Promise.all([
     pageRows,
     db.creator.count({ where }),
@@ -155,6 +163,7 @@ export default async function CreatorsPage({
     db.creator.findFirst({ where: { orgId, deletedAt: null, rate: { gt: 0 } }, select: { id: true } }),
     perRow,
     rosterWide,
+    manualWithPosts,
   ]);
 
   // A page past the end -- the last rows deleted, or an old link -- lands on the
@@ -176,6 +185,7 @@ export default async function CreatorsPage({
   CREATOR_PLATFORM_TABS.forEach((p, i) => {
     platformCounts[p] = perTab[i];
   });
+  platformCounts[MANUAL_TAB] = perTab[CREATOR_PLATFORM_TABS.length];
 
   const linksBy = new Map<string, typeof links>();
   for (const l of links) linksBy.set(l.creatorId, [...(linksBy.get(l.creatorId) ?? []), l]);
@@ -238,6 +248,7 @@ export default async function CreatorsPage({
             return a ? summarizeAudience(a.mix, a.day) : null;
           })(),
           join: joins.get(c.id) ?? null,
+          signedUp: c.creatorUserId !== null,
         };
       })}
       query={query.toString()}
@@ -249,7 +260,8 @@ export default async function CreatorsPage({
       total={total}
       page={page}
       q={filters.search ?? ""}
-      platform={filters.platform[0] ?? "All"}
+      platform={filters.source === "manual" ? MANUAL_TAB : (filters.platform[0] ?? "All")}
+      manualWithPosts={withPosts}
       tagOptions={orgTags.map((t) => t.name)}
       offerRateFilter={anyRate !== null || filters.minRate != null || filters.maxRate != null}
       filterValues={{
@@ -269,7 +281,7 @@ export default async function CreatorsPage({
         accounts: firstParam(sp.accounts),
         handleIssues: firstParam(sp.handleIssues),
       }}
-      filterCount={countCreatorFilters({ ...filters, platform: [] })}
+      filterCount={countCreatorFilters({ ...filters, platform: [], source: filters.source === "manual" ? undefined : filters.source })}
       sort={sort}
     />
   );

@@ -21,6 +21,15 @@ test.describe('Creators', () => {
     await expect(page.getByText(/instagram|tiktok|youtube/i).first()).toBeVisible({ timeout: 15000 });
   });
 
+  test('Manual entries replaces the Twitter tab and lists only rows nobody signed up for', async ({ page }) => {
+    const tabs = page.getByRole('tablist', { name: 'Filter creators by platform' });
+    await expect(tabs.getByRole('tab', { name: /^Twitter/ })).toHaveCount(0);
+    await tabs.getByRole('tab', { name: /^Manual entries/ }).click();
+    await expect(page).toHaveURL(/[?&]source=manual\b/);
+    await expect(tabs.getByRole('tab', { name: /^Manual entries/ })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('main').getByText('Signed up', { exact: true })).toHaveCount(0);
+  });
+
   test('can navigate to creator detail', async ({ page }) => {
     /* Assert against the href the link actually carries, not the seed id
        'creator-1'. The hardcoded id only held while exactly one row was named

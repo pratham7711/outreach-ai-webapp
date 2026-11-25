@@ -4,7 +4,7 @@
  * node, not jsdom: listFilters imports the Prisma client for its generated
  * types, and the Prisma runtime needs TextEncoder, which jsdom does not provide.
  */
-import { creatorWhere, dateRange, readCreatorFilters } from "@/lib/listFilters";
+import { countCreatorFilters, creatorWhere, dateRange, readCreatorFilters } from "@/lib/listFilters";
 import { CREATOR_PLATFORM_TABS } from "@/lib/creators/platformTabs";
 
 const anyAccountOn = (platforms: string[]) => ({
@@ -46,9 +46,27 @@ describe("creatorWhere: the platform tab", () => {
   });
 });
 
+describe("creatorWhere: who put the creator on the roster", () => {
+  it("Manual entries are the rows no creator account stands behind", () => {
+    const where = creatorWhere("org-1", readCreatorFilters({ source: "manual" }), { roster: true });
+    expect(where.AND).toContainEqual({ creatorUserId: null });
+    expect(where.orgId).toBe("org-1");
+  });
+
+  it("signed up is the rows a creator account stands behind", () => {
+    const where = creatorWhere("org-1", readCreatorFilters({ source: "signed_up" }), { roster: true });
+    expect(where.AND).toContainEqual({ creatorUserId: { not: null } });
+  });
+
+  it("ignores an unknown source rather than narrowing to nothing", () => {
+    expect(readCreatorFilters({ source: "twitter" }).source).toBeUndefined();
+    expect(countCreatorFilters(readCreatorFilters({ source: "manual" }))).toBe(1);
+  });
+});
+
 describe("CREATOR_PLATFORM_TABS", () => {
   it("names the platforms the Creators page has a tab for", () => {
-    expect([...CREATOR_PLATFORM_TABS]).toEqual(["INSTAGRAM", "YOUTUBE", "TIKTOK", "TWITTER"]);
+    expect([...CREATOR_PLATFORM_TABS]).toEqual(["INSTAGRAM", "YOUTUBE", "TIKTOK"]);
   });
 });
 
