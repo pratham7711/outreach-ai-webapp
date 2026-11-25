@@ -599,7 +599,18 @@ describe("GET /api/portal/connections/[platform]/callback", () => {
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({ id: "ig-17841400000000000", media_count: 88 }),
-      });
+      })
+      // After the save: Meta's own expiry for the stored token (debug_token),
+      // then the Page lookup for a non-expiring Page token: me/accounts lists
+      // none, so the granular scopes are read (debug_token again) and name none.
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: { is_valid: true, expires_at: Math.floor(Date.now() / 1000) + 59 * 24 * 3600, data_access_expires_at: 0 },
+        }),
+      })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: { is_valid: true, granular_scopes: [] } }) });
 
     const res = await oauthCallback(
       makeRequest(
@@ -610,11 +621,15 @@ describe("GET /api/portal/connections/[platform]/callback", () => {
     );
 
     expect(res.headers.get("location")).toContain("/portal/settings?connected=instagram");
-    // Four calls: the code exchange, the trade for a long-lived token, the
-    // identity read, then the post count. The short-lived token lasts about an
-    // hour and Facebook issues no refresh_token, so storing the first one would
-    // leave the connection dead by the next cron run.
-    expect(global.fetch).toHaveBeenCalledTimes(4);
+    // Four calls before the save: the code exchange, the trade for a
+    // long-lived token, the identity read, then the post count. The short-lived
+    // token lasts about an hour and Facebook issues no refresh_token, so storing
+    // the first one would leave the connection dead by the next cron run. Three
+    // after it: debug_token for the real expiry, then the Page lookup (two calls).
+    expect(global.fetch).toHaveBeenCalledTimes(7);
+    const [debugUrl] = (global.fetch as jest.Mock).mock.calls[4];
+    expect(new URL(String(debugUrl)).pathname).toMatch(/\/debug_token$/);
+    expect(new URL(String(debugUrl)).searchParams.get("input_token")).toBe("long-lived-token");
     const [tokenUrl, fetchInit] = (global.fetch as jest.Mock).mock.calls[0];
     expect(tokenUrl).toContain("graph.facebook.com");
     expect((fetchInit.body as URLSearchParams).get("code")).toBe("code-1");
