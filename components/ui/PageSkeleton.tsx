@@ -337,7 +337,7 @@ export function CreatorsListSkeleton() {
         title="Creator Roster"
         subtitle={false}
         actions={[100, 139]}
-        tabs={["All", "Instagram", "YouTube", "TikTok", "Twitter"].map((label) => ({ label, count: true }))}
+        tabs={["All", "Instagram", "YouTube", "TikTok", "Manual entries"].map((label) => ({ label, count: true }))}
       />
       <ListToolbarSkeleton filters={3} />
       <CardGridSkeleton count={6} className="cc-roster-grid" style={undefined} height={249} />
