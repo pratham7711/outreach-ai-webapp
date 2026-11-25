@@ -133,7 +133,7 @@ export function Modal({
 
   return createPortal(
     <div
-      className="cc-dialog-backdrop"
+      className="cc-dlg-scrim"
       data-state={state}
       onMouseDown={(e) => {
         if (dismissible && e.target === e.currentTarget) onClose();

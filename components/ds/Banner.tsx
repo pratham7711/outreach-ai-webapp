@@ -35,7 +35,7 @@ const TONE_ICON: Record<BannerTone, LucideIcon> = {
 
 /**
  * The one notice strip. Colour, border, radius and spacing come from
- * `.cc-banner` in globals.css, keyed by `data-tone` and `data-placement`, so
+ * `.cc-callout` in globals.css, keyed by `data-tone` and `data-placement`, so
  * every banner on the site changes together.
  */
 export function Banner({
@@ -53,7 +53,7 @@ export function Banner({
   return (
     <div
       role={role}
-      className={`cc-banner${className ? ` ${className}` : ""}`}
+      className={`cc-callout${className ? ` ${className}` : ""}`}
       data-tone={tone}
       data-placement={placement}
       style={style}

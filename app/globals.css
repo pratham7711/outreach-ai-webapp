@@ -6873,8 +6873,11 @@ button.cc-page-thumb {
    One notice strip: a tone wash, a tone border, 8px corners, 12px padding,
    an 18px glyph, 14px medium text in the tone's ink, its action pushed to the
    right edge. Info is a neutral ink tint; warning, danger and success are the
-   status hues and mean only that. */
-.cc-banner {
+   status hues and mean only that.
+   Not named cc-banner: ad blockers' cookie-notice lists hide .cc-banner on
+   every site (Brave does by default), which hid every notice strip there.
+   __tests__/unit/styles/blockedClassNames.test.ts keeps it that way. */
+.cc-callout {
   display: flex;
   align-items: center;
   gap: var(--cc-sp-6);
@@ -6887,17 +6890,17 @@ button.cc-page-thumb {
   font-weight: 500;
   line-height: 1.25rem;
 }
-.cc-banner[data-tone="warning"] {
+.cc-callout[data-tone="warning"] {
   --cc-banner-bg: color-mix(in srgb, var(--cc-warning) 8%, transparent);
   --cc-banner-fg: var(--cc-warning-fg);
   --cc-banner-border: var(--cc-warning-border);
 }
-.cc-banner[data-tone="danger"] {
+.cc-callout[data-tone="danger"] {
   --cc-banner-bg: color-mix(in srgb, var(--cc-danger) 8%, transparent);
   --cc-banner-fg: var(--cc-danger-fg);
   --cc-banner-border: var(--cc-danger-border);
 }
-.cc-banner[data-tone="success"] {
+.cc-callout[data-tone="success"] {
   --cc-banner-bg: color-mix(in srgb, var(--cc-success) 8%, transparent);
   --cc-banner-fg: var(--cc-success-fg);
   --cc-banner-border: var(--cc-success-border);
@@ -6926,13 +6929,13 @@ button.cc-page-thumb {
 /* Under the top bar, across the whole content column: no box, a hairline
    under it, and the page gutter as its padding, so the glyph starts on the
    breadcrumb's and the title's x. */
-.cc-banner[data-placement="shell"] {
+.cc-callout[data-placement="shell"] {
   border-width: 0 0 1px;
   border-radius: 0;
   padding: var(--cc-sp-5) var(--cc-page-pad-end) var(--cc-sp-5) var(--cc-page-pad-inline);
 }
 /* A note inside a card: a size down. */
-.cc-banner[data-placement="inline"] {
+.cc-callout[data-placement="inline"] {
   gap: var(--cc-sp-4);
   padding: var(--cc-sp-4) var(--cc-sp-6);
   font-size: var(--cc-fs-body-sm);
@@ -7521,8 +7524,11 @@ button.cc-page-thumb {
    title with one line of description under it, 24px gutters, and a footer
    whose buttons are full-size. Dividers above and below the body show only
    while content is scrolled out of sight that way, so a short dialog reads as
-   one clean surface. Below 640px it becomes a bottom sheet. */
-.cc-dialog-backdrop {
+   one clean surface. Below 640px it becomes a bottom sheet.
+   The scrim is not named cc-dialog-backdrop: cookie-notice filter lists hide
+   that class on every site, so in Brave every dialog opened invisible (the
+   Join link dialog, measured 2026-11-25). See blockedClassNames.test.ts. */
+.cc-dlg-scrim {
   position: fixed;
   inset: 0;
   z-index: var(--cc-z-modal);
@@ -7694,13 +7700,13 @@ button.cc-page-thumb {
 @keyframes cc-dialog-out { to { opacity: 0; transform: translateY(6px) scale(0.985); } }
 @keyframes cc-sheet-in { from { transform: translateY(100%); } }
 @keyframes cc-sheet-out { to { transform: translateY(100%); } }
-.cc-dialog-backdrop[data-state="open"] { animation: cc-dialog-scrim-in 200ms ease-out both; }
-.cc-dialog-backdrop[data-state="closed"] { animation: cc-dialog-scrim-out 160ms ease-in both; }
+.cc-dlg-scrim[data-state="open"] { animation: cc-dialog-scrim-in 200ms ease-out both; }
+.cc-dlg-scrim[data-state="closed"] { animation: cc-dialog-scrim-out 160ms ease-in both; }
 .cc-dialog[data-state="open"] { animation: cc-dialog-in 280ms var(--cc-ease-out-expo) both; }
 .cc-dialog[data-state="closed"] { animation: cc-dialog-out 140ms ease-in both; }
 
 @media (max-width: 640px) {
-  .cc-dialog-backdrop { place-items: end stretch; padding: 0; }
+  .cc-dlg-scrim { place-items: end stretch; padding: 0; }
   .cc-dialog,
   .cc-dialog[data-size] {
     --cc-dialog-w: 100%;
@@ -12618,7 +12624,7 @@ a.cc-platform-chip[data-problem]:hover {
 }
 
 /* The confirm-your-email strip: one line, a text link to resend and a close. */
-.cc-banner.cc-verify-banner {
+.cc-callout.cc-verify-banner {
   align-items: center;
   padding-block: var(--cc-sp-3);
   font-size: var(--cc-t-13);
