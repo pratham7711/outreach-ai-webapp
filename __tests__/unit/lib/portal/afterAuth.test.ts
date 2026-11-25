@@ -106,9 +106,11 @@ describe("landingAfterAuth", () => {
     expect(JSON.parse(init.body)).toEqual({ token: "tokABC" });
   });
 
-  it("joins the agency's roster from a join link and lands on My accounts", async () => {
+  it("joins the agency's roster from a join link and lands on My accounts, asked to connect", async () => {
     const fetchMock = mockFetch(201, { agency: "Acme", alreadyOnRoster: false });
-    await expect(landingAfterAuth({ ...none, agency: "abcdefgh2345" }, "/x")).resolves.toBe("/portal/accounts");
+    await expect(landingAfterAuth({ ...none, agency: "abcdefgh2345" }, "/x")).resolves.toBe(
+      "/portal/accounts?joined=abcdefgh2345",
+    );
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("/api/portal/join-agency");
     expect(JSON.parse(init.body)).toEqual({ code: "abcdefgh2345" });

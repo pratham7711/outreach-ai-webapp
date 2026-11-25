@@ -107,7 +107,7 @@ export async function landingAfterAuth(errand: AuthErrand, fallback: string): Pr
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code: errand.agency }),
       });
-      if (res.ok) return "/portal/accounts";
+      if (res.ok) return `/portal/accounts?joined=${encodeURIComponent(errand.agency)}`;
     } catch {
       /* Fall through: the login works, the link can be opened again. */
     }

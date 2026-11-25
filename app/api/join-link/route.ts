@@ -3,14 +3,23 @@ import { authenticateRequest, getAuditActor, type AuthResult } from "@/lib/authe
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { hasPermission } from "@/lib/rbac";
-import { issueJoinLink, joinLinkPath, liveJoinLink, turnOffJoinLink, type JoinLinkRow } from "@/lib/creators/joinLink";
+import {
+  issueJoinLink,
+  joinLinkPath,
+  joinLinkTurnedOff,
+  liveJoinLink,
+  turnOffJoinLink,
+  type JoinLinkRow,
+} from "@/lib/creators/joinLink";
 
 export const dynamic = "force-dynamic";
 
 /**
  * The org's join link, /join/<code> (lib/creators/joinLink.ts).
  *
- *   GET     the live link, or { active: false }
+ *   GET     the live link, or { active: false, turnedOff }. turnedOff is true
+ *           when a link existed and was switched off; the dialog makes the
+ *           first link itself, but never undoes a deliberate "Turn off"
  *   POST    make one; any live link stops working ("Make a new link")
  *   DELETE  turn it off
  *
@@ -42,7 +51,8 @@ export async function GET(req: NextRequest) {
   const g = await gate(req);
   if (!g.ok) return g.response;
   const link = await liveJoinLink(g.auth.orgId);
-  return NextResponse.json(link ? body(req, link) : { active: false }, { headers: { "Cache-Control": "no-store" } });
+  const status = link ? body(req, link) : { active: false, turnedOff: await joinLinkTurnedOff(g.auth.orgId) };
+  return NextResponse.json(status, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(req: NextRequest) {
@@ -74,5 +84,5 @@ export async function DELETE(req: NextRequest) {
       entityId: g.auth.orgId,
       ipAddress: getRequestIp(req),
     });
-  return NextResponse.json({ active: false });
+  return NextResponse.json({ active: false, turnedOff: true });
 }

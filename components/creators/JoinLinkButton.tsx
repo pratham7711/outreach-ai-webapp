@@ -14,7 +14,7 @@ import { formatDateAbs } from "@/lib/format";
  */
 
 type Status =
-  | { active: false }
+  | { active: false; turnedOff?: boolean }
   | { active: true; url: string; createdAt: string; joinedCount: number; lastJoinedAt: string | null };
 
 export function JoinLinkButton() {
@@ -25,6 +25,9 @@ export function JoinLinkButton() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  /* The link is the point of the button: when the agency has never had one,
+     opening the dialog makes it, so the first thing on screen is the link
+     itself. A link someone turned off stays off until they make a new one. */
   const load = useCallback(async () => {
     setError(null);
     const res = await fetch("/api/join-link", { cache: "no-store" }).catch(() => null);
@@ -32,7 +35,18 @@ export function JoinLinkButton() {
       setError(res?.status === 403 ? "Only people who can add creators can see the join link." : "Couldn't load the join link.");
       return;
     }
-    setStatus((await res.json()) as Status);
+    const current = (await res.json()) as Status;
+    if (current.active || current.turnedOff) {
+      setStatus(current);
+      return;
+    }
+    const made = await fetch("/api/join-link", { method: "POST" }).catch(() => null);
+    if (!made?.ok) {
+      setStatus(current);
+      setError("Couldn't make the link. Try again.");
+      return;
+    }
+    setStatus((await made.json()) as Status);
   }, []);
 
   useEffect(() => {

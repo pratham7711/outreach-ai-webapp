@@ -42,6 +42,21 @@ export async function liveJoinLink(orgId: string): Promise<JoinLinkRow | null> {
   }
 }
 
+/**
+ * True when the org has had a join link and none is live now: someone turned
+ * it off on purpose, so opening the dialog must not quietly make a new one.
+ */
+export async function joinLinkTurnedOff(orgId: string): Promise<boolean> {
+  try {
+    const live = await db.orgJoinLink.findFirst({ where: { orgId, revokedAt: null }, select: { id: true } });
+    if (live) return false;
+    return (await db.orgJoinLink.count({ where: { orgId } })) > 0;
+  } catch (e) {
+    if (isMissingJoinLinkTable(e)) return false;
+    throw e;
+  }
+}
+
 /** Turns off the live link and makes a new one: "make" and "make a new one" are the same act. */
 export async function issueJoinLink(orgId: string, createdById: string | null): Promise<JoinLinkRow | null> {
   try {

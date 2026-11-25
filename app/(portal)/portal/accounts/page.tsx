@@ -8,6 +8,7 @@ import type { LucideIcon } from "lucide-react";
 import type { PlatformCapability } from "@/lib/capabilities";
 import { isInstagramLoginRow } from "@/lib/platforms/accountOrigin";
 import { OAUTH_PLATFORMS, toPlatformEnum, type OAuthPlatform } from "@/lib/oauth/providers";
+import { joinLinkAgency } from "@/lib/portal/afterAuth";
 import { TIKTOK_BUSINESS_READ, WHAT_WE_NEVER_DO, WHAT_WE_READ } from "@/lib/portal/whatWeRead";
 import type { TikTokBusinessSummary } from "@/lib/portal/tiktokBusinessConnection";
 import { Button, useConfirm } from "@/components/ds";
@@ -92,11 +93,19 @@ const RETURN_TO = "/portal/accounts";
     screen, measured 2026-09-09), and a banner can be read twice. Read after
     mount, not during the first render: the server never sees the query, so a
     banner rendered on the client's first pass failed hydration. */
-function readConnectResult(): { tone: "success" | "danger"; text: string } | null {
+/** Straight after a join link: the agency can see the creator, and the next
+    step is the accounts it reads stats from. */
+function joinedText(agency: string | null): string {
+  return `You've joined ${agency ?? "your agency"}. Now connect your Instagram and TikTok so they can see your post stats.`;
+}
+
+function readConnectResult(): { tone: "success" | "danger"; text: string; joinCode?: string | null } | null {
   if (typeof window === "undefined") return null;
   const params = new URLSearchParams(window.location.search);
   const connected = params.get("connected");
   const failed = params.get("error");
+  if (params.get("joined") !== null && !connected && !failed)
+    return { tone: "success", text: joinedText(null), joinCode: params.get("joined") };
   if (!connected && !failed) return null;
   if (failed === "tiktok-business") return { tone: "danger", text: TIKTOK_BUSINESS_FAILURE[params.get("reason") ?? ""] ?? TIKTOK_BUSINESS_FAILURE.exchange };
   const slug = (connected ?? failed ?? "") as OAuthPlatform;
@@ -467,6 +476,12 @@ export default function MyAccountsPage() {
     if (!read) return;
     setResult(read);
     window.history.replaceState(null, "", window.location.pathname);
+    /* Not cancelled on cleanup: the query is gone after the first run, so a
+       second effect run cannot start the lookup again. */
+    if (read.joinCode)
+      void joinLinkAgency(read.joinCode).then((agency) => {
+        if (agency) setResult((r) => (r ? { ...r, text: joinedText(agency) } : r));
+      });
   }, []);
 
   const load = useCallback(async () => {
