@@ -1,5 +1,5 @@
 import { InstagramAuthError } from "@/lib/platforms/instagram";
-import { ensureFreshInstagramToken } from "@/lib/platforms/instagramToken";
+import { instagramReadTokens, withReadToken } from "@/lib/platforms/instagramReadToken";
 import { fetchInstagramAccount } from "@/lib/platforms/instagramAccount";
 import { isInstagramLoginRow } from "@/lib/platforms/accountOrigin";
 import { readInstagramInsightsBundle, type IgInsightsBundle } from "@/lib/platforms/instagramAccountInsights";
@@ -38,7 +38,8 @@ export async function readInsightsForConnection(
       reason: "Account insights are read for Instagram accounts connected through Facebook Login.",
     };
 
-  const token = await ensureFreshInstagramToken(connection, orgId);
+  const tokens = await instagramReadTokens(connection, orgId);
+  const token = tokens.user ?? tokens.page;
   if (!token)
     return { ok: false, status: 409, error: "reauthorize", reason: "Access to this Instagram account has lapsed. Reconnect it from My accounts." };
 
@@ -51,7 +52,7 @@ export async function readInsightsForConnection(
         error: "no_business_account",
         reason: "No Instagram professional account is linked to the connected Facebook Page.",
       };
-    const bundle = await readInstagramInsightsBundle(token, igUserId, { now });
+    const bundle = (await withReadToken(tokens, (t) => readInstagramInsightsBundle(t, igUserId, { now })))!;
     return { ok: true, body: { ...bundle, handle: connection.handle, readAt: now.toISOString(), stored: false } };
   } catch (err) {
     if (err instanceof InstagramAuthError) {

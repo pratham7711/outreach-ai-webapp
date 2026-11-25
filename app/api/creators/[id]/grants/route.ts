@@ -4,6 +4,7 @@ import { authenticateRequest } from "@/lib/authenticate";
 import { grantsForCreator } from "@/lib/creators/grants";
 import { entriesToShow } from "@/lib/creators/grantAccess";
 import { accountStatesFor } from "@/lib/platforms/accountState";
+import { lapsingConnections } from "@/lib/platforms/connectionHealth";
 
 export const dynamic = "force-dynamic";
 
@@ -41,8 +42,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const reconnectNeeded = new Set(
     [...states].filter(([, s]) => Boolean(s.reconnectNeededAt)).map(([accountId]) => accountId),
   );
+  const reconnectSoon = new Set((await lapsingConnections(connectionIds)).keys());
   return NextResponse.json({
     tracked: true,
-    entries: entriesToShow(grants, new Set(connectionIds), reconnectNeeded),
+    entries: entriesToShow(grants, new Set(connectionIds), reconnectNeeded, reconnectSoon),
   });
 }

@@ -16,6 +16,7 @@ import {
   isProviderConfigured,
   toPlatformEnum,
   type OAuthPlatform,
+  type PlatformEnumValue,
 } from "@/lib/oauth/providers";
 import {
   fetchAccountIdentity,
@@ -31,6 +32,7 @@ import {
 } from "@/lib/creators/connectToken";
 import { connectTablesReady } from "@/lib/creators/connectTables";
 import { recordConnectionState } from "@/lib/platforms/accountState";
+import { assessMetaConnection, resetConnectionHealth } from "@/lib/platforms/connectionHealth";
 import { fetchMetaGrantorId, isGrantorPlatform } from "@/lib/platforms/metaGrantor";
 import { hasSharedFacebookPage } from "@/lib/platforms/facebookPage";
 import type { AccountIdentity } from "@/lib/platforms/accountSync";
@@ -384,6 +386,8 @@ export async function GET(
 
     if (saved?.id) {
       await recordAfterConnect(platform, saved.id, storedToken, identity);
+      if (platform === "instagram" || platform === "facebook")
+        await recordMetaHealth(saved.id, platformEnum, identity.platformUserId, storedToken, creator.orgId, tokenExpiry);
       /* The consent record (plan K4): from here on THIS org may read this
          connection, and no other. The org is the one the connection was made
          under -- the connect link's, or, signed in, that of the roster row the
@@ -462,4 +466,38 @@ async function recordAfterConnect(
     grantorUserId: grantorUserId ?? undefined,
     displayName: identity.displayName,
   });
+}
+
+/**
+ * Asks Meta how long the token just stored will really last and obtains the
+ * Page token behind it (lib/platforms/connectionHealth). Meta's answer wins
+ * over the exchange's `expires_in`, which is absent for some responses and
+ * stored as null — a null the daily refresher used to read as "never expires".
+ * Never fails the connection.
+ */
+async function recordMetaHealth(
+  accountId: string,
+  platform: PlatformEnumValue,
+  platformUserId: string,
+  token: string,
+  orgId: string,
+  storedExpiry: Date | null,
+): Promise<void> {
+  try {
+    await resetConnectionHealth(accountId);
+    const assessment = await assessMetaConnection(
+      { id: accountId, platform, platformUserId },
+      token,
+      orgId,
+      undefined,
+    );
+    const known = assessment.facts?.valid ? assessment.facts.expiresAt : null;
+    if (known && known.getTime() !== storedExpiry?.getTime())
+      await db.creatorSocialAccount.update({ where: { id: accountId }, data: { tokenExpiry: known } });
+  } catch (err) {
+    createLogger({ context: { platform, call: "oauth.metaHealth" } }).warn("Connection health not recorded", {
+      accountId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 }

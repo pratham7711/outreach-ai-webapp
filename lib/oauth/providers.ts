@@ -366,6 +366,7 @@ function resolveScopes(
 export function buildAuthorizeUrl(
   platform: OAuthPlatform,
   state: string,
+  options: { reauthorize?: boolean } = {},
 ): string | null {
   const provider = PROVIDERS[platform];
   const creds = credentials(provider);
@@ -384,6 +385,11 @@ export function buildAuthorizeUrl(
     url.searchParams.set("prompt", "login");
   } else {
     url.searchParams.set("scope", resolveScopes(platform, provider));
+    /* Meta ends data access 90 days after a person last used the app; the only
+       renewal is a fresh consent with auth_type=reauthorize, which makes the
+       dialog ask for the password again instead of passing straight through. */
+    if (options.reauthorize && (platform === "instagram" || platform === "facebook"))
+      url.searchParams.set("auth_type", "reauthorize");
   }
   url.searchParams.set("state", state);
   if (platform === "tiktok") url.searchParams.set("disable_auto_auth", "1");

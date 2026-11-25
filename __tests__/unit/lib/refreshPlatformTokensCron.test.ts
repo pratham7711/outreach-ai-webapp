@@ -233,3 +233,33 @@ describe("agencies' own Instagram accounts", () => {
     expect(mockAlert.mock.calls[0][0].severity).toBe("warn");
   });
 });
+
+describe("creator connections about to lapse", () => {
+  const summary = (lapsing: unknown[]) => ({
+    considered: 2, refreshed: 2, skippedReconnect: 0, noToken: 0, identityFailed: 0, deferred: 0,
+    lapsingSoon: lapsing.length, markedReconnect: 0, lapsing,
+  });
+
+  it("sends one aggregated ops alert when any connection is inside 3 days", async () => {
+    mockConnections.mockResolvedValue(
+      summary([
+        { accountId: "a1", platform: "INSTAGRAM", lapsesAt: "2026-12-02T00:00:00.000Z", stage: "critical" },
+        { accountId: "a2", platform: "FACEBOOK", lapsesAt: "2026-12-03T00:00:00.000Z", stage: "critical" },
+      ]),
+    );
+    const res = await call();
+    expect(res.status).toBe(200);
+    expect(mockAlert).toHaveBeenCalledTimes(1);
+    const alert = mockAlert.mock.calls[0][0];
+    expect(alert.title).toContain("2 creator connection(s)");
+    expect(alert.facts.earliestLapse).toBe("2026-12-02T00:00:00.000Z");
+    expect(alert.facts.accounts).toEqual(["INSTAGRAM:a1", "FACEBOOK:a2"]);
+  });
+
+  it("stays quiet when nothing is inside 3 days, even if some are inside 14", async () => {
+    mockConnections.mockResolvedValue({ ...summary([]), lapsingSoon: 5 });
+    await call();
+    expect(mockAlert).not.toHaveBeenCalled();
+  });
+});
+

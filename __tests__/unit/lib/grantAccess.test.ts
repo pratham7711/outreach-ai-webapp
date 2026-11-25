@@ -22,6 +22,17 @@ function grant(over: Partial<GrantRecord>): GrantRecord {
   } as GrantRecord;
 }
 
+describe("entriesToShow: Reconnect soon", () => {
+  it("shows a still-working connection that Meta is about to end as reconnect_soon", () => {
+    const [e] = entriesToShow([grant({})], new Set(["conn-1"]), new Set(), new Set(["conn-1"]));
+    expect(e.status).toBe("reconnect_soon");
+  });
+  it("lets reconnect_needed win over reconnect_soon", () => {
+    const [e] = entriesToShow([grant({})], new Set(["conn-1"]), new Set(["conn-1"]), new Set(["conn-1"]));
+    expect(e.status).toBe("reconnect_needed");
+  });
+});
+
 describe("entriesToShow", () => {
   it("shows a live grant on a live connection as active", () => {
     const [e] = entriesToShow([grant({})], new Set(["conn-1"]), new Set());

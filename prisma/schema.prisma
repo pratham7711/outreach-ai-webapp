@@ -1111,6 +1111,32 @@ model CreatorAccountState {
   @@index([grantorUserId])
 }
 
+/// What Meta says about one Facebook-Login connection's credentials, read from
+/// debug_token by the daily pass and at connect, plus the long-lived Page token
+/// for the Page behind the connection. Its own table, like CreatorAccountState:
+/// CreatorSocialAccount may only grow when every database already has the
+/// column. One row per connection, created lazily; no row means "never read".
+/// The FK to CreatorSocialAccount lives in the DDL only (ON DELETE CASCADE).
+/// See lib/creators/connectionHealthDdl.ts.
+model CreatorConnectionHealth {
+  accountId           String    @id
+  /// debug_token expires_at; null = Meta says it never expires (or unread).
+  tokenExpiresAt      DateTime?
+  /// debug_token data_access_expires_at; null = none reported.
+  dataAccessExpiresAt DateTime?
+  /// The earlier of the two: when this connection stops being readable
+  /// unless the creator reconnects. null = nothing known to lapse.
+  lapsesAt            DateTime?
+  checkedAt           DateTime?
+  pageId              String?
+  /// AES-256-GCM ciphertext, sealed like CreatorSocialAccount.accessToken.
+  pageAccessToken     String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([lapsesAt])
+}
+
 /// A connect link (/connect/<token>) an agency made for ONE roster row. The
 /// raw token is shown once and only its SHA-256 is stored, so a database read
 /// cannot be replayed as a link.

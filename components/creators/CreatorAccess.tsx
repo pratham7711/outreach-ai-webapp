@@ -18,6 +18,7 @@ import type { AccessEntry, AccessStatus } from "@/lib/creators/grantAccess";
 
 const STATUS: Record<AccessStatus, { label: string; variant: "success" | "warning" | "danger" }> = {
   active: { label: "Active", variant: "success" },
+  reconnect_soon: { label: "Reconnect soon", variant: "warning" },
   reconnect_needed: { label: "Reconnect needed", variant: "warning" },
   revoked: { label: "Revoked", variant: "danger" },
 };

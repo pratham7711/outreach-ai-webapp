@@ -1,6 +1,7 @@
 import { createLogger } from "@/lib/observability/logger";
 import { ensureFreshTikTokToken } from "@/lib/platforms/tiktokToken";
 import { ensureFreshInstagramToken } from "@/lib/platforms/instagramToken";
+import { instagramReadTokens, withReadToken } from "@/lib/platforms/instagramReadToken";
 import { ensureFreshYouTubeToken } from "@/lib/platforms/youtubeToken";
 import { fetchTikTokVideos } from "@/lib/platforms/tiktokDisplay";
 import { fetchInstagramAccount, fetchInstagramMedia } from "@/lib/platforms/instagramAccount";
@@ -206,14 +207,15 @@ async function loadPosts(
   }
 
   if (account.platform === "INSTAGRAM") {
-    const token = await ensureFreshInstagramToken(account, orgId);
+    const tokens = await instagramReadTokens(account, orgId);
+    const token = tokens.user ?? tokens.page;
     if (!token) return null;
     /* The IG user id is stored at connect time; resolving it again is the
        fallback for rows written before that column existed. */
     const igUserId =
       account.platformUserId ?? (await fetchInstagramAccount(token))?.igUserId ?? null;
     if (!igUserId) return null;
-    return await fetchInstagramMedia(token, igUserId);
+    return (await withReadToken(tokens, (t) => fetchInstagramMedia(t, igUserId))) ?? null;
   }
 
   if (account.platform === "FACEBOOK") {

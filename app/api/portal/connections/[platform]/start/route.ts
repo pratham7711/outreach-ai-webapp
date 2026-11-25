@@ -78,7 +78,9 @@ export async function GET(
 
   if (isProviderConfigured(platform)) {
     const state = randomBytes(16).toString("hex");
-    const authorizeUrl = buildAuthorizeUrl(platform, state);
+    const authorizeUrl = buildAuthorizeUrl(platform, state, {
+      reauthorize: req.nextUrl.searchParams.get("reauthorize") === "1",
+    });
     if (!authorizeUrl)
       /* This endpoint is reached by a full-page navigation from a Connect
          button, so a JSON body renders as raw text in the address bar with no

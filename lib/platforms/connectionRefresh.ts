@@ -2,7 +2,8 @@ import { db } from "@/lib/db";
 import { createLogger } from "@/lib/observability/logger";
 import type { OAuthPlatform, PlatformEnumValue } from "@/lib/oauth/providers";
 import { ACCOUNT_ORIGINS, isInstagramLoginRow } from "./accountOrigin";
-import { accountStatesFor, recordDisplayName } from "./accountState";
+import { accountStatesFor, markReconnectNeeded, recordDisplayName } from "./accountState";
+import { assessMetaConnection, connectionHealthFor, type LapseStage } from "./connectionHealth";
 import { refreshAccountIdentity } from "./accountSync";
 import { ensureFreshInstagramToken } from "./instagramToken";
 import { ensureFreshInstagramLoginToken } from "./instagramLoginToken";
@@ -42,6 +43,12 @@ export type ConnectionRefreshSummary = {
   identityFailed: number;
   /** Rows left for tomorrow because the time budget ran out. */
   deferred: number;
+  /** Meta connections whose token or data access lapses within the "Reconnect soon" window. */
+  lapsingSoon: number;
+  /** Meta connections marked "Reconnect needed" by this pass: Meta calls the token dead, or it has lapsed. */
+  markedReconnect: number;
+  /** Connections inside the ops-alert window: the cron alerts on these. */
+  lapsing: Array<{ accountId: string; platform: string; lapsesAt: string; stage: LapseStage }>;
 };
 
 /** Which OAuth flow a stored row belongs to, or null for one we cannot refresh. */
@@ -112,6 +119,9 @@ export async function refreshConnectedAccounts(options: {
     noToken: 0,
     identityFailed: 0,
     deferred: 0,
+    lapsingSoon: 0,
+    markedReconnect: 0,
+    lapsing: [],
   };
 
   const rows = await db.creatorSocialAccount.findMany({
@@ -146,6 +156,7 @@ export async function refreshConnectedAccounts(options: {
   if (rows.length === 0) return summary;
 
   const states = await accountStatesFor(rows.map((r) => r.id));
+  const health = await connectionHealthFor(rows.map((r) => r.id));
 
   let next = 0;
   const worker = async () => {
@@ -170,11 +181,43 @@ export async function refreshConnectedAccounts(options: {
       summary.noToken++;
       return;
     }
+    const isMeta = oauthPlatform === "instagram" || oauthPlatform === "facebook";
     try {
-      const token = await freshTokenFor(row, oauthPlatform, creator.orgId);
+      let token = await freshTokenFor(row, oauthPlatform, creator.orgId);
       if (!token) {
+        if (isMeta && row.tokenExpiry && row.tokenExpiry.getTime() <= Date.now()) {
+          if (await markReconnectNeeded(row.id, "token_expired")) summary.markedReconnect++;
+        }
         summary.noToken++;
         return;
+      }
+      if (isMeta) {
+        /* A null tokenExpiry is "unknown", not "never": ask Meta, every day,
+           so a lapse is seen coming rather than discovered when a read fails. */
+        const assessment = await assessMetaConnection(row, token, creator.orgId, health.get(row.id));
+        if (assessment.invalid || assessment.stage === "lapsed") {
+          if (await markReconnectNeeded(row.id, assessment.invalid ? "token_invalid" : "token_expired"))
+            summary.markedReconnect++;
+          summary.noToken++;
+          return;
+        }
+        const known = assessment.facts?.valid ? assessment.facts.expiresAt : null;
+        if (known && known.getTime() !== row.tokenExpiry?.getTime()) {
+          await db.creatorSocialAccount.update({ where: { id: row.id }, data: { tokenExpiry: known } });
+          const wasUnknown = row.tokenExpiry === null;
+          row.tokenExpiry = known;
+          if (wasUnknown) token = (await freshTokenFor(row, oauthPlatform, creator.orgId)) ?? token;
+        }
+        if (assessment.stage !== "ok") {
+          summary.lapsingSoon++;
+          if (assessment.stage === "critical" && assessment.lapsesAt)
+            summary.lapsing.push({
+              accountId: row.id,
+              platform: row.platform,
+              lapsesAt: assessment.lapsesAt.toISOString(),
+              stage: assessment.stage,
+            });
+        }
       }
       const identity = await refreshAccountIdentity(
         oauthPlatform,

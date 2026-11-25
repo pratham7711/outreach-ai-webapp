@@ -43,6 +43,8 @@ type Connection = {
   origin: string | null;
   avatarUrl?: string | null;
   mediaCount?: number | null;
+  /** Meta ends this connection on this date unless the creator reconnects. */
+  reconnectSoonAt?: string | null;
 };
 
 type PublicProfile = { platform: string; handle: string; lastReadAt: string | null };
@@ -202,13 +204,16 @@ function PlatformCard({
   const startHref = business?.available && accounts.length === 0 ? TIKTOK_BUSINESS_START : loginKitHref;
   const comingSoon = capability?.connect === "coming_soon" && !business?.available;
   const anyReconnect = accounts.some((a) => reconnect.has(a.id));
+  const anySoon = !anyReconnect && accounts.some((a) => a.reconnectSoonAt);
   const connected = accounts.length > 0 || businessConnection !== null;
 
   const state: { tone: Tone; label: string } =
     connected
       ? anyReconnect
         ? { tone: "warning", label: "Reconnect needed" }
-        : { tone: "success", label: "Connected" }
+        : anySoon
+          ? { tone: "warning", label: "Reconnect soon" }
+          : { tone: "success", label: "Connected" }
       : publicProfile
         ? { tone: "neutral", label: "Public only" }
         : { tone: "neutral", label: comingSoon ? "Coming soon" : "Not connected" };
@@ -242,6 +247,7 @@ function PlatformCard({
         <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
           {accounts.map((a) => {
             const lapsed = reconnect.has(a.id);
+            const soon = !lapsed && Boolean(a.reconnectSoonAt);
             return (
               <li key={a.id} className="portal-acc-row">
                 <div className="portal-acc-row-main">
@@ -272,6 +278,11 @@ function PlatformCard({
                         Reconnect
                       </ButtonLink>
                     )}
+                    {soon && (
+                      <ButtonLink href={`${loginKitHref}&reauthorize=1`} external>
+                        Reconnect
+                      </ButtonLink>
+                    )}
                     <Button variant="ghost" size="sm" loading={disconnectingId === a.id} onClick={() => onDisconnect(a)}>
                       Disconnect
                     </Button>
@@ -280,6 +291,11 @@ function PlatformCard({
                 {lapsed && (
                   <p style={{ fontSize: 13, color: "var(--cc-text)", margin: "8px 0 0" }}>
                     Access lapsed. Numbers have stopped updating.
+                  </p>
+                )}
+                {soon && a.reconnectSoonAt && (
+                  <p style={{ fontSize: 13, color: "var(--cc-text)", margin: "8px 0 0" }}>
+                    Access ends {formatDay(a.reconnectSoonAt)}. Reconnect to keep numbers updating.
                   </p>
                 )}
               </li>

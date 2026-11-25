@@ -7,6 +7,7 @@ import { resolveCapabilities } from "@/lib/capabilities";
 import { findLinkedCreatorsForHandle } from "@/lib/portal/creatorLink";
 import { findCreatorForPortalUser } from "@/lib/portal/creatorLookup";
 import { accountStatesFor } from "@/lib/platforms/accountState";
+import { lapsingConnections } from "@/lib/platforms/connectionHealth";
 import { disconnectSocialAccount } from "@/lib/portal/disconnect";
 
 export async function GET() {
@@ -51,6 +52,9 @@ export async function GET() {
     /* Empty when CreatorAccountState is not there yet, which reads as "no
        mark, no display name" — every account exactly as it was listed before. */
     const states = await accountStatesFor(accounts.map((a) => a.id));
+    /* When Meta will end each connection, for those inside the "Reconnect
+       soon" window. Empty while CreatorConnectionHealth is not there yet. */
+    const lapsing = await lapsingConnections(accounts.map((a) => a.id));
 
     return NextResponse.json({
       accounts: accounts.map((a) => ({
@@ -78,6 +82,9 @@ export async function GET() {
         /* Google refused this connection's refresh for good (invalid_grant).
            The row is kept; the creator reconnects to clear it. */
         reconnectNeeded: Boolean(states.get(a.id)?.reconnectNeededAt),
+        /* Still working, but Meta ends it on this date unless the creator
+           reconnects first. Never set for a connection already needing one. */
+        reconnectSoonAt: states.get(a.id)?.reconnectNeededAt ? null : (lapsing.get(a.id)?.toISOString() ?? null),
         /* TikTok's display_name, where one was recorded; `handle` stays the
            username. */
         displayName: states.get(a.id)?.displayName ?? null,

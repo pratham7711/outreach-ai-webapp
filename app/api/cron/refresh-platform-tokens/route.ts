@@ -12,6 +12,7 @@ import {
   refreshConnectedAccounts,
   type ConnectionRefreshSummary,
 } from "@/lib/platforms/connectionRefresh";
+import { OPS_ALERT_DAYS } from "@/lib/platforms/connectionHealth";
 import { cronRoute } from "@/lib/ops/cronRoute";
 import {
   refreshAgencyCredentials,
@@ -76,6 +77,7 @@ async function cronHandler(request: NextRequest) {
     await alertFor(instagram);
     const agencies = await refreshAgencyAccounts(force, startedAt + AGENCY_BUDGET_MS);
     const connections = await refreshCreatorConnections(startedAt + CONNECTION_BUDGET_MS);
+    await alertLapsingConnections(connections);
     const youtubeRevoked = await forgetRevokedYouTube();
     return NextResponse.json({
       instagram,
@@ -124,6 +126,27 @@ async function refreshCreatorConnections(
     }).catch(() => undefined);
     return { error: "connection refresh failed" };
   }
+}
+
+/**
+ * One aggregated alert when creator connections are inside the last days
+ * before Meta ends them (lib/platforms/connectionHealth, OPS_ALERT_DAYS). The
+ * creators already see "Reconnect soon" in the portal from 14 days out; this
+ * is for the case where nobody has acted by 3 days. Ids only, no creator data.
+ */
+async function alertLapsingConnections(connections: ConnectionRefreshSummary | { error: string }): Promise<void> {
+  if ("error" in connections || !connections.lapsing?.length) return;
+  const earliest = connections.lapsing.map((l) => l.lapsesAt).sort()[0];
+  await alertOps({
+    source: "cron/refresh-platform-tokens",
+    title: `${connections.lapsing.length} creator connection(s) lapse within ${OPS_ALERT_DAYS} days`,
+    severity: "warn",
+    facts: {
+      earliestLapse: earliest,
+      accounts: connections.lapsing.map((l) => `${l.platform}:${l.accountId}`),
+      meaning: "Meta will end these connections unless the creator reconnects; the portal already shows Reconnect soon",
+    },
+  }).catch(() => undefined);
 }
 
 /**

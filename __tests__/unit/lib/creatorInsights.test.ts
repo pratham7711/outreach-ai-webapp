@@ -3,6 +3,10 @@ import { buildPlatformInsights, type InsightsAccount } from "@/lib/portal/creato
 jest.mock("@/lib/platforms/instagramToken", () => ({
   ensureFreshInstagramToken: jest.fn().mockResolvedValue("ig-token"),
 }));
+jest.mock("@/lib/platforms/connectionHealth", () => ({
+  connectionHealthFor: jest.fn().mockResolvedValue(new Map()),
+  decryptPageToken: jest.fn(),
+}));
 jest.mock("@/lib/platforms/tiktokToken", () => ({ ensureFreshTikTokToken: jest.fn() }));
 jest.mock("@/lib/platforms/youtubeToken", () => ({ ensureFreshYouTubeToken: jest.fn() }));
 jest.mock("@/lib/platforms/threadsToken", () => ({ ensureFreshThreadsToken: jest.fn() }));

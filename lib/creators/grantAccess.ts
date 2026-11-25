@@ -3,7 +3,7 @@ import { REVOKE_REASONS, type GrantRecord } from "@/lib/creators/grants";
 /* The Access panel's view of an org's grants for one creator
    (app/api/creators/[id]/grants, components/creators/CreatorAccess). */
 
-export type AccessStatus = "active" | "reconnect_needed" | "revoked";
+export type AccessStatus = "active" | "reconnect_soon" | "reconnect_needed" | "revoked";
 
 export type AccessEntry = {
   id: string;
@@ -30,6 +30,7 @@ export function entriesToShow(
   grants: GrantRecord[],
   liveConnectionIds: Set<string>,
   reconnectNeeded: Set<string>,
+  reconnectSoon: Set<string> = new Set(),
 ): AccessEntry[] {
   const byPlatform = new Map<string, GrantRecord[]>();
   for (const g of grants) byPlatform.set(g.platform, [...(byPlatform.get(g.platform) ?? []), g]);
@@ -51,7 +52,11 @@ export function entriesToShow(
         status = "revoked";
         revokeReason = "connection_removed";
       } else {
-        status = reconnectNeeded.has(g.connectionId) ? "reconnect_needed" : "active";
+        status = reconnectNeeded.has(g.connectionId)
+          ? "reconnect_needed"
+          : reconnectSoon.has(g.connectionId)
+            ? "reconnect_soon"
+            : "active";
       }
       out.push({
         id: g.id,

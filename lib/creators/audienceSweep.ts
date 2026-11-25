@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { ACCOUNT_ORIGINS } from "@/lib/platforms/accountOrigin";
 import { InstagramAuthError } from "@/lib/platforms/instagram";
-import { ensureFreshInstagramToken } from "@/lib/platforms/instagramToken";
+import { instagramReadTokens, withReadToken } from "@/lib/platforms/instagramReadToken";
 import { fetchInstagramAccount } from "@/lib/platforms/instagramAccount";
 import { emptyMix, readInstagramAudience } from "@/lib/platforms/instagramAccountInsights";
 import { connectionForRead } from "./connectionGate";
@@ -84,7 +84,8 @@ export async function sweepCreatorAudience({
         result.skipped++;
         continue;
       }
-      const token = await ensureFreshInstagramToken(read.connection, c.orgId);
+      const tokens = await instagramReadTokens(read.connection, c.orgId);
+      const token = tokens.user ?? tokens.page;
       if (!token) {
         result.skipped++;
         continue;
@@ -96,7 +97,11 @@ export async function sweepCreatorAudience({
       }
       /* Saved even when Instagram described nothing (under 100 followers), so
          the account waits a week before it is asked again. */
-      const readings = await readInstagramAudience(token, igUserId);
+      const readings = (await withReadToken(
+        tokens,
+        (t) => readInstagramAudience(t, igUserId),
+        (rs) => rs.every((r) => emptyMix(r.mix)),
+      ))!;
       const described = readings.some((r) => !emptyMix(r.mix));
       if (!described) result.empty++;
       if (!dryRun) {
