@@ -4,7 +4,7 @@
  * node, not jsdom: listFilters imports the Prisma client for its generated
  * types, and the Prisma runtime needs TextEncoder, which jsdom does not provide.
  */
-import { countCreatorFilters, creatorWhere, dateRange, readCreatorFilters } from "@/lib/listFilters";
+import { countCreatorFilters, creatorWhere, dateRange, readCreatorFilters, rosterFilters } from "@/lib/listFilters";
 import { CREATOR_PLATFORM_TABS } from "@/lib/creators/platformTabs";
 
 const anyAccountOn = (platforms: string[]) => ({
@@ -61,6 +61,22 @@ describe("creatorWhere: who put the creator on the roster", () => {
   it("ignores an unknown source rather than narrowing to nothing", () => {
     expect(readCreatorFilters({ source: "twitter" }).source).toBeUndefined();
     expect(countCreatorFilters(readCreatorFilters({ source: "manual" }))).toBe(1);
+  });
+});
+
+describe("rosterFilters: only the Manual entries tab lists manual entries", () => {
+  it("narrows All and the platform tabs to creators who signed up", () => {
+    expect(creatorWhere("org-1", rosterFilters(readCreatorFilters({})))).toMatchObject({
+      AND: expect.arrayContaining([{ creatorUserId: { not: null } }]),
+    });
+    expect(rosterFilters(readCreatorFilters({ platform: "TIKTOK" }))).toMatchObject({ platform: ["TIKTOK"], source: "signed_up" });
+  });
+
+  it("leaves the Manual entries tab listing manual entries", () => {
+    expect(rosterFilters(readCreatorFilters({ source: "manual" })).source).toBe("manual");
+    expect(creatorWhere("org-1", rosterFilters(readCreatorFilters({ source: "manual" })))).toMatchObject({
+      AND: expect.arrayContaining([{ creatorUserId: null }]),
+    });
   });
 });
 

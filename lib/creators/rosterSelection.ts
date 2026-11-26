@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { creatorOrderBy, creatorWhere, readCreatorFilters } from "@/lib/listFilters";
+import { creatorOrderBy, creatorWhere, readCreatorFilters, rosterFilters } from "@/lib/listFilters";
 import { readCreatorSort } from "@/lib/listParams";
 import { rosterTablesReady } from "@/lib/creators/rosterTables";
 import { pinsUnknownLast, splitByKnownFollowers, UNKNOWN_FOLLOWERS_ORDER } from "@/lib/creators/rosterSort";
@@ -36,7 +36,7 @@ export async function resolveRosterSelection(orgId: string, selection: RosterSel
   }
 
   const sp = Object.fromEntries(new URLSearchParams(selection.query.replace(/^\?/, "")));
-  const where = creatorWhere(orgId, readCreatorFilters(sp), { roster: await rosterTablesReady() });
+  const where = creatorWhere(orgId, rosterFilters(readCreatorFilters(sp)), { roster: await rosterTablesReady() });
   const count = await db.creator.count({ where });
   if (count > MAX_BULK_CREATORS) {
     return { ok: false, status: 413, error: `That is ${count} creators; narrow the filters to ${MAX_BULK_CREATORS} or fewer.` };

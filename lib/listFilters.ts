@@ -391,6 +391,15 @@ export function creatorSourceWhere(source: CreatorSource): Prisma.CreatorWhereIn
   return source === "manual" ? { creatorUserId: null } : { creatorUserId: { not: null } };
 }
 
+/**
+ * The roster's tabs. Manual entries lists the creators someone added by hand,
+ * and every other tab only the ones who signed up, so a manual entry is never
+ * listed outside its own tab. Pickers and /api/creators keep every creator.
+ */
+export function rosterFilters(f: CreatorFilters): CreatorFilters {
+  return f.source ? f : { ...f, source: "signed_up" };
+}
+
 export function countCreatorFilters(f: CreatorFilters): number {
   return (
     (f.platform.length ? 1 : 0) +

@@ -6,7 +6,7 @@ import { NOT_REMOVED } from "@/lib/posts/removed";
 import { deriveAverageViewsMeasured, deriveCampaignCounts } from "@/lib/creatorMetrics";
 import CreatorsClient from "./CreatorsClient";
 import { CREATORS_PAGE_SIZE } from "@/lib/listPageSize";
-import { CREATOR_FILTER_KEYS, countCreatorFilters, creatorOrderBy, creatorWhere, readCreatorFilters } from "@/lib/listFilters";
+import { CREATOR_FILTER_KEYS, countCreatorFilters, creatorOrderBy, creatorWhere, readCreatorFilters, rosterFilters } from "@/lib/listFilters";
 import { firstParam, readCreatorSort } from "@/lib/listParams";
 import { rosterTablesReady } from "@/lib/creators/rosterTables";
 import { isFetchableAvatarUrl, storedAvatarVersions } from "@/lib/creators/avatarStore";
@@ -48,18 +48,18 @@ export default async function CreatorsPage({
   const filters = readCreatorFilters(sp);
   const sort = readCreatorSort(sp);
   const roster = await rosterTablesReady();
-  const where = creatorWhere(orgId, filters, { roster });
+  const where = creatorWhere(orgId, rosterFilters(filters), { roster });
   // Each tab counts what clicking it would list: every filter and the search,
   // with that tab's platform in place of the one picked. A creator with
   // accounts on two platforms is in both tabs, so All is its own count of
   // creators rather than the tabs summed -- and it is the caption's number
   // whenever All is the tab in view. The tabs used to leave the search out, so
   // a search listing 341 creators sat under chips still reading 2,569.
-  // The Manual entries tab is the last one: picking a platform tab leaves it,
-  // and picking it leaves the platform tab, so each counts without the other.
+  // The Manual entries tab is the last one and the only one that lists manual
+  // entries; All and the platform tabs count creators who signed up.
   const tabCounts = Promise.all([
     ...[[], ...CREATOR_PLATFORM_TABS.map((p) => [p])].map((platform) =>
-      db.creator.count({ where: creatorWhere(orgId, { ...filters, platform, source: undefined }, { roster }) }),
+      db.creator.count({ where: creatorWhere(orgId, { ...filters, platform, source: "signed_up" }, { roster }) }),
     ),
     db.creator.count({ where: creatorWhere(orgId, { ...filters, platform: [], source: "manual" }, { roster }) }),
   ]);

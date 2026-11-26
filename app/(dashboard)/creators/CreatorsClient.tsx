@@ -904,7 +904,18 @@ export default function CreatorsClient({
       )}
 
       <div {...pendingListProps(pending)}>
-      {filtered.length === 0 && !anyFilter ? (
+      {filtered.length === 0 && !anyFilter && (platformCounts[MANUAL_TAB] ?? 0) > 0 ? (
+        <EmptyState
+          icon={<Users size={32} color="var(--cc-text-subtle)" />}
+          title="No creators have signed up yet"
+          description="Creators who sign up through your join link are listed here."
+          action={
+            <Button variant="secondary" onClick={() => push({ platform: null, source: "manual", page: null })} data-testid="roster-show-manual">
+              Show manual entries ({formatFull(platformCounts[MANUAL_TAB] ?? 0)})
+            </Button>
+          }
+        />
+      ) : filtered.length === 0 && !anyFilter ? (
         <EmptyState
           icon={<Users size={32} color="var(--cc-text-subtle)" />}
           title="No creators yet"
