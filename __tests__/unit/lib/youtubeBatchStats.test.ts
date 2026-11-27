@@ -268,3 +268,36 @@ describe("OpsQuotaDay DDL", () => {
     }
   });
 });
+
+describe("videos.list is never answered from the fetch cache", () => {
+  /* With next.revalidate, Next keeps one cached answer per URL and, once it is
+     stale, still returns it while refreshing in the background. The cron asks
+     in chunks and Sync now asks for one id, so a refresh could be handed a
+     days-old count and write it over the cron's newer one. */
+  function captureInits() {
+    const inits: RequestInit[] = [];
+    global.fetch = jest.fn(async (input: string, init?: RequestInit) => {
+      if (!new URL(input).pathname.endsWith("/videos")) return reply(404, "");
+      inits.push(init ?? {});
+      const ids = (new URL(input).searchParams.get("id") ?? "").split(",").filter(Boolean);
+      return reply(200, { items: ids.map((id) => ({ id, statistics: { viewCount: "9" }, snippet: {} })) });
+    }) as unknown as typeof fetch;
+    return inits;
+  }
+
+  it("one post", async () => {
+    const inits = captureInits();
+    await fetchYouTubeMetrics("vidAAAAAAA1");
+    expect(inits).toHaveLength(1);
+    expect(inits[0].cache).toBe("no-store");
+    expect(inits[0].next).toBeUndefined();
+  });
+
+  it("the cron's batches", async () => {
+    const inits = captureInits();
+    await fetchYouTubeMetricsBatch(["vidAAAAAAA1", "vidAAAAAAA2"]);
+    expect(inits).toHaveLength(1);
+    expect(inits[0].cache).toBe("no-store");
+    expect(inits[0].next).toBeUndefined();
+  });
+});

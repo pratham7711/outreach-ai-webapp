@@ -478,7 +478,7 @@ async function fetchYouTubeMetricsPlanA(videoId: string): Promise<Partial<PostMe
   try {
     const res = await fetch(
       `https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${videoId}&key=${apiKey}`,
-      { next: { revalidate: 3600 }, signal: fetchTimeoutSignal() }
+      { cache: "no-store", signal: fetchTimeoutSignal() }
     );
     if (!res.ok) {
       const reason = await res.text().catch(() => "");
@@ -597,7 +597,7 @@ export async function fetchYouTubeMetricsBatch(videoIds: string[]): Promise<Map<
         `https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${chunk
           .map((id) => encodeURIComponent(id))
           .join(",")}&key=${apiKey}`,
-        { next: { revalidate: 3600 }, signal: fetchTimeoutSignal() },
+        { cache: "no-store", signal: fetchTimeoutSignal() },
       );
       if (!res.ok) {
         const reason = await res.text().catch(() => "");
@@ -1310,7 +1310,7 @@ async function fetchTikTokMetricsSocialKit(url: string): Promise<Partial<PostMet
       apiKey,
     )}&url=${encodeURIComponent(url)}`;
     const res = await fetch(endpoint, {
-      next: { revalidate: 3600 },
+      cache: "no-store",
       signal: fetchTimeoutSignal(15000),
     });
     if (!res.ok) {
